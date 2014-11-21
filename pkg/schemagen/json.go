@@ -1,4 +1,4 @@
-package main
+package schemagen
 
 type JSONSchema struct {
 	ID          string                            `json:"id"`
@@ -27,12 +27,17 @@ type JSONReferenceDescriptor struct {
 	Reference string `json:"$ref"`
 }
 
+type JavaTypeDescriptor struct {
+	JavaType string `json:"javaType"`
+}
+
 type JSONPropertyDescriptor struct {
 	*JSONDescriptor
 	*JSONReferenceDescriptor
 	*JSONObjectDescriptor
 	*JSONArrayDescriptor
 	*JSONMapDescriptor
+	*JavaTypeDescriptor
 }
 
 type JSONMapDescriptor struct {
