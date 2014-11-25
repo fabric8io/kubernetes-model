@@ -29,6 +29,7 @@ type Schema struct {
 	DeploymentList            deployapi.DeploymentList
 	DeploymentConfigList      deployapi.DeploymentConfigList
 	RouteList                 routeapi.RouteList
+	ContainerStatus           kapi.ContainerStatus
 }
 
 func main() {
