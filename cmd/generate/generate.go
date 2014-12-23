@@ -34,7 +34,7 @@ type Schema struct {
 
 func main() {
 	packages := []schemagen.PackageDescriptor{
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api", "com.openshift.client.kubernetes", "kubernetes_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta2", "com.openshift.client.kubernetes", "kubernetes_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/util", "com.openshift.client.kubernetes.util", "kubernetes_util_"},
 		{"github.com/fsouza/go-dockerclient", "com.openshift.client.dockerclient", "docker_"},
 		{"github.com/openshift/origin/pkg/build/api", "com.openshift.client.openshift.build", "os_build_"},

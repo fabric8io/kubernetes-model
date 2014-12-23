@@ -101,7 +101,7 @@ func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
 	}
 
 	s := JSONSchema{
-		ID:     "http://openshift.com/origin/v3/" + t.Name() + "#",
+		ID:     "http://fabric8.io/fabric8/v2/" + t.Name() + "#",
 		Schema: "http://json-schema.org/schema#",
 		JSONDescriptor: JSONDescriptor{
 			Type: "object",
@@ -235,7 +235,7 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 	return props
 }
 func (g *schemaGenerator) generateObjectDescriptor(t reflect.Type) *JSONObjectDescriptor {
-	desc := JSONObjectDescriptor{}
+	desc := JSONObjectDescriptor{AdditionalProperties: true}
 	desc.Properties = g.getStructProperties(t)
 	return &desc
 }
