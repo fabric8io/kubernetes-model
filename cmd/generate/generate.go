@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
+	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta2"
 	kutil "github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 
 	buildapi "github.com/openshift/origin/pkg/build/api"
@@ -34,13 +34,15 @@ type Schema struct {
 
 func main() {
 	packages := []schemagen.PackageDescriptor{
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api", "com.openshift.client.kubernetes", "kubernetes_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/util", "com.openshift.client.kubernetes.util", "kubernetes_util_"},
-		{"github.com/fsouza/go-dockerclient", "com.openshift.client.dockerclient", "docker_"},
-		{"github.com/openshift/origin/pkg/build/api", "com.openshift.client.openshift.build", "os_build_"},
-		{"github.com/openshift/origin/pkg/deploy/api", "com.openshift.client.openshift.deploy", "os_deploy_"},
-		{"github.com/openshift/origin/pkg/image/api", "com.openshift.client.openshift.image", "os_image_"},
-		{"github.com/openshift/origin/pkg/route/api", "com.openshift.client.openshift.route", "os_route_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta2", "io.fabric8.kubernetes.api.model", "kubernetes_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model", "kubernetes_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/util", "io.fabric8.kubernetes.api.model", "kubernetes_util_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors", "io.fabric8.kubernetes.api.model", "kubernetes_"},
+		{"github.com/fsouza/go-dockerclient", "io.fabric8.docker.api.model", "docker_"},
+		{"github.com/openshift/origin/pkg/build/api", "io.fabric8.openshift.api.model", "os_build_"},
+		{"github.com/openshift/origin/pkg/deploy/api", "io.fabric8.openshift.api.model", "os_deploy_"},
+		{"github.com/openshift/origin/pkg/image/api", "io.fabric8.openshift.api.model", "os_image_"},
+		{"github.com/openshift/origin/pkg/route/api", "io.fabric8.openshift.api.model", "os_route_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{
