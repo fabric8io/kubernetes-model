@@ -58,5 +58,7 @@ func main() {
 	b, _ := json.Marshal(&schema)
 	result := string(b)
 	result = strings.Replace(result, "\"additionalProperty\":", "\"additionalProperties\":", -1)
+	result = strings.Replace(result, "\"apiVersion\":{\"type\":\"string\"}", "\"apiVersion\":{\"type\":\"string\",\"default\":\"v1beta2\"}", -1)
+
 	fmt.Println(result)
 }
