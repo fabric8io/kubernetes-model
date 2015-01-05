@@ -14,6 +14,8 @@ import (
 	deployapi "github.com/openshift/origin/pkg/deploy/api"
 	imageapi "github.com/openshift/origin/pkg/image/api"
 	routeapi "github.com/openshift/origin/pkg/route/api"
+	configapi "github.com/openshift/origin/pkg/config/api"
+	templateapi "github.com/openshift/origin/pkg/template/api"
 
 	"github.com/csrwng/origin-schema-generator/pkg/schemagen"
 )
@@ -30,11 +32,14 @@ type Schema struct {
 	DeploymentConfigList      deployapi.DeploymentConfigList
 	RouteList                 routeapi.RouteList
 	ContainerStatus           kapi.ContainerStatus
+	Config                	  configapi.Config
+	Template                  templateapi.Template
 }
 
 func main() {
 	packages := []schemagen.PackageDescriptor{
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta2", "io.fabric8.kubernetes.api.model", "kubernetes_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime", "io.fabric8.kubernetes.api.model", "kubernetes_runtime_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model", "kubernetes_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/util", "io.fabric8.kubernetes.api.model", "kubernetes_util_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors", "io.fabric8.kubernetes.api.model", "kubernetes_"},
@@ -43,6 +48,8 @@ func main() {
 		{"github.com/openshift/origin/pkg/deploy/api", "io.fabric8.openshift.api.model", "os_deploy_"},
 		{"github.com/openshift/origin/pkg/image/api", "io.fabric8.openshift.api.model", "os_image_"},
 		{"github.com/openshift/origin/pkg/route/api", "io.fabric8.openshift.api.model", "os_route_"},
+		{"github.com/openshift/origin/pkg/config/api", "io.fabric8.openshift.api.model", "os_config_"},
+		{"github.com/openshift/origin/pkg/template/api", "io.fabric8.openshift.api.model", "os_template_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{
