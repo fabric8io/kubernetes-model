@@ -26,6 +26,8 @@ type Schema struct {
 	ServiceList               kapi.ServiceList
 	Endpoints                 kapi.Endpoints
 	EndpointsList             kapi.EndpointsList
+	Minion                    kapi.Minion
+	MinionList                kapi.MinionList
 	//StatusError               kerrors.StatusError
 	BuildList                 buildapi.BuildList
 	BuildConfigList           buildapi.BuildConfigList
