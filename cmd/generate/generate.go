@@ -9,7 +9,7 @@ import (
 
 	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta2"
 	kutil "github.com/GoogleCloudPlatform/kubernetes/pkg/util"
-
+    //kerror "github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
 	buildapi "github.com/openshift/origin/pkg/build/api"
 	deployapi "github.com/openshift/origin/pkg/deploy/api"
 	imageapi "github.com/openshift/origin/pkg/image/api"
@@ -24,6 +24,11 @@ type Schema struct {
 	PodList                   kapi.PodList
 	ReplicationControllerList kapi.ReplicationControllerList
 	ServiceList               kapi.ServiceList
+	Endpoints                 kapi.Endpoints
+	EndpointsList             kapi.EndpointsList
+	Minion                    kapi.Minion
+	MinionList                kapi.MinionList
+	//StatusError               kerrors.StatusError
 	BuildList                 buildapi.BuildList
 	BuildConfigList           buildapi.BuildConfigList
 	ImageList                 imageapi.ImageList
