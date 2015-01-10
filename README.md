@@ -28,10 +28,10 @@ Update dependency API's
 
 Following [godep](https://github.com/tools/godep/blob/master/Readme.md)   
 
-To update Kubernetes   
+___To update Kubernetes___   
 go get -u github.com/GoogleCloudPlatform/kubernetes/   
 godep update github.com/GoogleCloudPlatform/kubernetes/...   
 
-To update Openshift   
+___To update Openshift___   
 go get -u github.com/openshift/origin/   
 godep update github.com/openshift/origin/...   
