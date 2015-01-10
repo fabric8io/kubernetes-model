@@ -7,8 +7,8 @@ API resources in Openshift Origin.
 Pre-requisits
 -------------
 
-Install [go](https://golang.org/doc/install) 
-Install [godep](https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/devel/development.md#godep-and-dependency-management)
+Install [go](https://golang.org/doc/install)   
+Install [godep](https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/devel/development.md#godep-and-dependency-management)   
 
 Building
 --------
@@ -26,12 +26,12 @@ You should now be able to view the generated schema in `kube-schema.json`
 Update dependency API's
 -----------------------
 
-Following [godep](https://github.com/tools/godep/blob/master/Readme.md)
+Following [godep](https://github.com/tools/godep/blob/master/Readme.md)   
 
-To update Kubernetes
-go get -u github.com/GoogleCloudPlatform/kubernetes/
-godep update github.com/GoogleCloudPlatform/kubernetes/...
+To update Kubernetes   
+go get -u github.com/GoogleCloudPlatform/kubernetes/   
+godep update github.com/GoogleCloudPlatform/kubernetes/...   
 
-To update Openshift
-go get -u github.com/openshift/origin/
-godep update github.com/openshift/origin/...
+To update Openshift   
+go get -u github.com/openshift/origin/   
+godep update github.com/openshift/origin/...   
