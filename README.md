@@ -7,29 +7,31 @@ API resources in Openshift Origin.
 Pre-requisits
 -------------
 
-Have an up-to-date cloned copy of Kuberenetes following the [Development Guide](https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/devel/development.md#development-guide) as the project needs to reside in the correct Go Workspace folder structure.  Ensure that [godep](https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/devel/development.md#godep-and-dependency-management) is installed and the steps in [Using godep](https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/devel/development.md#using-godep) have been executed.  For reference when you 'Set up your GOPATH' you should choose Option A.
-
-Create a `csrwng` directory under the go working structure and clone this project into it.  You should have a folder structure similar to below..
-
-
-> ~/go/src/github.com   
-> > GoogleCloudPlatform  
-> > > kubernetes  
-
-> > csrwng  
-
-> > > origin-schema-generator  
-
-
+Install [go](https://golang.org/doc/install) 
+Install [godep](https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/devel/development.md#godep-and-dependency-management)
 
 Building
 --------
-To build, run:  
+To build, clone repo and run:  
 
 ```
-cd origin-schema-generator  
+cd origin-schema-generator
+godep restore
 godep go build ./cmd/generate/generate.go  
-generate > kube-schema.json  
+./generate > kube-schema.json  
 ```
 
 You should now be able to view the generated schema in `kube-schema.json`
+
+Update dependency API's
+-----------------------
+
+Following [godep](https://github.com/tools/godep/blob/master/Readme.md)
+
+To update Kubernetes
+go get -u github.com/GoogleCloudPlatform/kubernetes/
+godep update github.com/GoogleCloudPlatform/kubernetes/...
+
+To update Openshift
+go get -u github.com/openshift/origin/
+godep update github.com/openshift/origin/...
