@@ -214,7 +214,7 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 		}
 		name := getFieldName(field)
 		prop := g.getPropertyDescriptor(field.Type)
-		if field.Anonymous {
+		if field.Anonymous && field.Type.Kind() == reflect.Struct {
 			var newProps map[string]JSONPropertyDescriptor
 			if prop.JSONReferenceDescriptor != nil {
 				pType := field.Type

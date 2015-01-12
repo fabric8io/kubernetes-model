@@ -33,15 +33,22 @@ func ValidateBuildConfig(config *buildapi.BuildConfig) errs.ValidationErrorList 
 
 func validateBuildParameters(params *buildapi.BuildParameters) errs.ValidationErrorList {
 	allErrs := errs.ValidationErrorList{}
+	isCustomBuild := params.Strategy.Type == buildapi.CustomBuildStrategyType
+	// Validate 'source' and 'output' for all build types except Custom build
+	// where they are optional and validated only if present.
+	if !isCustomBuild || (isCustomBuild && len(params.Source.Type) != 0) {
+		allErrs = append(allErrs, validateSource(&params.Source).Prefix("source")...)
 
-	allErrs = append(allErrs, validateSource(&params.Source).Prefix("source")...)
+		if params.Revision != nil {
+			allErrs = append(allErrs, validateRevision(params.Revision).Prefix("revision")...)
+		}
+	}
 
-	if params.Revision != nil {
-		allErrs = append(allErrs, validateRevision(params.Revision).Prefix("revision")...)
+	if !isCustomBuild || (isCustomBuild && len(params.Output.ImageTag) != 0) {
+		allErrs = append(allErrs, validateOutput(&params.Output).Prefix("output")...)
 	}
 
 	allErrs = append(allErrs, validateStrategy(&params.Strategy).Prefix("strategy")...)
-	allErrs = append(allErrs, validateOutput(&params.Output).Prefix("output")...)
 
 	return allErrs
 }
@@ -64,7 +71,7 @@ func validateGitSource(git *buildapi.GitBuildSource) errs.ValidationErrorList {
 	if len(git.URI) == 0 {
 		allErrs = append(allErrs, errs.NewFieldRequired("uri", git.URI))
 	} else if !isValidURL(git.URI) {
-		allErrs = append(allErrs, errs.NewFieldInvalid("uri", git.URI))
+		allErrs = append(allErrs, errs.NewFieldInvalid("uri", git.URI, "uri is not a valid url"))
 	}
 	return allErrs
 }
@@ -94,8 +101,13 @@ func validateStrategy(strategy *buildapi.BuildStrategy) errs.ValidationErrorList
 		}
 	case buildapi.DockerBuildStrategyType:
 		// DockerStrategy is currently optional
+	case buildapi.CustomBuildStrategyType:
+		// CustomBuildStrategy requires 'image' to be specified in JSON
+		if len(strategy.CustomStrategy.Image) == 0 {
+			allErrs = append(allErrs, errs.NewFieldRequired("image", strategy.CustomStrategy.Image))
+		}
 	default:
-		allErrs = append(allErrs, errs.NewFieldInvalid("type", strategy.Type))
+		allErrs = append(allErrs, errs.NewFieldInvalid("type", strategy.Type, "type is not in the enumerated list"))
 	}
 
 	return allErrs
@@ -103,8 +115,8 @@ func validateStrategy(strategy *buildapi.BuildStrategy) errs.ValidationErrorList
 
 func validateSTIStrategy(strategy *buildapi.STIBuildStrategy) errs.ValidationErrorList {
 	allErrs := errs.ValidationErrorList{}
-	if len(strategy.BuilderImage) == 0 {
-		allErrs = append(allErrs, errs.NewFieldRequired("builderImage", strategy.BuilderImage))
+	if len(strategy.Image) == 0 {
+		allErrs = append(allErrs, errs.NewFieldRequired("image", strategy.Image))
 	}
 	return allErrs
 }
@@ -153,7 +165,7 @@ func validateTriggerPresence(params map[buildapi.BuildTriggerType]bool, t builda
 	allErrs := errs.ValidationErrorList{}
 	for triggerType, present := range params {
 		if triggerType != t && present {
-			allErrs = append(allErrs, errs.NewFieldInvalid(string(triggerType), ""))
+			allErrs = append(allErrs, errs.NewFieldInvalid(string(triggerType), "", "triggerType wasn't found"))
 		}
 	}
 	return allErrs

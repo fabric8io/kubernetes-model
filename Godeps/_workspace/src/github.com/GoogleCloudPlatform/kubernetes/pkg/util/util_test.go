@@ -21,40 +21,27 @@ import (
 	"reflect"
 	"testing"
 
-	"gopkg.in/v1/yaml"
+	"github.com/ghodss/yaml"
 )
 
-type FakeTypeMeta struct {
-	ID string
-}
-type FakePod struct {
-	FakeTypeMeta `json:",inline" yaml:",inline"`
-	Labels       map[string]string
-	Int          int
-	Str          string
-}
+func TestUntil(t *testing.T) {
+	ch := make(chan struct{})
+	close(ch)
+	Until(func() {
+		t.Fatal("should not have been invoked")
+	}, 0, ch)
 
-func TestEncodeJSON(t *testing.T) {
-	pod := FakePod{
-		FakeTypeMeta: FakeTypeMeta{ID: "foo"},
-		Labels: map[string]string{
-			"foo": "bar",
-			"baz": "blah",
-		},
-		Int: -6,
-		Str: "a string",
-	}
-
-	body := EncodeJSON(pod)
-
-	expectedBody, err := json.Marshal(pod)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-
-	if string(expectedBody) != body {
-		t.Errorf("JSON doesn't match.  Expected %s, saw %s", expectedBody, body)
-	}
+	ch = make(chan struct{})
+	called := make(chan struct{})
+	go func() {
+		Until(func() {
+			called <- struct{}{}
+		}, 0, ch)
+		close(called)
+	}()
+	<-called
+	close(ch)
+	<-called
 }
 
 func TestHandleCrash(t *testing.T) {
@@ -87,7 +74,7 @@ func TestNewIntOrStringFromString(t *testing.T) {
 }
 
 type IntOrStringHolder struct {
-	IOrS IntOrString `json:"val" yaml:"val"`
+	IOrS IntOrString `json:"val"`
 }
 
 func TestIntOrStringUnmarshalYAML(t *testing.T) {
@@ -229,5 +216,50 @@ func TestCompileRegex(t *testing.T) {
 	}
 	if regexes[1].MatchString("not startingWithMe should fail") {
 		t.Errorf("Wrong regex returned: '%v': %v", uncompiledRegexes[1], regexes[1])
+	}
+}
+
+func TestAllPtrFieldsNil(t *testing.T) {
+	testCases := []struct {
+		obj      interface{}
+		expected bool
+	}{
+		{struct{}{}, true},
+		{struct{ Foo int }{12345}, true},
+		{&struct{ Foo int }{12345}, true},
+		{struct{ Foo *int }{nil}, true},
+		{&struct{ Foo *int }{nil}, true},
+		{struct {
+			Foo int
+			Bar *int
+		}{12345, nil}, true},
+		{&struct {
+			Foo int
+			Bar *int
+		}{12345, nil}, true},
+		{struct {
+			Foo *int
+			Bar *int
+		}{nil, nil}, true},
+		{&struct {
+			Foo *int
+			Bar *int
+		}{nil, nil}, true},
+		{struct{ Foo *int }{new(int)}, false},
+		{&struct{ Foo *int }{new(int)}, false},
+		{struct {
+			Foo *int
+			Bar *int
+		}{nil, new(int)}, false},
+		{&struct {
+			Foo *int
+			Bar *int
+		}{nil, new(int)}, false},
+		{(*struct{})(nil), true},
+	}
+	for i, tc := range testCases {
+		if AllPtrFieldsNil(tc.obj) != tc.expected {
+			t.Errorf("case[%d]: expected %t, got %t", i, tc.expected, !tc.expected)
+		}
 	}
 }

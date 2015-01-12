@@ -24,6 +24,7 @@ import (
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/meta"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta1"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta2"
+	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta3"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime"
 )
 
@@ -38,7 +39,7 @@ const OldestVersion = "v1beta1"
 // may be assumed to be least feature rich to most feature rich, and clients may
 // choose to prefer the latter items in the list over the former items when presented
 // with a set of versions to choose.
-var Versions = []string{"v1beta1", "v1beta2"}
+var Versions = []string{"v1beta1", "v1beta2", "v1beta3"}
 
 // Codec is the default codec for serializing output that should use
 // the latest supported version.  Use this Codec when writing to
@@ -52,13 +53,13 @@ var accessor = meta.NewAccessor()
 // ResourceVersioner describes a default versioner that can handle all types
 // of versioning.
 // TODO: when versioning changes, make this part of each API definition.
-var ResourceVersioner runtime.ResourceVersioner = accessor
+var ResourceVersioner = runtime.ResourceVersioner(accessor)
 
 // SelfLinker can set or get the SelfLink field of all API types.
 // TODO: when versioning changes, make this part of each API definition.
 // TODO(lavalamp): Combine SelfLinker & ResourceVersioner interfaces, force all uses
 // to go through the InterfacesFor method below.
-var SelfLinker runtime.SelfLinker = accessor
+var SelfLinker = runtime.SelfLinker(accessor)
 
 // RESTMapper provides the default mapping between REST paths and the objects declared in api.Scheme and all known
 // Kubernetes versions.
@@ -80,6 +81,12 @@ func InterfacesFor(version string) (*meta.VersionInterfaces, error) {
 			ObjectConvertor:  api.Scheme,
 			MetadataAccessor: accessor,
 		}, nil
+	case "v1beta3":
+		return &meta.VersionInterfaces{
+			Codec:            v1beta3.Codec,
+			ObjectConvertor:  api.Scheme,
+			MetadataAccessor: accessor,
+		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported storage version: %s (valid: %s)", version, strings.Join(Versions, ", "))
 	}
@@ -96,7 +103,7 @@ func init() {
 			return interfaces, true
 		},
 	)
-	mapper.Add(api.Scheme, true, Versions...)
-	// TODO: when v1beta3 is added it will not use mixed case.
+	mapper.Add(api.Scheme, true, "v1beta1", "v1beta2")
+	mapper.Add(api.Scheme, false, "v1beta3")
 	RESTMapper = mapper
 }

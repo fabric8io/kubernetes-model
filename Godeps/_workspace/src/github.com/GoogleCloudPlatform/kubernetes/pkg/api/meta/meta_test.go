@@ -17,6 +17,7 @@ limitations under the License.
 package meta
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime"
@@ -25,17 +26,19 @@ import (
 
 func TestGenericTypeMeta(t *testing.T) {
 	type TypeMeta struct {
-		Kind              string    `json:"kind,omitempty" yaml:"kind,omitempty"`
-		Namespace         string    `json:"namespace,omitempty" yaml:"namespace,omitempty"`
-		Name              string    `json:"name,omitempty" yaml:"name,omitempty"`
-		UID               string    `json:"uid,omitempty" yaml:"uid,omitempty"`
-		CreationTimestamp util.Time `json:"creationTimestamp,omitempty" yaml:"creationTimestamp,omitempty"`
-		SelfLink          string    `json:"selfLink,omitempty" yaml:"selfLink,omitempty"`
-		ResourceVersion   string    `json:"resourceVersion,omitempty" yaml:"resourceVersion,omitempty"`
-		APIVersion        string    `json:"apiVersion,omitempty" yaml:"apiVersion,omitempty"`
+		Kind              string            `json:"kind,omitempty"`
+		Namespace         string            `json:"namespace,omitempty"`
+		Name              string            `json:"name,omitempty"`
+		UID               string            `json:"uid,omitempty"`
+		CreationTimestamp util.Time         `json:"creationTimestamp,omitempty"`
+		SelfLink          string            `json:"selfLink,omitempty"`
+		ResourceVersion   string            `json:"resourceVersion,omitempty"`
+		APIVersion        string            `json:"apiVersion,omitempty"`
+		Labels            map[string]string `json:"labels,omitempty"`
+		Annotations       map[string]string `json:"annotations,omitempty"`
 	}
 	type Object struct {
-		TypeMeta `json:",inline" yaml:",inline"`
+		TypeMeta `json:",inline"`
 	}
 	j := Object{
 		TypeMeta{
@@ -46,11 +49,13 @@ func TestGenericTypeMeta(t *testing.T) {
 			Kind:            "b",
 			ResourceVersion: "1",
 			SelfLink:        "some/place/only/we/know",
+			Labels:          map[string]string{"foo": "bar"},
+			Annotations:     map[string]string{"x": "y"},
 		},
 	}
 	accessor, err := Accessor(&j)
 	if err != nil {
-		t.Fatalf("new err: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if e, a := "bar", accessor.Namespace(); e != a {
 		t.Errorf("expected %v, got %v", e, a)
@@ -107,17 +112,19 @@ func TestGenericTypeMeta(t *testing.T) {
 }
 
 type InternalTypeMeta struct {
-	Kind              string    `json:"kind,omitempty" yaml:"kind,omitempty"`
-	Namespace         string    `json:"namespace,omitempty" yaml:"namespace,omitempty"`
-	Name              string    `json:"name,omitempty" yaml:"name,omitempty"`
-	UID               string    `json:"uid,omitempty" yaml:"uid,omitempty"`
-	CreationTimestamp util.Time `json:"creationTimestamp,omitempty" yaml:"creationTimestamp,omitempty"`
-	SelfLink          string    `json:"selfLink,omitempty" yaml:"selfLink,omitempty"`
-	ResourceVersion   string    `json:"resourceVersion,omitempty" yaml:"resourceVersion,omitempty"`
-	APIVersion        string    `json:"apiVersion,omitempty" yaml:"apiVersion,omitempty"`
+	Kind              string            `json:"kind,omitempty"`
+	Namespace         string            `json:"namespace,omitempty"`
+	Name              string            `json:"name,omitempty"`
+	UID               string            `json:"uid,omitempty"`
+	CreationTimestamp util.Time         `json:"creationTimestamp,omitempty"`
+	SelfLink          string            `json:"selfLink,omitempty"`
+	ResourceVersion   string            `json:"resourceVersion,omitempty"`
+	APIVersion        string            `json:"apiVersion,omitempty"`
+	Labels            map[string]string `json:"labels,omitempty"`
+	Annotations       map[string]string `json:"annotations,omitempty"`
 }
 type InternalObject struct {
-	TypeMeta InternalTypeMeta `json:",inline" yaml:",inline"`
+	TypeMeta InternalTypeMeta `json:",inline"`
 }
 
 func (*InternalObject) IsAnAPIObject() {}
@@ -132,6 +139,8 @@ func TestGenericTypeMetaAccessor(t *testing.T) {
 			Kind:            "b",
 			ResourceVersion: "1",
 			SelfLink:        "some/place/only/we/know",
+			Labels:          map[string]string{"foo": "bar"},
+			Annotations:     map[string]string{"x": "y"},
 		},
 	}
 	accessor := NewAccessor()
@@ -184,6 +193,20 @@ func TestGenericTypeMetaAccessor(t *testing.T) {
 	if e, a := "some/place/only/we/know", selfLink; e != a {
 		t.Errorf("expected %v, got %v", e, a)
 	}
+	labels, err := accessor.Labels(j)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if e, a := 1, len(labels); e != a {
+		t.Errorf("expected %v, got %v", e, a)
+	}
+	annotations, err := accessor.Annotations(j)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if e, a := 1, len(annotations); e != a {
+		t.Errorf("expected %v, got %v", e, a)
+	}
 
 	if err := accessor.SetNamespace(j, "baz"); err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -204,6 +227,13 @@ func TestGenericTypeMetaAccessor(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 	if err := accessor.SetSelfLink(j, "google.com"); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if err := accessor.SetLabels(j, map[string]string{}); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	var nilMap map[string]string
+	if err := accessor.SetAnnotations(j, nilMap); err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 
@@ -229,24 +259,32 @@ func TestGenericTypeMetaAccessor(t *testing.T) {
 	if e, a := "google.com", j.TypeMeta.SelfLink; e != a {
 		t.Errorf("expected %v, got %v", e, a)
 	}
+	if e, a := map[string]string{}, j.TypeMeta.Labels; !reflect.DeepEqual(e, a) {
+		t.Errorf("expected %#v, got %#v", e, a)
+	}
+	if e, a := nilMap, j.TypeMeta.Annotations; !reflect.DeepEqual(e, a) {
+		t.Errorf("expected %#v, got %#v", e, a)
+	}
 }
 
 func TestGenericObjectMeta(t *testing.T) {
 	type TypeMeta struct {
-		Kind       string `json:"kind,omitempty" yaml:"kind,omitempty"`
-		APIVersion string `json:"apiVersion,omitempty" yaml:"apiVersion,omitempty"`
+		Kind       string `json:"kind,omitempty"`
+		APIVersion string `json:"apiVersion,omitempty"`
 	}
 	type ObjectMeta struct {
-		Namespace         string    `json:"namespace,omitempty" yaml:"namespace,omitempty"`
-		Name              string    `json:"name,omitempty" yaml:"name,omitempty"`
-		UID               string    `json:"uid,omitempty" yaml:"uid,omitempty"`
-		CreationTimestamp util.Time `json:"creationTimestamp,omitempty" yaml:"creationTimestamp,omitempty"`
-		SelfLink          string    `json:"selfLink,omitempty" yaml:"selfLink,omitempty"`
-		ResourceVersion   string    `json:"resourceVersion,omitempty" yaml:"resourceVersion,omitempty"`
+		Namespace         string            `json:"namespace,omitempty"`
+		Name              string            `json:"name,omitempty"`
+		UID               string            `json:"uid,omitempty"`
+		CreationTimestamp util.Time         `json:"creationTimestamp,omitempty"`
+		SelfLink          string            `json:"selfLink,omitempty"`
+		ResourceVersion   string            `json:"resourceVersion,omitempty"`
+		Labels            map[string]string `json:"labels,omitempty"`
+		Annotations       map[string]string `json:"annotations,omitempty"`
 	}
 	type Object struct {
-		TypeMeta   `json:",inline" yaml:",inline"`
-		ObjectMeta `json:"metadata" yaml:"metadata"`
+		TypeMeta   `json:",inline"`
+		ObjectMeta `json:"metadata"`
 	}
 	j := Object{
 		TypeMeta{
@@ -259,11 +297,13 @@ func TestGenericObjectMeta(t *testing.T) {
 			UID:             "uid",
 			ResourceVersion: "1",
 			SelfLink:        "some/place/only/we/know",
+			Labels:          map[string]string{"foo": "bar"},
+			Annotations:     map[string]string{"a": "b"},
 		},
 	}
 	accessor, err := Accessor(&j)
 	if err != nil {
-		t.Fatalf("new err: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if e, a := "bar", accessor.Namespace(); e != a {
 		t.Errorf("expected %v, got %v", e, a)
@@ -286,6 +326,12 @@ func TestGenericObjectMeta(t *testing.T) {
 	if e, a := "some/place/only/we/know", accessor.SelfLink(); e != a {
 		t.Errorf("expected %v, got %v", e, a)
 	}
+	if e, a := 1, len(accessor.Labels()); e != a {
+		t.Errorf("expected %v, got %v", e, a)
+	}
+	if e, a := 1, len(accessor.Annotations()); e != a {
+		t.Errorf("expected %v, got %v", e, a)
+	}
 
 	accessor.SetNamespace("baz")
 	accessor.SetName("bar")
@@ -294,6 +340,8 @@ func TestGenericObjectMeta(t *testing.T) {
 	accessor.SetKind("d")
 	accessor.SetResourceVersion("2")
 	accessor.SetSelfLink("google.com")
+	accessor.SetLabels(map[string]string{"other": "label"})
+	accessor.SetAnnotations(map[string]string{"c": "d"})
 
 	// Prove that accessor changes the original object.
 	if e, a := "baz", j.Namespace; e != a {
@@ -317,20 +365,26 @@ func TestGenericObjectMeta(t *testing.T) {
 	if e, a := "google.com", j.SelfLink; e != a {
 		t.Errorf("expected %v, got %v", e, a)
 	}
+	if e, a := map[string]string{"other": "label"}, j.Labels; !reflect.DeepEqual(e, a) {
+		t.Errorf("expected %#v, got %#v", e, a)
+	}
+	if e, a := map[string]string{"c": "d"}, j.Annotations; !reflect.DeepEqual(e, a) {
+		t.Errorf("expected %#v, got %#v", e, a)
+	}
 }
 
 func TestGenericListMeta(t *testing.T) {
 	type TypeMeta struct {
-		Kind       string `json:"kind,omitempty" yaml:"kind,omitempty"`
-		APIVersion string `json:"apiVersion,omitempty" yaml:"apiVersion,omitempty"`
+		Kind       string `json:"kind,omitempty"`
+		APIVersion string `json:"apiVersion,omitempty"`
 	}
 	type ListMeta struct {
-		SelfLink        string `json:"selfLink,omitempty" yaml:"selfLink,omitempty"`
-		ResourceVersion string `json:"resourceVersion,omitempty" yaml:"resourceVersion,omitempty"`
+		SelfLink        string `json:"selfLink,omitempty"`
+		ResourceVersion string `json:"resourceVersion,omitempty"`
 	}
 	type Object struct {
-		TypeMeta `json:",inline" yaml:",inline"`
-		ListMeta `json:"metadata" yaml:"metadata"`
+		TypeMeta `json:",inline"`
+		ListMeta `json:"metadata"`
 	}
 	j := Object{
 		TypeMeta{
@@ -344,7 +398,7 @@ func TestGenericListMeta(t *testing.T) {
 	}
 	accessor, err := Accessor(&j)
 	if err != nil {
-		t.Fatalf("new err: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if e, a := "", accessor.Name(); e != a {
 		t.Errorf("expected %v, got %v", e, a)
@@ -388,7 +442,7 @@ func TestGenericListMeta(t *testing.T) {
 }
 
 type MyAPIObject struct {
-	runtime.TypeMeta `yaml:",inline" json:",inline"`
+	TypeMeta InternalTypeMeta `json:",inline"`
 }
 
 func (*MyAPIObject) IsAnAPIObject() {}
@@ -405,8 +459,8 @@ func TestResourceVersionerOfAPI(t *testing.T) {
 	}
 	testCases := map[string]T{
 		"empty api object":                   {&MyAPIObject{}, ""},
-		"api object with version":            {&MyAPIObject{TypeMeta: runtime.TypeMeta{ResourceVersion: "1"}}, "1"},
-		"pointer to api object with version": {&MyAPIObject{TypeMeta: runtime.TypeMeta{ResourceVersion: "1"}}, "1"},
+		"api object with version":            {&MyAPIObject{TypeMeta: InternalTypeMeta{ResourceVersion: "1"}}, "1"},
+		"pointer to api object with version": {&MyAPIObject{TypeMeta: InternalTypeMeta{ResourceVersion: "1"}}, "1"},
 	}
 	versioning := NewAccessor()
 	for key, testCase := range testCases {
@@ -436,7 +490,7 @@ func TestResourceVersionerOfAPI(t *testing.T) {
 		runtime.Object
 		Expected string
 	}{
-		"pointer to api object with version": {&MyAPIObject{TypeMeta: runtime.TypeMeta{ResourceVersion: "1"}}, "1"},
+		"pointer to api object with version": {&MyAPIObject{TypeMeta: InternalTypeMeta{ResourceVersion: "1"}}, "1"},
 	}
 	for key, testCase := range setCases {
 		if err := versioning.SetResourceVersion(testCase.Object, "5"); err != nil {
@@ -460,7 +514,7 @@ func TestTypeMetaSelfLinker(t *testing.T) {
 		succeed bool
 	}{
 		"normal": {
-			obj:     &MyAPIObject{TypeMeta: runtime.TypeMeta{SelfLink: "foobar"}},
+			obj:     &MyAPIObject{TypeMeta: InternalTypeMeta{SelfLink: "foobar"}},
 			expect:  "foobar",
 			try:     "newbar",
 			succeed: true,
@@ -471,7 +525,7 @@ func TestTypeMetaSelfLinker(t *testing.T) {
 		},
 	}
 
-	var linker runtime.SelfLinker = NewAccessor()
+	linker := runtime.SelfLinker(NewAccessor())
 	for name, item := range table {
 		got, err := linker.SelfLink(item.obj)
 		if e, a := item.succeed, err == nil; e != a {

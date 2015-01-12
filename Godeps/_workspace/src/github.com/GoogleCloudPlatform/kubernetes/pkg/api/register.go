@@ -20,21 +20,23 @@ import (
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime"
 )
 
+// Scheme is the default instance of runtime.Scheme to which types in the Kubernetes API are already registered.
 var Scheme = runtime.NewScheme()
 
 func init() {
 	Scheme.AddKnownTypes("",
+		&PodContainerInfo{},
 		&PodList{},
 		&Pod{},
 		&ReplicationControllerList{},
 		&ReplicationController{},
 		&ServiceList{},
 		&Service{},
-		&MinionList{},
-		&Minion{},
+		&NodeList{},
+		&Node{},
 		&Status{},
-		&ServerOpList{},
-		&ServerOp{},
+		&OperationList{},
+		&Operation{},
 		&Endpoints{},
 		&EndpointsList{},
 		&Binding{},
@@ -44,9 +46,16 @@ func init() {
 		&ContainerManifestList{},
 		&BoundPod{},
 		&BoundPods{},
+		&List{},
 	)
+	// Legacy names are supported
+	Scheme.AddKnownTypeWithName("", "Minion", &Node{})
+	Scheme.AddKnownTypeWithName("", "MinionList", &NodeList{})
+	Scheme.AddKnownTypeWithName("", "ServerOp", &Operation{})
+	Scheme.AddKnownTypeWithName("", "ServerOpList", &OperationList{})
 }
 
+func (*PodContainerInfo) IsAnAPIObject()          {}
 func (*Pod) IsAnAPIObject()                       {}
 func (*PodList) IsAnAPIObject()                   {}
 func (*ReplicationController) IsAnAPIObject()     {}
@@ -55,15 +64,16 @@ func (*Service) IsAnAPIObject()                   {}
 func (*ServiceList) IsAnAPIObject()               {}
 func (*Endpoints) IsAnAPIObject()                 {}
 func (*EndpointsList) IsAnAPIObject()             {}
-func (*Minion) IsAnAPIObject()                    {}
-func (*MinionList) IsAnAPIObject()                {}
+func (*Node) IsAnAPIObject()                      {}
+func (*NodeList) IsAnAPIObject()                  {}
 func (*Binding) IsAnAPIObject()                   {}
 func (*Status) IsAnAPIObject()                    {}
-func (*ServerOp) IsAnAPIObject()                  {}
-func (*ServerOpList) IsAnAPIObject()              {}
+func (*Operation) IsAnAPIObject()                 {}
+func (*OperationList) IsAnAPIObject()             {}
 func (*Event) IsAnAPIObject()                     {}
 func (*EventList) IsAnAPIObject()                 {}
 func (*ContainerManifest) IsAnAPIObject()         {}
 func (*ContainerManifestList) IsAnAPIObject()     {}
 func (*BoundPod) IsAnAPIObject()                  {}
 func (*BoundPods) IsAnAPIObject()                 {}
+func (*List) IsAnAPIObject()                      {}
