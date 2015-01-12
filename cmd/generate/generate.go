@@ -28,6 +28,7 @@ type Schema struct {
 	EndpointsList             kapi.EndpointsList
 	Minion                    kapi.Minion
 	MinionList                kapi.MinionList
+	KubernetesList            kapi.List
 	StatusError               kerrors.StatusError
 	BuildList                 buildapi.BuildList
 	BuildConfigList           buildapi.BuildConfigList
@@ -71,6 +72,7 @@ func main() {
 	result := string(b)
 	result = strings.Replace(result, "\"additionalProperty\":", "\"additionalProperties\":", -1)
 	result = strings.Replace(result, "\"apiVersion\":{\"type\":\"string\"}", "\"apiVersion\":{\"type\":\"string\",\"default\":\"v1beta2\"}", -1)
+	result = strings.Replace(result, "\"io.fabric8.kubernetes.api.model.List\"", "\"io.fabric8.kubernetes.api.model.KubernetesList\"", -1)
 
 	fmt.Println(result)
 }
