@@ -11,3 +11,9 @@ CI JSON Schema Generator for Kubernetes and OpenShift v3 Origin API Objects
 - run fabric8 unit test suite
 - notify IRC of CI job result
 - if successful creates a PR for fabric8/origin-schema-generator
+
+To run..
+
+```
+docker run -p 8080:8080  rawlingsj/origin-schema-generator
+```
