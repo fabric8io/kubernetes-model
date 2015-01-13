@@ -185,6 +185,40 @@ func (resourceAccessor) SetSelfLink(obj runtime.Object, selfLink string) error {
 	return nil
 }
 
+func (resourceAccessor) Labels(obj runtime.Object) (map[string]string, error) {
+	accessor, err := Accessor(obj)
+	if err != nil {
+		return nil, err
+	}
+	return accessor.Labels(), nil
+}
+
+func (resourceAccessor) SetLabels(obj runtime.Object, labels map[string]string) error {
+	accessor, err := Accessor(obj)
+	if err != nil {
+		return err
+	}
+	accessor.SetLabels(labels)
+	return nil
+}
+
+func (resourceAccessor) Annotations(obj runtime.Object) (map[string]string, error) {
+	accessor, err := Accessor(obj)
+	if err != nil {
+		return nil, err
+	}
+	return accessor.Annotations(), nil
+}
+
+func (resourceAccessor) SetAnnotations(obj runtime.Object, annotations map[string]string) error {
+	accessor, err := Accessor(obj)
+	if err != nil {
+		return err
+	}
+	accessor.SetAnnotations(annotations)
+	return nil
+}
+
 func (resourceAccessor) ResourceVersion(obj runtime.Object) (string, error) {
 	accessor, err := Accessor(obj)
 	if err != nil {
@@ -212,6 +246,8 @@ type genericAccessor struct {
 	kind            *string
 	resourceVersion *string
 	selfLink        *string
+	labels          *map[string]string
+	annotations     *map[string]string
 }
 
 func (a genericAccessor) Namespace() string {
@@ -288,13 +324,35 @@ func (a genericAccessor) SetSelfLink(selfLink string) {
 	*a.selfLink = selfLink
 }
 
+func (a genericAccessor) Labels() map[string]string {
+	if a.labels == nil {
+		return nil
+	}
+	return *a.labels
+}
+
+func (a genericAccessor) SetLabels(labels map[string]string) {
+	*a.labels = labels
+}
+
+func (a genericAccessor) Annotations() map[string]string {
+	if a.annotations == nil {
+		return nil
+	}
+	return *a.annotations
+}
+
+func (a genericAccessor) SetAnnotations(annotations map[string]string) {
+	*a.annotations = annotations
+}
+
 // fieldPtr puts the address of fieldName, which must be a member of v,
 // into dest, which must be an address of a variable to which this field's
 // address can be assigned.
 func fieldPtr(v reflect.Value, fieldName string, dest interface{}) error {
 	field := v.FieldByName(fieldName)
 	if !field.IsValid() {
-		return fmt.Errorf("Couldn't find %v field in %#v", fieldName, v.Interface())
+		return fmt.Errorf("couldn't find %v field in %#v", fieldName, v.Interface())
 	}
 	v, err := conversion.EnforcePtr(dest)
 	if err != nil {
@@ -309,7 +367,7 @@ func fieldPtr(v reflect.Value, fieldName string, dest interface{}) error {
 		v.Set(field.Convert(v.Type()))
 		return nil
 	}
-	return fmt.Errorf("Couldn't assign/convert %v to %v", field.Type(), v.Type())
+	return fmt.Errorf("couldn't assign/convert %v to %v", field.Type(), v.Type())
 }
 
 // extractFromTypeMeta extracts pointers to version and kind fields from an object
@@ -338,6 +396,12 @@ func extractFromObjectMeta(v reflect.Value, a *genericAccessor) error {
 		return err
 	}
 	if err := fieldPtr(v, "SelfLink", &a.selfLink); err != nil {
+		return err
+	}
+	if err := fieldPtr(v, "Labels", &a.labels); err != nil {
+		return err
+	}
+	if err := fieldPtr(v, "Annotations", &a.annotations); err != nil {
 		return err
 	}
 	return nil

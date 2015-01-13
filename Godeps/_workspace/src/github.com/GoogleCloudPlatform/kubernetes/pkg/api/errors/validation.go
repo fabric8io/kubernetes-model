@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/glog"
 )
 
@@ -52,7 +52,8 @@ const (
 	ValidationErrorTypeForbidden ValidationErrorType = "FieldValueForbidden"
 )
 
-func ValueOf(t ValidationErrorType) string {
+// String converts a ValidationErrorType into its corresponding error message.
+func (t ValidationErrorType) String() string {
 	switch t {
 	case ValidationErrorTypeNotFound:
 		return "not found"
@@ -77,60 +78,56 @@ type ValidationError struct {
 	Type     ValidationErrorType
 	Field    string
 	BadValue interface{}
+	Detail   string
 }
 
-func (v ValidationError) Error() string {
-	return fmt.Sprintf("%s: %v '%v'", v.Field, ValueOf(v.Type), v.BadValue)
+var _ error = &ValidationError{}
+
+func (v *ValidationError) Error() string {
+	s := spew.Sprintf("%s: %s '%+v'", v.Field, v.Type, v.BadValue)
+	if v.Detail != "" {
+		s += fmt.Sprintf(": %s", v.Detail)
+	}
+	return s
 }
 
-// NewFieldRequired returns a ValidationError indicating "value required"
-func NewFieldRequired(field string, value interface{}) ValidationError {
-	return ValidationError{ValidationErrorTypeRequired, field, value}
+// NewFieldRequired returns a *ValidationError indicating "value required"
+func NewFieldRequired(field string, value interface{}) *ValidationError {
+	return &ValidationError{ValidationErrorTypeRequired, field, value, ""}
 }
 
-// NewFieldInvalid returns a ValidationError indicating "invalid value"
-func NewFieldInvalid(field string, value interface{}) ValidationError {
-	return ValidationError{ValidationErrorTypeInvalid, field, value}
+// NewFieldInvalid returns a *ValidationError indicating "invalid value"
+func NewFieldInvalid(field string, value interface{}, detail string) *ValidationError {
+	return &ValidationError{ValidationErrorTypeInvalid, field, value, detail}
 }
 
-// NewFieldNotSupported returns a ValidationError indicating "unsupported value"
-func NewFieldNotSupported(field string, value interface{}) ValidationError {
-	return ValidationError{ValidationErrorTypeNotSupported, field, value}
+// NewFieldNotSupported returns a *ValidationError indicating "unsupported value"
+func NewFieldNotSupported(field string, value interface{}) *ValidationError {
+	return &ValidationError{ValidationErrorTypeNotSupported, field, value, ""}
 }
 
-// NewFieldForbidden returns a ValidationError indicating "forbidden"
-func NewFieldForbidden(field string, value interface{}) ValidationError {
-	return ValidationError{ValidationErrorTypeForbidden, field, value}
+// NewFieldForbidden returns a *ValidationError indicating "forbidden"
+func NewFieldForbidden(field string, value interface{}) *ValidationError {
+	return &ValidationError{ValidationErrorTypeForbidden, field, value, ""}
 }
 
-// NewFieldDuplicate returns a ValidationError indicating "duplicate value"
-func NewFieldDuplicate(field string, value interface{}) ValidationError {
-	return ValidationError{ValidationErrorTypeDuplicate, field, value}
+// NewFieldDuplicate returns a *ValidationError indicating "duplicate value"
+func NewFieldDuplicate(field string, value interface{}) *ValidationError {
+	return &ValidationError{ValidationErrorTypeDuplicate, field, value, ""}
 }
 
-// NewFieldNotFound returns a ValidationError indicating "value not found"
-func NewFieldNotFound(field string, value interface{}) ValidationError {
-	return ValidationError{ValidationErrorTypeNotFound, field, value}
+// NewFieldNotFound returns a *ValidationError indicating "value not found"
+func NewFieldNotFound(field string, value interface{}) *ValidationError {
+	return &ValidationError{ValidationErrorTypeNotFound, field, value, ""}
 }
 
-// ValidationErrorList is a collection of ValidationErrors.  This does not
-// implement the error interface to avoid confusion where an empty
-// ValidationErrorList would still be an error (non-nil).  To produce a single
-// error instance from a ValidationErrorList, use the ToError() method, which
-// will return nil for an empty ValidationErrorList.
-type ValidationErrorList util.ErrorList
-
-// ToError converts a ValidationErrorList into a "normal" error, or nil if the
-// list is empty.
-func (list ValidationErrorList) ToError() error {
-	return util.ErrorList(list).ToError()
-}
+type ValidationErrorList []error
 
 // Prefix adds a prefix to the Field of every ValidationError in the list.
 // Returns the list for convenience.
 func (list ValidationErrorList) Prefix(prefix string) ValidationErrorList {
 	for i := range list {
-		if err, ok := list[i].(ValidationError); ok {
+		if err, ok := list[i].(*ValidationError); ok {
 			if strings.HasPrefix(err.Field, "[") {
 				err.Field = prefix + err.Field
 			} else if len(err.Field) != 0 {
@@ -140,7 +137,7 @@ func (list ValidationErrorList) Prefix(prefix string) ValidationErrorList {
 			}
 			list[i] = err
 		} else {
-			glog.Warningf("ValidationErrorList holds non-ValidationError: %T", list)
+			glog.Warningf("Programmer error: ValidationErrorList holds non-ValidationError: %#v", list[i])
 		}
 	}
 	return list

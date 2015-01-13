@@ -68,9 +68,18 @@ func (f *FakeHandler) ServeHTTP(response http.ResponseWriter, request *http.Requ
 
 	bodyReceived, err := ioutil.ReadAll(request.Body)
 	if err != nil && f.T != nil {
-		f.T.Logf("Received read error: %#v", err)
+		f.T.Logf("Received read error: %v", err)
 	}
 	f.RequestBody = string(bodyReceived)
+}
+
+func (f *FakeHandler) ValidateRequestCount(t TestInterface, count int) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	if f.requestCount != count {
+		t.Logf("Expected %d call, but got %d. Only the last call is recorded and checked.", count, f.requestCount)
+	}
+	f.hasBeenChecked = true
 }
 
 // ValidateRequest verifies that FakeHandler received a request with expected path, method, and body.

@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"gopkg.in/v1/yaml"
+	"github.com/ghodss/yaml"
 )
 
 // MetaFactory is used to store and retrieve the version and kind
@@ -55,8 +55,8 @@ type SimpleMetaFactory struct {
 // encoding of an object, or an error.
 func (SimpleMetaFactory) Interpret(data []byte) (version, kind string, err error) {
 	findKind := struct {
-		APIVersion string `json:"apiVersion,omitempty" yaml:"apiVersion,omitempty"`
-		Kind       string `json:"kind,omitempty" yaml:"kind,omitempty"`
+		APIVersion string `json:"apiVersion,omitempty"`
+		Kind       string `json:"kind,omitempty"`
 	}{}
 	// yaml is a superset of json, so we use it to decode here. That way,
 	// we understand both.
@@ -116,7 +116,7 @@ func EnforcePtr(obj interface{}) (reflect.Value, error) {
 		if v.Kind() == reflect.Invalid {
 			return reflect.Value{}, fmt.Errorf("expected pointer, but got invalid kind")
 		}
-		return reflect.Value{}, fmt.Errorf("expected pointer, but got %v type", v.Type().Name())
+		return reflect.Value{}, fmt.Errorf("expected pointer, but got %v type", v.Type())
 	}
 	if v.IsNil() {
 		return reflect.Value{}, fmt.Errorf("expected pointer, but got nil")

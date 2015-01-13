@@ -30,7 +30,7 @@ type typeMeta struct {
 	Kind       string
 }
 
-// RESTMapper exposes mappings between the types defined in a
+// DefaultRESTMapper exposes mappings between the types defined in a
 // runtime.Scheme. It assumes that all types defined the provided scheme
 // can be mapped with the provided MetadataAccessor and Codec interfaces.
 //
@@ -101,10 +101,13 @@ func kindToResource(kind string, mixedCase bool) (plural, singular string) {
 	} else {
 		singular = strings.ToLower(kind)
 	}
-	if !strings.HasSuffix(singular, "s") {
-		plural = singular + "s"
-	} else {
+	switch string(singular[len(singular)-1]) {
+	case "s":
 		plural = singular
+	case "y":
+		plural = strings.TrimSuffix(singular, "y") + "ies"
+	default:
+		plural = singular + "s"
 	}
 	return
 }
@@ -119,21 +122,34 @@ func (m *DefaultRESTMapper) VersionAndKindForResource(resource string) (defaultV
 }
 
 // RESTMapping returns a struct representing the resource path and conversion interfaces a
-// RESTClient should use to operate on the provided version and kind. If a version is not
-// provided, the search order provided to DefaultRESTMapper will be used to resolve which
+// RESTClient should use to operate on the provided kind in order of versions. If a version search
+// order is not provided, the search order provided to DefaultRESTMapper will be used to resolve which
 // APIVersion should be used to access the named kind.
-func (m *DefaultRESTMapper) RESTMapping(version, kind string) (*RESTMapping, error) {
-	// Default to a version with this kind
-	if len(version) == 0 {
+func (m *DefaultRESTMapper) RESTMapping(kind string, versions ...string) (*RESTMapping, error) {
+	// Pick an appropriate version
+	var version string
+	hadVersion := false
+	for _, v := range versions {
+		if len(v) == 0 {
+			continue
+		}
+		hadVersion = true
+		if _, ok := m.reverse[typeMeta{APIVersion: v, Kind: kind}]; ok {
+			version = v
+			break
+		}
+	}
+	// Use the default preferred versions
+	if !hadVersion && len(version) == 0 {
 		for _, v := range m.versions {
 			if _, ok := m.reverse[typeMeta{APIVersion: v, Kind: kind}]; ok {
 				version = v
 				break
 			}
 		}
-		if len(version) == 0 {
-			return nil, fmt.Errorf("no object named %q is registered.", kind)
-		}
+	}
+	if len(version) == 0 {
+		return nil, fmt.Errorf("no object named %q is registered", kind)
 	}
 
 	// Ensure we have a REST mapping
