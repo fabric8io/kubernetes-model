@@ -10,10 +10,25 @@ RUN yum install -y bzr mercurial
 RUN wget -q https://storage.googleapis.com/golang/go1.4.linux-amd64.tar.gz && \
     tar -C /usr/local -xzf go1.4.linux-amd64.tar.gz
 
+RUN wget -q http://mirrors.gigenet.com/apache/maven/maven-3/3.2.5/binaries/apache-maven-3.2.5-bin.tar.gz && \
+	tar -C /opt -zxvf apache-maven-3.2.5-bin.tar.gz
+
+RUN rm -rf apache-maven-3.2.5-bin.tar.gz
 RUN rm -rf go1.4.linux-amd64.tar.gz
 
 RUN mkdir /go
 RUN chown jenkins:jenkins /go
+
+# Downloading Java
+RUN wget -q --no-cookies --no-check-certificate --header "Cookie: oraclelicense=accept-securebackup-cookie" "http://download.oracle.com/otn-pub/java/jdk/8u25-b17/jdk-8u25-linux-x64.tar.gz" -O jdk-8-linux-x64.rpm
+
+RUN yum -y install jdk-8-linux-x64.rpm
+
+RUN rm -rf jdk-8-linux-x64.rpm
+
+RUN alternatives --install /usr/bin/java jar /usr/java/latest/bin/java 200000
+RUN alternatives --install /usr/bin/javaws javaws /usr/java/latest/bin/javaws 200000
+RUN alternatives --install /usr/bin/javac javac /usr/java/latest/bin/javac 200000
 
 USER jenkins
 
@@ -21,6 +36,12 @@ ENV PATH $PATH:/usr/local/go/bin
 ENV GOROOT /usr/local/go
 ENV GOPATH /go
 ENV PATH $PATH:$GOPATH/bin
+
+ENV M2_HOME /opt/apache-maven-3.2.5
+ENV M2 $M2_HOME/bin
+ENV PATH $M2:$PATH
+
+ENV JAVA_HOME /usr/java/latest
 
 RUN go get github.com/tools/godep
 RUN cd $GOPATH/src/github.com/tools/godep && go install

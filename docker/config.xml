@@ -56,7 +56,14 @@ godep update github.com/GoogleCloudPlatform/kubernetes/...
 go get -u github.com/openshift/origin/
 godep update github.com/openshift/origin/...
 godep go build ./cmd/generate/generate.go
-./generate</command>
+./generate &gt; kube-schema-temp.json
+cat kube-schema-temp.json | python -mjson.tool &gt; kube-schema.json</command>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command>git clone https://github.com/rawlingsj/fabric8.git
+mv kube-schema.json fabric8/components/kubernetes-api/src/main/kubernetes/api/doc/kube-schema.json
+cd fabric8
+mvn clean install</command>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>
