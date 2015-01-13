@@ -21,3 +21,15 @@ This image is a building block towards Continuous Delivery for [fabric8](https:/
 ```
 docker run -p 8080:8080  rawlingsj/origin-schema-generator
 ```
+
+## To view...
+
+Follow what's going on, in your browser launch Jenkins and look at the origin-schema-generator job console
+
+```
+http://$DOCKER_HOST:8080/job/origin-schema-generator/
+```
+
+### Note, currently no volumes are mounted so if you start a new container Maven will download its Java dependencies again when compiling fabric8 with the new schema.  
+
+### Job time is currently about 5 mins.
