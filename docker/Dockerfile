@@ -3,14 +3,17 @@ MAINTAINER fabric8.io (http://fabric8.io/)
 
 WORKDIR ~
 
+# Install package dependencies as root
 USER root
 
 RUN yum install -y bzr mercurial
 
+# Go
 RUN wget -q https://storage.googleapis.com/golang/go1.4.linux-amd64.tar.gz && \
     tar -C /usr/local -xzf go1.4.linux-amd64.tar.gz
 
-RUN wget -q http://mirrors.gigenet.com/apache/maven/maven-3/3.2.5/binaries/apache-maven-3.2.5-bin.tar.gz && \
+# Maven
+RUN wget -q http://mirrors.ukfast.co.uk/sites/ftp.apache.org/maven/maven-3/3.2.5/binaries/apache-maven-3.2.5-bin.tar.gz && \
 	tar -C /opt -zxvf apache-maven-3.2.5-bin.tar.gz
 
 RUN rm -rf apache-maven-3.2.5-bin.tar.gz
@@ -19,7 +22,7 @@ RUN rm -rf go1.4.linux-amd64.tar.gz
 RUN mkdir /go
 RUN chown jenkins:jenkins /go
 
-# Downloading Java
+# Java JDK
 RUN wget -q --no-cookies --no-check-certificate --header "Cookie: oraclelicense=accept-securebackup-cookie" "http://download.oracle.com/otn-pub/java/jdk/8u5-b13/jdk-8u5-linux-x64.rpm" -O jdk-8-linux-x64.rpm
 
 RUN yum -y install jdk-8-linux-x64.rpm
@@ -30,6 +33,7 @@ RUN alternatives --install /usr/bin/java jar /usr/java/latest/bin/java 200000
 RUN alternatives --install /usr/bin/javaws javaws /usr/java/latest/bin/javaws 200000
 RUN alternatives --install /usr/bin/javac javac /usr/java/latest/bin/javac 200000
 
+# Switch to jenkibs user to set env vars and configure Jenkins
 USER jenkins
 
 ENV PATH $PATH:/usr/local/go/bin
