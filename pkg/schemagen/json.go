@@ -10,7 +10,8 @@ type JSONSchema struct {
 }
 
 type JSONDescriptor struct {
-	Type string `json:"type"`
+	Type    string `json:"type"`
+	Default string `json:"default,omitempty"`
 }
 
 type JSONObjectDescriptor struct {

@@ -226,6 +226,14 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 				newProps = prop.Properties
 			}
 			for k, v := range newProps {
+				if k == "kind" {
+					v = JSONPropertyDescriptor{
+						JSONDescriptor: &JSONDescriptor{
+							Type:    "string",
+							Default: t.Name(),
+						},
+					}
+				}
 				props[k] = v
 			}
 		} else {

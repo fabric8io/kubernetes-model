@@ -7,17 +7,17 @@ import (
 	"strings"
 	"time"
 
+	kerrors "github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
 	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta2"
 	kutil "github.com/GoogleCloudPlatform/kubernetes/pkg/util"
-    kerrors "github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
 	buildapi "github.com/openshift/origin/pkg/build/api"
+	configapi "github.com/openshift/origin/pkg/config/api"
 	deployapi "github.com/openshift/origin/pkg/deploy/api"
 	imageapi "github.com/openshift/origin/pkg/image/api"
 	routeapi "github.com/openshift/origin/pkg/route/api"
-	configapi "github.com/openshift/origin/pkg/config/api"
 	templateapi "github.com/openshift/origin/pkg/template/api"
 
-	"github.com/csrwng/origin-schema-generator/pkg/schemagen"
+	"github.com/fabric8io/origin-schema-generator/pkg/schemagen"
 )
 
 type Schema struct {
@@ -38,7 +38,7 @@ type Schema struct {
 	DeploymentConfigList      deployapi.DeploymentConfigList
 	RouteList                 routeapi.RouteList
 	ContainerStatus           kapi.ContainerStatus
-	Config                	  configapi.Config
+	Config                    configapi.Config
 	Template                  templateapi.Template
 }
 
