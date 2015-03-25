@@ -73,7 +73,7 @@ ADD http://updates.jenkins-ci.org/latest/build-pipeline-plugin.hpi $JENKINS_HOME
 ADD config.xml $JENKINS_HOME/
 ADD origin-schema-generator-config.xml $JENKINS_HOME/jobs/origin-schema-generator/config.xml
 ADD fabric8-jenkins-IT-config.xml $JENKINS_HOME/jobs/fabric8-jenkins-IT/config.xml
-ADD fabric8-console-IT-config.xml $JENKINS_HOME/jobs/fabric8-console-IT/config.xml
+#ADD fabric8-console-IT-config.xml $JENKINS_HOME/jobs/fabric8-console-IT/config.xml
 #ADD fabric8-cadvisor-IT-config.xml $JENKINS_HOME/jobs/fabric8-cadvisor-IT/config.xml
 
 ADD hudson.plugins.ircbot.IrcPublisher.xml $JENKINS_HOME/
