@@ -45,6 +45,15 @@ func getFieldName(f reflect.StructField) string {
 	return f.Name
 }
 
+func getFieldDescription(f reflect.StructField) string {
+	json := f.Tag.Get("description")
+	if len(json) > 0 {
+		parts := strings.Split(json, ",")
+		return parts[0]
+	}
+	return ""
+}
+
 func (g *schemaGenerator) qualifiedName(t reflect.Type) string {
 	pkgDesc, ok := g.packages[t.PkgPath()]
 	if !ok {
@@ -127,7 +136,7 @@ func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
 	return &s, nil
 }
 
-func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type) JSONPropertyDescriptor {
+func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSONPropertyDescriptor {
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
@@ -140,6 +149,7 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type) JSONPropertyDesc
 		return JSONPropertyDescriptor{
 			JSONDescriptor: &JSONDescriptor{
 				Type: "boolean",
+				Description: desc,
 			},
 		}
 	case reflect.Int, reflect.Int8, reflect.Int16,
@@ -149,6 +159,7 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type) JSONPropertyDesc
 		return JSONPropertyDescriptor{
 			JSONDescriptor: &JSONDescriptor{
 				Type: "integer",
+				Description: desc,
 			},
 		}
 	case reflect.Float32, reflect.Float64, reflect.Complex64,
@@ -156,12 +167,14 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type) JSONPropertyDesc
 		return JSONPropertyDescriptor{
 			JSONDescriptor: &JSONDescriptor{
 				Type: "number",
+				Description: desc,
 			},
 		}
 	case reflect.String:
 		return JSONPropertyDescriptor{
 			JSONDescriptor: &JSONDescriptor{
 				Type: "string",
+				Description: desc,
 			},
 		}
 	case reflect.Array:
@@ -169,18 +182,20 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type) JSONPropertyDesc
 		return JSONPropertyDescriptor{
 			JSONDescriptor: &JSONDescriptor{
 				Type: "array",
+				Description: desc,
 			},
 			JSONArrayDescriptor: &JSONArrayDescriptor{
-				Items: g.getPropertyDescriptor(t.Elem()),
+				Items: g.getPropertyDescriptor(t.Elem(), desc),
 			},
 		}
 	case reflect.Map:
 		return JSONPropertyDescriptor{
 			JSONDescriptor: &JSONDescriptor{
 				Type: "object",
+				Description: desc,
 			},
 			JSONMapDescriptor: &JSONMapDescriptor{
-				MapValueType: g.getPropertyDescriptor(t.Elem()),
+				MapValueType: g.getPropertyDescriptor(t.Elem(), desc),
 			},
 			JavaTypeDescriptor: &JavaTypeDescriptor{
 				JavaType: "java.util.Map<String," + g.javaType(t.Elem()) + ">",
@@ -213,7 +228,8 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 			continue
 		}
 		name := getFieldName(field)
-		prop := g.getPropertyDescriptor(field.Type)
+		desc := getFieldDescription(field)
+		prop := g.getPropertyDescriptor(field.Type, desc)
 		if field.Anonymous && field.Type.Kind() == reflect.Struct {
 			var newProps map[string]JSONPropertyDescriptor
 			if prop.JSONReferenceDescriptor != nil {
