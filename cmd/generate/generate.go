@@ -29,6 +29,7 @@ type Schema struct {
 	Minion                    kapi.Minion
 	MinionList                kapi.MinionList
 	KubernetesList            kapi.List
+	EnvVar                    kapi.EnvVar
 	StatusError               kerrors.StatusError
 	BuildList                 buildapi.BuildList
 	BuildConfigList           buildapi.BuildConfigList
@@ -45,17 +46,19 @@ type Schema struct {
 func main() {
 	packages := []schemagen.PackageDescriptor{
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta2", "io.fabric8.kubernetes.api.model", "kubernetes_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime", "io.fabric8.kubernetes.api.model", "kubernetes_runtime_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model", "kubernetes_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/util", "io.fabric8.kubernetes.api.model", "kubernetes_util_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors", "io.fabric8.kubernetes.api.model", "kubernetes_"},
-		{"github.com/fsouza/go-dockerclient", "io.fabric8.docker.api.model", "docker_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource", "io.fabric8.kubernetes.api.model.resource", "kubernetes_resource_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime", "io.fabric8.kubernetes.api.model.runtime", "kubernetes_runtime_"},		
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/util", "io.fabric8.kubernetes.api.model.util", "kubernetes_util_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors", "io.fabric8.kubernetes.api.model.errors", "kubernetes_errors_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model.base", "kubernetes_base_"},
+		{"github.com/fsouza/go-dockerclient", "io.fabric8.docker.client.dockerclient", "docker_"},
+		{"speter.net/go/exp/math/dec/inf", "io.fabric8.openshift.client.util", "speter_inf_"},
 		{"github.com/openshift/origin/pkg/build/api", "io.fabric8.openshift.api.model", "os_build_"},
 		{"github.com/openshift/origin/pkg/deploy/api", "io.fabric8.openshift.api.model", "os_deploy_"},
 		{"github.com/openshift/origin/pkg/image/api", "io.fabric8.openshift.api.model", "os_image_"},
 		{"github.com/openshift/origin/pkg/route/api", "io.fabric8.openshift.api.model", "os_route_"},
-		{"github.com/openshift/origin/pkg/config/api", "io.fabric8.openshift.api.model", "os_config_"},
-		{"github.com/openshift/origin/pkg/template/api", "io.fabric8.openshift.api.model", "os_template_"},
+		{"github.com/openshift/origin/pkg/config/api", "io.fabric8.openshift.api.model.config", "os_config_"},
+		{"github.com/openshift/origin/pkg/template/api", "io.fabric8.openshift.api.model.template", "os_template_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{

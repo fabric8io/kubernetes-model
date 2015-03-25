@@ -10,26 +10,32 @@ This image is a building block towards Continuous Delivery for [fabric8](https:/
 - trigger on updates to [OpenShift v3](https://github.com/openshift/origin)
 - pull the latest [Schema Generator](https://github.com/fabric8io/origin-schema-generator) 
 - update Kubernetes and Origin pkg dependencies
-- generate new JSON schema and copy to [fabric8/components/kubernetes-api](https://github.com/fabric8io/fabric8/blob/master/components/kubernetes-api/src/main/kubernetes/api/doc/kube-schema.json)
-- generate new fabric8 java types
+- generate new JSON schema
+- build kubernetes-model with new schema generating latest api
 - run fabric8 unit test suite
-- notify IRC of CI job result - _not yet implemented_
-- if successful creates a PR for [fabric8](https://github.com/fabric8io/fabric8) - _not yet implemented_
+- run fabric8 quickstart integration tests
+- release kubernetes-model to Maven Central _not yet implemented_
+- notify IRC of CI job result 
+- if successful creates a PR for [fabric8](https://github.com/fabric8io/fabric8) to update to new kubernetes-model dependency - _not yet implemented_
 
 ## To run...
 
+You might want to 'prime' your registry by pullinf the integration test images before running.
+
 ```
-docker run -p 8080:8080  rawlingsj/origin-schema-generator
+docker pull openshift/jenkins-1-centos
+docker pull fabric8/infinispan-server
+docker run -p 8080:8080 -e GIT_REPO=rawlingsj -e QUICKSTART_GIT_REPO=rawlingsj -e FABRIC8_GIT_BRANCH=schema -e KUBERNETES_MASTER=https://172.30.17.191:443 -e KUBERNETES_TRUST_CERT=true  rawlingsj/origin-schema-generator
 ```
 
 ## To view...
 
-Follow what's going on, in your browser launch Jenkins and look at the origin-schema-generator job console
+Follow what's going on, in your browser launch Jenkins and look at the build pipeline
 
 ```
-http://$DOCKER_HOST:8080/job/origin-schema-generator/
+http://$DOCKER_HOST:8080/view/Schema%20Generation%20CD%20view/
 ```
 
 ### Note, currently no volumes are mounted so if you start a new container Maven will download its Java dependencies again when compiling fabric8 with the new schema.  
 
-### Job time is currently about 5 mins.
+### Job time is currently about 8 mins.
