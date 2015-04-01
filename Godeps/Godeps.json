@@ -41,19 +41,19 @@
         },
         {
             "ImportPath": "github.com/openshift/origin/pkg/build/api",
-            "Rev": "123"
+            "Rev": "862caa729b3b4c939e2409434878560ed5968946"
         },
         {
             "ImportPath": "github.com/openshift/origin/pkg/deploy/api",
-            "Rev": "123"
+            "Rev": "862caa729b3b4c939e2409434878560ed5968946"
         },
         {
             "ImportPath": "github.com/openshift/origin/pkg/image/api",
-            "Rev": "123"
+            "Rev": "862caa729b3b4c939e2409434878560ed5968946"
         },
         {
             "ImportPath": "github.com/openshift/origin/pkg/route/api",
-            "Rev": "123"
+            "Rev": "862caa729b3b4c939e2409434878560ed5968946"
         }
     ],
     "GoVersion": "go1.3.1",
