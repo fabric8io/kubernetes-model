@@ -44,7 +44,7 @@ for sd in SchemaDeps:
 			del sd["Comment"]
 
 with open('./Godeps/Godeps.json', 'w') as outfile:
-	json.dump(schema_data, outfile)
+	json.dump(schema_data, outfile, sort_keys=True, indent=4, separators=(',', ': '))
 
 print "Updated Schema GoDeps.json..."
 print "Latest OpenShift Origin revision:",openshift_rev

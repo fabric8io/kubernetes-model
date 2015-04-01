@@ -49,6 +49,8 @@ cd origin-schema-generator
 
 python updateGoDeps.py
 
+cat ./Godeps/Godeps.json
+
 godep restore
 
 godep go build ./cmd/generate/generate.go
