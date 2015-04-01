@@ -1,68 +1,64 @@
 {
-	"ImportPath": "github.com/csrwng/origin-schema-generator",
-	"GoVersion": "go1.3.1",
-	"Packages": [
-		"cmd/generate/generate.go"
-	],
-	"Deps": [
-		{
-			"ImportPath": "code.google.com/p/go-uuid/uuid",
-			"Comment": "null-12",
-			"Rev": "7dda39b2e7d5e265014674c5af696ba4186679e9"
-		},
-		{
-			"ImportPath": "code.google.com/p/go.net/context",
-			"Comment": "null-144",
-			"Rev": "ad01a6fcc8a19d3a4478c836895ffe883bd2ceab"
-		},
-		{
-			"ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/api",
-			"Comment": "v0.8.0-164-g6cd3763",
-			"Rev": "6cd37637f55ce6bf47e463a39aed85cc3dd39f5a"
-		},
-		{
-			"ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/conversion",
-			"Comment": "v0.8.0-164-g6cd3763",
-			"Rev": "6cd37637f55ce6bf47e463a39aed85cc3dd39f5a"
-		},
-		{
-			"ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/runtime",
-			"Comment": "v0.8.0-164-g6cd3763",
-			"Rev": "6cd37637f55ce6bf47e463a39aed85cc3dd39f5a"
-		},
-		{
-			"ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/util",
-			"Comment": "v0.8.0-164-g6cd3763",
-			"Rev": "6cd37637f55ce6bf47e463a39aed85cc3dd39f5a"
-		},
-		{
-			"ImportPath": "github.com/fsouza/go-dockerclient",
-			"Comment": "0.2.1-267-g15d2c6e",
-			"Rev": "15d2c6e3eb670c545d0af0604d7f9aff3871af04"
-		},
-		{
-			"ImportPath": "github.com/golang/glog",
-			"Rev": "d1c4472bf2efd3826f2b5bdcc02d8416798d678c"
-		},
-		{
-			"ImportPath": "github.com/openshift/origin/pkg/build/api",
-			"Comment": "v0.2-74-ga0f73e9",
-			"Rev": "a0f73e9ff3ffc6b0365746c37c15a3db54bafa89"
-		},
-		{
-			"ImportPath": "github.com/openshift/origin/pkg/deploy/api",
-			"Comment": "v0.2-74-ga0f73e9",
-			"Rev": "a0f73e9ff3ffc6b0365746c37c15a3db54bafa89"
-		},
-		{
-			"ImportPath": "github.com/openshift/origin/pkg/image/api",
-			"Comment": "v0.2-74-ga0f73e9",
-			"Rev": "a0f73e9ff3ffc6b0365746c37c15a3db54bafa89"
-		},
-		{
-			"ImportPath": "github.com/openshift/origin/pkg/route/api",
-			"Comment": "v0.2-74-ga0f73e9",
-			"Rev": "a0f73e9ff3ffc6b0365746c37c15a3db54bafa89"
-		}
-	]
+    "Deps": [
+        {
+            "Comment": "null-12",
+            "ImportPath": "code.google.com/p/go-uuid/uuid",
+            "Rev": "7dda39b2e7d5e265014674c5af696ba4186679e9"
+        },
+        {
+            "Comment": "null-144",
+            "ImportPath": "code.google.com/p/go.net/context",
+            "Rev": "ad01a6fcc8a19d3a4478c836895ffe883bd2ceab"
+        },
+        {
+            "Comment": "v0.8.0-164-g6cd3763",
+            "ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/api",
+            "Rev": "6cd37637f55ce6bf47e463a39aed85cc3dd39f5a"
+        },
+        {
+            "Comment": "v0.8.0-164-g6cd3763",
+            "ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/conversion",
+            "Rev": "6cd37637f55ce6bf47e463a39aed85cc3dd39f5a"
+        },
+        {
+            "Comment": "v0.8.0-164-g6cd3763",
+            "ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/runtime",
+            "Rev": "6cd37637f55ce6bf47e463a39aed85cc3dd39f5a"
+        },
+        {
+            "Comment": "v0.8.0-164-g6cd3763",
+            "ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/util",
+            "Rev": "6cd37637f55ce6bf47e463a39aed85cc3dd39f5a"
+        },
+        {
+            "Comment": "0.2.1-267-g15d2c6e",
+            "ImportPath": "github.com/fsouza/go-dockerclient",
+            "Rev": "15d2c6e3eb670c545d0af0604d7f9aff3871af04"
+        },
+        {
+            "ImportPath": "github.com/golang/glog",
+            "Rev": "d1c4472bf2efd3826f2b5bdcc02d8416798d678c"
+        },
+        {
+            "ImportPath": "github.com/openshift/origin/pkg/build/api",
+            "Rev": "123"
+        },
+        {
+            "ImportPath": "github.com/openshift/origin/pkg/deploy/api",
+            "Rev": "123"
+        },
+        {
+            "ImportPath": "github.com/openshift/origin/pkg/image/api",
+            "Rev": "123"
+        },
+        {
+            "ImportPath": "github.com/openshift/origin/pkg/route/api",
+            "Rev": "123"
+        }
+    ],
+    "GoVersion": "go1.3.1",
+    "ImportPath": "github.com/csrwng/origin-schema-generator",
+    "Packages": [
+        "cmd/generate/generate.go"
+    ]
 }
