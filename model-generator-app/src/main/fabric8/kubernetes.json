@@ -41,7 +41,7 @@
                      "id":"model-generatorPod",
                      "containers":[  
                         {  
-                           "image":"rawlingsj/origin-schema-generator:latest",
+                           "image":"fabric8/origin-schema-generator:latest",
                            "name":"model-generator-container",
                            "ports":[  
                               {  
@@ -52,15 +52,11 @@
                            "env":[  
                               {  
                                  "name":"GIT_REPO",
-                                 "value":"rawlingsj"
-                              },
-                              {  
-                                 "name":"REPOSITORY_HOST",
-                                 "value":"$NEXUS_SERVICE_HOST:$NEXUS_SERVICE_PORT"
+                                 "value":"fabric8io"
                               },
                               {  
                                  "name":"FABRIC8_GIT_BRANCH",
-                                 "value":"schema"
+                                 "value":"master"
                               },
                               {  
                                  "name":"QUICKSTART_GIT_REPO",
