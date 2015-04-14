@@ -55,10 +55,11 @@
       <plugin>
         <groupId>org.jsonschema2pojo</groupId>
         <artifactId>jsonschema2pojo-maven-plugin</artifactId>
-        <version>0.4.5</version>
+        <version>0.4.10</version>
         <configuration>
           <sourceDirectory>${kube.dir}/schema</sourceDirectory>
           <targetPackage>io.fabric8.kubernetes.api.model</targetPackage>
+	  <includeConstructors>true</includeConstructors>
           <includeJsr303Annotations>true</includeJsr303Annotations>
           <outputDirectory>${basedir}/target/generated-sources</outputDirectory>
         </configuration>
