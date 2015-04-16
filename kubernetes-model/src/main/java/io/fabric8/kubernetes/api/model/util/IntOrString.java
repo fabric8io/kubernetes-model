@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import io.sundr.builder.annotations.Buildable;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.commons.lang.builder.ToStringBuilder;
@@ -47,7 +48,16 @@ public class IntOrString {
     @JsonIgnore
     private Map<String, Object> additionalProperties = new HashMap<String, Object>();
 
+    public IntOrString() {
+    }
 
+    @Buildable
+    public IntOrString(Integer intVal, Integer kind, String strVal, Map<String, Object> additionalProperties) {
+        IntVal = intVal;
+        Kind = kind;
+        StrVal = strVal;
+        this.additionalProperties = additionalProperties;
+    }
 
     /**
      * 
