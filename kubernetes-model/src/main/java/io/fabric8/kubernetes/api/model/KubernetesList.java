@@ -8,7 +8,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import io.fabric8.openshift.api.model.BuildConfig;
-import io.fabric8.openshift.api.model.Deployment;
 import io.fabric8.openshift.api.model.DeploymentConfig;
 import io.fabric8.openshift.api.model.ImageRepository;
 import io.fabric8.openshift.api.model.Route;
@@ -21,8 +20,10 @@ import javax.validation.Valid;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 
 /**
@@ -81,53 +82,54 @@ public class KubernetesList {
 
     /**
      * list of services
-     *
+     * Note: This is not to be used. Added for influencing the generation of fluent nested builders
      */
     @JsonIgnore
-    private List<Service> services = new ArrayList<Service>();
+    private final List<Service> services = Collections.emptyList();
 
     /**
      * list of replication controllers
-     *
+     * Note: This is not to be used. Added for influencing the generation of fluent nested builders
      */
     @JsonIgnore
-    private List<ReplicationController> replicationControllers = new ArrayList<ReplicationController>();
+    private final List<ReplicationController> replicationControllers = Collections.emptyList();
 
     /**
-     * list of pods
+     * list of pods. 
+     * Note: This is not to be used. Added for influencing the generation of fluent nested builders 
      *
      */
     @JsonIgnore
-    private List<Pod> pods = new ArrayList<Pod>();
-
-
+    private final List<Pod> pods = Collections.emptyList();
+    
     /**
      * list of build configs
+     * Note: This is not to be used. Added for influencing the generation of fluent nested builders
      *
      */
     @JsonIgnore
-    private List<BuildConfig> buildConfigs = new ArrayList<BuildConfig>();
+    private final List<BuildConfig> buildConfigs = Collections.emptyList();
 
     /**
      * list of deployment configs
-     *
+     * Note: This is not to be used. Added for influencing the generation of fluent nested builders
      */
     @JsonIgnore
-    private List<DeploymentConfig> deploymentConfigs = new ArrayList<DeploymentConfig>();
+    private final List<DeploymentConfig> deploymentConfigs = Collections.emptyList();
 
     /**
-     * list of deployment configs
-     *
+     * list of image repositories
+     * Note: This is not to be used. Added for influencing the generation of fluent nested builders
      */
     @JsonIgnore
-    private List<ImageRepository> imageRepositories = new ArrayList<ImageRepository>();
+    private final List<ImageRepository> imageRepositories = Collections.emptyList();
 
     /**
-     * list of build configs
-     *
+     * list of routes
+     * Note: This is not to be used. Added for influencing the generation of fluent nested builders.
      */
     @JsonIgnore
-    private List<Route> routes = new ArrayList<Route>();
+    private final List<Route> routes = Collections.emptyList();
     
     
     /**
@@ -191,7 +193,8 @@ public class KubernetesList {
                           List<DeploymentConfig> deploymentConfigs,
                           List<ImageRepository> imageRepositories,
                           List<Route> routes,
-                          List<Object> items, String kind, String namespace, Integer resourceVersion, String selfLink, String uid) {
+                          List<Object> items,
+                          String kind, String namespace, Integer resourceVersion, String selfLink, String uid) {
         this.annotations = annotations;
         this.apiVersion = apiVersion;
         this.creationTimestamp = creationTimestamp;
@@ -201,22 +204,16 @@ public class KubernetesList {
         this.resourceVersion = resourceVersion;
         this.selfLink = selfLink;
         this.uid = uid;
-        this.items = items != null ? items : Collections.emptyList();
-        this.services = services != null ? services : Collections.<Service>emptyList();
-        this.replicationControllers = replicationControllers != null ? replicationControllers : Collections.<ReplicationController>emptyList();
-        this.pods = pods != null ? pods : Collections.<Pod>emptyList();
-        this.buildConfigs = buildConfigs != null ? buildConfigs : Collections.<BuildConfig>emptyList();
-        this.deploymentConfigs = deploymentConfigs != null ? deploymentConfigs : Collections.<DeploymentConfig>emptyList();
-        this.imageRepositories = imageRepositories != null ? imageRepositories : Collections.<ImageRepository>emptyList();
-        this.routes = routes != null ? routes : Collections.<Route>emptyList();
-        
-        this.items.addAll(services);
-        this.items.addAll(replicationControllers);
-        this.items.addAll(pods);
-        this.items.addAll(buildConfigs);
-        this.items.addAll(deploymentConfigs);
-        this.items.addAll(imageRepositories);
-        this.items.addAll(routes);
+        Set<Object> allItems = new LinkedHashSet<>();
+        allItems.addAll(items != null ? items : Collections.emptyList());
+        allItems.addAll(services != null ? services : Collections.<Service>emptyList());
+        allItems.addAll(replicationControllers != null ? replicationControllers : Collections.<ReplicationController>emptyList());
+        allItems.addAll(pods != null ? pods : Collections.<Pod>emptyList());
+        allItems.addAll(buildConfigs != null ? buildConfigs : Collections.<BuildConfig>emptyList());
+        allItems.addAll(deploymentConfigs != null ? deploymentConfigs : Collections.<DeploymentConfig>emptyList());
+        allItems.addAll(imageRepositories != null ? imageRepositories : Collections.<ImageRepository>emptyList());
+        allItems.addAll(routes != null ? routes : Collections.<Route>emptyList());
+        this.items = new ArrayList<>(allItems);
     }
 
     /**
@@ -358,7 +355,6 @@ public class KubernetesList {
     public List<ImageRepository> getImageRepositories() {
         return imageRepositories;
     }
-
     
     @JsonIgnore
     public List<Route> getRoutes() {
