@@ -52,8 +52,9 @@ python updateGoDeps.py
 cat ./Godeps/Godeps.json
 
 godep restore
+godep update ...
 
-go build ./cmd/generate/generate.go
+godep go build ./cmd/generate/generate.go
 
 ./generate &gt; kube-schema-temp.json
 
