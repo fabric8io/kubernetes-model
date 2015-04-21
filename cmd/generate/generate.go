@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 
@@ -47,7 +48,7 @@ func main() {
 	packages := []schemagen.PackageDescriptor{
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta2", "io.fabric8.kubernetes.api.model", "kubernetes_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource", "io.fabric8.kubernetes.api.model.resource", "kubernetes_resource_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime", "io.fabric8.kubernetes.api.model.runtime", "kubernetes_runtime_"},		
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime", "io.fabric8.kubernetes.api.model.runtime", "kubernetes_runtime_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/util", "io.fabric8.kubernetes.api.model.util", "kubernetes_util_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors", "io.fabric8.kubernetes.api.model.errors", "kubernetes_errors_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model.base", "kubernetes_base_"},
@@ -74,7 +75,8 @@ func main() {
 	b, _ := json.Marshal(&schema)
 	result := string(b)
 	result = strings.Replace(result, "\"additionalProperty\":", "\"additionalProperties\":", -1)
-	result = strings.Replace(result, "\"apiVersion\":{\"type\":\"string\"}", "\"apiVersion\":{\"type\":\"string\",\"default\":\"v1beta2\"}", -1)
+	apiVersionRe := regexp.MustCompile("\"apiVersion\":{([^}]*)}")
+	result = apiVersionRe.ReplaceAllString(result, "\"apiVersion\":{$1,\"default\":\"v1beta2\"}")
 	result = strings.Replace(result, "\"io.fabric8.kubernetes.api.model.List\"", "\"io.fabric8.kubernetes.api.model.KubernetesList\"", -1)
 
 	fmt.Println(result)
