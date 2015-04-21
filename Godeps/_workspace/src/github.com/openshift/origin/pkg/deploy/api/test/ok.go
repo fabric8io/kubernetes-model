@@ -2,37 +2,46 @@ package test
 
 import (
 	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	"github.com/openshift/origin/pkg/deploy/api"
+
+	deployapi "github.com/openshift/origin/pkg/deploy/api"
 )
 
-func OkStrategy() api.DeploymentStrategy {
-	return api.DeploymentStrategy{
-		Type: api.DeploymentStrategyTypeRecreate,
+func OkStrategy() deployapi.DeploymentStrategy {
+	return deployapi.DeploymentStrategy{
+		Type: deployapi.DeploymentStrategyTypeRecreate,
 	}
 }
 
-func OkCustomStrategy() api.DeploymentStrategy {
-	return api.DeploymentStrategy{
-		Type:         api.DeploymentStrategyTypeCustom,
+func OkCustomStrategy() deployapi.DeploymentStrategy {
+	return deployapi.DeploymentStrategy{
+		Type:         deployapi.DeploymentStrategyTypeCustom,
 		CustomParams: OkCustomParams(),
 	}
 }
 
-func OkCustomParams() *api.CustomDeploymentStrategyParams {
-	return &api.CustomDeploymentStrategyParams{
+func OkCustomParams() *deployapi.CustomDeploymentStrategyParams {
+	return &deployapi.CustomDeploymentStrategyParams{
 		Image: "openshift/origin-deployer",
+		Environment: []kapi.EnvVar{
+			{
+				Name:  "ENV1",
+				Value: "VAL1",
+			},
+		},
+		Command: []string{"/bin/echo", "hello", "world"},
 	}
 }
 
 func OkControllerTemplate() kapi.ReplicationControllerSpec {
 	return kapi.ReplicationControllerSpec{
+		Replicas: 1,
 		Selector: OkSelector(),
 		Template: OkPodTemplate(),
 	}
 }
 
-func OkDeploymentTemplate() api.DeploymentTemplate {
-	return api.DeploymentTemplate{
+func OkDeploymentTemplate() deployapi.DeploymentTemplate {
+	return deployapi.DeploymentTemplate{
 		Strategy:           OkStrategy(),
 		ControllerTemplate: OkControllerTemplate(),
 	}
@@ -44,9 +53,64 @@ func OkSelector() map[string]string {
 
 func OkPodTemplate() *kapi.PodTemplateSpec {
 	return &kapi.PodTemplateSpec{
-		Spec: kapi.PodSpec{},
+		Spec: kapi.PodSpec{
+			Containers: []kapi.Container{
+				{
+					Name:  "container1",
+					Image: "registry:8080/repo1:ref1",
+					Env: []kapi.EnvVar{
+						{
+							Name:  "ENV1",
+							Value: "VAL1",
+						},
+					},
+					ImagePullPolicy: kapi.PullIfNotPresent,
+				},
+				{
+					Name:            "container2",
+					Image:           "registry:8080/repo1:ref2",
+					ImagePullPolicy: kapi.PullIfNotPresent,
+				},
+			},
+			RestartPolicy: kapi.RestartPolicyAlways,
+			DNSPolicy:     kapi.DNSClusterFirst,
+		},
 		ObjectMeta: kapi.ObjectMeta{
 			Labels: OkSelector(),
 		},
+	}
+}
+
+func OkConfigChangeTrigger() deployapi.DeploymentTriggerPolicy {
+	return deployapi.DeploymentTriggerPolicy{
+		Type: deployapi.DeploymentTriggerOnConfigChange,
+	}
+}
+
+func OkImageChangeTrigger() deployapi.DeploymentTriggerPolicy {
+	return deployapi.DeploymentTriggerPolicy{
+		Type: deployapi.DeploymentTriggerOnImageChange,
+		ImageChangeParams: &deployapi.DeploymentTriggerImageChangeParams{
+			Automatic: true,
+			ContainerNames: []string{
+				"container1",
+			},
+			RepositoryName: "registry:8080/repo1",
+			Tag:            "tag1",
+		},
+	}
+}
+
+func OkDeploymentConfig(version int) *deployapi.DeploymentConfig {
+	return &deployapi.DeploymentConfig{
+		ObjectMeta: kapi.ObjectMeta{
+			Namespace: kapi.NamespaceDefault,
+			Name:      "config",
+		},
+		LatestVersion: version,
+		Triggers: []deployapi.DeploymentTriggerPolicy{
+			OkImageChangeTrigger(),
+		},
+		Template: OkDeploymentTemplate(),
 	}
 }

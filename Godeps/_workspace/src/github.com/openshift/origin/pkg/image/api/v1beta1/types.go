@@ -2,71 +2,103 @@ package v1beta1
 
 import (
 	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta3"
-	"github.com/fsouza/go-dockerclient"
+	"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime"
+	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 )
 
 // ImageList is a list of Image objects.
 type ImageList struct {
-	kapi.TypeMeta `json:",inline" yaml:",inline"`
-	kapi.ListMeta `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	kapi.TypeMeta `json:",inline"`
+	kapi.ListMeta `json:"metadata,omitempty"`
 
-	Items []Image `json:"items" yaml:"items"`
+	Items []Image `json:"items"`
 }
 
 // Image is an immutable representation of a Docker image and metadata at a point in time.
 type Image struct {
-	kapi.TypeMeta   `json:",inline" yaml:",inline"`
-	kapi.ObjectMeta `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	kapi.TypeMeta   `json:",inline"`
+	kapi.ObjectMeta `json:"metadata,omitempty"`
 
 	// The string that can be used to pull this image.
-	DockerImageReference string `json:"dockerImageReference,omitempty" yaml:"dockerImageReference,omitempty"`
+	DockerImageReference string `json:"dockerImageReference,omitempty"`
 	// Metadata about this image
-	DockerImageMetadata docker.Image `json:"dockerImageMetadata,omitempty" yaml:"dockerImageMetadata,omitempty"`
+	DockerImageMetadata runtime.RawExtension `json:"dockerImageMetadata,omitempty"`
+	// This attribute conveys the version of the object, which if empty defaults to "1.0"
+	DockerImageMetadataVersion string `json:"dockerImageMetadataVersion,omitempty"`
+	// The raw JSON of the manifest
+	DockerImageManifest string `json:"dockerImageManifest,omitempty"`
+}
+
+// ImageRepositoryTag exists to allow calls to `osc get imageRepositoryTag ...` to function.
+type ImageRepositoryTag struct {
+	Image
+}
+
+// ImageStreamImage exists to allow calls to `osc get imageStreamImage ...` to function.
+type ImageStreamImage struct {
+	Image
 }
 
 // ImageRepositoryList is a list of ImageRepository objects.
 type ImageRepositoryList struct {
-	kapi.TypeMeta `json:",inline" yaml:",inline"`
-	kapi.ListMeta `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	kapi.TypeMeta `json:",inline"`
+	kapi.ListMeta `json:"metadata,omitempty"`
 
-	Items []ImageRepository `json:"items" yaml:"items"`
+	Items []ImageRepository `json:"items"`
 }
 
 // ImageRepository stores a mapping of tags to images, metadata overrides that are applied
 // when images are tagged in a repository, and an optional reference to a Docker image
 // repository on a registry.
 type ImageRepository struct {
-	kapi.TypeMeta   `json:",inline" yaml:",inline"`
-	kapi.ObjectMeta `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	kapi.TypeMeta   `json:",inline"`
+	kapi.ObjectMeta `json:"metadata,omitempty"`
 
 	// Optional, if specified this repository is backed by a Docker repository on this server
-	DockerImageRepository string `json:"dockerImageRepository,omitempty" yaml:"dockerImageRepository,omitempty"`
+	DockerImageRepository string `json:"dockerImageRepository,omitempty"`
 	// Tags map arbitrary string values to specific image locators
-	Tags map[string]string `json:"tags,omitempty" yaml:"tags,omitempty"`
+	Tags map[string]string `json:"tags,omitempty"`
 
 	// Status describes the current state of this repository
-	Status ImageRepositoryStatus `json:"status,omitempty" yaml:"status,omitempty"`
+	Status ImageRepositoryStatus `json:"status,omitempty"`
 }
 
 // ImageRepositoryStatus contains information about the state of this image repository.
 type ImageRepositoryStatus struct {
 	// Represents the effective location this repository may be accessed at. May be empty until the server
 	// determines where the repository is located
-	DockerImageRepository string `json:"dockerImageRepository,omitempty" yaml:"dockerImageRepository,omitempty"`
+	DockerImageRepository string `json:"dockerImageRepository"`
+	// A historical record of images associated with each tag. The first entry in the TagEvent array is
+	// the currently tagged image.
+	Tags []NamedTagEventList `json:"tags,omitempty"`
 }
 
-// TODO add metadata overrides
+// NamedTagEventList relates a tag to its image history.
+type NamedTagEventList struct {
+	Tag   string     `json:"tag"`
+	Items []TagEvent `json:"items"`
+}
+
+// TagEvent is used by ImageRepositoryStatus to keep a historical record of images associated with a tag.
+type TagEvent struct {
+	// When the TagEvent was created
+	Created util.Time `json:"created"`
+	// The string that can be used to pull this image
+	DockerImageReference string `json:"dockerImageReference"`
+	// The image
+	Image string `json:"image"`
+}
 
 // ImageRepositoryMapping represents a mapping from a single tag to a Docker image as
 // well as the reference to the Docker image repository the image came from.
 type ImageRepositoryMapping struct {
-	kapi.TypeMeta   `json:",inline" yaml:",inline"`
-	kapi.ObjectMeta `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	kapi.TypeMeta   `json:",inline"`
+	kapi.ObjectMeta `json:"metadata,omitempty"`
 
 	// The Docker image repository the specified image is located in
-	DockerImageRepository string `json:"dockerImageRepository" yaml:"dockerImageRepository"`
+	DockerImageRepository string `json:"dockerImageRepository"`
 	// A Docker image.
-	Image Image `json:"image" yaml:"image"`
+	Image Image `json:"image"`
 	// A string value this image can be located with inside the repository.
-	Tag string `json:"tag" yaml:"tag"`
+	Tag string `json:"tag"`
 }

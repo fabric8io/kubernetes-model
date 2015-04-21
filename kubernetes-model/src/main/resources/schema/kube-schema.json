@@ -2,192 +2,6 @@
   "id": "http://fabric8.io/fabric8/v2/Schema#",
   "$schema": "http://json-schema.org/schema#",
   "definitions": {
-    "docker_Config": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "AttachStderr": {
-          "type": "boolean",
-          "description": ""
-        },
-        "AttachStdin": {
-          "type": "boolean",
-          "description": ""
-        },
-        "AttachStdout": {
-          "type": "boolean",
-          "description": ""
-        },
-        "Cmd": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "type": "string",
-            "description": ""
-          }
-        },
-        "CpuSet": {
-          "type": "string",
-          "description": ""
-        },
-        "CpuShares": {
-          "type": "integer",
-          "description": ""
-        },
-        "Dns": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "type": "string",
-            "description": ""
-          }
-        },
-        "Domainname": {
-          "type": "string",
-          "description": ""
-        },
-        "Entrypoint": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "type": "string",
-            "description": ""
-          }
-        },
-        "Env": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "type": "string",
-            "description": ""
-          }
-        },
-        "ExposedPorts": {
-          "type": "object",
-          "description": "",
-          "additionalProperties": {
-            "type": "string",
-            "description": ""
-          },
-          "javaType": "java.util.Map<String,Object>"
-        },
-        "Hostname": {
-          "type": "string",
-          "description": ""
-        },
-        "Image": {
-          "type": "string",
-          "description": ""
-        },
-        "Memory": {
-          "type": "integer",
-          "description": ""
-        },
-        "MemorySwap": {
-          "type": "integer",
-          "description": ""
-        },
-        "NetworkDisabled": {
-          "type": "boolean",
-          "description": ""
-        },
-        "OpenStdin": {
-          "type": "boolean",
-          "description": ""
-        },
-        "PortSpecs": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "type": "string",
-            "description": ""
-          }
-        },
-        "StdinOnce": {
-          "type": "boolean",
-          "description": ""
-        },
-        "Tty": {
-          "type": "boolean",
-          "description": ""
-        },
-        "User": {
-          "type": "string",
-          "description": ""
-        },
-        "Volumes": {
-          "type": "object",
-          "description": "",
-          "additionalProperties": {
-            "type": "string",
-            "description": ""
-          },
-          "javaType": "java.util.Map<String,Object>"
-        },
-        "VolumesFrom": {
-          "type": "string",
-          "description": ""
-        },
-        "WorkingDir": {
-          "type": "string",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.docker.client.dockerclient.Config"
-    },
-    "docker_Image": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "Architecture": {
-          "type": "string",
-          "description": ""
-        },
-        "Author": {
-          "type": "string",
-          "description": ""
-        },
-        "Comment": {
-          "type": "string",
-          "description": ""
-        },
-        "Config": {
-          "$ref": "#/definitions/docker_Config",
-          "javaType": "io.fabric8.docker.client.dockerclient.Config"
-        },
-        "Container": {
-          "type": "string",
-          "description": ""
-        },
-        "ContainerConfig": {
-          "$ref": "#/definitions/docker_Config",
-          "javaType": "io.fabric8.docker.client.dockerclient.Config"
-        },
-        "Created": {
-          "type": "string",
-          "description": ""
-        },
-        "DockerVersion": {
-          "type": "string",
-          "description": ""
-        },
-        "Id": {
-          "type": "string",
-          "description": ""
-        },
-        "Parent": {
-          "type": "string",
-          "description": ""
-        },
-        "Size": {
-          "type": "integer",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.docker.client.dockerclient.Image"
-    },
     "kubernetes_Container": {
       "type": "object",
       "description": "",
@@ -2462,6 +2276,10 @@
           "type": "boolean",
           "description": ""
         },
+        "completionTimestamp": {
+          "type": "string",
+          "description": ""
+        },
         "creationTimestamp": {
           "type": "string",
           "description": ""
@@ -2480,6 +2298,10 @@
           },
           "javaType": "java.util.Map<String,String>"
         },
+        "message": {
+          "type": "string",
+          "description": ""
+        },
         "name": {
           "type": "string",
           "description": ""
@@ -2492,15 +2314,15 @@
           "$ref": "#/definitions/os_build_BuildParameters",
           "javaType": "io.fabric8.openshift.api.model.BuildParameters"
         },
-        "podName": {
-          "type": "string",
-          "description": ""
-        },
         "resourceVersion": {
           "type": "string",
           "description": ""
         },
         "selfLink": {
+          "type": "string",
+          "description": ""
+        },
+        "startTimestamp": {
           "type": "string",
           "description": ""
         },
@@ -2551,6 +2373,10 @@
             "description": ""
           },
           "javaType": "java.util.Map<String,String>"
+        },
+        "lastVersion": {
+          "type": "integer",
+          "description": ""
         },
         "name": {
           "type": "string",
@@ -2660,13 +2486,21 @@
       "type": "object",
       "description": "",
       "properties": {
-        "imageTag": {
+        "dockerImageReference": {
           "type": "string",
           "description": ""
         },
-        "registry": {
+        "pushSecretName": {
           "type": "string",
           "description": ""
+        },
+        "tag": {
+          "type": "string",
+          "description": ""
+        },
+        "to": {
+          "$ref": "#/definitions/kubernetes_base_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.base.ObjectReference"
         }
       },
       "additionalProperties": true,
@@ -2700,6 +2534,10 @@
       "type": "object",
       "description": "",
       "properties": {
+        "contextDir": {
+          "type": "string",
+          "description": ""
+        },
         "git": {
           "$ref": "#/definitions/os_build_GitBuildSource",
           "javaType": "io.fabric8.openshift.api.model.GitBuildSource"
@@ -2748,6 +2586,10 @@
           "$ref": "#/definitions/os_build_WebHookTrigger",
           "javaType": "io.fabric8.openshift.api.model.WebHookTrigger"
         },
+        "imageChange": {
+          "$ref": "#/definitions/os_build_ImageChangeTrigger",
+          "javaType": "io.fabric8.openshift.api.model.ImageChangeTrigger"
+        },
         "type": {
           "type": "string",
           "description": ""
@@ -2784,7 +2626,7 @@
       "type": "object",
       "description": "",
       "properties": {
-        "contextDir": {
+        "image": {
           "type": "string",
           "description": ""
         },
@@ -2836,16 +2678,56 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.GitSourceRevision"
     },
+    "os_build_ImageChangeTrigger": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "from": {
+          "$ref": "#/definitions/kubernetes_base_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.base.ObjectReference"
+        },
+        "image": {
+          "type": "string",
+          "description": ""
+        },
+        "lastTriggeredImageID": {
+          "type": "string",
+          "description": ""
+        },
+        "tag": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ImageChangeTrigger"
+    },
     "os_build_STIBuildStrategy": {
       "type": "object",
       "description": "",
       "properties": {
-        "clean": {
-          "type": "boolean",
+        "Tag": {
+          "type": "string",
           "description": ""
+        },
+        "env": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_base_EnvVar",
+            "javaType": "io.fabric8.kubernetes.api.model.base.EnvVar"
+          }
+        },
+        "from": {
+          "$ref": "#/definitions/kubernetes_base_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.base.ObjectReference"
         },
         "image": {
           "type": "string",
+          "description": ""
+        },
+        "incremental": {
+          "type": "boolean",
           "description": ""
         },
         "scripts": {
@@ -3283,6 +3165,10 @@
             "description": ""
           }
         },
+        "from": {
+          "$ref": "#/definitions/kubernetes_base_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.base.ObjectReference"
+        },
         "repositoryName": {
           "type": "string",
           "description": ""
@@ -3311,6 +3197,218 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.DeploymentTriggerPolicy"
     },
+    "os_image_DockerConfig": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "AttachStderr": {
+          "type": "boolean",
+          "description": ""
+        },
+        "AttachStdin": {
+          "type": "boolean",
+          "description": ""
+        },
+        "AttachStdout": {
+          "type": "boolean",
+          "description": ""
+        },
+        "Cmd": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "CpuShares": {
+          "type": "integer",
+          "description": ""
+        },
+        "Cpuset": {
+          "type": "string",
+          "description": ""
+        },
+        "Dns": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "Domainname": {
+          "type": "string",
+          "description": ""
+        },
+        "Entrypoint": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "Env": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "ExposedPorts": {
+          "type": "object",
+          "description": "",
+          "additionalProperties": {
+            "type": "string",
+            "description": ""
+          },
+          "javaType": "java.util.Map<String,Object>"
+        },
+        "Hostname": {
+          "type": "string",
+          "description": ""
+        },
+        "Image": {
+          "type": "string",
+          "description": ""
+        },
+        "Memory": {
+          "type": "integer",
+          "description": ""
+        },
+        "MemorySwap": {
+          "type": "integer",
+          "description": ""
+        },
+        "NetworkDisabled": {
+          "type": "boolean",
+          "description": ""
+        },
+        "OnBuild": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "OpenStdin": {
+          "type": "boolean",
+          "description": ""
+        },
+        "PortSpecs": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "SecurityOpts": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "StdinOnce": {
+          "type": "boolean",
+          "description": ""
+        },
+        "Tty": {
+          "type": "boolean",
+          "description": ""
+        },
+        "User": {
+          "type": "string",
+          "description": ""
+        },
+        "Volumes": {
+          "type": "object",
+          "description": "",
+          "additionalProperties": {
+            "type": "string",
+            "description": ""
+          },
+          "javaType": "java.util.Map<String,Object>"
+        },
+        "VolumesFrom": {
+          "type": "string",
+          "description": ""
+        },
+        "WorkingDir": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.DockerConfig"
+    },
+    "os_image_DockerImage": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "Architecture": {
+          "type": "string",
+          "description": ""
+        },
+        "Author": {
+          "type": "string",
+          "description": ""
+        },
+        "Comment": {
+          "type": "string",
+          "description": ""
+        },
+        "Config": {
+          "$ref": "#/definitions/os_image_DockerConfig",
+          "javaType": "io.fabric8.openshift.api.model.DockerConfig"
+        },
+        "Container": {
+          "type": "string",
+          "description": ""
+        },
+        "ContainerConfig": {
+          "$ref": "#/definitions/os_image_DockerConfig",
+          "javaType": "io.fabric8.openshift.api.model.DockerConfig"
+        },
+        "Created": {
+          "type": "string",
+          "description": ""
+        },
+        "DockerVersion": {
+          "type": "string",
+          "description": ""
+        },
+        "Id": {
+          "type": "string",
+          "description": ""
+        },
+        "Parent": {
+          "type": "string",
+          "description": ""
+        },
+        "Size": {
+          "type": "integer",
+          "description": ""
+        },
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1beta1"
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "DockerImage"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.DockerImage"
+    },
     "os_image_Image": {
       "type": "object",
       "description": "",
@@ -3334,8 +3432,12 @@
           "description": ""
         },
         "dockerImageMetadata": {
-          "$ref": "#/definitions/docker_Image",
-          "javaType": "io.fabric8.docker.client.dockerclient.Image"
+          "$ref": "#/definitions/os_image_DockerImage",
+          "javaType": "io.fabric8.openshift.api.model.DockerImage"
+        },
+        "dockerImageMetadataVersion": {
+          "type": "string",
+          "description": ""
         },
         "dockerImageReference": {
           "type": "string",
@@ -3360,6 +3462,10 @@
           "description": ""
         },
         "namespace": {
+          "type": "string",
+          "description": ""
+        },
+        "rawManifest": {
           "type": "string",
           "description": ""
         },
@@ -3531,10 +3637,55 @@
         "dockerImageRepository": {
           "type": "string",
           "description": ""
+        },
+        "tags": {
+          "type": "object",
+          "description": "",
+          "additionalProperties": {
+            "$ref": "#/definitions/os_image_TagEventList",
+            "javaType": "io.fabric8.openshift.api.model.TagEventList"
+          },
+          "javaType": "java.util.Map<String,io.fabric8.openshift.api.model.TagEventList>"
         }
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.ImageRepositoryStatus"
+    },
+    "os_image_TagEvent": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "created": {
+          "type": "string",
+          "description": ""
+        },
+        "dockerImageReference": {
+          "type": "string",
+          "description": ""
+        },
+        "image": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.TagEvent"
+    },
+    "os_image_TagEventList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/os_image_TagEvent",
+            "javaType": "io.fabric8.openshift.api.model.TagEvent"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.TagEventList"
     },
     "os_route_Route": {
       "type": "object",
@@ -3600,6 +3751,10 @@
           "type": "string",
           "description": ""
         },
+        "tls": {
+          "$ref": "#/definitions/os_route_TLSConfig",
+          "javaType": "io.fabric8.openshift.api.model.TLSConfig"
+        },
         "uid": {
           "type": "string",
           "description": ""
@@ -3641,6 +3796,34 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.RouteList"
+    },
+    "os_route_TLSConfig": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "caCertificate": {
+          "type": "string",
+          "description": ""
+        },
+        "certificate": {
+          "type": "string",
+          "description": ""
+        },
+        "destinationCACertificate": {
+          "type": "string",
+          "description": ""
+        },
+        "key": {
+          "type": "string",
+          "description": ""
+        },
+        "termination": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.TLSConfig"
     },
     "os_template_Parameter": {
       "type": "object",
