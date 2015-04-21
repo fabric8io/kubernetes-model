@@ -4020,6 +4020,14 @@
       "$ref": "#/definitions/kubernetes_errors_StatusError",
       "javaType": "io.fabric8.kubernetes.api.model.errors.StatusError"
     },
+    "TagEvent": {
+      "$ref": "#/definitions/os_image_TagEvent",
+      "javaType": "io.fabric8.openshift.api.model.TagEvent"
+    },
+    "TagEventList": {
+      "$ref": "#/definitions/os_image_TagEventList",
+      "javaType": "io.fabric8.openshift.api.model.TagEventList"
+    },
     "Template": {
       "$ref": "#/definitions/os_template_Template",
       "javaType": "io.fabric8.openshift.api.model.template.Template"

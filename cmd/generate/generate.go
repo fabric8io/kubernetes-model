@@ -41,6 +41,8 @@ type Schema struct {
 	ContainerStatus           kapi.ContainerStatus
 	Config                    configapi.Config
 	Template                  templateapi.Template
+	TagEvent                  imageapi.TagEvent
+	TagEventList              imageapi.TagEventList
 }
 
 func main() {
