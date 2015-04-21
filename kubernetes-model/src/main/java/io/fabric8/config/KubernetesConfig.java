@@ -1,4 +1,4 @@
-package io.fabric8.kubernetes.api.model;
+package io.fabric8.config;
 
 import io.sundr.builder.annotations.ExternalBuildables;
 
