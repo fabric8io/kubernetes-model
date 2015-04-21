@@ -17,7 +17,7 @@ To build, clone repo and run:
 ```
 cd origin-schema-generator
 godep restore
-godep go build ./cmd/generate/generate.go  
+go build ./cmd/generate/generate.go  
 ./generate > kube-schema.json  
 ```
 
