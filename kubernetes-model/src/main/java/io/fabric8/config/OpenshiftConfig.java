@@ -38,6 +38,8 @@ import io.sundr.builder.annotations.ExternalBuildables;
         "io.fabric8.openshift.api.model.STIBuildStrategy",
         "io.fabric8.openshift.api.model.SourceControlUser",
         "io.fabric8.openshift.api.model.SourceRevision",
+        "io.fabric8.openshift.api.model.TagEvent",
+        "io.fabric8.openshift.api.model.TagEventList",
         "io.fabric8.openshift.api.model.WebHookTrigger",
         "io.fabric8.openshift.api.model.config.Config",
         "io.fabric8.openshift.api.model.template.Template",
