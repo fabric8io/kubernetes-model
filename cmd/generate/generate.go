@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"regexp"
 	"strings"
 	"time"
 
@@ -72,11 +71,10 @@ func main() {
 		fmt.Errorf("An error occurred: %v", err)
 		return
 	}
+
 	b, _ := json.Marshal(&schema)
 	result := string(b)
 	result = strings.Replace(result, "\"additionalProperty\":", "\"additionalProperties\":", -1)
-	apiVersionRe := regexp.MustCompile("\"apiVersion\":{([^}]*)}")
-	result = apiVersionRe.ReplaceAllString(result, "\"apiVersion\":{$1,\"default\":\"v1beta2\"}")
 	result = strings.Replace(result, "\"io.fabric8.kubernetes.api.model.List\"", "\"io.fabric8.kubernetes.api.model.KubernetesList\"", -1)
 
 	fmt.Println(result)

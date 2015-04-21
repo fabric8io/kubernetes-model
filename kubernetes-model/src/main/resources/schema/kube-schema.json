@@ -437,7 +437,7 @@
         },
         "apiVersion": {
           "type": "string",
-          "description": "version of the schema the object should have",
+          "description": "",
           "default": "v1beta2"
         },
         "creationTimestamp": {
@@ -496,7 +496,7 @@
         },
         "apiVersion": {
           "type": "string",
-          "description": "version of the schema the object should have",
+          "description": "",
           "default": "v1beta2"
         },
         "creationTimestamp": {
@@ -691,7 +691,7 @@
         },
         "apiVersion": {
           "type": "string",
-          "description": "version of the schema the object should have",
+          "description": "",
           "default": "v1beta2"
         },
         "creationTimestamp": {
@@ -774,7 +774,7 @@
         },
         "apiVersion": {
           "type": "string",
-          "description": "version of the schema the object should have",
+          "description": "",
           "default": "v1beta2"
         },
         "creationTimestamp": {
@@ -846,7 +846,7 @@
         },
         "apiVersion": {
           "type": "string",
-          "description": "version of the schema the object should have",
+          "description": "",
           "default": "v1beta2"
         },
         "creationTimestamp": {
@@ -970,7 +970,7 @@
         },
         "apiVersion": {
           "type": "string",
-          "description": "version of the schema the object should have",
+          "description": "",
           "default": "v1beta2"
         },
         "creationTimestamp": {
@@ -1047,7 +1047,7 @@
         },
         "apiVersion": {
           "type": "string",
-          "description": "version of the schema the object should have",
+          "description": "",
           "default": "v1beta2"
         },
         "creationTimestamp": {
@@ -1196,7 +1196,7 @@
         },
         "apiVersion": {
           "type": "string",
-          "description": "version of the schema the object should have",
+          "description": "",
           "default": "v1beta2"
         },
         "creationTimestamp": {
@@ -1264,7 +1264,7 @@
         },
         "apiVersion": {
           "type": "string",
-          "description": "version of the schema the object should have",
+          "description": "",
           "default": "v1beta2"
         },
         "creationTimestamp": {
@@ -1386,7 +1386,7 @@
         },
         "apiVersion": {
           "type": "string",
-          "description": "version of the schema the object should have",
+          "description": "",
           "default": "v1beta2"
         },
         "containerPort": {
@@ -1491,7 +1491,7 @@
         },
         "apiVersion": {
           "type": "string",
-          "description": "version of the schema the object should have",
+          "description": "",
           "default": "v1beta2"
         },
         "creationTimestamp": {
@@ -1562,8 +1562,7 @@
         },
         "apiVersion": {
           "type": "string",
-          "description": "version of the schema the object should have",
-          "default": "v1beta2"
+          "description": "version of the schema the object should have"
         },
         "creationTimestamp": {
           "type": "string",
@@ -1975,8 +1974,7 @@
       "properties": {
         "apiVersion": {
           "type": "string",
-          "description": "",
-          "default": "v1beta2"
+          "description": ""
         },
         "fieldPath": {
           "type": "string",
@@ -2308,8 +2306,7 @@
       "properties": {
         "apiVersion": {
           "type": "string",
-          "description": "",
-          "default": "v1beta2"
+          "description": ""
         },
         "kind": {
           "type": "string",
@@ -2459,7 +2456,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "cancelled": {
           "type": "boolean",
@@ -2535,7 +2532,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "creationTimestamp": {
           "type": "string",
@@ -2598,7 +2595,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "items": {
           "type": "array",
@@ -2632,7 +2629,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "items": {
           "type": "array",
@@ -2910,7 +2907,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "items": {
           "type": "array",
@@ -2978,7 +2975,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "controllerTemplate": {
           "$ref": "#/definitions/kubernetes_base_ReplicationControllerSpec",
@@ -3086,7 +3083,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "creationTimestamp": {
           "type": "string",
@@ -3157,7 +3154,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "items": {
           "type": "array",
@@ -3211,7 +3208,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "items": {
           "type": "array",
@@ -3330,7 +3327,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "creationTimestamp": {
           "type": "string",
@@ -3389,7 +3386,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "items": {
           "type": "array",
@@ -3432,7 +3429,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "creationTimestamp": {
           "type": "string",
@@ -3500,7 +3497,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "items": {
           "type": "array",
@@ -3555,7 +3552,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "creationTimestamp": {
           "type": "string",
@@ -3618,7 +3615,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "items": {
           "type": "array",
@@ -3711,7 +3708,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta1"
         },
         "creationTimestamp": {
           "type": "string",

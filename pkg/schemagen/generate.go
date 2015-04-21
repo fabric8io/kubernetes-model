@@ -148,7 +148,7 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSO
 	case reflect.Bool:
 		return JSONPropertyDescriptor{
 			JSONDescriptor: &JSONDescriptor{
-				Type: "boolean",
+				Type:        "boolean",
 				Description: desc,
 			},
 		}
@@ -158,7 +158,7 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSO
 		reflect.Uint64:
 		return JSONPropertyDescriptor{
 			JSONDescriptor: &JSONDescriptor{
-				Type: "integer",
+				Type:        "integer",
 				Description: desc,
 			},
 		}
@@ -166,14 +166,14 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSO
 		reflect.Complex128:
 		return JSONPropertyDescriptor{
 			JSONDescriptor: &JSONDescriptor{
-				Type: "number",
+				Type:        "number",
 				Description: desc,
 			},
 		}
 	case reflect.String:
 		return JSONPropertyDescriptor{
 			JSONDescriptor: &JSONDescriptor{
-				Type: "string",
+				Type:        "string",
 				Description: desc,
 			},
 		}
@@ -181,7 +181,7 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSO
 	case reflect.Slice:
 		return JSONPropertyDescriptor{
 			JSONDescriptor: &JSONDescriptor{
-				Type: "array",
+				Type:        "array",
 				Description: desc,
 			},
 			JSONArrayDescriptor: &JSONArrayDescriptor{
@@ -191,7 +191,7 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSO
 	case reflect.Map:
 		return JSONPropertyDescriptor{
 			JSONDescriptor: &JSONDescriptor{
-				Type: "object",
+				Type:        "object",
 				Description: desc,
 			},
 			JSONMapDescriptor: &JSONMapDescriptor{
@@ -242,11 +242,23 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 				newProps = prop.Properties
 			}
 			for k, v := range newProps {
-				if k == "kind" {
+				switch k {
+				case "kind":
 					v = JSONPropertyDescriptor{
 						JSONDescriptor: &JSONDescriptor{
 							Type:    "string",
 							Default: t.Name(),
+						},
+					}
+				case "apiVersion":
+					apiVersion := "v1beta2"
+					if strings.HasPrefix(t.PkgPath(), "github.com/openshift") {
+						apiVersion = "v1beta1"
+					}
+					v = JSONPropertyDescriptor{
+						JSONDescriptor: &JSONDescriptor{
+							Type:    "string",
+							Default: apiVersion,
 						},
 					}
 				}
