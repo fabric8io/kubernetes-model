@@ -276,7 +276,7 @@
           "type": "string",
           "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "kind": {
           "type": "string",
@@ -288,7 +288,7 @@
           "type": "string",
           "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "integer",
@@ -338,7 +338,7 @@
           "type": "string",
           "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "items": {
           "type": "array",
@@ -358,7 +358,7 @@
           "type": "string",
           "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "integer",
@@ -544,7 +544,7 @@
           "type": "string",
           "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "items": {
           "type": "array",
@@ -564,7 +564,7 @@
           "type": "string",
           "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "integer",
@@ -642,7 +642,7 @@
           "type": "string",
           "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "kind": {
           "type": "string",
@@ -663,7 +663,7 @@
           "type": "string",
           "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "integer",
@@ -721,7 +721,7 @@
           "type": "string",
           "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "items": {
           "type": "array",
@@ -741,7 +741,7 @@
           "type": "string",
           "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "integer",
@@ -864,7 +864,7 @@
           "type": "string",
           "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "kind": {
           "type": "string",
@@ -885,7 +885,7 @@
           "type": "string",
           "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "nodeSelector": {
           "type": "object",
@@ -944,7 +944,7 @@
           "type": "string",
           "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "items": {
           "type": "array",
@@ -964,7 +964,7 @@
           "type": "string",
           "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "integer",
@@ -1112,7 +1112,7 @@
           "type": "string",
           "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "kind": {
           "type": "string",
@@ -1133,7 +1133,7 @@
           "type": "string",
           "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "integer",
@@ -1183,7 +1183,7 @@
           "type": "string",
           "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "items": {
           "type": "array",
@@ -1203,7 +1203,7 @@
           "type": "string",
           "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "integer",
@@ -1324,7 +1324,7 @@
           "type": "string",
           "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "kind": {
           "type": "string",
@@ -1345,7 +1345,7 @@
           "type": "string",
           "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "port": {
           "type": "integer",
@@ -1432,7 +1432,7 @@
           "type": "string",
           "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "items": {
           "type": "array",
@@ -1452,7 +1452,7 @@
           "type": "string",
           "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "integer",
@@ -1507,7 +1507,7 @@
           "type": "string",
           "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "kind": {
           "type": "string",
@@ -1517,7 +1517,7 @@
           "type": "string",
           "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "integer",
@@ -1887,13 +1887,13 @@
           "type": "string",
           "description": "",
           "maxLength": 63,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
           "description": "",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "string",
@@ -2022,13 +2022,13 @@
           "type": "string",
           "description": "",
           "maxLength": 63,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
           "description": "",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "string",
@@ -2453,13 +2453,13 @@
           "type": "string",
           "description": "",
           "maxLength": 63,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
           "description": "",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "parameters": {
           "$ref": "#/definitions/os_build_BuildParameters",
@@ -2540,13 +2540,13 @@
           "type": "string",
           "description": "",
           "maxLength": 63,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
           "description": "",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "parameters": {
           "$ref": "#/definitions/os_build_BuildParameters",
@@ -3079,13 +3079,13 @@
           "type": "string",
           "description": "",
           "maxLength": 63,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
           "description": "",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "string",
@@ -3198,13 +3198,13 @@
           "type": "string",
           "description": "",
           "maxLength": 63,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
           "description": "",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "string",
@@ -3694,13 +3694,13 @@
           "type": "string",
           "description": "",
           "maxLength": 63,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
           "description": "",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "rawManifest": {
           "type": "string",
@@ -3814,13 +3814,13 @@
           "type": "string",
           "description": "",
           "maxLength": 63,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
           "description": "",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "string",
@@ -4000,13 +4000,13 @@
           "type": "string",
           "description": "",
           "maxLength": 63,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
           "description": "",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "path": {
           "type": "string",
@@ -4202,13 +4202,13 @@
           "type": "string",
           "description": "",
           "maxLength": 63,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
           "description": "",
           "maxLength": 253,
-          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "string",
