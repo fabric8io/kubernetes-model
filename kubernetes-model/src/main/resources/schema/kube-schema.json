@@ -252,7 +252,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta2",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -268,16 +274,21 @@
         },
         "id": {
           "type": "string",
-          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs"
+          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "kind": {
           "type": "string",
           "description": "",
-          "default": "Endpoints"
+          "default": "Endpoints",
+          "required": true
         },
         "namespace": {
           "type": "string",
-          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default"
+          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "integer",
@@ -311,7 +322,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta2",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -319,7 +336,9 @@
         },
         "id": {
           "type": "string",
-          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs"
+          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "items": {
           "type": "array",
@@ -332,11 +351,14 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "EndpointsList"
+          "default": "EndpointsList",
+          "required": true
         },
         "namespace": {
           "type": "string",
-          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default"
+          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "integer",
@@ -506,7 +528,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta2",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -514,7 +542,9 @@
         },
         "id": {
           "type": "string",
-          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs"
+          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "items": {
           "type": "array",
@@ -527,11 +557,14 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "List"
+          "default": "List",
+          "required": true
         },
         "namespace": {
           "type": "string",
-          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default"
+          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "integer",
@@ -589,7 +622,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta2",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -601,12 +640,15 @@
         },
         "id": {
           "type": "string",
-          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs"
+          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "kind": {
           "type": "string",
           "description": "",
-          "default": "Minion"
+          "default": "Minion",
+          "required": true
         },
         "labels": {
           "type": "object",
@@ -619,7 +661,9 @@
         },
         "namespace": {
           "type": "string",
-          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default"
+          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "integer",
@@ -661,7 +705,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta2",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -669,7 +719,9 @@
         },
         "id": {
           "type": "string",
-          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs"
+          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "items": {
           "type": "array",
@@ -682,11 +734,14 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "MinionList"
+          "default": "MinionList",
+          "required": true
         },
         "namespace": {
           "type": "string",
-          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default"
+          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "integer",
@@ -785,7 +840,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta2",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -801,12 +862,15 @@
         },
         "id": {
           "type": "string",
-          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs"
+          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "kind": {
           "type": "string",
           "description": "",
-          "default": "Pod"
+          "default": "Pod",
+          "required": true
         },
         "labels": {
           "type": "object",
@@ -819,7 +883,9 @@
         },
         "namespace": {
           "type": "string",
-          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default"
+          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "nodeSelector": {
           "type": "object",
@@ -862,7 +928,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta2",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -870,7 +942,9 @@
         },
         "id": {
           "type": "string",
-          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs"
+          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "items": {
           "type": "array",
@@ -883,11 +957,14 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "PodList"
+          "default": "PodList",
+          "required": true
         },
         "namespace": {
           "type": "string",
-          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default"
+          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "integer",
@@ -1011,7 +1088,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta2",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -1027,12 +1110,15 @@
         },
         "id": {
           "type": "string",
-          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs"
+          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "kind": {
           "type": "string",
           "description": "",
-          "default": "ReplicationController"
+          "default": "ReplicationController",
+          "required": true
         },
         "labels": {
           "type": "object",
@@ -1045,7 +1131,9 @@
         },
         "namespace": {
           "type": "string",
-          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default"
+          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "integer",
@@ -1079,7 +1167,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta2",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -1087,7 +1181,9 @@
         },
         "id": {
           "type": "string",
-          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs"
+          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "items": {
           "type": "array",
@@ -1100,11 +1196,14 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "ReplicationControllerList"
+          "default": "ReplicationControllerList",
+          "required": true
         },
         "namespace": {
           "type": "string",
-          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default"
+          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "integer",
@@ -1201,7 +1300,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta2",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "containerPort": {
           "$ref": "#/definitions/kubernetes_util_IntOrString",
@@ -1217,12 +1322,15 @@
         },
         "id": {
           "type": "string",
-          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs"
+          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "kind": {
           "type": "string",
           "description": "",
-          "default": "Service"
+          "default": "Service",
+          "required": true
         },
         "labels": {
           "type": "object",
@@ -1235,7 +1343,9 @@
         },
         "namespace": {
           "type": "string",
-          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default"
+          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "port": {
           "type": "integer",
@@ -1306,7 +1416,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta2",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -1314,7 +1430,9 @@
         },
         "id": {
           "type": "string",
-          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs"
+          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "items": {
           "type": "array",
@@ -1327,11 +1445,14 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "ServiceList"
+          "default": "ServiceList",
+          "required": true
         },
         "namespace": {
           "type": "string",
-          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default"
+          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "integer",
@@ -1384,7 +1505,9 @@
         },
         "id": {
           "type": "string",
-          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs"
+          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "kind": {
           "type": "string",
@@ -1392,7 +1515,9 @@
         },
         "namespace": {
           "type": "string",
-          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default"
+          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "integer",
@@ -1760,11 +1885,15 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
         },
         "namespace": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "string",
@@ -1891,11 +2020,15 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
         },
         "namespace": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "string",
@@ -2019,7 +2152,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2"
+          "default": "v1beta2",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "code": {
           "type": "integer",
@@ -2032,7 +2171,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "Status"
+          "default": "Status",
+          "required": true
         },
         "message": {
           "type": "string",
@@ -2270,7 +2410,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "cancelled": {
           "type": "boolean",
@@ -2287,7 +2433,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "Build"
+          "default": "Build",
+          "required": true
         },
         "labels": {
           "type": "object",
@@ -2304,11 +2451,15 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
         },
         "namespace": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "parameters": {
           "$ref": "#/definitions/os_build_BuildParameters",
@@ -2354,7 +2505,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -2363,7 +2520,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "BuildConfig"
+          "default": "BuildConfig",
+          "required": true
         },
         "labels": {
           "type": "object",
@@ -2380,11 +2538,15 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
         },
         "namespace": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "parameters": {
           "$ref": "#/definitions/os_build_BuildParameters",
@@ -2421,7 +2583,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "items": {
           "type": "array",
@@ -2434,7 +2602,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "BuildConfigList"
+          "default": "BuildConfigList",
+          "required": true
         },
         "resourceVersion": {
           "type": "string",
@@ -2455,7 +2624,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "items": {
           "type": "array",
@@ -2468,7 +2643,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "BuildList"
+          "default": "BuildList",
+          "required": true
         },
         "resourceVersion": {
           "type": "string",
@@ -2789,7 +2965,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "items": {
           "type": "array",
@@ -2799,7 +2981,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "Config"
+          "default": "Config",
+          "required": true
         },
         "resourceVersion": {
           "type": "string",
@@ -2857,7 +3040,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "controllerTemplate": {
           "$ref": "#/definitions/kubernetes_base_ReplicationControllerSpec",
@@ -2874,7 +3063,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "Deployment"
+          "default": "Deployment",
+          "required": true
         },
         "labels": {
           "type": "object",
@@ -2887,11 +3077,15 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
         },
         "namespace": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "string",
@@ -2965,7 +3159,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -2978,7 +3178,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "DeploymentConfig"
+          "default": "DeploymentConfig",
+          "required": true
         },
         "labels": {
           "type": "object",
@@ -2995,11 +3196,15 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
         },
         "namespace": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "string",
@@ -3036,7 +3241,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "items": {
           "type": "array",
@@ -3049,7 +3260,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "DeploymentConfigList"
+          "default": "DeploymentConfigList",
+          "required": true
         },
         "resourceVersion": {
           "type": "string",
@@ -3090,7 +3302,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "items": {
           "type": "array",
@@ -3103,7 +3321,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "DeploymentList"
+          "default": "DeploymentList",
+          "required": true
         },
         "resourceVersion": {
           "type": "string",
@@ -3398,12 +3617,19 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "kind": {
           "type": "string",
           "description": "",
-          "default": "DockerImage"
+          "default": "DockerImage",
+          "required": true
         }
       },
       "additionalProperties": true,
@@ -3425,7 +3651,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -3446,7 +3678,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "Image"
+          "default": "Image",
+          "required": true
         },
         "labels": {
           "type": "object",
@@ -3459,11 +3692,15 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
         },
         "namespace": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "rawManifest": {
           "type": "string",
@@ -3492,7 +3729,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "items": {
           "type": "array",
@@ -3505,7 +3748,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "ImageList"
+          "default": "ImageList",
+          "required": true
         },
         "resourceVersion": {
           "type": "string",
@@ -3535,7 +3779,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -3548,7 +3798,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "ImageRepository"
+          "default": "ImageRepository",
+          "required": true
         },
         "labels": {
           "type": "object",
@@ -3561,11 +3812,15 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
         },
         "namespace": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "string",
@@ -3603,7 +3858,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "items": {
           "type": "array",
@@ -3616,7 +3877,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "ImageRepositoryList"
+          "default": "ImageRepositoryList",
+          "required": true
         },
         "resourceVersion": {
           "type": "string",
@@ -3703,7 +3965,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -3716,7 +3984,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "Route"
+          "default": "Route",
+          "required": true
         },
         "labels": {
           "type": "object",
@@ -3729,11 +3998,15 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
         },
         "namespace": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "path": {
           "type": "string",
@@ -3770,7 +4043,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "items": {
           "type": "array",
@@ -3783,7 +4062,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "RouteList"
+          "default": "RouteList",
+          "required": true
         },
         "resourceVersion": {
           "type": "string",
@@ -3891,7 +4171,13 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1"
+          "default": "v1beta1",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
         },
         "creationTimestamp": {
           "type": "string",
@@ -3900,7 +4186,8 @@
         "kind": {
           "type": "string",
           "description": "",
-          "default": "Template"
+          "default": "Template",
+          "required": true
         },
         "labels": {
           "type": "object",
@@ -3913,11 +4200,15 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
         },
         "namespace": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 253,
+          "pattern": "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*"
         },
         "resourceVersion": {
           "type": "string",

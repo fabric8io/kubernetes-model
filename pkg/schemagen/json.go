@@ -10,14 +10,22 @@ type JSONSchema struct {
 }
 
 type JSONDescriptor struct {
-	Type string `json:"type"`
-	Description string `json:"description"`
-	Default string `json:"default,omitempty"`
+	Type        string        `json:"type"`
+	Description string        `json:"description"`
+	Default     string        `json:"default,omitempty"`
+	Required    bool          `json:"required,omitempty"`
+	Minimum     float32       `json:"minimum,omitempty"`
+	Maximum     float32       `json:"maximum,omitempty"`
+	MinItems    int           `json:"minItems,omitempty"`
+	MaxItems    int           `json:"maxItems,omitempty"`
+	MinLength   int           `json:"minLength,omitempty"`
+	MaxLength   int           `json:"maxLength,omitempty"`
+	Pattern     string        `json:"pattern,omitempty"`
+	Enum        []interface{} `json:"enum,omitempty"`
 }
 
 type JSONObjectDescriptor struct {
 	Properties           map[string]JSONPropertyDescriptor `json:"properties,omitempty"`
-	Required             []string                          `json:"required,omitempty"`
 	AdditionalProperties bool                              `json:"additionalProperties"`
 }
 

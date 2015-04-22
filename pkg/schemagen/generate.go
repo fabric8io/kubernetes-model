@@ -243,11 +243,18 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 			}
 			for k, v := range newProps {
 				switch k {
+				case "id", "namespace":
+					v.Pattern = `[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*`
+					v.MaxLength = 253
+				case "name":
+					v.Pattern = `[a-z0-9]([-a-z0-9]*[a-z0-9])?`
+					v.MaxLength = 63
 				case "kind":
 					v = JSONPropertyDescriptor{
 						JSONDescriptor: &JSONDescriptor{
-							Type:    "string",
-							Default: t.Name(),
+							Type:     "string",
+							Default:  t.Name(),
+							Required: true,
 						},
 					}
 				case "apiVersion":
@@ -257,8 +264,10 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 					}
 					v = JSONPropertyDescriptor{
 						JSONDescriptor: &JSONDescriptor{
-							Type:    "string",
-							Default: apiVersion,
+							Type:     "string",
+							Default:  apiVersion,
+							Required: true,
+							Enum:     []interface{}{"v1beta1", "v1beta2", "v1beta3"},
 						},
 					}
 				}
