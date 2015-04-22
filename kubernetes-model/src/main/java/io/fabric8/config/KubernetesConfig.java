@@ -2,7 +2,7 @@ package io.fabric8.config;
 
 import io.sundr.builder.annotations.ExternalBuildables;
 
-@ExternalBuildables(builderPackage = "io.fabric8.common", value = {
+@ExternalBuildables(validationEnabled = true, builderPackage = "io.fabric8.common", value = {
         "io.fabric8.kubernetes.api.model.Container",
         "io.fabric8.kubernetes.api.model.ContainerManifest",
         "io.fabric8.kubernetes.api.model.ContainerState",
