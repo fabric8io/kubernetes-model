@@ -2,7 +2,7 @@ package io.fabric8.config;
 
 import io.sundr.builder.annotations.ExternalBuildables;
 
-@ExternalBuildables(builderPackage = "io.fabric8.common", value = {
+@ExternalBuildables(validationEnabled = true, builderPackage = "io.fabric8.common", value = {
         "io.fabric8.openshift.api.model.Build",
         "io.fabric8.openshift.api.model.BuildConfig",
         "io.fabric8.openshift.api.model.BuildConfigList",
