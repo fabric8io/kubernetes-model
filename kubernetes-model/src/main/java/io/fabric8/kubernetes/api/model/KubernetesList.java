@@ -58,7 +58,7 @@ public class KubernetesList {
      * 
      */
     @JsonProperty("apiVersion")
-    private String apiVersion;
+    private java.lang.String apiVersion = "v1beta2";
     /**
      * RFC 3339 date and time at which the object was created; recorded by the system; null for lists
      *
