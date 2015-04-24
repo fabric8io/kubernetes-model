@@ -1,16 +1,18 @@
 package validation
 
 import (
+	"reflect"
 	"testing"
 
 	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
+	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/util/fielderrors"
 	"github.com/openshift/origin/pkg/image/api"
 )
 
 func TestValidateImageOK(t *testing.T) {
 	errs := ValidateImage(&api.Image{
-		ObjectMeta:           kapi.ObjectMeta{Name: "foo", Namespace: "default"},
+		ObjectMeta:           kapi.ObjectMeta{Name: "foo"},
 		DockerImageReference: "openshift/ruby-19-centos",
 	})
 	if len(errs) > 0 {
@@ -27,7 +29,17 @@ func TestValidateImageMissingFields(t *testing.T) {
 		"missing Name": {
 			api.Image{DockerImageReference: "ref"},
 			fielderrors.ValidationErrorTypeRequired,
-			"name",
+			"metadata.name",
+		},
+		"no slash in Name": {
+			api.Image{ObjectMeta: kapi.ObjectMeta{Name: "foo/bar"}},
+			fielderrors.ValidationErrorTypeInvalid,
+			"metadata.name",
+		},
+		"no percent in Name": {
+			api.Image{ObjectMeta: kapi.ObjectMeta{Name: "foo%%bar"}},
+			fielderrors.ValidationErrorTypeInvalid,
+			"metadata.name",
 		},
 		"missing DockerImageReference": {
 			api.Image{ObjectMeta: kapi.ObjectMeta{Name: "foo"}},
@@ -55,18 +67,18 @@ func TestValidateImageMissingFields(t *testing.T) {
 	}
 }
 
-func TestValidateImageRepositoryMappingNotOK(t *testing.T) {
+func TestValidateImageStreamMappingNotOK(t *testing.T) {
 	errorCases := map[string]struct {
-		I api.ImageRepositoryMapping
+		I api.ImageStreamMapping
 		T fielderrors.ValidationErrorType
 		F string
 	}{
 		"missing DockerImageRepository": {
-			api.ImageRepositoryMapping{
+			api.ImageStreamMapping{
 				ObjectMeta: kapi.ObjectMeta{
 					Namespace: "default",
 				},
-				Tag: "latest",
+				Tag: api.DefaultImageTag,
 				Image: api.Image{
 					ObjectMeta: kapi.ObjectMeta{
 						Name:      "foo",
@@ -79,11 +91,11 @@ func TestValidateImageRepositoryMappingNotOK(t *testing.T) {
 			"dockerImageRepository",
 		},
 		"missing Name": {
-			api.ImageRepositoryMapping{
+			api.ImageStreamMapping{
 				ObjectMeta: kapi.ObjectMeta{
 					Namespace: "default",
 				},
-				Tag: "latest",
+				Tag: api.DefaultImageTag,
 				Image: api.Image{
 					ObjectMeta: kapi.ObjectMeta{
 						Name:      "foo",
@@ -96,7 +108,7 @@ func TestValidateImageRepositoryMappingNotOK(t *testing.T) {
 			"name",
 		},
 		"missing Tag": {
-			api.ImageRepositoryMapping{
+			api.ImageStreamMapping{
 				ObjectMeta: kapi.ObjectMeta{
 					Namespace: "default",
 				},
@@ -113,29 +125,26 @@ func TestValidateImageRepositoryMappingNotOK(t *testing.T) {
 			"tag",
 		},
 		"missing image name": {
-			api.ImageRepositoryMapping{
+			api.ImageStreamMapping{
 				ObjectMeta: kapi.ObjectMeta{
 					Namespace: "default",
 				},
 				DockerImageRepository: "openshift/ruby-19-centos",
-				Tag: "latest",
+				Tag: api.DefaultImageTag,
 				Image: api.Image{
-					ObjectMeta: kapi.ObjectMeta{
-						Namespace: "default",
-					},
 					DockerImageReference: "openshift/ruby-19-centos",
 				},
 			},
 			fielderrors.ValidationErrorTypeRequired,
-			"image.name",
+			"image.metadata.name",
 		},
 		"invalid repository pull spec": {
-			api.ImageRepositoryMapping{
+			api.ImageStreamMapping{
 				ObjectMeta: kapi.ObjectMeta{
 					Namespace: "default",
 				},
 				DockerImageRepository: "registry/extra/openshift/ruby-19-centos",
-				Tag: "latest",
+				Tag: api.DefaultImageTag,
 				Image: api.Image{
 					ObjectMeta: kapi.ObjectMeta{
 						Name:      "foo",
@@ -150,7 +159,7 @@ func TestValidateImageRepositoryMappingNotOK(t *testing.T) {
 	}
 
 	for k, v := range errorCases {
-		errs := ValidateImageRepositoryMapping(&v.I)
+		errs := ValidateImageStreamMapping(&v.I)
 		if len(errs) == 0 {
 			t.Errorf("Expected failure for %s", k)
 			continue
@@ -164,6 +173,135 @@ func TestValidateImageRepositoryMappingNotOK(t *testing.T) {
 		}
 		if !match {
 			t.Errorf("%s: expected errors to have field %s and type %s: %v", k, v.F, v.T, errs)
+		}
+	}
+}
+
+func TestValidateImageStream(t *testing.T) {
+	tests := map[string]struct {
+		namespace             string
+		name                  string
+		dockerImageRepository string
+		specTags              map[string]api.TagReference
+		statusTags            map[string]api.TagEventList
+		expected              fielderrors.ValidationErrorList
+	}{
+		"missing name": {
+			namespace: "foo",
+			name:      "",
+			expected: fielderrors.ValidationErrorList{
+				fielderrors.NewFieldRequired("metadata.name"),
+			},
+		},
+		"no slash in Name": {
+			namespace: "foo",
+			name:      "foo/bar",
+			expected: fielderrors.ValidationErrorList{
+				fielderrors.NewFieldInvalid("metadata.name", "foo/bar", `may not contain "/"`),
+			},
+		},
+		"no percent in Name": {
+			namespace: "foo",
+			name:      "foo%%bar",
+			expected: fielderrors.ValidationErrorList{
+				fielderrors.NewFieldInvalid("metadata.name", "foo%%bar", `may not contain "%"`),
+			},
+		},
+		"missing namespace": {
+			namespace: "",
+			name:      "foo",
+			expected: fielderrors.ValidationErrorList{
+				fielderrors.NewFieldRequired("metadata.namespace"),
+			},
+		},
+		"invalid namespace": {
+			namespace: "!$",
+			name:      "foo",
+			expected: fielderrors.ValidationErrorList{
+				fielderrors.NewFieldInvalid("metadata.namespace", "!$", `must have at most 253 characters and match regex [a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*`),
+			},
+		},
+		"invalid dockerImageRepository": {
+			namespace: "namespace",
+			name:      "foo",
+			dockerImageRepository: "a-|///bbb",
+			expected: fielderrors.ValidationErrorList{
+				fielderrors.NewFieldInvalid("spec.dockerImageRepository", "a-|///bbb", "the docker pull spec \"a-|///bbb\" must be two or three segments separated by slashes"),
+			},
+		},
+		"both dockerImageReference and from set": {
+			namespace: "namespace",
+			name:      "foo",
+			specTags: map[string]api.TagReference{
+				"tag": {
+					DockerImageReference: "abc",
+					From:                 &kapi.ObjectReference{},
+				},
+			},
+			expected: fielderrors.ValidationErrorList{
+				fielderrors.NewFieldInvalid("spec.tags[tag]", "", "only 1 of dockerImageReference or from may be set"),
+			},
+		},
+		"status tag missing dockerImageReference": {
+			namespace: "namespace",
+			name:      "foo",
+			statusTags: map[string]api.TagEventList{
+				"tag": {
+					Items: []api.TagEvent{
+						{DockerImageReference: ""},
+						{DockerImageReference: "foo/bar:latest"},
+						{DockerImageReference: ""},
+					},
+				},
+			},
+			expected: fielderrors.ValidationErrorList{
+				fielderrors.NewFieldRequired("status.tags[tag].Items[0].dockerImageReference"),
+				fielderrors.NewFieldRequired("status.tags[tag].Items[2].dockerImageReference"),
+			},
+		},
+		"valid": {
+			namespace: "namespace",
+			name:      "foo",
+			specTags: map[string]api.TagReference{
+				"tag": {
+					DockerImageReference: "abc",
+				},
+				"other": {
+					From: &kapi.ObjectReference{
+						Kind: "ImageStreamTag",
+						Name: "other:latest",
+					},
+				},
+			},
+			statusTags: map[string]api.TagEventList{
+				"tag": {
+					Items: []api.TagEvent{
+						{DockerImageReference: "foo/bar:latest"},
+					},
+				},
+			},
+			expected: fielderrors.ValidationErrorList{},
+		},
+	}
+
+	for name, test := range tests {
+		stream := api.ImageStream{
+			ObjectMeta: kapi.ObjectMeta{
+				Namespace: test.namespace,
+				Name:      test.name,
+			},
+			Spec: api.ImageStreamSpec{
+				DockerImageRepository: test.dockerImageRepository,
+				Tags: test.specTags,
+			},
+			Status: api.ImageStreamStatus{
+				Tags: test.statusTags,
+			},
+		}
+
+		errs := ValidateImageStream(&stream)
+		if e, a := test.expected, errs; !reflect.DeepEqual(e, a) {
+			t.Errorf("%s: unexpected errors: %s", name, util.ObjectDiff(e, a))
 		}
 	}
 }

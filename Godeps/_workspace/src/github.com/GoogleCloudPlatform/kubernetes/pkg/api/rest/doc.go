@@ -1,5 +1,3 @@
-// +build !linux
-
 /*
 Copyright 2014 Google Inc. All rights reserved.
 
@@ -16,21 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package mount
-
-const FlagBind = 0
-const FlagReadOnly = 0
-
-type mounter struct{}
-
-func (mounter *mounter) Mount(source string, target string, fstype string, flags uintptr, data string) error {
-	return nil
-}
-
-func (mounter *mounter) Unmount(target string, flags int) error {
-	return nil
-}
-
-func (mounter *mounter) List() ([]MountPoint, error) {
-	return []MountPoint{}, nil
-}
+// Package rest defines common logic around changes to Kubernetes resources.
+package rest

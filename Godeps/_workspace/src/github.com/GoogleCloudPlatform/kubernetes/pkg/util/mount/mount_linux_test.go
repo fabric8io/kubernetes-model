@@ -91,3 +91,92 @@ func slicesEqual(a, b []string) bool {
 	}
 	return true
 }
+
+func TestGetMountRefs(t *testing.T) {
+	fm := &FakeMounter{
+		MountPoints: []MountPoint{
+			{Device: "/dev/sdb", Path: "/var/lib/kubelet/plugins/kubernetes.io/gce-pd/mounts/gce-pd"},
+			{Device: "/dev/sdb", Path: "/var/lib/kubelet/pods/some-pod/volumes/kubernetes.io~gce-pd/gce-pd-in-pod"},
+			{Device: "/dev/sdc", Path: "/var/lib/kubelet/plugins/kubernetes.io/gce-pd/mounts/gce-pd2"},
+			{Device: "/dev/sdc", Path: "/var/lib/kubelet/pods/some-pod/volumes/kubernetes.io~gce-pd/gce-pd2-in-pod"},
+			{Device: "/dev/sdc", Path: "/var/lib/kubelet/pods/some-pod/volumes/kubernetes.io~gce-pd/gce-pd2-in-pod2"},
+		},
+	}
+
+	tests := []struct {
+		mountPath    string
+		expectedRefs []string
+	}{
+		{
+			"/var/lib/kubelet/pods/some-pod/volumes/kubernetes.io~gce-pd/gce-pd-in-pod",
+			[]string{
+				"/var/lib/kubelet/plugins/kubernetes.io/gce-pd/mounts/gce-pd",
+			},
+		},
+		{
+			"/var/lib/kubelet/pods/some-pod/volumes/kubernetes.io~gce-pd/gce-pd2-in-pod",
+			[]string{
+				"/var/lib/kubelet/pods/some-pod/volumes/kubernetes.io~gce-pd/gce-pd2-in-pod2",
+				"/var/lib/kubelet/plugins/kubernetes.io/gce-pd/mounts/gce-pd2",
+			},
+		},
+	}
+
+	for i, test := range tests {
+		if refs, err := GetMountRefs(fm, test.mountPath); err != nil || !setEquivalent(test.expectedRefs, refs) {
+			t.Errorf("%d. getMountRefs(%q) = %v, %v; expected %v, nil", i, test.mountPath, refs, err, test.expectedRefs)
+		}
+	}
+}
+
+func setEquivalent(set1, set2 []string) bool {
+	map1 := make(map[string]bool)
+	map2 := make(map[string]bool)
+	for _, s := range set1 {
+		map1[s] = true
+	}
+	for _, s := range set2 {
+		map2[s] = true
+	}
+
+	for s := range map1 {
+		if !map2[s] {
+			return false
+		}
+	}
+	for s := range map2 {
+		if !map1[s] {
+			return false
+		}
+	}
+	return true
+}
+
+func TestGetDeviceNameFromMount(t *testing.T) {
+	fm := &FakeMounter{
+		MountPoints: []MountPoint{
+			{Device: "/dev/disk/by-path/prefix-lun-1",
+				Path: "/mnt/111"},
+			{Device: "/dev/disk/by-path/prefix-lun-1",
+				Path: "/mnt/222"},
+		},
+	}
+
+	tests := []struct {
+		mountPath      string
+		expectedDevice string
+		expectedRefs   int
+	}{
+		{
+			"/mnt/222",
+			"/dev/disk/by-path/prefix-lun-1",
+			2,
+		},
+	}
+
+	for i, test := range tests {
+		if device, refs, err := GetDeviceNameFromMount(fm, test.mountPath); err != nil || test.expectedRefs != refs || test.expectedDevice != device {
+			t.Errorf("%d. GetDeviceNameFromMount(%s) = (%s, %d), %v; expected (%s,%d), nil", i, test.mountPath, device, refs, err, test.expectedDevice, test.expectedRefs)
+		}
+	}
+}

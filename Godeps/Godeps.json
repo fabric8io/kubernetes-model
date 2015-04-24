@@ -12,57 +12,57 @@
 		},
 		{
 			"ImportPath": "code.google.com/p/go.net/context",
-			"Comment": "null-144",
-			"Rev": "ad01a6fcc8a19d3a4478c836895ffe883bd2ceab"
+			"Comment": "null-240",
+			"Rev": "937a34c9de13c766c814510f76bca091dee06028"
 		},
 		{
 			"ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/api",
-			"Comment": "v0.8.0-164-g6cd3763",
-			"Rev": "6cd37637f55ce6bf47e463a39aed85cc3dd39f5a"
+			"Comment": "v0.14.1-582-gb12d75d",
+			"Rev": "b12d75d0eeeadda1282f5738663bfe38717ebaf4"
 		},
 		{
 			"ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/conversion",
-			"Comment": "v0.8.0-164-g6cd3763",
-			"Rev": "6cd37637f55ce6bf47e463a39aed85cc3dd39f5a"
+			"Comment": "v0.14.1-582-gb12d75d",
+			"Rev": "b12d75d0eeeadda1282f5738663bfe38717ebaf4"
 		},
 		{
 			"ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/runtime",
-			"Comment": "v0.8.0-164-g6cd3763",
-			"Rev": "6cd37637f55ce6bf47e463a39aed85cc3dd39f5a"
+			"Comment": "v0.14.1-582-gb12d75d",
+			"Rev": "b12d75d0eeeadda1282f5738663bfe38717ebaf4"
 		},
 		{
 			"ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/util",
-			"Comment": "v0.8.0-164-g6cd3763",
-			"Rev": "6cd37637f55ce6bf47e463a39aed85cc3dd39f5a"
+			"Comment": "v0.14.1-582-gb12d75d",
+			"Rev": "b12d75d0eeeadda1282f5738663bfe38717ebaf4"
 		},
 		{
 			"ImportPath": "github.com/fsouza/go-dockerclient",
-			"Comment": "0.2.1-267-g15d2c6e",
-			"Rev": "15d2c6e3eb670c545d0af0604d7f9aff3871af04"
+			"Comment": "0.2.1-433-g5a070ba",
+			"Rev": "5a070ba03ad313e2f0183c9f9c369fd10161583a"
 		},
 		{
 			"ImportPath": "github.com/golang/glog",
-			"Rev": "d1c4472bf2efd3826f2b5bdcc02d8416798d678c"
+			"Rev": "44145f04b68cf362d9c4df2182967c2275eaefed"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/build/api",
-			"Comment": "v0.4.2-54-g862caa7",
-			"Rev": "862caa729b3b4c939e2409434878560ed5968946"
+			"Comment": "v0.4.4",
+			"Rev": "bc67c99df0e936e67587eb69f5e1fd75139e0e74"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/deploy/api",
-			"Comment": "v0.4.2-54-g862caa7",
-			"Rev": "862caa729b3b4c939e2409434878560ed5968946"
+			"Comment": "v0.4.4",
+			"Rev": "bc67c99df0e936e67587eb69f5e1fd75139e0e74"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/image/api",
-			"Comment": "v0.4.2-54-g862caa7",
-			"Rev": "862caa729b3b4c939e2409434878560ed5968946"
+			"Comment": "v0.4.4",
+			"Rev": "bc67c99df0e936e67587eb69f5e1fd75139e0e74"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/route/api",
-			"Comment": "v0.4.2-54-g862caa7",
-			"Rev": "862caa729b3b4c939e2409434878560ed5968946"
+			"Comment": "v0.4.4",
+			"Rev": "bc67c99df0e936e67587eb69f5e1fd75139e0e74"
 		}
 	]
 }

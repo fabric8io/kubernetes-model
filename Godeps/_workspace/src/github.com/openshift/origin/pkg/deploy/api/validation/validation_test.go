@@ -148,6 +148,26 @@ func TestValidateDeploymentConfigMissingFields(t *testing.T) {
 			fielderrors.ValidationErrorTypeRequired,
 			"triggers[0].imageChangeParams.from",
 		},
+		"invalid Trigger imageChangeParams.from.kind": {
+			api.DeploymentConfig{
+				ObjectMeta: kapi.ObjectMeta{Name: "foo", Namespace: "bar"},
+				Triggers: []api.DeploymentTriggerPolicy{
+					{
+						Type: api.DeploymentTriggerOnImageChange,
+						ImageChangeParams: &api.DeploymentTriggerImageChangeParams{
+							From: kapi.ObjectReference{
+								Kind: "Invalid",
+								Name: "name",
+							},
+							ContainerNames: []string{"foo"},
+						},
+					},
+				},
+				Template: test.OkDeploymentTemplate(),
+			},
+			fielderrors.ValidationErrorTypeInvalid,
+			"triggers[0].imageChangeParams.from.kind",
+		},
 		"both fields illegal Trigger imageChangeParams.repositoryName": {
 			api.DeploymentConfig{
 				ObjectMeta: kapi.ObjectMeta{Name: "foo", Namespace: "bar"},
@@ -226,6 +246,87 @@ func TestValidateDeploymentConfigMissingFields(t *testing.T) {
 			},
 			fielderrors.ValidationErrorTypeRequired,
 			"template.strategy.customParams.image",
+		},
+		"missing template.strategy.recreateParams.pre.failurePolicy": {
+			api.DeploymentConfig{
+				ObjectMeta: kapi.ObjectMeta{Name: "foo", Namespace: "bar"},
+				Template: api.DeploymentTemplate{
+					Strategy: api.DeploymentStrategy{
+						Type: api.DeploymentStrategyTypeRecreate,
+						RecreateParams: &api.RecreateDeploymentStrategyParams{
+							Pre: &api.LifecycleHook{
+								ExecNewPod: &api.ExecNewPodHook{
+									Command:       []string{"cmd"},
+									ContainerName: "container",
+								},
+							},
+						},
+					},
+					ControllerTemplate: test.OkControllerTemplate(),
+				},
+			},
+			fielderrors.ValidationErrorTypeRequired,
+			"template.strategy.recreateParams.pre.failurePolicy",
+		},
+		"missing template.strategy.recreateParams.pre.execNewPod": {
+			api.DeploymentConfig{
+				ObjectMeta: kapi.ObjectMeta{Name: "foo", Namespace: "bar"},
+				Template: api.DeploymentTemplate{
+					Strategy: api.DeploymentStrategy{
+						Type: api.DeploymentStrategyTypeRecreate,
+						RecreateParams: &api.RecreateDeploymentStrategyParams{
+							Pre: &api.LifecycleHook{
+								FailurePolicy: api.LifecycleHookFailurePolicyRetry,
+							},
+						},
+					},
+					ControllerTemplate: test.OkControllerTemplate(),
+				},
+			},
+			fielderrors.ValidationErrorTypeRequired,
+			"template.strategy.recreateParams.pre.execNewPod",
+		},
+		"missing template.strategy.recreateParams.pre.execNewPod.command": {
+			api.DeploymentConfig{
+				ObjectMeta: kapi.ObjectMeta{Name: "foo", Namespace: "bar"},
+				Template: api.DeploymentTemplate{
+					Strategy: api.DeploymentStrategy{
+						Type: api.DeploymentStrategyTypeRecreate,
+						RecreateParams: &api.RecreateDeploymentStrategyParams{
+							Pre: &api.LifecycleHook{
+								FailurePolicy: api.LifecycleHookFailurePolicyRetry,
+								ExecNewPod: &api.ExecNewPodHook{
+									ContainerName: "container",
+								},
+							},
+						},
+					},
+					ControllerTemplate: test.OkControllerTemplate(),
+				},
+			},
+			fielderrors.ValidationErrorTypeRequired,
+			"template.strategy.recreateParams.pre.execNewPod.command",
+		},
+		"missing template.strategy.recreateParams.pre.execNewPod.containerName": {
+			api.DeploymentConfig{
+				ObjectMeta: kapi.ObjectMeta{Name: "foo", Namespace: "bar"},
+				Template: api.DeploymentTemplate{
+					Strategy: api.DeploymentStrategy{
+						Type: api.DeploymentStrategyTypeRecreate,
+						RecreateParams: &api.RecreateDeploymentStrategyParams{
+							Pre: &api.LifecycleHook{
+								FailurePolicy: api.LifecycleHookFailurePolicyRetry,
+								ExecNewPod: &api.ExecNewPodHook{
+									Command: []string{"cmd"},
+								},
+							},
+						},
+					},
+					ControllerTemplate: test.OkControllerTemplate(),
+				},
+			},
+			fielderrors.ValidationErrorTypeRequired,
+			"template.strategy.recreateParams.pre.execNewPod.containerName",
 		},
 	}
 
@@ -306,5 +407,60 @@ func TestValidateDeploymentConfigRollbackInvalidFields(t *testing.T) {
 				t.Errorf("%s: expected errors to have field %s: %v", k, v.F, errs[i])
 			}
 		}
+	}
+}
+
+func TestValidateDeploymentConfigDefaultImageStreamKind(t *testing.T) {
+	config := &api.DeploymentConfig{
+		ObjectMeta: kapi.ObjectMeta{Name: "foo", Namespace: "bar"},
+		Triggers: []api.DeploymentTriggerPolicy{
+			{
+				Type: api.DeploymentTriggerOnImageChange,
+				ImageChangeParams: &api.DeploymentTriggerImageChangeParams{
+					From: kapi.ObjectReference{
+						Name: "name",
+					},
+					ContainerNames: []string{"foo"},
+				},
+			},
+		},
+		Template: test.OkDeploymentTemplate(),
+	}
+
+	errs := ValidateDeploymentConfig(config)
+	if len(errs) > 0 {
+		t.Errorf("Unxpected non-empty error list: %v", errs)
+	}
+
+	if e, a := "ImageStream", config.Triggers[0].ImageChangeParams.From.Kind; e != a {
+		t.Errorf("expected imageChangeParams.from.kind %s, got %s", e, a)
+	}
+}
+
+func TestValidateDeploymentConfigImageRepositorySupported(t *testing.T) {
+	config := &api.DeploymentConfig{
+		ObjectMeta: kapi.ObjectMeta{Name: "foo", Namespace: "bar"},
+		Triggers: []api.DeploymentTriggerPolicy{
+			{
+				Type: api.DeploymentTriggerOnImageChange,
+				ImageChangeParams: &api.DeploymentTriggerImageChangeParams{
+					From: kapi.ObjectReference{
+						Kind: "ImageRepository",
+						Name: "name",
+					},
+					ContainerNames: []string{"foo"},
+				},
+			},
+		},
+		Template: test.OkDeploymentTemplate(),
+	}
+
+	errs := ValidateDeploymentConfig(config)
+	if len(errs) > 0 {
+		t.Errorf("Unxpected non-empty error list: %v", errs)
+	}
+
+	if e, a := "ImageRepository", config.Triggers[0].ImageChangeParams.From.Kind; e != a {
+		t.Errorf("expected imageChangeParams.from.kind %s, got %s", e, a)
 	}
 }

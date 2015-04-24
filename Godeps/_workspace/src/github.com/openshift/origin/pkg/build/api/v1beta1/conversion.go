@@ -28,6 +28,9 @@ func init() {
 			if err := s.Convert(&in.Revision, &out.Revision, 0); err != nil {
 				return err
 			}
+			if err := s.Convert(&in.Resources, &out.Resources, 0); err != nil {
+				return err
+			}
 			return nil
 		},
 		func(in *BuildParameters, out *newer.BuildParameters, s conversion.Scope) error {
@@ -47,6 +50,9 @@ func init() {
 			if err := s.Convert(&in.Revision, &out.Revision, 0); err != nil {
 				return err
 			}
+			if err := s.Convert(&in.Resources, &out.Resources, 0); err != nil {
+				return err
+			}
 			return nil
 		},
 		// Rename STIBuildStrategy.BuildImage to STIBuildStrategy.Image
@@ -57,7 +63,7 @@ func init() {
 				out.From = &kapi.ObjectReference{
 					Name:      in.From.Name,
 					Namespace: in.From.Namespace,
-					Kind:      "ImageRepository",
+					Kind:      "ImageStream",
 				}
 			}
 			out.Tag = in.Tag
@@ -70,7 +76,7 @@ func init() {
 				out.From = &api.ObjectReference{
 					Name:      in.From.Name,
 					Namespace: in.From.Namespace,
-					Kind:      "ImageRepository",
+					Kind:      "ImageStream",
 				}
 			}
 			out.Tag = in.Tag

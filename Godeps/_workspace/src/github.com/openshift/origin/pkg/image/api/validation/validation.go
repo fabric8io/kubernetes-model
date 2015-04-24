@@ -1,6 +1,9 @@
 package validation
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/validation"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/util/fielderrors"
@@ -8,13 +11,21 @@ import (
 	"github.com/openshift/origin/pkg/image/api"
 )
 
+func MinimalNameValidation(name string, prefix bool) (bool, string) {
+	for _, illegal := range []string{"%", "/"} {
+		if strings.Contains(name, illegal) {
+			return false, fmt.Sprintf(`may not contain "%s"`, illegal)
+		}
+	}
+	return true, ""
+}
+
 // ValidateImage tests required fields for an Image.
 func ValidateImage(image *api.Image) fielderrors.ValidationErrorList {
 	result := fielderrors.ValidationErrorList{}
 
-	if len(image.Name) == 0 {
-		result = append(result, fielderrors.NewFieldRequired("name"))
-	}
+	result = append(result, validation.ValidateObjectMeta(&image.ObjectMeta, false, MinimalNameValidation).Prefix("metadata")...)
+
 	if len(image.DockerImageReference) == 0 {
 		result = append(result, fielderrors.NewFieldRequired("dockerImageReference"))
 	} else {
@@ -26,47 +37,57 @@ func ValidateImage(image *api.Image) fielderrors.ValidationErrorList {
 	return result
 }
 
-// ValidateImageRepository tests required fields for an ImageRepository.
-func ValidateImageRepository(repo *api.ImageRepository) fielderrors.ValidationErrorList {
+// ValidateImageStream tests required fields for an ImageStream.
+func ValidateImageStream(stream *api.ImageStream) fielderrors.ValidationErrorList {
 	result := fielderrors.ValidationErrorList{}
 
-	if repo.Tags == nil {
-		repo.Tags = make(map[string]string)
+	result = append(result, validation.ValidateObjectMeta(&stream.ObjectMeta, true, MinimalNameValidation).Prefix("metadata")...)
+
+	if stream.Spec.Tags == nil {
+		stream.Spec.Tags = make(map[string]api.TagReference)
 	}
-	if len(repo.Name) == 0 {
-		result = append(result, fielderrors.NewFieldRequired("name"))
+
+	if len(stream.Spec.DockerImageRepository) != 0 {
+		if _, err := api.ParseDockerImageReference(stream.Spec.DockerImageRepository); err != nil {
+			result = append(result, fielderrors.NewFieldInvalid("spec.dockerImageRepository", stream.Spec.DockerImageRepository, err.Error()))
+		}
 	}
-	if !util.IsDNS1123Subdomain(repo.Namespace) {
-		result = append(result, fielderrors.NewFieldInvalid("namespace", repo.Namespace, ""))
+	for tag, tagRef := range stream.Spec.Tags {
+		if len(tagRef.DockerImageReference) > 0 && tagRef.From != nil {
+			result = append(result, fielderrors.NewFieldInvalid(fmt.Sprintf("spec.tags[%s]", tag), "", "only 1 of dockerImageReference or from may be set"))
+		}
 	}
-	if len(repo.DockerImageRepository) != 0 {
-		if _, err := api.ParseDockerImageReference(repo.DockerImageRepository); err != nil {
-			result = append(result, fielderrors.NewFieldInvalid("dockerImageRepository", repo.DockerImageRepository, err.Error()))
+	for tag, history := range stream.Status.Tags {
+		for i, tagEvent := range history.Items {
+			if len(tagEvent.DockerImageReference) == 0 {
+				result = append(result, fielderrors.NewFieldRequired(fmt.Sprintf("status.tags[%s].Items[%d].dockerImageReference", tag, i)))
+			}
 		}
 	}
 
 	return result
 }
 
-func ValidateImageRepositoryUpdate(newRepo, oldRepo *api.ImageRepository) fielderrors.ValidationErrorList {
+func ValidateImageStreamUpdate(newStream, oldStream *api.ImageStream) fielderrors.ValidationErrorList {
 	result := fielderrors.ValidationErrorList{}
 
-	result = append(result, validation.ValidateObjectMetaUpdate(&oldRepo.ObjectMeta, &newRepo.ObjectMeta).Prefix("metadata")...)
-	result = append(result, ValidateImageRepository(newRepo)...)
+	result = append(result, validation.ValidateObjectMetaUpdate(&oldStream.ObjectMeta, &newStream.ObjectMeta).Prefix("metadata")...)
+	result = append(result, ValidateImageStream(newStream)...)
 
 	return result
 }
 
-func ValidateImageRepositoryStatusUpdate(newRepo, oldRepo *api.ImageRepository) fielderrors.ValidationErrorList {
+// ValidateImageStreamStatusUpdate tests required fields for an ImageStream status update.
+func ValidateImageStreamStatusUpdate(newStream, oldStream *api.ImageStream) fielderrors.ValidationErrorList {
 	result := fielderrors.ValidationErrorList{}
-	result = append(result, validation.ValidateObjectMetaUpdate(&oldRepo.ObjectMeta, &newRepo.ObjectMeta).Prefix("metadata")...)
-	newRepo.Tags = oldRepo.Tags
-	newRepo.DockerImageRepository = oldRepo.DockerImageRepository
+	result = append(result, validation.ValidateObjectMetaUpdate(&oldStream.ObjectMeta, &newStream.ObjectMeta).Prefix("metadata")...)
+	newStream.Spec.Tags = oldStream.Spec.Tags
+	newStream.Spec.DockerImageRepository = oldStream.Spec.DockerImageRepository
 	return result
 }
 
-// ValidateImageRepositoryMapping tests required fields for an ImageRepositoryMapping.
-func ValidateImageRepositoryMapping(mapping *api.ImageRepositoryMapping) fielderrors.ValidationErrorList {
+// ValidateImageStreamMapping tests required fields for an ImageStreamMapping.
+func ValidateImageStreamMapping(mapping *api.ImageStreamMapping) fielderrors.ValidationErrorList {
 	result := fielderrors.ValidationErrorList{}
 
 	hasRepository := len(mapping.DockerImageRepository) != 0

@@ -78,6 +78,7 @@ func validateBuildParameters(params *buildapi.BuildParameters) fielderrors.Valid
 	allErrs = append(allErrs, validateOutput(&params.Output).Prefix("output")...)
 	allErrs = append(allErrs, validateStrategy(&params.Strategy).Prefix("strategy")...)
 
+	// TODO: validate resource requirements (prereq: https://github.com/GoogleCloudPlatform/kubernetes/pull/7059)
 	return allErrs
 }
 
@@ -120,11 +121,11 @@ func validateOutput(output *buildapi.BuildOutput) fielderrors.ValidationErrorLis
 	if output.To != nil {
 		kind, name, namespace := output.To.Kind, output.To.Name, output.To.Namespace
 		if len(kind) == 0 {
-			kind = "ImageRepository"
+			kind = "ImageStream"
 			output.To.Kind = kind
 		}
-		if kind != "ImageRepository" {
-			allErrs = append(allErrs, fielderrors.NewFieldInvalid("to.kind", kind, "the target of build output must be 'ImageRepository'"))
+		if kind != "ImageStream" {
+			allErrs = append(allErrs, fielderrors.NewFieldInvalid("to.kind", kind, "the target of build output must be 'ImageStream'"))
 		}
 		if len(name) == 0 {
 			allErrs = append(allErrs, fielderrors.NewFieldRequired("to.name"))

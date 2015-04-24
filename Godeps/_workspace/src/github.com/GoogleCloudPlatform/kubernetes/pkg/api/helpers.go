@@ -18,10 +18,12 @@ package api
 
 import (
 	"reflect"
-	"strings"
 
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/conversion"
+	"github.com/GoogleCloudPlatform/kubernetes/pkg/fields"
+	"github.com/GoogleCloudPlatform/kubernetes/pkg/labels"
+	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -60,27 +62,52 @@ var Semantic = conversion.EqualitiesOrDie(
 		}
 		return a.Amount.Cmp(b.Amount) == 0
 	},
-	pullPoliciesEqual,
+	func(a, b util.Time) bool {
+		return a.UTC() == b.UTC()
+	},
+	func(a, b labels.Selector) bool {
+		return a.String() == b.String()
+	},
+	func(a, b fields.Selector) bool {
+		return a.String() == b.String()
+	},
 )
 
-// TODO: Address these per #1502
+var standardResources = util.NewStringSet(
+	string(ResourceMemory),
+	string(ResourceCPU),
+	string(ResourcePods),
+	string(ResourceQuotas),
+	string(ResourceServices),
+	string(ResourceReplicationControllers),
+	string(ResourceStorage))
 
-func IsPullAlways(p PullPolicy) bool {
-	return pullPoliciesEqual(p, PullAlways)
+func IsStandardResourceName(str string) bool {
+	return standardResources.Has(str)
 }
 
-func IsPullNever(p PullPolicy) bool {
-	return pullPoliciesEqual(p, PullNever)
+// NewDeleteOptions returns a DeleteOptions indicating the resource should
+// be deleted within the specified grace period. Use zero to indicate
+// immediate deletion. If you would prefer to use the default grace period,
+// use &api.DeleteOptions{} directly.
+func NewDeleteOptions(grace int64) *DeleteOptions {
+	return &DeleteOptions{GracePeriodSeconds: &grace}
 }
 
-func IsPullIfNotPresent(p PullPolicy) bool {
-	// Default to pull if not present
-	if len(p) == 0 {
-		return true
-	}
-	return pullPoliciesEqual(p, PullIfNotPresent)
+// this function aims to check if the service portal IP is set or not
+// the objective is not to perform validation here
+func IsServiceIPSet(service *Service) bool {
+	return service.Spec.PortalIP != PortalIPNone && service.Spec.PortalIP != ""
 }
 
-func pullPoliciesEqual(p1, p2 PullPolicy) bool {
-	return strings.ToLower(string(p1)) == strings.ToLower(string(p2))
+// this function aims to check if the service portal IP is requested or not
+func IsServiceIPRequested(service *Service) bool {
+	return service.Spec.PortalIP == ""
+}
+
+var standardFinalizers = util.NewStringSet(
+	string(FinalizerKubernetes))
+
+func IsStandardFinalizerName(str string) bool {
+	return standardFinalizers.Has(str)
 }

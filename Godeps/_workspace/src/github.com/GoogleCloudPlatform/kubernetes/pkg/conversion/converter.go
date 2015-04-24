@@ -40,7 +40,7 @@ type DebugLogger interface {
 type Converter struct {
 	// Map from the conversion pair to a function which can
 	// do the conversion.
-	funcs map[typePair]reflect.Value
+	conversionFuncs map[typePair]reflect.Value
 
 	// This is a map from a source field type and name, to a list of destination
 	// field type and name.
@@ -51,22 +51,35 @@ type Converter struct {
 	// source field name and type to look for.
 	structFieldSources map[typeNamePair][]typeNamePair
 
+	// Map from a type to a function which applies defaults.
+	defaultingFuncs map[reflect.Type]reflect.Value
+
+	// Map from an input type to a function which can apply a key name mapping
+	inputFieldMappingFuncs map[reflect.Type]FieldMappingFunc
+
+	// Map from an input type to a set of default conversion flags.
+	inputDefaultFlags map[reflect.Type]FieldMatchingFlags
+
 	// If non-nil, will be called to print helpful debugging info. Quite verbose.
 	Debug DebugLogger
 
-	// NameFunc is called to retrieve the name of a type; this name is used for the
+	// nameFunc is called to retrieve the name of a type; this name is used for the
 	// purpose of deciding whether two types match or not (i.e., will we attempt to
 	// do a conversion). The default returns the go type name.
-	NameFunc func(t reflect.Type) string
+	nameFunc func(t reflect.Type) string
 }
 
 // NewConverter creates a new Converter object.
 func NewConverter() *Converter {
 	return &Converter{
-		funcs:              map[typePair]reflect.Value{},
-		NameFunc:           func(t reflect.Type) string { return t.Name() },
+		conversionFuncs:    map[typePair]reflect.Value{},
+		defaultingFuncs:    map[reflect.Type]reflect.Value{},
+		nameFunc:           func(t reflect.Type) string { return t.Name() },
 		structFieldDests:   map[typeNamePair][]typeNamePair{},
 		structFieldSources: map[typeNamePair][]typeNamePair{},
+
+		inputFieldMappingFuncs: map[reflect.Type]FieldMappingFunc{},
+		inputDefaultFlags:      map[reflect.Type]FieldMatchingFlags{},
 	}
 }
 
@@ -94,12 +107,18 @@ type Scope interface {
 	Meta() *Meta
 }
 
+// FieldMappingFunc can convert an input field value into different values, depending on
+// the value of the source or destination struct tags.
+type FieldMappingFunc func(key string, sourceTag, destTag reflect.StructTag) (source string, dest string)
+
 // Meta is supplied by Scheme, when it calls Convert.
 type Meta struct {
 	SrcVersion  string
 	DestVersion string
 
-	// TODO: If needed, add a user data field here.
+	// KeyNameMapping is an optional function which may map the listed key (field name)
+	// into a source and destination value.
+	KeyNameMapping FieldMappingFunc
 }
 
 // scope contains information about an ongoing conversion.
@@ -210,14 +229,18 @@ func (s *scope) error(message string, args ...interface{}) error {
 	return fmt.Errorf(where+message, args...)
 }
 
-// Register registers a conversion func with the Converter. conversionFunc must take
-// three parameters: a pointer to the input type, a pointer to the output type, and
-// a conversion.Scope (which should be used if recursive conversion calls are desired).
-// It must return an error.
+// RegisterConversionFunc registers a conversion func with the
+// Converter. conversionFunc must take three parameters: a pointer to the input
+// type, a pointer to the output type, and a conversion.Scope (which should be
+// used if recursive conversion calls are desired).  It must return an error.
 //
 // Example:
-// c.Register(func(in *Pod, out *v1beta1.Pod, s Scope) error { ... return nil })
-func (c *Converter) Register(conversionFunc interface{}) error {
+// c.RegisteConversionFunc(
+//         func(in *Pod, out *v1beta1.Pod, s Scope) error {
+//                 // conversion logic...
+//                 return nil
+//          })
+func (c *Converter) RegisterConversionFunc(conversionFunc interface{}) error {
 	fv := reflect.ValueOf(conversionFunc)
 	ft := fv.Type()
 	if ft.Kind() != reflect.Func {
@@ -246,7 +269,7 @@ func (c *Converter) Register(conversionFunc interface{}) error {
 	if ft.Out(0) != errorType {
 		return fmt.Errorf("expected error return, got: %v", ft)
 	}
-	c.funcs[typePair{ft.In(0).Elem(), ft.In(1).Elem()}] = fv
+	c.conversionFuncs[typePair{ft.In(0).Elem(), ft.In(1).Elem()}] = fv
 	return nil
 }
 
@@ -263,6 +286,48 @@ func (c *Converter) SetStructFieldCopy(srcFieldType interface{}, srcFieldName st
 	destKey := typeNamePair{dt, destFieldName}
 	c.structFieldDests[srcKey] = append(c.structFieldDests[srcKey], destKey)
 	c.structFieldSources[destKey] = append(c.structFieldSources[destKey], srcKey)
+	return nil
+}
+
+// RegisterDefaultingFunc registers a value-defaulting func with the Converter.
+// defaultingFunc must take one parameters: a pointer to the input type.
+//
+// Example:
+// c.RegisteDefaultingFunc(
+//         func(in *v1beta1.Pod) {
+//                 // defaulting logic...
+//          })
+func (c *Converter) RegisterDefaultingFunc(defaultingFunc interface{}) error {
+	fv := reflect.ValueOf(defaultingFunc)
+	ft := fv.Type()
+	if ft.Kind() != reflect.Func {
+		return fmt.Errorf("expected func, got: %v", ft)
+	}
+	if ft.NumIn() != 1 {
+		return fmt.Errorf("expected one 'in' param, got: %v", ft)
+	}
+	if ft.NumOut() != 0 {
+		return fmt.Errorf("expected zero 'out' params, got: %v", ft)
+	}
+	if ft.In(0).Kind() != reflect.Ptr {
+		return fmt.Errorf("expected pointer arg for 'in' param 0, got: %v", ft)
+	}
+	c.defaultingFuncs[ft.In(0).Elem()] = fv
+	return nil
+}
+
+// RegisterInputDefaults registers a field name mapping function, used when converting
+// from maps to structs. Inputs to the conversion methods are checked for this type and a mapping
+// applied automatically if the input matches in. A set of default flags for the input conversion
+// may also be provided, which will be used when no explicit flags are requested.
+func (c *Converter) RegisterInputDefaults(in interface{}, fn FieldMappingFunc, defaultFlags FieldMatchingFlags) error {
+	fv := reflect.ValueOf(in)
+	ft := fv.Type()
+	if ft.Kind() != reflect.Ptr {
+		return fmt.Errorf("expected pointer 'in' argument, got: %v", ft)
+	}
+	c.inputFieldMappingFuncs[ft] = fn
+	c.inputDefaultFlags[ft] = defaultFlags
 	return nil
 }
 
@@ -379,7 +444,17 @@ func (c *Converter) callCustom(sv, dv, custom reflect.Value, scope *scope) error
 // one is registered.
 func (c *Converter) convert(sv, dv reflect.Value, scope *scope) error {
 	dt, st := dv.Type(), sv.Type()
-	if fv, ok := c.funcs[typePair{st, dt}]; ok {
+	// Apply default values.
+	if fv, ok := c.defaultingFuncs[st]; ok {
+		if c.Debug != nil {
+			c.Debug.Logf("Applying defaults for '%v'", st)
+		}
+		args := []reflect.Value{sv.Addr()}
+		fv.Call(args)
+	}
+
+	// Convert sv to dv.
+	if fv, ok := c.conversionFuncs[typePair{st, dt}]; ok {
 		if c.Debug != nil {
 			c.Debug.Logf("Calling custom conversion of '%v' to '%v'", st, dt)
 		}
@@ -394,20 +469,29 @@ func (c *Converter) convert(sv, dv reflect.Value, scope *scope) error {
 func (c *Converter) defaultConvert(sv, dv reflect.Value, scope *scope) error {
 	dt, st := dv.Type(), sv.Type()
 
-	if !scope.flags.IsSet(AllowDifferentFieldTypeNames) && c.NameFunc(dt) != c.NameFunc(st) {
-		return scope.error(
-			"type names don't match (%v, %v), and no conversion 'func (%v, %v) error' registered.",
-			c.NameFunc(st), c.NameFunc(dt), st, dt)
+	if !dv.CanSet() {
+		return scope.error("Cannot set dest. (Tried to deep copy something with unexported fields?)")
 	}
 
-	// This should handle all simple types.
-	if st.AssignableTo(dt) {
-		dv.Set(sv)
-		return nil
+	if !scope.flags.IsSet(AllowDifferentFieldTypeNames) && c.nameFunc(dt) != c.nameFunc(st) {
+		return scope.error(
+			"type names don't match (%v, %v), and no conversion 'func (%v, %v) error' registered.",
+			c.nameFunc(st), c.nameFunc(dt), st, dt)
 	}
-	if st.ConvertibleTo(dt) {
-		dv.Set(sv.Convert(dt))
-		return nil
+
+	switch st.Kind() {
+	case reflect.Map, reflect.Ptr, reflect.Slice, reflect.Interface, reflect.Struct:
+		// Don't copy these via assignment/conversion!
+	default:
+		// This should handle all simple types.
+		if st.AssignableTo(dt) {
+			dv.Set(sv)
+			return nil
+		}
+		if st.ConvertibleTo(dt) {
+			dv.Set(sv.Convert(dt))
+			return nil
+		}
 	}
 
 	if c.Debug != nil {
@@ -466,17 +550,36 @@ func (c *Converter) defaultConvert(sv, dv reflect.Value, scope *scope) error {
 			}
 			dv.SetMapIndex(dk, dkv)
 		}
+	case reflect.Interface:
+		if sv.IsNil() {
+			// Don't copy a nil interface!
+			dv.Set(reflect.Zero(dt))
+			return nil
+		}
+		tmpdv := reflect.New(sv.Elem().Type()).Elem()
+		if err := c.convert(sv.Elem(), tmpdv, scope); err != nil {
+			return err
+		}
+		dv.Set(reflect.ValueOf(tmpdv.Interface()))
+		return nil
 	default:
 		return scope.error("couldn't copy '%v' into '%v'; didn't understand types", st, dt)
 	}
 	return nil
 }
 
+var stringType = reflect.TypeOf("")
+
 func toKVValue(v reflect.Value) kvValue {
 	switch v.Kind() {
 	case reflect.Struct:
 		return structAdaptor(v)
+	case reflect.Map:
+		if v.Type().Key().AssignableTo(stringType) {
+			return stringMapAdaptor(v)
+		}
 	}
+
 	return nil
 }
 
@@ -494,15 +597,48 @@ type kvValue interface {
 	confirmSet(key string, v reflect.Value) bool
 }
 
+type stringMapAdaptor reflect.Value
+
+func (a stringMapAdaptor) len() int {
+	return reflect.Value(a).Len()
+}
+
+func (a stringMapAdaptor) keys() []string {
+	v := reflect.Value(a)
+	keys := make([]string, v.Len())
+	for i, v := range v.MapKeys() {
+		if v.IsNil() {
+			continue
+		}
+		switch t := v.Interface().(type) {
+		case string:
+			keys[i] = t
+		}
+	}
+	return keys
+}
+
+func (a stringMapAdaptor) tagOf(key string) reflect.StructTag {
+	return ""
+}
+
+func (a stringMapAdaptor) value(key string) reflect.Value {
+	return reflect.Value(a).MapIndex(reflect.ValueOf(key))
+}
+
+func (a stringMapAdaptor) confirmSet(key string, v reflect.Value) bool {
+	return true
+}
+
 type structAdaptor reflect.Value
 
-func (sa structAdaptor) len() int {
-	v := reflect.Value(sa)
+func (a structAdaptor) len() int {
+	v := reflect.Value(a)
 	return v.Type().NumField()
 }
 
-func (sa structAdaptor) keys() []string {
-	v := reflect.Value(sa)
+func (a structAdaptor) keys() []string {
+	v := reflect.Value(a)
 	t := v.Type()
 	keys := make([]string, t.NumField())
 	for i := range keys {
@@ -511,8 +647,8 @@ func (sa structAdaptor) keys() []string {
 	return keys
 }
 
-func (sa structAdaptor) tagOf(key string) reflect.StructTag {
-	v := reflect.Value(sa)
+func (a structAdaptor) tagOf(key string) reflect.StructTag {
+	v := reflect.Value(a)
 	field, ok := v.Type().FieldByName(key)
 	if ok {
 		return field.Tag
@@ -520,12 +656,12 @@ func (sa structAdaptor) tagOf(key string) reflect.StructTag {
 	return ""
 }
 
-func (sa structAdaptor) value(key string) reflect.Value {
-	v := reflect.Value(sa)
+func (a structAdaptor) value(key string) reflect.Value {
+	v := reflect.Value(a)
 	return v.FieldByName(key)
 }
 
-func (sa structAdaptor) confirmSet(key string, v reflect.Value) bool {
+func (a structAdaptor) confirmSet(key string, v reflect.Value) bool {
 	return true
 }
 
@@ -541,6 +677,12 @@ func (c *Converter) convertKV(skv, dkv kvValue, scope *scope) error {
 	if scope.flags.IsSet(SourceToDest) {
 		lister = skv
 	}
+
+	var mapping FieldMappingFunc
+	if scope.meta != nil && scope.meta.KeyNameMapping != nil {
+		mapping = scope.meta.KeyNameMapping
+	}
+
 	for _, key := range lister.keys() {
 		if found, err := c.checkField(key, skv, dkv, scope); found {
 			if err != nil {
@@ -548,23 +690,31 @@ func (c *Converter) convertKV(skv, dkv kvValue, scope *scope) error {
 			}
 			continue
 		}
-		df := dkv.value(key)
-		sf := skv.value(key)
+		stag := skv.tagOf(key)
+		dtag := dkv.tagOf(key)
+		skey := key
+		dkey := key
+		if mapping != nil {
+			skey, dkey = scope.meta.KeyNameMapping(key, stag, dtag)
+		}
+
+		df := dkv.value(dkey)
+		sf := skv.value(skey)
 		if !df.IsValid() || !sf.IsValid() {
 			switch {
 			case scope.flags.IsSet(IgnoreMissingFields):
 				// No error.
 			case scope.flags.IsSet(SourceToDest):
-				return scope.error("%v not present in dest", key)
+				return scope.error("%v not present in dest", dkey)
 			default:
-				return scope.error("%v not present in src", key)
+				return scope.error("%v not present in src", skey)
 			}
 			continue
 		}
-		scope.srcStack.top().key = key
-		scope.srcStack.top().tag = skv.tagOf(key)
-		scope.destStack.top().key = key
-		scope.destStack.top().tag = dkv.tagOf(key)
+		scope.srcStack.top().key = skey
+		scope.srcStack.top().tag = stag
+		scope.destStack.top().key = dkey
+		scope.destStack.top().tag = dtag
 		if err := c.convert(sf, df, scope); err != nil {
 			return err
 		}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	kerrors "github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
+	resourceapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource"
 	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta2"
 	kutil "github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 	buildapi "github.com/openshift/origin/pkg/build/api"
@@ -30,6 +31,7 @@ type Schema struct {
 	MinionList                kapi.MinionList
 	KubernetesList            kapi.List
 	EnvVar                    kapi.EnvVar
+	Quantity                  resourceapi.Quantity
 	StatusError               kerrors.StatusError
 	BuildList                 buildapi.BuildList
 	BuildConfigList           buildapi.BuildConfigList

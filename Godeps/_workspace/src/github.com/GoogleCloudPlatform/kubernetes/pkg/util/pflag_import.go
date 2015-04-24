@@ -42,7 +42,13 @@ func wrapFlagValue(v flag.Value) pflag.Value {
 	pv := &flagValueWrapper{
 		inner: v,
 	}
-	pv.flagType = reflect.TypeOf(v).Elem().Name()
+
+	t := reflect.TypeOf(v)
+	if t.Kind() == reflect.Interface || t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	pv.flagType = t.Name()
 	pv.flagType = strings.TrimSuffix(pv.flagType, "Value")
 	return pv
 }
@@ -59,10 +65,24 @@ func (v *flagValueWrapper) Type() string {
 	return v.flagType
 }
 
+type boolFlag interface {
+	flag.Value
+	IsBoolFlag() bool
+}
+
+func (v *flagValueWrapper) IsBoolFlag() bool {
+	if bv, ok := v.inner.(boolFlag); ok {
+		return bv.IsBoolFlag()
+	}
+	return false
+}
+
 // Imports a 'flag.Flag' into a 'pflag.FlagSet'.  The "short" option is unset
 // and the type is inferred using reflection.
 func AddFlagToPFlagSet(f *flag.Flag, fs *pflag.FlagSet) {
-	fs.Var(wrapFlagValue(f.Value), f.Name, f.Usage)
+	if fs.Lookup(f.Name) == nil {
+		fs.Var(wrapFlagValue(f.Value), f.Name, f.Usage)
+	}
 }
 
 // Adds all of the flags in a 'flag.FlagSet' package flags to a 'pflag.FlagSet'.
@@ -75,4 +95,18 @@ func AddFlagSetToPFlagSet(fsIn *flag.FlagSet, fsOut *pflag.FlagSet) {
 // Adds all of the top level 'flag' package flags to a 'pflag.FlagSet'.
 func AddAllFlagsToPFlagSet(fs *pflag.FlagSet) {
 	AddFlagSetToPFlagSet(flag.CommandLine, fs)
+}
+
+// Add al of the top level 'flag' package flags to the top level 'pflag' flags.
+func AddAllFlagsToPFlags() {
+	AddFlagSetToPFlagSet(flag.CommandLine, pflag.CommandLine)
+}
+
+// Merge all of the flags from fsFrom into fsTo.
+func AddPFlagSetToPFlagSet(fsFrom *pflag.FlagSet, fsTo *pflag.FlagSet) {
+	fsFrom.VisitAll(func(f *pflag.Flag) {
+		if fsTo.Lookup(f.Name) == nil {
+			fsTo.AddFlag(f)
+		}
+	})
 }
