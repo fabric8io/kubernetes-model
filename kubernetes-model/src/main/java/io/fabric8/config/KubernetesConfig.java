@@ -43,6 +43,7 @@ import io.sundr.builder.annotations.ExternalBuildables;
         "io.fabric8.kubernetes.api.model.RestartPolicyOnFailure",
         "io.fabric8.kubernetes.api.model.Service",
         "io.fabric8.kubernetes.api.model.ServiceList",
+        "io.fabric8.kubernetes.api.model.ServicePort",
         "io.fabric8.kubernetes.api.model.TCPSocketAction",
         "io.fabric8.kubernetes.api.model.Volume",
         "io.fabric8.kubernetes.api.model.VolumeMount",
