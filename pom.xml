@@ -334,8 +334,9 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-javadoc-plugin</artifactId>
+            <version>2.10.3</version>
             <configuration>
-              <excludePackageNames>annotations.*</excludePackageNames>
+              <additionalparam>-Xdoclint:none</additionalparam>
             </configuration>
             <executions>
               <execution>
@@ -349,6 +350,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-source-plugin</artifactId>
+            <version>2.4</version>
             <executions>
               <execution>
                 <id>attach-sources</id>
