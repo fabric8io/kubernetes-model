@@ -11,6 +11,7 @@ import io.fabric8.openshift.api.model.BuildConfig;
 import io.fabric8.openshift.api.model.DeploymentConfig;
 import io.fabric8.openshift.api.model.ImageRepository;
 import io.fabric8.openshift.api.model.Route;
+import io.fabric8.openshift.api.model.template.Template;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.commons.lang.builder.ToStringBuilder;
@@ -130,7 +131,13 @@ public class KubernetesList {
      */
     @JsonIgnore
     private final List<Route> routes = Collections.emptyList();
-    
+
+    /**
+     * list of routes
+     * Note: This is not to be used. Added for influencing the generation of fluent nested builders.
+     */
+    @JsonIgnore
+    private final List<Template> templates = Collections.emptyList();
     
     /**
      *
@@ -193,6 +200,7 @@ public class KubernetesList {
                           List<DeploymentConfig> deploymentConfigs,
                           List<ImageRepository> imageRepositories,
                           List<Route> routes,
+                          List<Template> templates,
                           List<Object> items,
                           String kind, String namespace, Integer resourceVersion, String selfLink, String uid) {
         this.annotations = annotations;
@@ -213,6 +221,7 @@ public class KubernetesList {
         allItems.addAll(deploymentConfigs != null ? deploymentConfigs : Collections.<DeploymentConfig>emptyList());
         allItems.addAll(imageRepositories != null ? imageRepositories : Collections.<ImageRepository>emptyList());
         allItems.addAll(routes != null ? routes : Collections.<Route>emptyList());
+        allItems.addAll(templates != null ? templates : Collections.<Template>emptyList());
         this.items = new ArrayList<>(allItems);
     }
 
@@ -359,6 +368,12 @@ public class KubernetesList {
     @JsonIgnore
     public List<Route> getRoutes() {
         return routes;
+    }
+
+
+    @JsonIgnore
+    public List<Template> getTemplates() {
+        return templates;
     }
 
     /**
