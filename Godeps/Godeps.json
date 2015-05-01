@@ -142,7 +142,7 @@
 			"Rev": "bc67c99df0e936e67587eb69f5e1fd75139e0e74"
 		},
 		{
-			"ImportPath": "github.com/openshift/origin/pkg/deploy/api",
+			"ImportPath": "github.com/openshift/origin/pkg/deploy/api/v1beta1",
 			"Comment": "v0.4.4",
 			"Rev": "bc67c99df0e936e67587eb69f5e1fd75139e0e74"
 		},
@@ -152,7 +152,7 @@
 			"Rev": "bc67c99df0e936e67587eb69f5e1fd75139e0e74"
 		},
 		{
-			"ImportPath": "github.com/openshift/origin/pkg/route/api",
+			"ImportPath": "github.com/openshift/origin/pkg/route/api/v1beta1",
 			"Comment": "v0.4.4",
 			"Rev": "bc67c99df0e936e67587eb69f5e1fd75139e0e74"
 		},

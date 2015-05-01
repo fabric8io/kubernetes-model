@@ -11,12 +11,12 @@ import (
 	resourceapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource"
 	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta2"
 	kutil "github.com/GoogleCloudPlatform/kubernetes/pkg/util"
-	buildapi "github.com/openshift/origin/pkg/build/api"
-	configapi "github.com/openshift/origin/pkg/config/api"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
-	imageapi "github.com/openshift/origin/pkg/image/api"
-	routeapi "github.com/openshift/origin/pkg/route/api"
-	templateapi "github.com/openshift/origin/pkg/template/api"
+	buildapi "github.com/openshift/origin/pkg/build/api/v1beta1"
+	configapi "github.com/openshift/origin/pkg/config/api/v1beta1"
+	deployapi "github.com/openshift/origin/pkg/deploy/api/v1beta1"
+	imageapi "github.com/openshift/origin/pkg/image/api/v1beta1"
+	routeapi "github.com/openshift/origin/pkg/route/api/v1beta1"
+	templateapi "github.com/openshift/origin/pkg/template/api/v1beta1"
 
 	"github.com/fabric8io/origin-schema-generator/pkg/schemagen"
 )
@@ -44,12 +44,13 @@ type Schema struct {
 	Config                    configapi.Config
 	Template                  templateapi.Template
 	TagEvent                  imageapi.TagEvent
-	TagEventList              imageapi.TagEventList
 }
 
 func main() {
 	packages := []schemagen.PackageDescriptor{
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta1", "io.fabric8.kubernetes.api.model", "kubernetes_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta2", "io.fabric8.kubernetes.api.model", "kubernetes_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta3", "io.fabric8.kubernetes.api.model", "kubernetes_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource", "io.fabric8.kubernetes.api.model.resource", "kubernetes_resource_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime", "io.fabric8.kubernetes.api.model.runtime", "kubernetes_runtime_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/util", "io.fabric8.kubernetes.api.model.util", "kubernetes_util_"},
@@ -57,12 +58,12 @@ func main() {
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model.base", "kubernetes_base_"},
 		{"github.com/fsouza/go-dockerclient", "io.fabric8.docker.client.dockerclient", "docker_"},
 		{"speter.net/go/exp/math/dec/inf", "io.fabric8.openshift.client.util", "speter_inf_"},
-		{"github.com/openshift/origin/pkg/build/api", "io.fabric8.openshift.api.model", "os_build_"},
-		{"github.com/openshift/origin/pkg/deploy/api", "io.fabric8.openshift.api.model", "os_deploy_"},
-		{"github.com/openshift/origin/pkg/image/api", "io.fabric8.openshift.api.model", "os_image_"},
-		{"github.com/openshift/origin/pkg/route/api", "io.fabric8.openshift.api.model", "os_route_"},
-		{"github.com/openshift/origin/pkg/config/api", "io.fabric8.openshift.api.model.config", "os_config_"},
-		{"github.com/openshift/origin/pkg/template/api", "io.fabric8.openshift.api.model.template", "os_template_"},
+		{"github.com/openshift/origin/pkg/build/api/v1beta1", "io.fabric8.openshift.api.model", "os_build_"},
+		{"github.com/openshift/origin/pkg/deploy/api/v1beta1", "io.fabric8.openshift.api.model", "os_deploy_"},
+		{"github.com/openshift/origin/pkg/image/api/v1beta1", "io.fabric8.openshift.api.model", "os_image_"},
+		{"github.com/openshift/origin/pkg/route/api/v1beta1", "io.fabric8.openshift.api.model", "os_route_"},
+		{"github.com/openshift/origin/pkg/config/api/v1beta1", "io.fabric8.openshift.api.model.config", "os_config_"},
+		{"github.com/openshift/origin/pkg/template/api/v1beta1", "io.fabric8.openshift.api.model.template", "os_template_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{
