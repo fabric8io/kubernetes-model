@@ -133,7 +133,7 @@
       "properties": {
         "containers": {
           "type": "array",
-          "description": "list of containers belonging to the pod; containers cannot currently be added or removed",
+          "description": "list of containers belonging to the pod; cannot be updated; containers cannot currently be added or removed",
           "items": {
             "$ref": "#/definitions/kubernetes_Container",
             "javaType": "io.fabric8.kubernetes.api.model.Container"
@@ -157,7 +157,7 @@
         },
         "uuid": {
           "type": "string",
-          "description": "manifest UUID"
+          "description": "manifest UUID; cannot be updated"
         },
         "version": {
           "type": "string",
@@ -626,6 +626,10 @@
       "type": "object",
       "description": "",
       "properties": {
+        "key": {
+          "type": "string",
+          "description": "name of the environment variable; must be a C_IDENTIFIER; deprecated - use name instead"
+        },
         "name": {
           "type": "string",
           "description": "name of the environment variable; must be a C_IDENTIFIER"
@@ -1355,7 +1359,7 @@
         },
         "name": {
           "type": "string",
-          "description": "id of the referent"
+          "description": "name of the referent"
         },
         "namespace": {
           "type": "string",
@@ -2211,19 +2215,11 @@
       "properties": {
         "mountPath": {
           "type": "string",
-          "description": "path within the container at which the volume should be mounted; overrides path"
-        },
-        "mountType": {
-          "type": "string",
-          "description": "LOCAL or HOST; defaults to LOCAL; deprecated"
+          "description": "path within the container at which the volume should be mounted"
         },
         "name": {
           "type": "string",
           "description": "name of the volume to mount"
-        },
-        "path": {
-          "type": "string",
-          "description": "path within the container at which the volume should be mounted; deprecated"
         },
         "readOnly": {
           "type": "boolean",
