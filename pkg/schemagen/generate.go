@@ -82,10 +82,11 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 		case reflect.Bool:
 			return "bool"
 		case reflect.Int, reflect.Int8, reflect.Int16,
-			reflect.Int32, reflect.Int64, reflect.Uint,
-			reflect.Uint8, reflect.Uint16, reflect.Uint32,
-			reflect.Uint64:
+			reflect.Int32, reflect.Uint,
+			reflect.Uint8, reflect.Uint16, reflect.Uint32:
 			return "int"
+		case reflect.Int64, reflect.Uint64:
+			return "long"
 		case reflect.Float32, reflect.Float64, reflect.Complex64,
 			reflect.Complex128:
 			return "double"
@@ -153,13 +154,22 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSO
 			},
 		}
 	case reflect.Int, reflect.Int8, reflect.Int16,
-		reflect.Int32, reflect.Int64, reflect.Uint,
-		reflect.Uint8, reflect.Uint16, reflect.Uint32,
-		reflect.Uint64:
+		reflect.Int32, reflect.Uint,
+		reflect.Uint8, reflect.Uint16, reflect.Uint32:
 		return JSONPropertyDescriptor{
 			JSONDescriptor: &JSONDescriptor{
 				Type:        "integer",
 				Description: desc,
+			},
+		}
+	case reflect.Int64, reflect.Uint64:
+		return JSONPropertyDescriptor{
+			JSONDescriptor: &JSONDescriptor{
+				Type:        "integer",
+				Description: desc,
+			},
+			JavaTypeDescriptor: &JavaTypeDescriptor{
+				JavaType: "long",
 			},
 		}
 	case reflect.Float32, reflect.Float64, reflect.Complex64,
