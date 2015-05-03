@@ -76,7 +76,12 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 	}
 	pkgDesc, ok := g.packages[t.PkgPath()]
 	if ok {
-		return pkgDesc.JavaPackage + "." + t.Name()
+		switch t.Name() {
+		case "RawExtension":
+			return "Object"
+		default:
+			return pkgDesc.JavaPackage + "." + t.Name()
+		}
 	} else {
 		switch t.Kind() {
 		case reflect.Bool:
