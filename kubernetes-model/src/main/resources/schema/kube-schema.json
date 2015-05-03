@@ -81,7 +81,7 @@
         "memory": {
           "type": "integer",
           "description": "memory limit in bytes; defaults to unlimited; cannot be updated",
-          "javaType": "long"
+          "javaType": "Long"
         },
         "name": {
           "type": "string",
@@ -133,7 +133,7 @@
       "properties": {
         "containers": {
           "type": "array",
-          "description": "list of containers belonging to the pod; containers cannot currently be added or removed",
+          "description": "list of containers belonging to the pod; cannot be updated; containers cannot currently be added or removed",
           "items": {
             "$ref": "#/definitions/kubernetes_Container",
             "javaType": "io.fabric8.kubernetes.api.model.Container"
@@ -157,7 +157,7 @@
         },
         "uuid": {
           "type": "string",
-          "description": "manifest UUID"
+          "description": "manifest UUID; cannot be updated"
         },
         "version": {
           "type": "string",
@@ -513,7 +513,7 @@
         "resourceVersion": {
           "type": "integer",
           "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system",
-          "javaType": "long"
+          "javaType": "Long"
         },
         "selfLink": {
           "type": "string",
@@ -608,7 +608,7 @@
         "resourceVersion": {
           "type": "integer",
           "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system",
-          "javaType": "long"
+          "javaType": "Long"
         },
         "selfLink": {
           "type": "string",
@@ -875,7 +875,7 @@
         "resourceVersion": {
           "type": "integer",
           "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system",
-          "javaType": "long"
+          "javaType": "Long"
         },
         "selfLink": {
           "type": "string",
@@ -920,7 +920,7 @@
         "initialDelaySeconds": {
           "type": "integer",
           "description": "number of seconds after the container has started before liveness probes are initiated",
-          "javaType": "long"
+          "javaType": "Long"
         },
         "tcpSocket": {
           "$ref": "#/definitions/kubernetes_TCPSocketAction",
@@ -929,7 +929,7 @@
         "timeoutSeconds": {
           "type": "integer",
           "description": "number of seconds after which liveness probes timeout; defaults to 1 second",
-          "javaType": "long"
+          "javaType": "Long"
         }
       },
       "additionalProperties": true,
@@ -1013,7 +1013,7 @@
         "resourceVersion": {
           "type": "integer",
           "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system",
-          "javaType": "long"
+          "javaType": "Long"
         },
         "resources": {
           "$ref": "#/definitions/kubernetes_NodeResources",
@@ -1104,7 +1104,7 @@
         "resourceVersion": {
           "type": "integer",
           "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system",
-          "javaType": "long"
+          "javaType": "Long"
         },
         "selfLink": {
           "type": "string",
@@ -1456,7 +1456,7 @@
         "resourceVersion": {
           "type": "integer",
           "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system",
-          "javaType": "long"
+          "javaType": "Long"
         },
         "selfLink": {
           "type": "string",
@@ -1551,7 +1551,7 @@
         "resourceVersion": {
           "type": "integer",
           "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system",
-          "javaType": "long"
+          "javaType": "Long"
         },
         "selfLink": {
           "type": "string",
@@ -1727,7 +1727,7 @@
         "resourceVersion": {
           "type": "integer",
           "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system",
-          "javaType": "long"
+          "javaType": "Long"
         },
         "selfLink": {
           "type": "string",
@@ -1806,7 +1806,7 @@
         "resourceVersion": {
           "type": "integer",
           "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system",
-          "javaType": "long"
+          "javaType": "Long"
         },
         "selfLink": {
           "type": "string",
@@ -2031,7 +2031,7 @@
         "resourceVersion": {
           "type": "integer",
           "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system",
-          "javaType": "long"
+          "javaType": "Long"
         },
         "selector": {
           "type": "object",
@@ -2123,7 +2123,7 @@
         "resourceVersion": {
           "type": "integer",
           "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system",
-          "javaType": "long"
+          "javaType": "Long"
         },
         "selfLink": {
           "type": "string",
@@ -2177,59 +2177,13 @@
       "type": "object",
       "description": "",
       "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about the object",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about the object"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
         "apiVersion": {
           "type": "string",
           "description": "version of the schema the object should have"
         },
-        "creationTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object was created; populated by the system"
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested"
-        },
-        "generateName": {
-          "type": "string",
-          "description": "an optional prefix to use to generate a unique name; has the same validation rules as name; optional"
-        },
-        "id": {
-          "type": "string",
-          "description": "name of the object; must be a DNS_SUBDOMAIN and unique among all objects of the same kind within the same namespace; used in resource URLs; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
         "kind": {
           "type": "string",
           "description": "kind of object"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "namespace to which the object belongs; must be a DNS_SUBDOMAIN; 'default' by default; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
-        "resourceVersion": {
-          "type": "integer",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system",
-          "javaType": "long"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
-        },
-        "uid": {
-          "type": "string",
-          "description": "unique UUID across space and time; populated by the system"
         }
       },
       "additionalProperties": true,
@@ -2257,11 +2211,19 @@
       "properties": {
         "mountPath": {
           "type": "string",
-          "description": "path within the container at which the volume should be mounted"
+          "description": "path within the container at which the volume should be mounted; overrides path"
+        },
+        "mountType": {
+          "type": "string",
+          "description": "LOCAL or HOST; defaults to LOCAL; deprecated"
         },
         "name": {
           "type": "string",
           "description": "name of the volume to mount"
+        },
+        "path": {
+          "type": "string",
+          "description": "path within the container at which the volume should be mounted; deprecated"
         },
         "readOnly": {
           "type": "boolean",
@@ -2617,7 +2579,7 @@
         "duration": {
           "type": "integer",
           "description": "",
-          "javaType": "long"
+          "javaType": "Long"
         },
         "generateName": {
           "type": "string",

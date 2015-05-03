@@ -93,7 +93,7 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 			reflect.Uint8, reflect.Uint16, reflect.Uint32:
 			return "int"
 		case reflect.Int64, reflect.Uint64:
-			return "long"
+			return "Long"
 		case reflect.Float32, reflect.Float64, reflect.Complex64,
 			reflect.Complex128:
 			return "double"
@@ -176,7 +176,7 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSO
 				Description: desc,
 			},
 			JavaTypeDescriptor: &JavaTypeDescriptor{
-				JavaType: "long",
+				JavaType: "Long",
 			},
 		}
 	case reflect.Float32, reflect.Float64, reflect.Complex64,

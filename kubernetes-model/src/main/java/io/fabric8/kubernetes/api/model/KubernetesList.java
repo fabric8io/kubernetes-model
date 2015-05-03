@@ -124,7 +124,7 @@ public class KubernetesList extends BaseKubernetesList {
                           List<Object> items,
                           String kind,
                           String namespace,
-                          long resourceVersion,
+                          Long resourceVersion,
                           String selfLink,
                           String uid,
                           List<Service> services,

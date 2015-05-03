@@ -67,7 +67,7 @@
         <configuration>
           <sourceDirectory>${kube.dir}/schema</sourceDirectory>
           <targetPackage>io.fabric8.kubernetes.api.model</targetPackage>
-	  <includeConstructors>true</includeConstructors>
+          <includeConstructors>true</includeConstructors>
           <includeJsr303Annotations>true</includeJsr303Annotations>
           <outputDirectory>${basedir}/target/generated-sources</outputDirectory>
         </configuration>
@@ -89,7 +89,6 @@
               <target>
                 <echo>removing the duplicate generated calss</echo>
                 <delete file="${basedir}/target/generated-sources/io/fabric8/kubernetes/api/model/util/IntOrString.java" verbose="true" />
-                <delete file="${basedir}/target/generated-sources/io/fabric8/kubernetes/api/model/KubernetesList.java" verbose="true" />
               </target>
             </configuration>
             <goals>

@@ -11,6 +11,6 @@ public class UnmarshallTest {
     public void testUnmarshallInt64ToLong() throws Exception {
         ObjectMapper mapper = new ObjectMapper(); // can reuse, share globally
         ReplicationController rc = mapper.readValue(getClass().getResourceAsStream("/meteor-controller.json"), ReplicationController.class);
-        assertEquals(rc.getDesiredState().getPodTemplate().getDesiredState().getManifest().getContainers().get(0).getMemory(), 500000000l);
+        assertEquals(rc.getDesiredState().getPodTemplate().getDesiredState().getManifest().getContainers().get(0).getMemory().longValue(), 500000000l);
     }
 }
