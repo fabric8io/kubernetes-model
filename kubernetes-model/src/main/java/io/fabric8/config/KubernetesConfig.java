@@ -3,6 +3,7 @@ package io.fabric8.config;
 import io.sundr.builder.annotations.ExternalBuildables;
 
 @ExternalBuildables(validationEnabled = true, builderPackage = "io.fabric8.common", value = {
+        "io.fabric8.kubernetes.api.model.BaseKubernetesList",
         "io.fabric8.kubernetes.api.model.KubernetesList",
 
         "io.fabric8.kubernetes.api.model.Capabilities",

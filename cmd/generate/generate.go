@@ -29,7 +29,7 @@ type Schema struct {
 	EndpointsList             kapi.EndpointsList
 	Minion                    kapi.Minion
 	MinionList                kapi.MinionList
-	KubernetesList            kapi.List
+	BaseKubernetesList        kapi.List
 	EnvVar                    kapi.EnvVar
 	Quantity                  resourceapi.Quantity
 	StatusError               kerrors.StatusError
@@ -80,7 +80,6 @@ func main() {
 	b, _ := json.Marshal(&schema)
 	result := string(b)
 	result = strings.Replace(result, "\"additionalProperty\":", "\"additionalProperties\":", -1)
-	result = strings.Replace(result, "\"io.fabric8.kubernetes.api.model.List\"", "\"io.fabric8.kubernetes.api.model.KubernetesList\"", -1)
 
 	fmt.Println(result)
 }

@@ -79,6 +79,8 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 		switch t.Name() {
 		case "RawExtension":
 			return "Object"
+		case "List":
+			return pkgDesc.JavaPackage + ".BaseKubernetesList"
 		default:
 			return pkgDesc.JavaPackage + "." + t.Name()
 		}
