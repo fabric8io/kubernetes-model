@@ -11,23 +11,23 @@ public class KubernetesListTest {
     @Test
     public void testDefaultValues() throws JsonProcessingException {
         Service service = new ServiceBuilder()
-                .withId("test-service")
+                .withName("test-service")
                 .build();
         assertNotNull(service.getApiVersion());
         assertEquals(service.getKind(), "Service");
         
         ReplicationController replicationController = new ReplicationControllerBuilder()
-                .withId("test-controller")
+                .withName("test-controller")
                 .build();
         assertNotNull(replicationController.getApiVersion());
         assertEquals(replicationController.getKind(), "ReplicationController");
         
         KubernetesList kubernetesList = new KubernetesListBuilder()
                 .addNewService()
-                    .withId("test-service")
+                    .withName("test-service")
                 .and()
                 .addNewReplicationController()
-                    .withId("test-controller")
+                    .withName("test-controller")
                 .and()
                 .build();
         

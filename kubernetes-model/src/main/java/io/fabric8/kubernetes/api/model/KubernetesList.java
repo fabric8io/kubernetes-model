@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import io.fabric8.openshift.api.model.BuildConfig;
 import io.fabric8.openshift.api.model.DeploymentConfig;
-import io.fabric8.openshift.api.model.ImageRepository;
+import io.fabric8.openshift.api.model.ImageStream;
 import io.fabric8.openshift.api.model.Route;
 import io.fabric8.openshift.api.model.template.Template;
 
@@ -78,7 +78,7 @@ public class KubernetesList extends BaseKubernetesList {
      * Note: This is not to be used. Added for influencing the generation of fluent nested builders
      */
     @JsonIgnore
-    private final List<ImageRepository> imageRepositories = Collections.emptyList();
+    private final List<ImageStream> imageStreams = Collections.emptyList();
 
     /**
      * list of routes
@@ -102,40 +102,20 @@ public class KubernetesList extends BaseKubernetesList {
         super();
     }
 
-    /**
-     *
-     * @param uid
-     * @param id
-     * @param apiVersion
-     * @param items
-     * @param resourceVersion
-     * @param selfLink
-     * @param creationTimestamp
-     * @param annotations
-     * @param kind
-     * @param namespace
-     */
-    public KubernetesList(Map<String, String> annotations,
-                          KubernetesList.ApiVersion apiVersion,
-                          String creationTimestamp,
-                          String deletionTimestamp,
-                          String generateName,
-                          String id,
+    public KubernetesList(KubernetesList.ApiVersion apiVersion,
                           List<Object> items,
                           String kind,
-                          String namespace,
-                          Long resourceVersion,
+                          String resourceVersion,
                           String selfLink,
-                          String uid,
                           List<Service> services,
                           List<ReplicationController> replicationControllers,
                           List<Pod> pods,
                           List<BuildConfig> buildConfigs,
                           List<DeploymentConfig> deploymentConfigs,
-                          List<ImageRepository> imageRepositories,
+                          List<ImageStream> imageStreams,
                           List<Route> routes,
                           List<Template> templates) {
-        super(annotations, apiVersion, creationTimestamp, deletionTimestamp, generateName, id, items, kind, namespace, resourceVersion, selfLink, uid);
+        super(apiVersion, items, kind, resourceVersion, selfLink);
         Set<Object> allItems = new LinkedHashSet<>();
         allItems.addAll(items != null ? items : Collections.emptyList());
         allItems.addAll(services != null ? services : Collections.<Service>emptyList());
@@ -143,7 +123,7 @@ public class KubernetesList extends BaseKubernetesList {
         allItems.addAll(pods != null ? pods : Collections.<Pod>emptyList());
         allItems.addAll(buildConfigs != null ? buildConfigs : Collections.<BuildConfig>emptyList());
         allItems.addAll(deploymentConfigs != null ? deploymentConfigs : Collections.<DeploymentConfig>emptyList());
-        allItems.addAll(imageRepositories != null ? imageRepositories : Collections.<ImageRepository>emptyList());
+        allItems.addAll(imageStreams != null ? imageStreams : Collections.<ImageStream>emptyList());
         allItems.addAll(routes != null ? routes : Collections.<Route>emptyList());
         allItems.addAll(templates != null ? templates : Collections.<Template>emptyList());
         setItems(new ArrayList<>(allItems));
@@ -175,8 +155,8 @@ public class KubernetesList extends BaseKubernetesList {
     }
     
     @JsonIgnore
-    public List<ImageRepository> getImageRepositories() {
-        return imageRepositories;
+    public List<ImageStream> getImageStreams() {
+        return imageStreams;
     }
     
     @JsonIgnore

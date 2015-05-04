@@ -6,8 +6,10 @@ import (
 
 func init() {
 	api.Scheme.AddKnownTypes("",
-		&Config{},
+		&Route{},
+		&RouteList{},
 	)
 }
 
-func (*Config) IsAnAPIObject() {}
+func (*Route) IsAnAPIObject()     {}
+func (*RouteList) IsAnAPIObject() {}

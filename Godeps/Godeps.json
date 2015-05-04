@@ -66,8 +66,8 @@
 		},
 		{
 			"ImportPath": "github.com/docker/distribution/digest",
-			"Comment": "v2.0.0-alpha.3-30-g06fcf05",
-			"Rev": "06fcf053e7b45aa8608c6bf32e8d3227b31d3747"
+			"Comment": "v2.0.0",
+			"Rev": "62b70f951f30a711a8a81df1865d0afeeaaa0169"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/archive",
@@ -132,38 +132,37 @@
 			"Rev": "bbcb9da2d746f8bdbd6a936686a0a6067ada0ec5"
 		},
 		{
+			"ImportPath": "github.com/jlhawn/go-crypto",
+			"Rev": "cd738dde20f0b3782516181b0866c9bb9db47401"
+		},
+		{
 			"ImportPath": "github.com/openshift/origin/pkg/build/api",
-			"Comment": "v0.4.4",
-			"Rev": "bc67c99df0e936e67587eb69f5e1fd75139e0e74"
+			"Comment": "v0.5",
+			"Rev": "cecef6578c291d5dc7fbd76deacb76f1f22dd263"
 		},
 		{
-			"ImportPath": "github.com/openshift/origin/pkg/config/api",
-			"Comment": "v0.4.4",
-			"Rev": "bc67c99df0e936e67587eb69f5e1fd75139e0e74"
-		},
-		{
-			"ImportPath": "github.com/openshift/origin/pkg/deploy/api/v1beta1",
-			"Comment": "v0.4.4",
-			"Rev": "bc67c99df0e936e67587eb69f5e1fd75139e0e74"
+			"ImportPath": "github.com/openshift/origin/pkg/deploy/api",
+			"Comment": "v0.5",
+			"Rev": "cecef6578c291d5dc7fbd76deacb76f1f22dd263"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/image/api",
-			"Comment": "v0.4.4",
-			"Rev": "bc67c99df0e936e67587eb69f5e1fd75139e0e74"
+			"Comment": "v0.5",
+			"Rev": "cecef6578c291d5dc7fbd76deacb76f1f22dd263"
 		},
 		{
-			"ImportPath": "github.com/openshift/origin/pkg/route/api/v1beta1",
-			"Comment": "v0.4.4",
-			"Rev": "bc67c99df0e936e67587eb69f5e1fd75139e0e74"
+			"ImportPath": "github.com/openshift/origin/pkg/route/api",
+			"Comment": "v0.5",
+			"Rev": "cecef6578c291d5dc7fbd76deacb76f1f22dd263"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/template/api",
-			"Comment": "v0.4.4",
-			"Rev": "bc67c99df0e936e67587eb69f5e1fd75139e0e74"
+			"Comment": "v0.5",
+			"Rev": "cecef6578c291d5dc7fbd76deacb76f1f22dd263"
 		},
 		{
 			"ImportPath": "github.com/spf13/pflag",
-			"Rev": "18d831e92d67eafd1b0db8af9ffddbd04f7ae1f4"
+			"Rev": "60d4c375939ff7ba397a84117d5281256abb298f"
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",
