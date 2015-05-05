@@ -4,7 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 
 public class KubernetesListTest {
 
@@ -35,5 +37,26 @@ public class KubernetesListTest {
         assertEquals(kubernetesList.getKind(), "List");
         assertThat(kubernetesList.getItems(), CoreMatchers.hasItem(service));
         assertThat(kubernetesList.getItems(), CoreMatchers.hasItem(replicationController));
+    }
+
+    @Test
+    public void testInlining() throws JsonProcessingException {
+        Service service = new ServiceBuilder()
+                .withId("test-service")
+                .withNewContainerPort(9091)
+                .build();
+        
+        assertNotNull(service.getApiVersion());
+        assertEquals(9091, (int) service.getContainerPort().getIntVal());
+        assertEquals(0, (int) service.getContainerPort().getKind());
+
+        service = new ServiceBuilder()
+                .withId("test-service")
+                .withNewContainerPort("9091")
+                .build();
+
+        assertNotNull(service.getApiVersion());
+        assertEquals("9091",  service.getContainerPort().getStrVal());
+        assertEquals(1, (int) service.getContainerPort().getKind());
     }
 }
