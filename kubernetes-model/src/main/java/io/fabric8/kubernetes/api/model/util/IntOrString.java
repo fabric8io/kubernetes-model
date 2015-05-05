@@ -58,8 +58,7 @@ public class IntOrString {
     public IntOrString(String strVal) {
         this(null, 1, strVal, new HashMap<String, Object>());
     }
-    
-    @Buildable(builderPackage = "io.fabric8.common")
+
     public IntOrString(Integer intVal, Integer kind, String strVal, Map<String, Object> additionalProperties) {
         IntVal = intVal;
         Kind = kind;

@@ -38,25 +38,4 @@ public class KubernetesListTest {
         assertThat(kubernetesList.getItems(), CoreMatchers.hasItem(service));
         assertThat(kubernetesList.getItems(), CoreMatchers.hasItem(replicationController));
     }
-
-    @Test
-    public void testInlining() throws JsonProcessingException {
-        Service service = new ServiceBuilder()
-                .withId("test-service")
-                .withNewContainerPort(9091)
-                .build();
-        
-        assertNotNull(service.getApiVersion());
-        assertEquals(9091, (int) service.getContainerPort().getIntVal());
-        assertEquals(0, (int) service.getContainerPort().getKind());
-
-        service = new ServiceBuilder()
-                .withId("test-service")
-                .withNewContainerPort("9091")
-                .build();
-
-        assertNotNull(service.getApiVersion());
-        assertEquals("9091",  service.getContainerPort().getStrVal());
-        assertEquals(1, (int) service.getContainerPort().getKind());
-    }
 }
