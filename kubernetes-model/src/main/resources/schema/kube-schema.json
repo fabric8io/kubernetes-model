@@ -354,7 +354,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -432,7 +432,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -661,7 +661,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -747,7 +747,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -873,7 +873,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -1122,7 +1122,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -1216,7 +1216,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -1451,7 +1451,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -1529,7 +1529,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -1658,7 +1658,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -1736,7 +1736,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -2098,7 +2098,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta2",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -2288,7 +2288,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -2375,7 +2375,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -2453,7 +2453,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -2542,7 +2542,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -2961,7 +2961,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -3039,7 +3039,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -3294,7 +3294,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -3380,7 +3380,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -3430,7 +3430,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -3508,7 +3508,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -3663,7 +3663,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -3741,7 +3741,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",
@@ -3877,7 +3877,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "v1beta3",
           "required": true,
           "enum": [
             "v1beta1",

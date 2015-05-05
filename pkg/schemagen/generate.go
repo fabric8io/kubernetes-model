@@ -275,10 +275,7 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 						},
 					}
 				case "apiVersion":
-					apiVersion := "v1beta2"
-					if strings.HasPrefix(t.PkgPath(), "github.com/openshift") {
-						apiVersion = "v1beta1"
-					}
+					apiVersion := "v1beta3"
 					v = JSONPropertyDescriptor{
 						JSONDescriptor: &JSONDescriptor{
 							Type:     "string",
