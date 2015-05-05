@@ -247,7 +247,7 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 		name := getFieldName(field)
 		desc := getFieldDescription(field)
 		prop := g.getPropertyDescriptor(field.Type, desc)
-		if field.Anonymous && field.Type.Kind() == reflect.Struct {
+		if field.Anonymous && field.Type.Kind() == reflect.Struct && len(name) == 0 {
 			var newProps map[string]JSONPropertyDescriptor
 			if prop.JSONReferenceDescriptor != nil {
 				pType := field.Type
@@ -260,7 +260,7 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 			}
 			for k, v := range newProps {
 				switch k {
-				case "id", "namespace":
+				case "namespace":
 					v.Pattern = `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
 					v.MaxLength = 253
 				case "name":

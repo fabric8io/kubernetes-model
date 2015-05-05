@@ -21,6 +21,7 @@ import (
 )
 
 type Schema struct {
+	ObjectMeta                kapi.ObjectMeta
 	PodList                   kapi.PodList
 	ReplicationControllerList kapi.ReplicationControllerList
 	ServiceList               kapi.ServiceList

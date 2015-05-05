@@ -342,15 +342,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
         "apiVersion": {
           "type": "string",
           "description": "",
@@ -362,52 +353,15 @@
             "v1beta3"
           ]
         },
-        "creationTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object was created; populated by the system"
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested"
-        },
-        "generateName": {
-          "type": "string",
-          "description": "an optional prefix to use to generate a unique name; has the same validation rules as name; optional"
-        },
         "kind": {
           "type": "string",
           "description": "",
           "default": "Endpoints",
           "required": true
         },
-        "labels": {
-          "type": "object",
-          "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
-        "name": {
-          "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "namespace of the object; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "subsets": {
           "type": "array",
@@ -416,10 +370,6 @@
             "$ref": "#/definitions/kubernetes_EndpointSubset",
             "javaType": "io.fabric8.kubernetes.api.model.EndpointSubset"
           }
-        },
-        "uid": {
-          "type": "string",
-          "description": "unique UUID across space and time; populated by the system; read-only"
         }
       },
       "additionalProperties": true,
@@ -454,13 +404,9 @@
           "default": "EndpointsList",
           "required": true
         },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
         }
       },
       "additionalProperties": true,
@@ -683,13 +629,9 @@
           "default": "List",
           "required": true
         },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
         }
       },
       "additionalProperties": true,
@@ -735,15 +677,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
         "apiVersion": {
           "type": "string",
           "description": "",
@@ -755,52 +688,15 @@
             "v1beta3"
           ]
         },
-        "creationTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object was created; populated by the system"
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested"
-        },
-        "generateName": {
-          "type": "string",
-          "description": "an optional prefix to use to generate a unique name; has the same validation rules as name; optional"
-        },
         "kind": {
           "type": "string",
           "description": "",
           "default": "Node",
           "required": true
         },
-        "labels": {
-          "type": "object",
-          "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
-        "name": {
-          "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "namespace of the object; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "spec": {
           "$ref": "#/definitions/kubernetes_NodeSpec",
@@ -809,10 +705,6 @@
         "status": {
           "$ref": "#/definitions/kubernetes_NodeStatus",
           "javaType": "io.fabric8.kubernetes.api.model.NodeStatus"
-        },
-        "uid": {
-          "type": "string",
-          "description": "unique UUID across space and time; populated by the system; read-only"
         }
       },
       "additionalProperties": true,
@@ -895,13 +787,9 @@
           "default": "NodeList",
           "required": true
         },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
         }
       },
       "additionalProperties": true,
@@ -1044,15 +932,11 @@
         },
         "name": {
           "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated"
         },
         "namespace": {
           "type": "string",
-          "description": "namespace of the object; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+          "description": "namespace of the object; cannot be updated"
         },
         "resourceVersion": {
           "type": "string",
@@ -1110,15 +994,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
         "apiVersion": {
           "type": "string",
           "description": "",
@@ -1130,52 +1005,15 @@
             "v1beta3"
           ]
         },
-        "creationTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object was created; populated by the system"
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested"
-        },
-        "generateName": {
-          "type": "string",
-          "description": "an optional prefix to use to generate a unique name; has the same validation rules as name; optional"
-        },
         "kind": {
           "type": "string",
           "description": "",
           "default": "Pod",
           "required": true
         },
-        "labels": {
-          "type": "object",
-          "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
-        "name": {
-          "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "namespace of the object; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "spec": {
           "$ref": "#/definitions/kubernetes_PodSpec",
@@ -1184,10 +1022,6 @@
         "status": {
           "$ref": "#/definitions/kubernetes_PodStatus",
           "javaType": "io.fabric8.kubernetes.api.model.PodStatus"
-        },
-        "uid": {
-          "type": "string",
-          "description": "unique UUID across space and time; populated by the system; read-only"
         }
       },
       "additionalProperties": true,
@@ -1238,13 +1072,9 @@
           "default": "PodList",
           "required": true
         },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
         }
       },
       "additionalProperties": true,
@@ -1343,63 +1173,13 @@
       "type": "object",
       "description": "",
       "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
-        "creationTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object was created; populated by the system"
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested"
-        },
-        "generateName": {
-          "type": "string",
-          "description": "an optional prefix to use to generate a unique name; has the same validation rules as name; optional"
-        },
-        "labels": {
-          "type": "object",
-          "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
-        "name": {
-          "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "namespace of the object; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "spec": {
           "$ref": "#/definitions/kubernetes_PodSpec",
           "javaType": "io.fabric8.kubernetes.api.model.PodSpec"
-        },
-        "uid": {
-          "type": "string",
-          "description": "unique UUID across space and time; populated by the system; read-only"
         }
       },
       "additionalProperties": true,
@@ -1439,15 +1219,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
         "apiVersion": {
           "type": "string",
           "description": "",
@@ -1459,52 +1230,15 @@
             "v1beta3"
           ]
         },
-        "creationTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object was created; populated by the system"
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested"
-        },
-        "generateName": {
-          "type": "string",
-          "description": "an optional prefix to use to generate a unique name; has the same validation rules as name; optional"
-        },
         "kind": {
           "type": "string",
           "description": "",
           "default": "ReplicationController",
           "required": true
         },
-        "labels": {
-          "type": "object",
-          "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
-        "name": {
-          "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "namespace of the object; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "spec": {
           "$ref": "#/definitions/kubernetes_ReplicationControllerSpec",
@@ -1513,10 +1247,6 @@
         "status": {
           "$ref": "#/definitions/kubernetes_ReplicationControllerStatus",
           "javaType": "io.fabric8.kubernetes.api.model.ReplicationControllerStatus"
-        },
-        "uid": {
-          "type": "string",
-          "description": "unique UUID across space and time; populated by the system; read-only"
         }
       },
       "additionalProperties": true,
@@ -1551,13 +1281,9 @@
           "default": "ReplicationControllerList",
           "required": true
         },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
         }
       },
       "additionalProperties": true,
@@ -1646,15 +1372,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
         "apiVersion": {
           "type": "string",
           "description": "",
@@ -1666,52 +1383,15 @@
             "v1beta3"
           ]
         },
-        "creationTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object was created; populated by the system"
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested"
-        },
-        "generateName": {
-          "type": "string",
-          "description": "an optional prefix to use to generate a unique name; has the same validation rules as name; optional"
-        },
         "kind": {
           "type": "string",
           "description": "",
           "default": "Service",
           "required": true
         },
-        "labels": {
-          "type": "object",
-          "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
-        "name": {
-          "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "namespace of the object; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "spec": {
           "$ref": "#/definitions/kubernetes_ServiceSpec",
@@ -1720,10 +1400,6 @@
         "status": {
           "$ref": "#/definitions/kubernetes_ServiceStatus",
           "javaType": "io.fabric8.kubernetes.api.model.ServiceStatus"
-        },
-        "uid": {
-          "type": "string",
-          "description": "unique UUID across space and time; populated by the system; read-only"
         }
       },
       "additionalProperties": true,
@@ -1758,13 +1434,9 @@
           "default": "ServiceList",
           "required": true
         },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
         }
       },
       "additionalProperties": true,
@@ -2029,15 +1701,11 @@
         },
         "name": {
           "type": "string",
-          "description": "",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          "description": ""
         },
         "namespace": {
           "type": "string",
-          "description": "",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+          "description": ""
         },
         "resourceVersion": {
           "type": "string",
@@ -2124,15 +1792,11 @@
           "type": "string",
           "description": ""
         },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_base_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.base.ListMeta"
+        },
         "reason": {
-          "type": "string",
-          "description": ""
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": ""
-        },
-        "selfLink": {
           "type": "string",
           "description": ""
         },
@@ -2276,15 +1940,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
         "apiVersion": {
           "type": "string",
           "description": "",
@@ -2296,52 +1951,15 @@
             "v1beta3"
           ]
         },
-        "creationTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object was created; populated by the system"
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested"
-        },
-        "generateName": {
-          "type": "string",
-          "description": "an optional prefix to use to generate a unique name; has the same validation rules as name; optional"
-        },
         "kind": {
           "type": "string",
           "description": "",
           "default": "Build",
           "required": true
         },
-        "labels": {
-          "type": "object",
-          "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
-        "name": {
-          "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "namespace of the object; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "spec": {
           "$ref": "#/definitions/os_build_BuildSpec",
@@ -2350,10 +1968,6 @@
         "status": {
           "$ref": "#/definitions/os_build_BuildStatus",
           "javaType": "io.fabric8.openshift.api.model.BuildStatus"
-        },
-        "uid": {
-          "type": "string",
-          "description": "unique UUID across space and time; populated by the system; read-only"
         }
       },
       "additionalProperties": true,
@@ -2363,15 +1977,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
         "apiVersion": {
           "type": "string",
           "description": "",
@@ -2383,52 +1988,15 @@
             "v1beta3"
           ]
         },
-        "creationTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object was created; populated by the system"
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested"
-        },
-        "generateName": {
-          "type": "string",
-          "description": "an optional prefix to use to generate a unique name; has the same validation rules as name; optional"
-        },
         "kind": {
           "type": "string",
           "description": "",
           "default": "BuildConfig",
           "required": true
         },
-        "labels": {
-          "type": "object",
-          "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
-        "name": {
-          "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "namespace of the object; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "spec": {
           "$ref": "#/definitions/os_build_BuildConfigSpec",
@@ -2437,10 +2005,6 @@
         "status": {
           "$ref": "#/definitions/os_build_BuildConfigStatus",
           "javaType": "io.fabric8.openshift.api.model.BuildConfigStatus"
-        },
-        "uid": {
-          "type": "string",
-          "description": "unique UUID across space and time; populated by the system; read-only"
         }
       },
       "additionalProperties": true,
@@ -2475,13 +2039,9 @@
           "default": "BuildConfigList",
           "required": true
         },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
         }
       },
       "additionalProperties": true,
@@ -2564,13 +2124,9 @@
           "default": "BuildList",
           "required": true
         },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
         }
       },
       "additionalProperties": true,
@@ -2949,15 +2505,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
         "apiVersion": {
           "type": "string",
           "description": "",
@@ -2969,52 +2516,15 @@
             "v1beta3"
           ]
         },
-        "creationTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object was created; populated by the system"
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested"
-        },
-        "generateName": {
-          "type": "string",
-          "description": "an optional prefix to use to generate a unique name; has the same validation rules as name; optional"
-        },
         "kind": {
           "type": "string",
           "description": "",
           "default": "DeploymentConfig",
           "required": true
         },
-        "labels": {
-          "type": "object",
-          "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
-        "name": {
-          "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "namespace of the object; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "spec": {
           "$ref": "#/definitions/os_deploy_DeploymentConfigSpec",
@@ -3023,10 +2533,6 @@
         "status": {
           "$ref": "#/definitions/os_deploy_DeploymentConfigStatus",
           "javaType": "io.fabric8.openshift.api.model.DeploymentConfigStatus"
-        },
-        "uid": {
-          "type": "string",
-          "description": "unique UUID across space and time; populated by the system; read-only"
         }
       },
       "additionalProperties": true,
@@ -3061,13 +2567,9 @@
           "default": "DeploymentConfigList",
           "required": true
         },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
         }
       },
       "additionalProperties": true,
@@ -3282,15 +2784,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
         "apiVersion": {
           "type": "string",
           "description": "",
@@ -3301,14 +2794,6 @@
             "v1beta2",
             "v1beta3"
           ]
-        },
-        "creationTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object was created; populated by the system"
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested"
         },
         "dockerImageManifest": {
           "type": "string",
@@ -3326,48 +2811,15 @@
           "type": "string",
           "description": ""
         },
-        "generateName": {
-          "type": "string",
-          "description": "an optional prefix to use to generate a unique name; has the same validation rules as name; optional"
-        },
         "kind": {
           "type": "string",
           "description": "",
           "default": "Image",
           "required": true
         },
-        "labels": {
-          "type": "object",
-          "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
-        "name": {
-          "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "namespace of the object; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
-        },
-        "uid": {
-          "type": "string",
-          "description": "unique UUID across space and time; populated by the system; read-only"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         }
       },
       "additionalProperties": true,
@@ -3402,13 +2854,9 @@
           "default": "ImageList",
           "required": true
         },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
         }
       },
       "additionalProperties": true,
@@ -3418,15 +2866,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
         "apiVersion": {
           "type": "string",
           "description": "",
@@ -3438,52 +2877,15 @@
             "v1beta3"
           ]
         },
-        "creationTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object was created; populated by the system"
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested"
-        },
-        "generateName": {
-          "type": "string",
-          "description": "an optional prefix to use to generate a unique name; has the same validation rules as name; optional"
-        },
         "kind": {
           "type": "string",
           "description": "",
           "default": "ImageStream",
           "required": true
         },
-        "labels": {
-          "type": "object",
-          "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
-        "name": {
-          "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "namespace of the object; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "spec": {
           "$ref": "#/definitions/os_image_ImageStreamSpec",
@@ -3492,10 +2894,6 @@
         "status": {
           "$ref": "#/definitions/os_image_ImageStreamStatus",
           "javaType": "io.fabric8.openshift.api.model.ImageStreamStatus"
-        },
-        "uid": {
-          "type": "string",
-          "description": "unique UUID across space and time; populated by the system; read-only"
         }
       },
       "additionalProperties": true,
@@ -3530,13 +2928,9 @@
           "default": "ImageStreamList",
           "required": true
         },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
         }
       },
       "additionalProperties": true,
@@ -3651,15 +3045,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "",
-          "additionalProperties": {
-            "type": "string",
-            "description": ""
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
         "apiVersion": {
           "type": "string",
           "description": "",
@@ -3671,52 +3056,15 @@
             "v1beta3"
           ]
         },
-        "creationTimestamp": {
-          "type": "string",
-          "description": ""
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": ""
-        },
-        "generateName": {
-          "type": "string",
-          "description": ""
-        },
         "kind": {
           "type": "string",
           "description": "",
           "default": "Route",
           "required": true
         },
-        "labels": {
-          "type": "object",
-          "description": "",
-          "additionalProperties": {
-            "type": "string",
-            "description": ""
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
-        "name": {
-          "type": "string",
-          "description": "",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": ""
-        },
-        "selfLink": {
-          "type": "string",
-          "description": ""
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_base_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.base.ObjectMeta"
         },
         "spec": {
           "$ref": "#/definitions/os_route_RouteSpec",
@@ -3725,10 +3073,6 @@
         "status": {
           "$ref": "#/definitions/os_route_RouteStatus",
           "javaType": "io.fabric8.openshift.api.model.RouteStatus"
-        },
-        "uid": {
-          "type": "string",
-          "description": ""
         }
       },
       "additionalProperties": true,
@@ -3763,13 +3107,9 @@
           "default": "RouteList",
           "required": true
         },
-        "resourceVersion": {
-          "type": "string",
-          "description": ""
-        },
-        "selfLink": {
-          "type": "string",
-          "description": ""
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_base_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.base.ListMeta"
         }
       },
       "additionalProperties": true,
@@ -3865,15 +3205,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects",
-          "additionalProperties": {
-            "type": "string",
-            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects"
-          },
-          "javaType": "java.util.Map<String,String>"
-        },
         "apiVersion": {
           "type": "string",
           "description": "",
@@ -3884,18 +3215,6 @@
             "v1beta2",
             "v1beta3"
           ]
-        },
-        "creationTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object was created; populated by the system"
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": "RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested"
-        },
-        "generateName": {
-          "type": "string",
-          "description": "an optional prefix to use to generate a unique name; has the same validation rules as name; optional"
         },
         "kind": {
           "type": "string",
@@ -3912,17 +3231,9 @@
           },
           "javaType": "java.util.Map<String,String>"
         },
-        "name": {
-          "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "namespace of the object; cannot be updated",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "objects": {
           "type": "array",
@@ -3939,18 +3250,6 @@
             "$ref": "#/definitions/os_template_Parameter",
             "javaType": "io.fabric8.openshift.api.model.template.Parameter"
           }
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": "string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system"
-        },
-        "selfLink": {
-          "type": "string",
-          "description": "URL for the object; populated by the system"
-        },
-        "uid": {
-          "type": "string",
-          "description": "unique UUID across space and time; populated by the system; read-only"
         }
       },
       "additionalProperties": true,
@@ -4012,6 +3311,10 @@
     "NodeList": {
       "$ref": "#/definitions/kubernetes_NodeList",
       "javaType": "io.fabric8.kubernetes.api.model.NodeList"
+    },
+    "ObjectMeta": {
+      "$ref": "#/definitions/kubernetes_ObjectMeta",
+      "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
     },
     "PodList": {
       "$ref": "#/definitions/kubernetes_PodList",

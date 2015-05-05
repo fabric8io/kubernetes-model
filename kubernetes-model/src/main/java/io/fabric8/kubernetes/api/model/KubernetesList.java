@@ -105,8 +105,7 @@ public class KubernetesList extends BaseKubernetesList {
     public KubernetesList(KubernetesList.ApiVersion apiVersion,
                           List<Object> items,
                           String kind,
-                          String resourceVersion,
-                          String selfLink,
+                          ListMeta metadata,
                           List<Service> services,
                           List<ReplicationController> replicationControllers,
                           List<Pod> pods,
@@ -115,7 +114,7 @@ public class KubernetesList extends BaseKubernetesList {
                           List<ImageStream> imageStreams,
                           List<Route> routes,
                           List<Template> templates) {
-        super(apiVersion, items, kind, resourceVersion, selfLink);
+        super(apiVersion, items, kind, metadata);
         Set<Object> allItems = new LinkedHashSet<>();
         allItems.addAll(items != null ? items : Collections.emptyList());
         allItems.addAll(services != null ? services : Collections.<Service>emptyList());

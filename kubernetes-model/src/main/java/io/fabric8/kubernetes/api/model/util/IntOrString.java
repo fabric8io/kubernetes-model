@@ -18,7 +18,6 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import io.sundr.builder.annotations.Buildable;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.commons.lang.builder.ToStringBuilder;
@@ -67,7 +66,7 @@ public class IntOrString {
     }
 
     /**
-     * 
+     *
      * @return
      *     The IntVal
      */
@@ -77,7 +76,7 @@ public class IntOrString {
     }
 
     /**
-     * 
+     *
      * @param IntVal
      *     The IntVal
      */
@@ -87,7 +86,7 @@ public class IntOrString {
     }
 
     /**
-     * 
+     *
      * @return
      *     The Kind
      */
@@ -97,7 +96,7 @@ public class IntOrString {
     }
 
     /**
-     * 
+     *
      * @param Kind
      *     The Kind
      */
@@ -107,7 +106,7 @@ public class IntOrString {
     }
 
     /**
-     * 
+     *
      * @return
      *     The StrVal
      */
@@ -117,7 +116,7 @@ public class IntOrString {
     }
 
     /**
-     * 
+     *
      * @param StrVal
      *     The StrVal
      */

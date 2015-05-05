@@ -4,32 +4,38 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
+import static org.junit.Assert.*;
 
 public class KubernetesListTest {
 
     @Test
     public void testDefaultValues() throws JsonProcessingException {
         Service service = new ServiceBuilder()
-                .withName("test-service")
+                .withNewMetadata()
+                    .withName("test-service")
+                .endMetadata()
                 .build();
         assertNotNull(service.getApiVersion());
         assertEquals(service.getKind(), "Service");
         
         ReplicationController replicationController = new ReplicationControllerBuilder()
+                .withNewMetadata()
                 .withName("test-controller")
+                .endMetadata()
                 .build();
         assertNotNull(replicationController.getApiVersion());
         assertEquals(replicationController.getKind(), "ReplicationController");
         
         KubernetesList kubernetesList = new KubernetesListBuilder()
                 .addNewService()
+                .withNewMetadata()
                     .withName("test-service")
+                .endMetadata()
                 .and()
                 .addNewReplicationController()
+                .withNewMetadata()
                     .withName("test-controller")
+                .endMetadata()
                 .and()
                 .build();
         
