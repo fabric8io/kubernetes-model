@@ -9,4 +9,5 @@ update-deps:
 	pushd $(GOPATH)/src/github.com/openshift/origin && \
 		godep restore && \
 		popd && \
+		godep save cmd/generate/generate.go && \
 		godep update ...

@@ -151,6 +151,11 @@
 			"Rev": "cecef6578c291d5dc7fbd76deacb76f1f22dd263"
 		},
 		{
+			"ImportPath": "github.com/openshift/origin/pkg/oauth/api/v1beta3",
+			"Comment": "v0.5",
+			"Rev": "cecef6578c291d5dc7fbd76deacb76f1f22dd263"
+		},
+		{
 			"ImportPath": "github.com/openshift/origin/pkg/route/api",
 			"Comment": "v0.5",
 			"Rev": "cecef6578c291d5dc7fbd76deacb76f1f22dd263"
