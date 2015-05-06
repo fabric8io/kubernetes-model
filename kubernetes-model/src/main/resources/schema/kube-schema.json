@@ -3041,6 +3041,376 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.TagEvent"
     },
+    "os_oauth_OAuthAccessToken": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1beta3",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
+        },
+        "authorizeToken": {
+          "type": "string",
+          "description": ""
+        },
+        "clientName": {
+          "type": "string",
+          "description": ""
+        },
+        "expiresIn": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "OAuthAccessToken",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "redirectURI": {
+          "type": "string",
+          "description": ""
+        },
+        "refreshToken": {
+          "type": "string",
+          "description": ""
+        },
+        "scopes": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "userName": {
+          "type": "string",
+          "description": ""
+        },
+        "userUID": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.OAuthAccessToken"
+    },
+    "os_oauth_OAuthAccessTokenList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1beta3",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/os_oauth_OAuthAccessToken",
+            "javaType": "io.fabric8.openshift.api.model.OAuthAccessToken"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "OAuthAccessTokenList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.OAuthAccessTokenList"
+    },
+    "os_oauth_OAuthAuthorizeToken": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1beta3",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
+        },
+        "clientName": {
+          "type": "string",
+          "description": ""
+        },
+        "expiresIn": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "OAuthAuthorizeToken",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "redirectURI": {
+          "type": "string",
+          "description": ""
+        },
+        "scopes": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "state": {
+          "type": "string",
+          "description": ""
+        },
+        "userName": {
+          "type": "string",
+          "description": ""
+        },
+        "userUID": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.OAuthAuthorizeToken"
+    },
+    "os_oauth_OAuthAuthorizeTokenList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1beta3",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/os_oauth_OAuthAuthorizeToken",
+            "javaType": "io.fabric8.openshift.api.model.OAuthAuthorizeToken"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "OAuthAuthorizeTokenList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.OAuthAuthorizeTokenList"
+    },
+    "os_oauth_OAuthClient": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1beta3",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "OAuthClient",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "redirectURIs": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "respondWithChallenges": {
+          "type": "boolean",
+          "description": ""
+        },
+        "secret": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.OAuthClient"
+    },
+    "os_oauth_OAuthClientAuthorization": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1beta3",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
+        },
+        "clientName": {
+          "type": "string",
+          "description": ""
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "OAuthClientAuthorization",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "scopes": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "userName": {
+          "type": "string",
+          "description": ""
+        },
+        "userUID": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.OAuthClientAuthorization"
+    },
+    "os_oauth_OAuthClientAuthorizationList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1beta3",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/os_oauth_OAuthClientAuthorization",
+            "javaType": "io.fabric8.openshift.api.model.OAuthClientAuthorization"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "OAuthClientAuthorizationList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.OAuthClientAuthorizationList"
+    },
+    "os_oauth_OAuthClientList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1beta3",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/os_oauth_OAuthClient",
+            "javaType": "io.fabric8.openshift.api.model.OAuthClient"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "OAuthClientList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.OAuthClientList"
+    },
     "os_route_Route": {
       "type": "object",
       "description": "",
@@ -3311,6 +3681,38 @@
     "NodeList": {
       "$ref": "#/definitions/kubernetes_NodeList",
       "javaType": "io.fabric8.kubernetes.api.model.NodeList"
+    },
+    "OAuthAccessToken": {
+      "$ref": "#/definitions/os_oauth_OAuthAccessToken",
+      "javaType": "io.fabric8.openshift.api.model.OAuthAccessToken"
+    },
+    "OAuthAccessTokenList": {
+      "$ref": "#/definitions/os_oauth_OAuthAccessTokenList",
+      "javaType": "io.fabric8.openshift.api.model.OAuthAccessTokenList"
+    },
+    "OAuthAuthorizeToken": {
+      "$ref": "#/definitions/os_oauth_OAuthAuthorizeToken",
+      "javaType": "io.fabric8.openshift.api.model.OAuthAuthorizeToken"
+    },
+    "OAuthAuthorizeTokenList": {
+      "$ref": "#/definitions/os_oauth_OAuthAuthorizeTokenList",
+      "javaType": "io.fabric8.openshift.api.model.OAuthAuthorizeTokenList"
+    },
+    "OAuthClient": {
+      "$ref": "#/definitions/os_oauth_OAuthClient",
+      "javaType": "io.fabric8.openshift.api.model.OAuthClient"
+    },
+    "OAuthClientAuthorization": {
+      "$ref": "#/definitions/os_oauth_OAuthClientAuthorization",
+      "javaType": "io.fabric8.openshift.api.model.OAuthClientAuthorization"
+    },
+    "OAuthClientAuthorizationList": {
+      "$ref": "#/definitions/os_oauth_OAuthClientAuthorizationList",
+      "javaType": "io.fabric8.openshift.api.model.OAuthClientAuthorizationList"
+    },
+    "OAuthClientList": {
+      "$ref": "#/definitions/os_oauth_OAuthClientList",
+      "javaType": "io.fabric8.openshift.api.model.OAuthClientList"
     },
     "ObjectMeta": {
       "$ref": "#/definitions/kubernetes_ObjectMeta",

@@ -55,7 +55,15 @@ import io.sundr.builder.annotations.ExternalBuildables;
         "io.fabric8.openshift.api.model.WebHookTrigger",
         "io.fabric8.openshift.api.model.config.Config",
         "io.fabric8.openshift.api.model.template.Template",
-        "io.fabric8.openshift.api.model.template.Parameter"
+        "io.fabric8.openshift.api.model.template.Parameter",
+        "io.fabric8.openshift.api.model.OAuthClient",
+        "io.fabric8.openshift.api.model.OAuthAccessToken",
+        "io.fabric8.openshift.api.model.OAuthAuthorizeToken",
+        "io.fabric8.openshift.api.model.OAuthClientAuthorization",
+        "io.fabric8.openshift.api.model.OAuthAccessTokenList",
+        "io.fabric8.openshift.api.model.OAuthAuthorizeTokenList",
+        "io.fabric8.openshift.api.model.OAuthClientList",
+        "io.fabric8.openshift.api.model.OAuthClientAuthorizationList"
 })
 public class OpenshiftConfig {
 }
