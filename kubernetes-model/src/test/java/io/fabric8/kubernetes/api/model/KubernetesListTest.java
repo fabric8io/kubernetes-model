@@ -44,4 +44,29 @@ public class KubernetesListTest {
         assertThat(kubernetesList.getItems(), CoreMatchers.hasItem(service));
         assertThat(kubernetesList.getItems(), CoreMatchers.hasItem(replicationController));
     }
+
+    @Test
+    public void testVisitor() throws JsonProcessingException {
+        KubernetesList list = new KubernetesListBuilder()
+                .addNewPod()
+                    .withNewSpec()
+                        .addNewContainer()
+                            .withName("my-container")
+                            .withImage("my/image")
+                        .endContainer()
+                    .endSpec()
+                .endPod()
+                .build();
+
+        list = new KubernetesListBuilder(list).accept(new io.fabric8.common.Visitor() {
+            public void visit(Object item) {
+                if (item instanceof io.fabric8.kubernetes.api.model.PodSpecBuilder) {
+                    ((io.fabric8.kubernetes.api.model.PodSpecBuilder)item).addNewContainer()
+                            .withName("other-container")
+                            .withImage("other/image")
+                            .endContainer();
+                }
+            }
+        }).build();
+    }
 }
