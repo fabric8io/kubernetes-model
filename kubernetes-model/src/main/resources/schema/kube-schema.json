@@ -76,7 +76,9 @@
         },
         "name": {
           "type": "string",
-          "description": "name of the container; must be a DNS_LABEL and unique within the pod; cannot be updated"
+          "description": "name of the container; must be a DNS_LABEL and unique within the pod; cannot be updated",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "ports": {
           "type": "array",
@@ -136,7 +138,9 @@
         },
         "name": {
           "type": "string",
-          "description": "name for the port that can be referred to by services; must be a DNS_LABEL and unique without the pod"
+          "description": "name for the port that can be referred to by services; must be a DNS_LABEL and unique without the pod",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "protocol": {
           "type": "string",
@@ -248,7 +252,9 @@
         },
         "name": {
           "type": "string",
-          "description": "name of the container; must be a DNS_LABEL and unique within the pod; cannot be updated"
+          "description": "name of the container; must be a DNS_LABEL and unique within the pod; cannot be updated",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "ready": {
           "type": "boolean",
@@ -300,7 +306,9 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "name of this port"
+          "description": "name of this port",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "port": {
           "type": "integer",
@@ -418,7 +426,9 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "name of the environment variable; must be a C_IDENTIFIER"
+          "description": "name of the environment variable; must be a C_IDENTIFIER",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "value": {
           "type": "string",
@@ -932,11 +942,15 @@
         },
         "name": {
           "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated"
+          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
-          "description": "namespace of the object; cannot be updated"
+          "description": "namespace of the object; cannot be updated",
+          "maxLength": 253,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "string",
@@ -972,11 +986,15 @@
         },
         "name": {
           "type": "string",
-          "description": "name of the referent"
+          "description": "name of the referent",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
-          "description": "namespace of the referent"
+          "description": "namespace of the referent",
+          "maxLength": 253,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "string",
@@ -1448,7 +1466,9 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "the name of this port; optional if only one port is defined"
+          "description": "the name of this port; optional if only one port is defined",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "port": {
           "type": "integer",
@@ -1575,7 +1595,9 @@
         },
         "name": {
           "type": "string",
-          "description": "volume name; must be a DNS_LABEL and unique within the pod"
+          "description": "volume name; must be a DNS_LABEL and unique within the pod",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "nfs": {
           "$ref": "#/definitions/kubernetes_NFSVolumeSource",
@@ -1599,7 +1621,9 @@
         },
         "name": {
           "type": "string",
-          "description": "name of the volume to mount"
+          "description": "name of the volume to mount",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "readOnly": {
           "type": "boolean",
@@ -1701,11 +1725,15 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 253,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "string",
@@ -1741,11 +1769,15 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 253,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
         "resourceVersion": {
           "type": "string",
@@ -2411,7 +2443,9 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         }
       },
       "additionalProperties": true,
@@ -3015,7 +3049,9 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         }
       },
       "additionalProperties": true,
@@ -3561,7 +3597,9 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "value": {
           "type": "string",
