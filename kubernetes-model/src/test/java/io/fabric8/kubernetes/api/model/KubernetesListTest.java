@@ -69,4 +69,16 @@ public class KubernetesListTest {
             }
         }).build();
     }
+
+    @Test
+    public void testDefaultNullValues() throws JsonProcessingException {
+        Container container = new ContainerBuilder().build();
+        assertNull(container.getLifecycle());
+        assertNull(container.getLivenessProbe());
+
+
+        Pod pod = new PodBuilder().build();
+        assertNull(pod.getSpec());
+        assertNull(pod.getStatus());
+    }
 }
