@@ -138,9 +138,7 @@
         },
         "name": {
           "type": "string",
-          "description": "name for the port that can be referred to by services; must be a DNS_LABEL and unique without the pod",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          "description": "name for the port that can be referred to by services; must be a DNS_LABEL and unique without the pod"
         },
         "protocol": {
           "type": "string",
@@ -427,8 +425,7 @@
         "name": {
           "type": "string",
           "description": "name of the environment variable; must be a C_IDENTIFIER",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
         },
         "value": {
           "type": "string",
@@ -986,15 +983,11 @@
         },
         "name": {
           "type": "string",
-          "description": "name of the referent",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          "description": "name of the referent"
         },
         "namespace": {
           "type": "string",
-          "description": "namespace of the referent",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+          "description": "namespace of the referent"
         },
         "resourceVersion": {
           "type": "string",
@@ -1621,9 +1614,7 @@
         },
         "name": {
           "type": "string",
-          "description": "name of the volume to mount",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          "description": "name of the volume to mount"
         },
         "readOnly": {
           "type": "boolean",
@@ -1769,15 +1760,11 @@
         },
         "name": {
           "type": "string",
-          "description": "",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          "description": ""
         },
         "namespace": {
           "type": "string",
-          "description": "",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+          "description": ""
         },
         "resourceVersion": {
           "type": "string",
@@ -2443,9 +2430,7 @@
         },
         "name": {
           "type": "string",
-          "description": "",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -3049,9 +3034,7 @@
         },
         "name": {
           "type": "string",
-          "description": "",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -3597,9 +3580,7 @@
         },
         "name": {
           "type": "string",
-          "description": "",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          "description": ""
         },
         "value": {
           "type": "string",

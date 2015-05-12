@@ -278,25 +278,46 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 							Enum:     []interface{}{"v1beta1", "v1beta2", "v1beta3"},
 						},
 					}
+				default:
+					g.addConstraints(t.Name(), k, &v)
 				}
 				props[k] = v
 			}
 		} else {
-			switch name {
-			case "namespace":
-				prop.Pattern = `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
-				prop.MaxLength = 253
-			case "name":
-				prop.Pattern = `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-				prop.MaxLength = 63
-			}
+			g.addConstraints(t.Name(), name, &prop)
 			props[name] = prop
 		}
 	}
 	return props
 }
+
 func (g *schemaGenerator) generateObjectDescriptor(t reflect.Type) *JSONObjectDescriptor {
 	desc := JSONObjectDescriptor{AdditionalProperties: true}
 	desc.Properties = g.getStructProperties(t)
 	return &desc
+}
+
+func (g *schemaGenerator) addConstraints(objectName string, propName string, prop *JSONPropertyDescriptor) {
+	switch objectName {
+	case "ObjectMeta":
+		switch propName {
+		case "namespace":
+			prop.Pattern = `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
+			prop.MaxLength = 253
+		case "name":
+			prop.Pattern = `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+			prop.MaxLength = 63
+		}
+	case "EnvVar":
+		switch propName {
+		case "name":
+			prop.Pattern = `^[A-Za-z_][A-Za-z0-9_]*$`
+		}
+	case "Container", "Volume", "ContainePort", "ContainerStatus", "ServicePort", "EndpointPort":
+		switch propName {
+		case "name":
+			prop.Pattern = `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+			prop.MaxLength = 63
+		}
+	}
 }
