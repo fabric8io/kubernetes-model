@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 build:
 	godep go build ./cmd/generate/generate.go
-	./generate | jq --sort-keys . > kubernetes-model/src/main/resources/schema/kube-schema.json
+	./generate > kubernetes-model/src/main/resources/schema/kube-schema.json
 	mvn clean install
 
 update-deps:

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"reflect"
 	"strings"
 	"time"
@@ -87,9 +89,17 @@ func main() {
 		return
 	}
 
-	b, _ := json.Marshal(&schema)
+	b, err := json.Marshal(&schema)
+	if err != nil {
+		log.Fatal(err)
+	}
 	result := string(b)
 	result = strings.Replace(result, "\"additionalProperty\":", "\"additionalProperties\":", -1)
+	var out bytes.Buffer
+	err = json.Indent(&out, []byte(result), "", "  ")
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	fmt.Println(result)
+	fmt.Println(out.String())
 }
