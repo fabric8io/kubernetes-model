@@ -70,6 +70,28 @@ func (g *schemaGenerator) generateReference(t reflect.Type) string {
 	return "#/definitions/" + g.qualifiedName(t)
 }
 
+func (g *schemaGenerator) javaTypeWrapPrimitive(t reflect.Type) string {
+	typeName := g.javaType(t)
+	switch typeName {
+	case "bool":
+		return "Boolean"
+	case "char":
+		return "Character"
+	case "short":
+		return "Short"
+	case "int":
+		return "Integer"
+	case "long":
+		return "Long"
+	case "float":
+		return "Float"
+	case "double":
+		return "Double"
+	default:
+		return typeName
+	}
+}
+
 func (g *schemaGenerator) javaType(t reflect.Type) string {
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -100,9 +122,9 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 		case reflect.String:
 			return "String"
 		case reflect.Array, reflect.Slice:
-			return "java.util.ArrayList<" + g.javaType(t.Elem()) + ">"
+			return "java.util.ArrayList<" + g.javaTypeWrapPrimitive(t.Elem()) + ">"
 		case reflect.Map:
-			return "java.util.Map<String," + g.javaType(t.Elem()) + ">"
+			return "java.util.Map<String," + g.javaTypeWrapPrimitive(t.Elem()) + ">"
 		default:
 			if len(t.Name()) == 0 && t.NumField() == 0 {
 				return "Object"
@@ -215,7 +237,7 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSO
 				MapValueType: g.getPropertyDescriptor(t.Elem(), desc),
 			},
 			JavaTypeDescriptor: &JavaTypeDescriptor{
-				JavaType: "java.util.Map<String," + g.javaType(t.Elem()) + ">",
+				JavaType: "java.util.Map<String," + g.javaTypeWrapPrimitive(t.Elem()) + ">",
 			},
 		}
 	case reflect.Struct:

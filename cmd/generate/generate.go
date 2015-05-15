@@ -32,6 +32,9 @@ type Schema struct {
 	NodeList                     kapi.NodeList
 	BaseKubernetesList           kapi.List
 	EnvVar                       kapi.EnvVar
+	Namespace                    kapi.Namespace
+	NamespaceList                kapi.NamespaceList
+	Secret                       kapi.Secret
 	Quantity                     resourceapi.Quantity
 	StatusError                  kerrors.StatusError
 	BuildList                    buildapi.BuildList
