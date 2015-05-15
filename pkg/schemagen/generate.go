@@ -70,6 +70,18 @@ func (g *schemaGenerator) generateReference(t reflect.Type) string {
 	return "#/definitions/" + g.qualifiedName(t)
 }
 
+func (g *schemaGenerator) javaTypeArrayList(t reflect.Type) string {
+	typeName := g.javaTypeWrapPrimitive(t)
+	switch typeName {
+	case "Byte":
+		return "String"
+	case "Integer":
+		return "String"
+	default:
+		return "java.util.ArrayList<" + typeName + ">"
+	}
+}
+
 func (g *schemaGenerator) javaTypeWrapPrimitive(t reflect.Type) string {
 	typeName := g.javaType(t)
 	switch typeName {
@@ -122,7 +134,7 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 		case reflect.String:
 			return "String"
 		case reflect.Array, reflect.Slice:
-			return "java.util.ArrayList<" + g.javaTypeWrapPrimitive(t.Elem()) + ">"
+			return g.javaTypeArrayList(t.Elem())
 		case reflect.Map:
 			return "java.util.Map<String," + g.javaTypeWrapPrimitive(t.Elem()) + ">"
 		default:

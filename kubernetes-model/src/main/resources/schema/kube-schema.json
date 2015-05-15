@@ -1495,7 +1495,7 @@
               "description": "data contains the secret data.  Each key must be a valid DNS_SUBDOMAIN.  Each value must be a base64 encoded string"
             }
           },
-          "javaType": "java.util.Map\u003cString,java.util.ArrayList\u003cInteger\u003e\u003e"
+          "javaType": "java.util.Map\u003cString,String\u003e"
         },
         "kind": {
           "type": "string",
@@ -1514,6 +1514,43 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.Secret"
+    },
+    "kubernetes_SecretList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1beta3",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "items is a list of secret objects",
+          "items": {
+            "$ref": "#/definitions/kubernetes_Secret",
+            "javaType": "io.fabric8.kubernetes.api.model.Secret"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "SecretList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.SecretList"
     },
     "kubernetes_SecretVolumeSource": {
       "type": "object",
@@ -3912,6 +3949,10 @@
     "Secret": {
       "$ref": "#/definitions/kubernetes_Secret",
       "javaType": "io.fabric8.kubernetes.api.model.Secret"
+    },
+    "SecretList": {
+      "$ref": "#/definitions/kubernetes_SecretList",
+      "javaType": "io.fabric8.kubernetes.api.model.SecretList"
     },
     "ServiceList": {
       "$ref": "#/definitions/kubernetes_ServiceList",
