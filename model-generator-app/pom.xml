@@ -33,8 +33,31 @@
     </description>
 
   <properties>
+    <arquillian.version> 1.1.5.Final</arquillian.version>
+    <fabric8.version>2.0.19</fabric8.version>
+
     <fabric8.generateJson>false</fabric8.generateJson>
   </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.jboss.arquillian.junit</groupId>
+        <artifactId>arquillian-junit-container</artifactId>
+        <version>${arquillian.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.fabric8</groupId>
+        <artifactId>arquillian-fabric8</artifactId>
+        <version>${fabric8.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.fabric8</groupId>
+        <artifactId>kubernetes-assertions</artifactId>
+        <version>${fabric8.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <build>
     <resources>
