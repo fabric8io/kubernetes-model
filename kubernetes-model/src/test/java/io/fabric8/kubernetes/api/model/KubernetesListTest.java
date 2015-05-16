@@ -70,6 +70,7 @@ public class KubernetesListTest {
         }).build();
     }
 
+
     @Test
     public void testDefaultNullValues() throws JsonProcessingException {
         Container container = new ContainerBuilder().build();
