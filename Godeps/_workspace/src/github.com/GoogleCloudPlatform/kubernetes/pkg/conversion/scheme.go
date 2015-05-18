@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Google Inc. All rights reserved.
+Copyright 2014 The Kubernetes Authors All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -201,6 +201,12 @@ func (s *Scheme) AddConversionFuncs(conversionFuncs ...interface{}) error {
 	return nil
 }
 
+// Similar to AddConversionFuncs, but registers conversion functions that were
+// automatically generated.
+func (s *Scheme) AddGeneratedConversionFuncs(conversionFuncs ...interface{}) error {
+	return s.AddConversionFuncs(conversionFuncs...)
+}
+
 // AddStructFieldConversion allows you to specify a mechanical copy for a moved
 // or renamed struct field without writing an entire conversion function. See
 // the comment in Converter.SetStructFieldCopy for parameter details.
@@ -230,6 +236,17 @@ func (s *Scheme) AddDefaultingFuncs(defaultingFuncs ...interface{}) error {
 		}
 	}
 	return nil
+}
+
+// Recognizes returns true if the scheme is able to handle the provided version and kind
+// of an object.
+func (s *Scheme) Recognizes(version, kind string) bool {
+	m, ok := s.versionMap[version]
+	if !ok {
+		return false
+	}
+	_, ok = m[kind]
+	return ok
 }
 
 // RegisterInputDefaults sets the provided field mapping function and field matching

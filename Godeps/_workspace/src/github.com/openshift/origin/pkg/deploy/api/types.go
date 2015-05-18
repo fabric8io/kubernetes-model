@@ -54,6 +54,8 @@ type DeploymentStrategy struct {
 	CustomParams *CustomDeploymentStrategyParams `json:"customParams,omitempty"`
 	// RecreateParams are the input to the Recreate deployment strategy.
 	RecreateParams *RecreateDeploymentStrategyParams `json:"recreateParams,omitempty"`
+	// RollingParams are the input to the Rolling deployment strategy.
+	RollingParams *RollingDeploymentStrategyParams `json:"rollingParams,omitempty"`
 	// Compute resource requirements to execute the deployment
 	Resources kapi.ResourceRequirements `json:"resources,omitempty"`
 }
@@ -66,6 +68,8 @@ const (
 	DeploymentStrategyTypeRecreate DeploymentStrategyType = "Recreate"
 	// DeploymentStrategyTypeCustom is a user defined strategy.
 	DeploymentStrategyTypeCustom DeploymentStrategyType = "Custom"
+	// DeploymentStrategyTypeRolling uses the Kubernetes RollingUpdater.
+	DeploymentStrategyTypeRolling DeploymentStrategyType = "Rolling"
 )
 
 // CustomDeploymentStrategyParams are the input to the Custom deployment strategy.
@@ -123,6 +127,20 @@ type ExecNewPodHook struct {
 	ContainerName string `json:"containerName"`
 }
 
+// RollingDeploymentStrategyParams are the input to the Rolling deployment
+// strategy.
+type RollingDeploymentStrategyParams struct {
+	// UpdatePeriodSeconds is the time to wait between individual pod updates.
+	// If the value is nil, a default will be used.
+	UpdatePeriodSeconds *int64 `json:"updatePeriodSeconds,omitempty" description:"the time to wait between individual pod updates"`
+	// IntervalSeconds is the time to wait between polling deployment status
+	// after update. If the value is nil, a default will be used.
+	IntervalSeconds *int64 `json:"intervalSeconds,omitempty" description:"the time to wait between polling deployment status after update"`
+	// TimeoutSeconds is the time to wait for updates before giving up. If the
+	// value is nil, a default will be used.
+	TimeoutSeconds *int64 `json:"timeoutSeconds,omitempty" description:"the time to wait for updates before giving up"`
+}
+
 // DeploymentList is a collection of deployments.
 // DEPRECATED: Like Deployment, this is no longer used.
 type DeploymentList struct {
@@ -161,6 +179,10 @@ const (
 	// DeploymentConfigLabel is the name of a label used to correlate a deployment with the
 	// DeploymentConfigs on which the deployment is based.
 	DeploymentConfigLabel = "deploymentconfig"
+	// DesiredReplicasAnnotation represents the desired number of replicas for a
+	// new deployment.
+	// TODO: This should be made public upstream.
+	DesiredReplicasAnnotation = "kubectl.kubernetes.io/desired-replicas"
 )
 
 // DeploymentConfig represents a configuration for a single deployment (represented as a

@@ -7,8 +7,12 @@ import (
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 )
 
-// BuildLabel is the key of a Pod label whose value is the Name of a Build which is run.
-const BuildLabel = "build"
+const (
+	// BuildAnnotation is an annotation that identifies a Pod as being for a Build
+	BuildAnnotation = "openshift.io/build.name"
+	// BuildLabel is the key of a Pod label whose value is the Name of a Build which is run.
+	BuildLabel = "build"
+)
 
 // Build encapsulates the inputs needed to produce a new deployable image, as well as
 // the status of the execution and a reference to the Pod which executed the build.
@@ -40,7 +44,7 @@ type Build struct {
 	CompletionTimestamp *util.Time `json:"completionTimestamp,omitempty"`
 
 	// Duration contains time.Duration object describing build time.
-	Duration time.Duration `json:"duration",omitempty"`
+	Duration time.Duration `json:"duration,omitempty"`
 
 	// Config is an ObjectReference to the BuildConfig this Build is based on.
 	Config *kapi.ObjectReference `json:"config,omitempty"`
@@ -111,6 +115,13 @@ type BuildSource struct {
 	// This allows to have buildable sources in directory other than root of
 	// repository.
 	ContextDir string `json:"contextDir,omitempty"`
+
+	// SourceSecretName is the name of a Secret that would be used for setting
+	// up the authentication for cloning private repository.
+	// The secret contains valid credentials for remote repository, where the
+	// data's key represent the authentication method to be used and value is
+	// the base64 encoded credentials. Supported auth methods are: ssh-privatekey.
+	SourceSecretName string
 }
 
 // SourceRevision is the revision or commit information from the source for the build
@@ -240,7 +251,7 @@ type BuildOutput struct {
 	// a Docker image repository to push to. Failure to find the To will result in a build error.
 	To *kapi.ObjectReference `json:"to,omitempty"`
 
-	// pushSecretName is the name of a Secret that would be used for setting
+	// PushSecretName is the name of a Secret that would be used for setting
 	// up the authentication for executing the Docker push to authentication
 	// enabled Docker Registry (or Docker Hub).
 	PushSecretName string `json:"pushSecretName,omitempty"`
@@ -347,6 +358,17 @@ type GenericWebHookEvent struct {
 
 // GitInfo is the aggregated git information for a generic webhook post
 type GitInfo struct {
+	GitBuildSource    `json:",inline"`
+	GitSourceRevision `json:",inline"`
+
+	// Refs is a list of GitRefs for the provided repo - generally sent
+	// when used from a post-receive hook. This field is optional and is
+	// used when sending multiple refs
+	Refs []GitRefInfo `json:"refs,omitempty"`
+}
+
+// GitRefInfo is a single ref
+type GitRefInfo struct {
 	GitBuildSource    `json:",inline"`
 	GitSourceRevision `json:",inline"`
 }

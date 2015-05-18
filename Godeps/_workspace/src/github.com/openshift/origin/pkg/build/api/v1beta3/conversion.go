@@ -1,14 +1,17 @@
 package v1beta3
 
 import (
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api"
+	"fmt"
+
+	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/conversion"
 
 	newer "github.com/openshift/origin/pkg/build/api"
+	imageapi "github.com/openshift/origin/pkg/image/api"
 )
 
 func init() {
-	api.Scheme.AddConversionFuncs(
+	kapi.Scheme.AddConversionFuncs(
 		func(in *newer.Build, out *Build, s conversion.Scope) error {
 			if err := s.Convert(&in.ObjectMeta, &out.ObjectMeta, 0); err != nil {
 				return err
@@ -192,10 +195,29 @@ func init() {
 			return s.DefaultConvert(in, out, conversion.IgnoreMissingFields)
 		},
 		func(in *newer.BuildOutput, out *BuildOutput, s conversion.Scope) error {
-			return s.DefaultConvert(in, out, conversion.IgnoreMissingFields)
+			if err := s.DefaultConvert(in, out, conversion.IgnoreMissingFields); err != nil {
+				return err
+			}
+			if in.To != nil && (len(in.To.Kind) == 0 || in.To.Kind == "ImageStream") {
+				out.To.Kind = "ImageStreamTag"
+				out.To.Name = imageapi.JoinImageStreamTag(in.To.Name, in.Tag)
+			}
+			return nil
 		},
 		func(in *BuildOutput, out *newer.BuildOutput, s conversion.Scope) error {
-			return s.DefaultConvert(in, out, conversion.IgnoreMissingFields)
+			if err := s.DefaultConvert(in, out, conversion.IgnoreMissingFields); err != nil {
+				return err
+			}
+			if in.To != nil && in.To.Kind == "ImageStreamTag" {
+				name, tag, ok := imageapi.SplitImageStreamTag(in.To.Name)
+				if !ok {
+					return fmt.Errorf("ImageStreamTag object references must be in the form <name>:<tag>: %s", in.To.Name)
+				}
+				out.To.Kind = "ImageStream"
+				out.To.Name = name
+				out.Tag = tag
+			}
+			return nil
 		},
 		func(in *newer.ImageChangeTrigger, out *ImageChangeTrigger, s conversion.Scope) error {
 			out.LastTriggeredImageID = in.LastTriggeredImageID
@@ -205,4 +227,36 @@ func init() {
 			out.LastTriggeredImageID = in.LastTriggeredImageID
 			return nil
 		})
+
+	// Add field conversion funcs.
+	err := kapi.Scheme.AddFieldLabelConversionFunc("v1beta3", "Build",
+		func(label, value string) (string, string, error) {
+			switch label {
+			case "name":
+				return "metadata.name", value, nil
+			case "status":
+				return "status", value, nil
+			case "podName":
+				return "podName", value, nil
+			default:
+				return "", "", fmt.Errorf("field label not supported: %s", label)
+			}
+		})
+	if err != nil {
+		// If one of the conversion functions is malformed, detect it immediately.
+		panic(err)
+	}
+	err = kapi.Scheme.AddFieldLabelConversionFunc("v1beta3", "BuildConfig",
+		func(label, value string) (string, string, error) {
+			switch label {
+			case "name":
+				return "metadata.name", value, nil
+			default:
+				return "", "", fmt.Errorf("field label not supported: %s", label)
+			}
+		})
+	if err != nil {
+		// If one of the conversion functions is malformed, detect it immediately.
+		panic(err)
+	}
 }

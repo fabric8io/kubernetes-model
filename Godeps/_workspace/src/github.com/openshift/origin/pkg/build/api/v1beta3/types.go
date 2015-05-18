@@ -42,6 +42,7 @@ type BuildSpec struct {
 	Resources kapi.ResourceRequirements `json:"resources,omitempty" description:"the desired compute resources the build should have"`
 }
 
+// BuildStatus contains the status of a build
 type BuildStatus struct {
 	// Phase is the point in the build lifecycle.
 	Phase BuildPhase `json:"phase"`
@@ -64,7 +65,7 @@ type BuildStatus struct {
 	CompletionTimestamp *util.Time `json:"completionTimestamp,omitempty"`
 
 	// Duration contains time.Duration object describing build time.
-	Duration time.Duration `json:"duration",omitempty"`
+	Duration time.Duration `json:"duration,omitempty"`
 
 	// Config is an ObjectReference to the BuildConfig this Build is based on.
 	Config *kapi.ObjectReference `json:"config,omitempty"`
@@ -116,6 +117,13 @@ type BuildSource struct {
 	// This allows to have buildable sources in directory other than root of
 	// repository.
 	ContextDir string `json:"contextDir,omitempty"`
+
+	// SourceSecretName is the name of a Secret that would be used for setting
+	// up the authentication for cloning private repository.
+	// The secret contains valid credentials for remote repository, where the
+	// data's key represent the authentication method to be used and value is
+	// the base64 encoded credentials. Supported auth methods are: ssh-privatekey.
+	SourceSecretName string `json:"sourceSecretName,omitempty" description:"supported auth methods are: ssh-privatekey`
 }
 
 // SourceRevision is the revision or commit information from the source for the build

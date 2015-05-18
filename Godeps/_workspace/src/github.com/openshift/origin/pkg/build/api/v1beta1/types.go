@@ -40,7 +40,7 @@ type Build struct {
 	CompletionTimestamp *util.Time `json:"completionTimestamp,omitempty"`
 
 	// Duration contains time.Duration object describing build time.
-	Duration time.Duration `json:"duration",omitempty"`
+	Duration time.Duration `json:"duration,omitempty"`
 
 	// Config is an ObjectReference to the BuildConfig this Build is based on.
 	Config *kapi.ObjectReference `json:"config,omitempty"`
@@ -111,6 +111,13 @@ type BuildSource struct {
 	// This allows to have buildable sources in directory other than root of
 	// repository.
 	ContextDir string `json:"contextDir,omitempty"`
+
+	// SourceSecretName is the name of a Secret that would be used for setting
+	// up the authentication for cloning private repository.
+	// The secret contains valid credentials for remote repository, where the
+	// secret's data key represent the authentication method to be used and value is
+	// the base64 encoded credentials. Supported auth methods are: ssh-privatekey.
+	SourceSecretName string `json:"sourceSecretName,omitempty" description:"supported auth methods are: ssh-privatekey`
 }
 
 // SourceRevision is the revision or commit information from the source for the build
@@ -202,7 +209,8 @@ type CustomBuildStrategy struct {
 
 	// Tag is the name of image stream tag to be used as the FROM image, it only
 	// applies when From is specified and the Kind of From is ImageStream.
-	Tag string `json:"tag,omitempty`
+	// JSON tag should be changed to "tag" instead of "Tag" in v1beta2
+	Tag string `json:"Tag,omitempty"`
 }
 
 // DockerBuildStrategy defines input parameters specific to Docker build.
@@ -233,7 +241,8 @@ type DockerBuildStrategy struct {
 
 	// Tag is the name of image stream tag to be used as the FROM image, it only
 	// applies when From is specified and the Kind of From is ImageStream.
-	Tag string `json:"tag,omitempty`
+	// JSON tag should be changed to "tag" instead of "Tag" in v1beta2
+	Tag string `json:"Tag,omitempty"`
 }
 
 // STIBuildStrategy defines input parameters specific to an STI build.
@@ -252,7 +261,7 @@ type STIBuildStrategy struct {
 
 	// Tag is the name of image stream tag to be used as the FROM image, it only
 	// applies when From is specified and the Kind of From is ImageStream.
-	// TODO change this to "tag" instead of "Tag" in v1beta2
+	// JSON tag should be changed to "tag" instead of "Tag" in v1beta2
 	Tag string `json:"Tag,omitempty"`
 
 	// Additional environment variables you want to pass into a builder container
@@ -276,7 +285,7 @@ type BuildOutput struct {
 	// a Docker image repository to push to.
 	To *kapi.ObjectReference `json:"to,omitempty"`
 
-	// pushSecretName is the name of a Secret that would be used for setting
+	// PushSecretName is the name of a Secret that would be used for setting
 	// up the authentication for executing the Docker push to authentication
 	// enabled Docker Registry (or Docker Hub).
 	PushSecretName string `json:"pushSecretName,omitempty"`
