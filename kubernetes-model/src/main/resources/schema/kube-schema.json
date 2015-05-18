@@ -2,6 +2,30 @@
   "id": "http://fabric8.io/fabric8/v2/Schema#",
   "$schema": "http://json-schema.org/schema#",
   "definitions": {
+    "kubernetes_AWSElasticBlockStoreVolumeSource": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "fsType": {
+          "type": "string",
+          "description": "file system type to mount"
+        },
+        "partition": {
+          "type": "integer",
+          "description": "partition on the disk to mount (e.g."
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "read-only if true"
+        },
+        "volumeID": {
+          "type": "string",
+          "description": "unique id of the PD resource in AWS"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.AWSElasticBlockStoreVolumeSource"
+    },
     "kubernetes_Capabilities": {
       "type": "object",
       "description": "",
@@ -430,10 +454,26 @@
         "value": {
           "type": "string",
           "description": "value of the environment variable; defaults to empty string"
+        },
+        "valueFrom": {
+          "$ref": "#/definitions/kubernetes_EnvVarSource",
+          "javaType": "io.fabric8.kubernetes.api.model.EnvVarSource"
         }
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
+    },
+    "kubernetes_EnvVarSource": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "fieldPath": {
+          "$ref": "#/definitions/kubernetes_ObjectFieldSelector",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectFieldSelector"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.EnvVarSource"
     },
     "kubernetes_ExecAction": {
       "type": "object",
@@ -825,11 +865,11 @@
       "properties": {
         "address": {
           "type": "string",
-          "description": ""
+          "description": "the node address"
         },
         "type": {
           "type": "string",
-          "description": ""
+          "description": "node address type"
         }
       },
       "additionalProperties": true,
@@ -938,7 +978,7 @@
         },
         "capacity": {
           "type": "object",
-          "description": "compute resource capacity of the node; https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/resources.md",
+          "description": "compute resource capacity of the node; http://docs.k8s.io/resources.md",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
             "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
@@ -969,10 +1009,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "KubeProxyVersion": {
-          "type": "string",
-          "description": "Kube-proxy version reported by the node"
-        },
         "bootID": {
           "type": "string",
           "description": "boot id is the boot-id reported by the node"
@@ -985,13 +1021,17 @@
           "type": "string",
           "description": "Kernel version reported by the node from 'uname -r' (e.g. 3.16.0-0.bpo.4-amd64)"
         },
+        "kubeProxyVersion": {
+          "type": "string",
+          "description": "Kube-proxy version reported by the node"
+        },
         "kubeletVersion": {
           "type": "string",
           "description": "Kubelet version reported by the node"
         },
         "machineID": {
           "type": "string",
-          "description": ""
+          "description": "machine-id reported by the node"
         },
         "osImage": {
           "type": "string",
@@ -999,11 +1039,27 @@
         },
         "systemUUID": {
           "type": "string",
-          "description": ""
+          "description": "system-uuid reported by the node"
         }
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.NodeSystemInfo"
+    },
+    "kubernetes_ObjectFieldSelector": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "version of the schema that fieldPath is written in terms of; defaults to v1beta3"
+        },
+        "fieldPath": {
+          "type": "string",
+          "description": "path of the field to select in the specified API version"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.ObjectFieldSelector"
     },
     "kubernetes_ObjectMeta": {
       "type": "object",
@@ -1102,6 +1158,22 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+    },
+    "kubernetes_PersistentVolumeClaimVolumeSource": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "claimName": {
+          "type": "string",
+          "description": "the name of the claim in the same namespace to be mounted as a volume"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "mount volume as read-only when true; default false"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaimVolumeSource"
     },
     "kubernetes_Pod": {
       "type": "object",
@@ -1229,6 +1301,11 @@
         "restartPolicy": {
           "type": "string",
           "description": "restart policy for all containers within the pod; one of RestartPolicyAlways"
+        },
+        "terminationGracePeriodSeconds": {
+          "type": "integer",
+          "description": "optional duration in seconds the pod needs to terminate gracefully; may be decreased in delete request; value must be non-negative integer; the value zero indicates delete immediately; if this value is not set",
+          "javaType": "Long"
         },
         "volumes": {
           "type": "array",
@@ -1747,6 +1824,10 @@
       "type": "object",
       "description": "",
       "properties": {
+        "awsElasticBlockStore": {
+          "$ref": "#/definitions/kubernetes_AWSElasticBlockStoreVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.AWSElasticBlockStoreVolumeSource"
+        },
         "emptyDir": {
           "$ref": "#/definitions/kubernetes_EmptyDirVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.EmptyDirVolumeSource"
@@ -1781,6 +1862,10 @@
           "$ref": "#/definitions/kubernetes_NFSVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.NFSVolumeSource"
         },
+        "persistentVolumeClaim": {
+          "$ref": "#/definitions/kubernetes_PersistentVolumeClaimVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaimVolumeSource"
+        },
         "secret": {
           "$ref": "#/definitions/kubernetes_SecretVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.SecretVolumeSource"
@@ -1813,6 +1898,10 @@
       "type": "object",
       "description": "",
       "properties": {
+        "awsElasticBlockStore": {
+          "$ref": "#/definitions/kubernetes_AWSElasticBlockStoreVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.AWSElasticBlockStoreVolumeSource"
+        },
         "emptyDir": {
           "$ref": "#/definitions/kubernetes_EmptyDirVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.EmptyDirVolumeSource"
@@ -1841,6 +1930,10 @@
           "$ref": "#/definitions/kubernetes_NFSVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.NFSVolumeSource"
         },
+        "persistentVolumeClaim": {
+          "$ref": "#/definitions/kubernetes_PersistentVolumeClaimVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaimVolumeSource"
+        },
         "secret": {
           "$ref": "#/definitions/kubernetes_SecretVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.SecretVolumeSource"
@@ -1864,104 +1957,6 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.base.ListMeta"
-    },
-    "kubernetes_base_ObjectMeta": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "annotations": {
-          "type": "object",
-          "description": "",
-          "additionalProperties": {
-            "type": "string",
-            "description": ""
-          },
-          "javaType": "java.util.Map\u003cString,String\u003e"
-        },
-        "creationTimestamp": {
-          "type": "string",
-          "description": ""
-        },
-        "deletionTimestamp": {
-          "type": "string",
-          "description": ""
-        },
-        "generateName": {
-          "type": "string",
-          "description": ""
-        },
-        "labels": {
-          "type": "object",
-          "description": "",
-          "additionalProperties": {
-            "type": "string",
-            "description": ""
-          },
-          "javaType": "java.util.Map\u003cString,String\u003e"
-        },
-        "name": {
-          "type": "string",
-          "description": "",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "namespace": {
-          "type": "string",
-          "description": "",
-          "maxLength": 253,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": ""
-        },
-        "selfLink": {
-          "type": "string",
-          "description": ""
-        },
-        "uid": {
-          "type": "string",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.base.ObjectMeta"
-    },
-    "kubernetes_base_ObjectReference": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "apiVersion": {
-          "type": "string",
-          "description": ""
-        },
-        "fieldPath": {
-          "type": "string",
-          "description": ""
-        },
-        "kind": {
-          "type": "string",
-          "description": ""
-        },
-        "name": {
-          "type": "string",
-          "description": ""
-        },
-        "namespace": {
-          "type": "string",
-          "description": ""
-        },
-        "resourceVersion": {
-          "type": "string",
-          "description": ""
-        },
-        "uid": {
-          "type": "string",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.base.ObjectReference"
     },
     "kubernetes_base_Status": {
       "type": "object",
@@ -2363,6 +2358,10 @@
         "git": {
           "$ref": "#/definitions/os_build_GitBuildSource",
           "javaType": "io.fabric8.openshift.api.model.GitBuildSource"
+        },
+        "sourceSecretName": {
+          "type": "string",
+          "description": ""
         },
         "type": {
           "type": "string",
@@ -2872,6 +2871,10 @@
           "$ref": "#/definitions/kubernetes_ResourceRequirements",
           "javaType": "io.fabric8.kubernetes.api.model.ResourceRequirements"
         },
+        "rollingParams": {
+          "$ref": "#/definitions/os_deploy_RollingDeploymentStrategyParams",
+          "javaType": "io.fabric8.openshift.api.model.RollingDeploymentStrategyParams"
+        },
         "type": {
           "type": "string",
           "description": ""
@@ -2983,6 +2986,29 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.RecreateDeploymentStrategyParams"
+    },
+    "os_deploy_RollingDeploymentStrategyParams": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "intervalSeconds": {
+          "type": "integer",
+          "description": "the time to wait between polling deployment status after update",
+          "javaType": "Long"
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "description": "the time to wait for updates before giving up",
+          "javaType": "Long"
+        },
+        "updatePeriodSeconds": {
+          "type": "integer",
+          "description": "the time to wait between individual pod updates",
+          "javaType": "Long"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.RollingDeploymentStrategyParams"
     },
     "os_image_Image": {
       "type": "object",
@@ -3637,8 +3663,8 @@
           "required": true
         },
         "metadata": {
-          "$ref": "#/definitions/kubernetes_base_ObjectMeta",
-          "javaType": "io.fabric8.kubernetes.api.model.base.ObjectMeta"
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "spec": {
           "$ref": "#/definitions/os_route_RouteSpec",
@@ -3682,8 +3708,8 @@
           "required": true
         },
         "metadata": {
-          "$ref": "#/definitions/kubernetes_base_ListMeta",
-          "javaType": "io.fabric8.kubernetes.api.model.base.ListMeta"
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
         }
       },
       "additionalProperties": true,
@@ -3706,8 +3732,8 @@
           "javaType": "io.fabric8.openshift.api.model.TLSConfig"
         },
         "to": {
-          "$ref": "#/definitions/kubernetes_base_ObjectReference",
-          "javaType": "io.fabric8.kubernetes.api.model.base.ObjectReference"
+          "$ref": "#/definitions/kubernetes_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
         }
       },
       "additionalProperties": true,
