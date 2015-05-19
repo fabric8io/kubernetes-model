@@ -50,6 +50,14 @@ public class IntOrString {
     public IntOrString() {
     }
 
+    //Builders are generated for the first non-empty constructor found.
+    public IntOrString(Integer intVal, Integer kind, String strVal, Map<String, Object> additionalProperties) {
+        IntVal = intVal;
+        Kind = kind;
+        StrVal = strVal;
+        this.additionalProperties = additionalProperties;
+    }
+
     public IntOrString(Integer intVal) {
         this(intVal, 0, null, new HashMap<String, Object>());
     }
@@ -58,12 +66,6 @@ public class IntOrString {
         this(null, 1, strVal, new HashMap<String, Object>());
     }
 
-    public IntOrString(Integer intVal, Integer kind, String strVal, Map<String, Object> additionalProperties) {
-        IntVal = intVal;
-        Kind = kind;
-        StrVal = strVal;
-        this.additionalProperties = additionalProperties;
-    }
 
     /**
      *
