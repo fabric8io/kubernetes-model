@@ -68,7 +68,10 @@ import io.sundr.builder.annotations.ExternalBuildables;
         "io.fabric8.kubernetes.api.model.ServiceStatus",
         "io.fabric8.kubernetes.api.model.TCPSocketAction",
         "io.fabric8.kubernetes.api.model.Volume",
-        "io.fabric8.kubernetes.api.model.VolumeMount"
+        "io.fabric8.kubernetes.api.model.VolumeMount",
+
+        "io.fabric8.kubernetes.api.model.util.IntOrString",
+        "io.fabric8.kubernetes.api.model.resource.Quantity"
 })
 public class KubernetesConfig {
 }
