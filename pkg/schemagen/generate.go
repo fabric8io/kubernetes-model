@@ -146,6 +146,13 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 	}
 }
 
+func (g *schemaGenerator) javaInterfaces(t reflect.Type) []string {
+	if _, ok := t.FieldByName("ObjectMeta"); ok {
+		return []string{"io.fabric8.kubernetes.api.model.HasMetadata"}
+	}
+	return nil
+}
+
 func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
 	if t.Kind() != reflect.Struct {
 		return nil, fmt.Errorf("Only struct types can be converted.")
@@ -170,6 +177,9 @@ func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
 				JSONObjectDescriptor: v,
 				JavaTypeDescriptor: &JavaTypeDescriptor{
 					JavaType: g.javaType(k),
+				},
+				JavaInterfacesDescriptor: &JavaInterfacesDescriptor{
+					JavaInterfaces: g.javaInterfaces(k),
 				},
 			}
 			s.Definitions[name] = value
