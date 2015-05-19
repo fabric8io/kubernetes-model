@@ -1,13 +1,32 @@
 
-package io.fabric8.kubernetes.api.model;
+package io.fabric8.openshift.api.model.template;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.Generated;
+import javax.validation.Valid;
+import javax.validation.constraints.NotNull;
+import com.fasterxml.jackson.annotation.JsonAnyGetter;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonValue;
 import io.fabric8.KubernetesJson;
+import io.fabric8.kubernetes.api.model.KubernetesList;
+import io.fabric8.kubernetes.api.model.Namespace;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.ReplicationController;
+import io.fabric8.kubernetes.api.model.Secret;
+import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.openshift.api.model.BuildConfig;
 import io.fabric8.openshift.api.model.DeploymentConfig;
 import io.fabric8.openshift.api.model.ImageStream;
@@ -15,10 +34,9 @@ import io.fabric8.openshift.api.model.OAuthAccessToken;
 import io.fabric8.openshift.api.model.OAuthClient;
 import io.fabric8.openshift.api.model.OAuthClientAuthorization;
 import io.fabric8.openshift.api.model.Route;
-import io.fabric8.openshift.api.model.template.Template;
-
-import javax.annotation.Generated;
-import java.util.*;
+import org.apache.commons.lang.builder.EqualsBuilder;
+import org.apache.commons.lang.builder.HashCodeBuilder;
+import org.apache.commons.lang.builder.ToStringBuilder;
 
 
 /**
@@ -28,21 +46,61 @@ import java.util.*;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Generated("org.jsonschema2pojo")
 @JsonPropertyOrder({
-    "annotations",
     "apiVersion",
-    "creationTimestamp",
-    "deletionTimestamp",
-    "generateName",
-    "id",
-    "items",
     "kind",
-    "namespace",
-    "resourceVersion",
-    "selfLink",
-    "uid"
+    "labels",
+    "metadata",
+    "objects",
+    "parameters"
 })
+public class Template implements KubernetesJson {
 
-public class KubernetesList extends BaseKubernetesList implements KubernetesJson {
+    /**
+     * 
+     * (Required)
+     * 
+     */
+    @JsonProperty("apiVersion")
+    @NotNull
+    private Template.ApiVersion apiVersion = Template.ApiVersion.fromValue("v1beta3");
+    /**
+     * 
+     * (Required)
+     * 
+     */
+    @JsonProperty("kind")
+    @NotNull
+    private java.lang.String kind = "Template";
+    /**
+     * 
+     * 
+     */
+    @JsonProperty("labels")
+    @Valid
+    private Map<String, String> labels;
+    /**
+     * 
+     * 
+     */
+    @JsonProperty("metadata")
+    @Valid
+    private ObjectMeta metadata;
+    /**
+     * 
+     * 
+     */
+    @JsonProperty("objects")
+    @Valid
+    private List<Object> objects = new ArrayList<Object>();
+    /**
+     * 
+     * 
+     */
+    @JsonProperty("parameters")
+    @Valid
+    private List<Parameter> parameters = new ArrayList<Parameter>();
+    @JsonIgnore
+    private Map<java.lang.String, java.lang.Object> additionalProperties = new HashMap<java.lang.String, java.lang.Object>();
 
     /**
      * list of services
@@ -59,13 +117,13 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
     private final List<ReplicationController> replicationControllers = new ArrayList<>();
 
     /**
-     * list of pods. 
-     * Note: This is not to be used. Added for influencing the generation of fluent nested builders 
+     * list of pods.
+     * Note: This is not to be used. Added for influencing the generation of fluent nested builders
      *
      */
     @JsonIgnore
     private final List<Pod> pods = new ArrayList<>();
-    
+
     /**
      * list of build configs
      * Note: This is not to be used. Added for influencing the generation of fluent nested builders
@@ -136,35 +194,44 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
      */
     @JsonIgnore
     private final List<Secret> secrets = new ArrayList<>();
-    
+
     /**
      * No args constructor for use in serialization
-     *
+     * 
      */
-    public KubernetesList() {
-        super();
+    public Template() {
     }
 
-    public KubernetesList(KubernetesList.ApiVersion apiVersion,
-                          List<Object> items,
-                          String kind,
-                          ListMeta metadata,
-                          List<Service> services,
-                          List<ReplicationController> replicationControllers,
-                          List<Pod> pods,
-                          List<BuildConfig> buildConfigs,
-                          List<DeploymentConfig> deploymentConfigs,
-                          List<ImageStream> imageStreams,
-                          List<Route> routes,
-                          List<Template> templates,
-                          List<OAuthClient> oAuthClients,
-                          List<OAuthClientAuthorization> oAuthClientAuthorizations,
-                          List<OAuthAccessToken> oAuthAccessTokens,
-                          List<Namespace> namespaces,
-                          List<Secret> secrets) {
-        super(apiVersion, items, kind, metadata);
+    /**
+     * 
+     * @param apiVersion
+     * @param labels
+     * @param parameters
+     * @param objects
+     * @param kind
+     * @param metadata
+     */
+    public Template(Template.ApiVersion apiVersion, java.lang.String kind, Map<String, String> labels, ObjectMeta metadata, List<Object> objects, List<Parameter> parameters,List<Service> services,
+                    List<ReplicationController> replicationControllers,
+                    List<Pod> pods,
+                    List<BuildConfig> buildConfigs,
+                    List<DeploymentConfig> deploymentConfigs,
+                    List<ImageStream> imageStreams,
+                    List<Route> routes,
+                    List<Template> templates,
+                    List<OAuthClient> oAuthClients,
+                    List<OAuthClientAuthorization> oAuthClientAuthorizations,
+                    List<OAuthAccessToken> oAuthAccessTokens,
+                    List<Namespace> namespaces,
+                    List<Secret> secrets) {
+        this.apiVersion = apiVersion;
+        this.kind = kind;
+        this.labels = labels;
+        this.metadata = metadata;
+        this.objects = objects;
+        this.parameters = parameters;
 
-        this.setItems(items);
+        this.setObjects(objects);
         this.services.addAll(services != null ? services : Collections.<Service>emptyList());
         this.replicationControllers.addAll(replicationControllers != null ? replicationControllers : Collections.<ReplicationController>emptyList());
         this.pods.addAll(pods != null ? pods : Collections.<Pod>emptyList());
@@ -181,15 +248,106 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
     }
 
     /**
-     * list of objects
-     *
+     * 
+     * (Required)
+     * 
      * @return
-     *     The items
+     *     The apiVersion
      */
-    @JsonProperty("items")
-    @Override
-    public List<Object> getItems() {
-        List<Object> allItems = new ArrayList<>(super.getItems());
+    @JsonProperty("apiVersion")
+    public Template.ApiVersion getApiVersion() {
+        return apiVersion;
+    }
+
+    /**
+     * 
+     * (Required)
+     * 
+     * @param apiVersion
+     *     The apiVersion
+     */
+    @JsonProperty("apiVersion")
+    public void setApiVersion(Template.ApiVersion apiVersion) {
+        this.apiVersion = apiVersion;
+    }
+
+    /**
+     * 
+     * (Required)
+     * 
+     * @return
+     *     The kind
+     */
+    @JsonProperty("kind")
+    public java.lang.String getKind() {
+        return kind;
+    }
+
+    /**
+     * 
+     * (Required)
+     * 
+     * @param kind
+     *     The kind
+     */
+    @JsonProperty("kind")
+    public void setKind(java.lang.String kind) {
+        this.kind = kind;
+    }
+
+    /**
+     * 
+     * 
+     * @return
+     *     The labels
+     */
+    @JsonProperty("labels")
+    public Map<String, String> getLabels() {
+        return labels;
+    }
+
+    /**
+     * 
+     * 
+     * @param labels
+     *     The labels
+     */
+    @JsonProperty("labels")
+    public void setLabels(Map<String, String> labels) {
+        this.labels = labels;
+    }
+
+    /**
+     * 
+     * 
+     * @return
+     *     The metadata
+     */
+    @JsonProperty("metadata")
+    public ObjectMeta getMetadata() {
+        return metadata;
+    }
+
+    /**
+     * 
+     * 
+     * @param metadata
+     *     The metadata
+     */
+    @JsonProperty("metadata")
+    public void setMetadata(ObjectMeta metadata) {
+        this.metadata = metadata;
+    }
+
+    /**
+     * 
+     * 
+     * @return
+     *     The objects
+     */
+    @JsonProperty("objects")
+    public List<Object> getObjects() {
+        List<Object> allItems = new ArrayList<>(objects);
         allItems.addAll(services);
         allItems.addAll(replicationControllers);
         allItems.addAll(pods);
@@ -206,7 +364,13 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
         return allItems;
     }
 
-    @JsonProperty("items")
+    /**
+     * 
+     * 
+     * @param objects
+     *     The objects
+     */
+    @JsonProperty("objects")
     @JsonTypeInfo(
             use = JsonTypeInfo.Id.NAME,
             include = JsonTypeInfo.As.PROPERTY,
@@ -228,9 +392,8 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
             @JsonSubTypes.Type(value = Secret.class, name = "Secrets")
 
     })
-    @Override
-    public void setItems(List<Object> items) {
-        for (Object item : items) {
+    public void setObjects(List<Object> objects) {
+        for (Object item : objects) {
             if (item instanceof Service) {
                 this.services.add((Service) item);
             } else if (item instanceof ReplicationController) {
@@ -247,25 +410,107 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
                 this.routes.add((Route) item);
             } else if (item instanceof Template) {
                 this.templates.add((Template) item);
-            } else if (item instanceof OAuthClient) {
-                this.oAuthClients.add((OAuthClient)item);
-            } else if (item instanceof OAuthClientAuthorization) {
-                this.oAuthClientAuthorizations.add((OAuthClientAuthorization) item);
-            }else if (item instanceof OAuthAccessToken) {
-                this.oAuthAccessTokens.add((OAuthAccessToken) item);
-            } else if (item instanceof Namespace) {
-                this.namespaces.add((Namespace) item);
-            } else if (item instanceof Secret) {
-                this.secrets.add((Secret) item);
             }
         }
     }
+
+    /**
+     * 
+     * 
+     * @return
+     *     The parameters
+     */
+    @JsonProperty("parameters")
+    public List<Parameter> getParameters() {
+        return parameters;
+    }
+
+    /**
+     * 
+     * 
+     * @param parameters
+     *     The parameters
+     */
+    @JsonProperty("parameters")
+    public void setParameters(List<Parameter> parameters) {
+        this.parameters = parameters;
+    }
+
+    @Override
+    public java.lang.String toString() {
+        return ToStringBuilder.reflectionToString(this);
+    }
+
+    @JsonAnyGetter
+    public Map<java.lang.String, java.lang.Object> getAdditionalProperties() {
+        return this.additionalProperties;
+    }
+
+    @JsonAnySetter
+    public void setAdditionalProperty(java.lang.String name, java.lang.Object value) {
+        this.additionalProperties.put(name, value);
+    }
+
+    @Override
+    public int hashCode() {
+        return new HashCodeBuilder().append(apiVersion).append(kind).append(labels).append(metadata).append(objects).append(parameters).append(additionalProperties).toHashCode();
+    }
+
+    @Override
+    public boolean equals(java.lang.Object other) {
+        if (other == this) {
+            return true;
+        }
+        if ((other instanceof Template) == false) {
+            return false;
+        }
+        Template rhs = ((Template) other);
+        return new EqualsBuilder().append(apiVersion, rhs.apiVersion).append(kind, rhs.kind).append(labels, rhs.labels).append(metadata, rhs.metadata).append(objects, rhs.objects).append(parameters, rhs.parameters).append(additionalProperties, rhs.additionalProperties).isEquals();
+    }
+
+    @Generated("org.jsonschema2pojo")
+    public static enum ApiVersion {
+
+        V_1_BETA_1("v1beta1"),
+        V_1_BETA_2("v1beta2"),
+        V_1_BETA_3("v1beta3");
+        private final java.lang.String value;
+        private static Map<java.lang.String, Template.ApiVersion> constants = new HashMap<java.lang.String, Template.ApiVersion>();
+
+        static {
+            for (Template.ApiVersion c: values()) {
+                constants.put(c.value, c);
+            }
+        }
+
+        private ApiVersion(java.lang.String value) {
+            this.value = value;
+        }
+
+        @JsonValue
+        @Override
+        public java.lang.String toString() {
+            return this.value;
+        }
+
+        @JsonCreator
+        public static Template.ApiVersion fromValue(java.lang.String value) {
+            Template.ApiVersion constant = constants.get(value);
+            if (constant == null) {
+                throw new IllegalArgumentException(value);
+            } else {
+                return constant;
+            }
+        }
+
+    }
+
 
     @JsonIgnore
     public List<Service> getServices() {
         return services;
     }
-    
+
     @JsonIgnore
     public List<ReplicationController> getReplicationControllers() {
         return replicationControllers;
@@ -275,22 +520,22 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
     public List<Pod> getPods() {
         return pods;
     }
-    
+
     @JsonIgnore
     public List<BuildConfig> getBuildConfigs() {
         return buildConfigs;
     }
-    
+
     @JsonIgnore
     public List<DeploymentConfig> getDeploymentConfigs() {
         return deploymentConfigs;
     }
-    
+
     @JsonIgnore
     public List<ImageStream> getImageStreams() {
         return imageStreams;
     }
-    
+
     @JsonIgnore
     public List<Route> getRoutes() {
         return routes;
