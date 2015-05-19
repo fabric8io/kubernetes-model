@@ -59,7 +59,9 @@ import io.sundr.builder.annotations.ExternalBuildables;
         "io.fabric8.openshift.api.model.SourceRevision",
         "io.fabric8.openshift.api.model.TLSConfig",
         "io.fabric8.openshift.api.model.TagEvent",
-        "io.fabric8.openshift.api.model.WebHookTrigger"
+        "io.fabric8.openshift.api.model.WebHookTrigger",
+        "io.fabric8.openshift.api.model.template.Template",
+        "io.fabric8.openshift.api.model.template.Parameter"
 })
 public class OpenshiftConfig {
 }
