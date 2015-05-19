@@ -22,8 +22,8 @@ import java.util.*;
 
 
 /**
- * 
- * 
+ *
+ *
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Generated("org.jsonschema2pojo")
@@ -59,13 +59,13 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
     private final List<ReplicationController> replicationControllers = new ArrayList<>();
 
     /**
-     * list of pods. 
-     * Note: This is not to be used. Added for influencing the generation of fluent nested builders 
+     * list of pods.
+     * Note: This is not to be used. Added for influencing the generation of fluent nested builders
      *
      */
     @JsonIgnore
     private final List<Pod> pods = new ArrayList<>();
-    
+
     /**
      * list of build configs
      * Note: This is not to be used. Added for influencing the generation of fluent nested builders
@@ -136,7 +136,7 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
      */
     @JsonIgnore
     private final List<Secret> secrets = new ArrayList<>();
-    
+
     /**
      * No args constructor for use in serialization
      *
@@ -146,7 +146,7 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
     }
 
     public KubernetesList(KubernetesList.ApiVersion apiVersion,
-                          List<Object> items,
+                          List<HasMetadata> items,
                           String kind,
                           ListMeta metadata,
                           List<Service> services,
@@ -188,8 +188,8 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
      */
     @JsonProperty("items")
     @Override
-    public List<Object> getItems() {
-        List<Object> allItems = new ArrayList<>(super.getItems());
+    public List<HasMetadata> getItems() {
+        List<HasMetadata> allItems = new ArrayList<>(super.getItems());
         allItems.addAll(services);
         allItems.addAll(replicationControllers);
         allItems.addAll(pods);
@@ -229,8 +229,8 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
 
     })
     @Override
-    public void setItems(List<Object> items) {
-        for (Object item : items) {
+    public void setItems(List<HasMetadata> items) {
+        for (HasMetadata item : items) {
             if (item instanceof Service) {
                 this.services.add((Service) item);
             } else if (item instanceof ReplicationController) {
@@ -265,7 +265,7 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
     public List<Service> getServices() {
         return services;
     }
-    
+
     @JsonIgnore
     public List<ReplicationController> getReplicationControllers() {
         return replicationControllers;
@@ -275,22 +275,22 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
     public List<Pod> getPods() {
         return pods;
     }
-    
+
     @JsonIgnore
     public List<BuildConfig> getBuildConfigs() {
         return buildConfigs;
     }
-    
+
     @JsonIgnore
     public List<DeploymentConfig> getDeploymentConfigs() {
         return deploymentConfigs;
     }
-    
+
     @JsonIgnore
     public List<ImageStream> getImageStreams() {
         return imageStreams;
     }
-    
+
     @JsonIgnore
     public List<Route> getRoutes() {
         return routes;

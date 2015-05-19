@@ -670,7 +670,7 @@
           "description": "list of objects",
           "items": {
             "$ref": "#/definitions/kubernetes_runtime_RawExtension",
-            "javaType": "Object"
+            "javaType": "io.fabric8.kubernetes.api.model.HasMetadata"
           }
         },
         "kind": {
@@ -2137,7 +2137,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "Object"
+      "javaType": "io.fabric8.kubernetes.api.model.HasMetadata"
     },
     "kubernetes_util_IntOrString": {
       "type": "object",
@@ -3064,7 +3064,7 @@
         },
         "dockerImageMetadata": {
           "$ref": "#/definitions/kubernetes_runtime_RawExtension",
-          "javaType": "Object"
+          "javaType": "io.fabric8.kubernetes.api.model.HasMetadata"
         },
         "dockerImageMetadataVersion": {
           "type": "string",
@@ -3894,7 +3894,7 @@
           "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_runtime_RawExtension",
-            "javaType": "Object"
+            "javaType": "io.fabric8.kubernetes.api.model.HasMetadata"
           }
         },
         "parameters": {

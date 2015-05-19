@@ -73,9 +73,7 @@ func (g *schemaGenerator) generateReference(t reflect.Type) string {
 func (g *schemaGenerator) javaTypeArrayList(t reflect.Type) string {
 	typeName := g.javaTypeWrapPrimitive(t)
 	switch typeName {
-	case "Byte":
-		return "String"
-	case "Integer":
+	case "Byte", "Integer":
 		return "String"
 	default:
 		return "java.util.ArrayList<" + typeName + ">"
@@ -112,7 +110,7 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 	if ok {
 		switch t.Name() {
 		case "RawExtension":
-			return "Object"
+			return "io.fabric8.kubernetes.api.model.HasMetadata"
 		case "List":
 			return pkgDesc.JavaPackage + ".BaseKubernetesList"
 		default:

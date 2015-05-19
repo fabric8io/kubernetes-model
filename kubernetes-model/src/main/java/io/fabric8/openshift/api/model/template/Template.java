@@ -20,6 +20,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonValue;
 import io.fabric8.KubernetesJson;
+import io.fabric8.kubernetes.api.model.HasMetadata;
 import io.fabric8.kubernetes.api.model.KubernetesList;
 import io.fabric8.kubernetes.api.model.Namespace;
 import io.fabric8.kubernetes.api.model.ObjectMeta;
@@ -40,8 +41,8 @@ import org.apache.commons.lang.builder.ToStringBuilder;
 
 
 /**
- * 
- * 
+ *
+ *
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Generated("org.jsonschema2pojo")
@@ -53,48 +54,48 @@ import org.apache.commons.lang.builder.ToStringBuilder;
     "objects",
     "parameters"
 })
-public class Template implements KubernetesJson {
+public class Template implements KubernetesJson, HasMetadata {
 
     /**
-     * 
+     *
      * (Required)
-     * 
+     *
      */
     @JsonProperty("apiVersion")
     @NotNull
     private Template.ApiVersion apiVersion = Template.ApiVersion.fromValue("v1beta3");
     /**
-     * 
+     *
      * (Required)
-     * 
+     *
      */
     @JsonProperty("kind")
     @NotNull
     private java.lang.String kind = "Template";
     /**
-     * 
-     * 
+     *
+     *
      */
     @JsonProperty("labels")
     @Valid
     private Map<String, String> labels;
     /**
-     * 
-     * 
+     *
+     *
      */
     @JsonProperty("metadata")
     @Valid
     private ObjectMeta metadata;
     /**
-     * 
-     * 
+     *
+     *
      */
     @JsonProperty("objects")
     @Valid
-    private List<Object> objects = new ArrayList<Object>();
+    private List<HasMetadata> objects = new ArrayList<HasMetadata>();
     /**
-     * 
-     * 
+     *
+     *
      */
     @JsonProperty("parameters")
     @Valid
@@ -197,13 +198,13 @@ public class Template implements KubernetesJson {
 
     /**
      * No args constructor for use in serialization
-     * 
+     *
      */
     public Template() {
     }
 
     /**
-     * 
+     *
      * @param apiVersion
      * @param labels
      * @param parameters
@@ -211,7 +212,7 @@ public class Template implements KubernetesJson {
      * @param kind
      * @param metadata
      */
-    public Template(Template.ApiVersion apiVersion, java.lang.String kind, Map<String, String> labels, ObjectMeta metadata, List<Object> objects, List<Parameter> parameters,List<Service> services,
+    public Template(Template.ApiVersion apiVersion, java.lang.String kind, Map<String, String> labels, ObjectMeta metadata, List<HasMetadata> objects, List<Parameter> parameters,List<Service> services,
                     List<ReplicationController> replicationControllers,
                     List<Pod> pods,
                     List<BuildConfig> buildConfigs,
@@ -248,9 +249,9 @@ public class Template implements KubernetesJson {
     }
 
     /**
-     * 
+     *
      * (Required)
-     * 
+     *
      * @return
      *     The apiVersion
      */
@@ -260,9 +261,9 @@ public class Template implements KubernetesJson {
     }
 
     /**
-     * 
+     *
      * (Required)
-     * 
+     *
      * @param apiVersion
      *     The apiVersion
      */
@@ -272,9 +273,9 @@ public class Template implements KubernetesJson {
     }
 
     /**
-     * 
+     *
      * (Required)
-     * 
+     *
      * @return
      *     The kind
      */
@@ -284,9 +285,9 @@ public class Template implements KubernetesJson {
     }
 
     /**
-     * 
+     *
      * (Required)
-     * 
+     *
      * @param kind
      *     The kind
      */
@@ -296,8 +297,8 @@ public class Template implements KubernetesJson {
     }
 
     /**
-     * 
-     * 
+     *
+     *
      * @return
      *     The labels
      */
@@ -307,8 +308,8 @@ public class Template implements KubernetesJson {
     }
 
     /**
-     * 
-     * 
+     *
+     *
      * @param labels
      *     The labels
      */
@@ -318,8 +319,8 @@ public class Template implements KubernetesJson {
     }
 
     /**
-     * 
-     * 
+     *
+     *
      * @return
      *     The metadata
      */
@@ -329,8 +330,8 @@ public class Template implements KubernetesJson {
     }
 
     /**
-     * 
-     * 
+     *
+     *
      * @param metadata
      *     The metadata
      */
@@ -340,14 +341,14 @@ public class Template implements KubernetesJson {
     }
 
     /**
-     * 
-     * 
+     *
+     *
      * @return
      *     The objects
      */
     @JsonProperty("objects")
-    public List<Object> getObjects() {
-        List<Object> allItems = new ArrayList<>(objects);
+    public List<HasMetadata> getObjects() {
+        List<HasMetadata> allItems = new ArrayList<>(objects);
         allItems.addAll(services);
         allItems.addAll(replicationControllers);
         allItems.addAll(pods);
@@ -365,8 +366,8 @@ public class Template implements KubernetesJson {
     }
 
     /**
-     * 
-     * 
+     *
+     *
      * @param objects
      *     The objects
      */
@@ -392,8 +393,8 @@ public class Template implements KubernetesJson {
             @JsonSubTypes.Type(value = Secret.class, name = "Secrets")
 
     })
-    public void setObjects(List<Object> objects) {
-        for (Object item : objects) {
+    public void setObjects(List<HasMetadata> objects) {
+        for (HasMetadata item : objects) {
             if (item instanceof Service) {
                 this.services.add((Service) item);
             } else if (item instanceof ReplicationController) {
@@ -415,8 +416,8 @@ public class Template implements KubernetesJson {
     }
 
     /**
-     * 
-     * 
+     *
+     *
      * @return
      *     The parameters
      */
@@ -426,8 +427,8 @@ public class Template implements KubernetesJson {
     }
 
     /**
-     * 
-     * 
+     *
+     *
      * @param parameters
      *     The parameters
      */
