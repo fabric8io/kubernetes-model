@@ -1,8 +1,11 @@
 package io.fabric8.kubernetes.api.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.fabric8.KubernetesJson;
 import io.fabric8.common.Visitor;
 import io.fabric8.kubernetes.api.model.resource.Quantity;
+import io.fabric8.openshift.api.model.template.Template;
+import io.fabric8.openshift.api.model.template.TemplateBuilder;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -23,7 +26,7 @@ public class UnmarshallTest {
     @Test
     public void testUnmarshallWithVisitors() throws Exception {
         ObjectMapper mapper = new ObjectMapper(); // can reuse, share globally
-        KubernetesList list = mapper.readValue(getClass().getResourceAsStream("/simple-list.json"), KubernetesList.class);
+        KubernetesList list = (KubernetesList) mapper.readValue(getClass().getResourceAsStream("/simple-list.json"), KubernetesJson.class);
         final AtomicInteger integer = new AtomicInteger();
         new KubernetesListBuilder(list).accept(new Visitor() {
             public void visit(Object o) {
@@ -35,5 +38,17 @@ public class UnmarshallTest {
         // The exact number is volatile so we just care about the minimum number of objects (list, pod and service).
         Assert.assertTrue(integer.intValue() >= 3);
 
+
+        Template template = (Template) mapper.readValue(getClass().getResourceAsStream("/simple-template.json"), KubernetesJson.class);
+        integer.set(0);
+        new TemplateBuilder(template).accept(new Visitor() {
+            public void visit(Object o) {
+                integer.incrementAndGet();
+            }
+        });
+
+        //We just want to make sure that it visits nested objects when deserialization from json is used.
+        // The exact number is volatile so we just care about the minimum number of objects (list, pod and service).
+        Assert.assertTrue(integer.intValue() >= 2);
     }
 }
