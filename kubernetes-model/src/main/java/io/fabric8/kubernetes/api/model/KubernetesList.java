@@ -189,7 +189,7 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
     @JsonProperty("items")
     @Override
     public List<HasMetadata> getItems() {
-        List<HasMetadata> allItems = new ArrayList<>(super.getItems());
+        HasMetadatSet allItems = new HasMetadatSet(super.getItems());
         allItems.addAll(services);
         allItems.addAll(replicationControllers);
         allItems.addAll(pods);
@@ -203,7 +203,7 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
         allItems.addAll(oAuthAccessTokens);
         allItems.addAll(namespaces);
         allItems.addAll(secrets);
-        return allItems;
+        return new ArrayList<>(allItems);
     }
 
     @JsonProperty("items")

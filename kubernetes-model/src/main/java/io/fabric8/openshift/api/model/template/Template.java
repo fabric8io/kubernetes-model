@@ -1,43 +1,18 @@
 
 package io.fabric8.openshift.api.model.template;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import javax.annotation.Generated;
-import javax.validation.Valid;
-import javax.validation.constraints.NotNull;
-import com.fasterxml.jackson.annotation.JsonAnyGetter;
-import com.fasterxml.jackson.annotation.JsonAnySetter;
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.annotation.JsonValue;
+import com.fasterxml.jackson.annotation.*;
 import io.fabric8.KubernetesJson;
-import io.fabric8.kubernetes.api.model.HasMetadata;
-import io.fabric8.kubernetes.api.model.KubernetesList;
-import io.fabric8.kubernetes.api.model.Namespace;
-import io.fabric8.kubernetes.api.model.ObjectMeta;
-import io.fabric8.kubernetes.api.model.Pod;
-import io.fabric8.kubernetes.api.model.ReplicationController;
-import io.fabric8.kubernetes.api.model.Secret;
-import io.fabric8.kubernetes.api.model.Service;
-import io.fabric8.openshift.api.model.BuildConfig;
-import io.fabric8.openshift.api.model.DeploymentConfig;
-import io.fabric8.openshift.api.model.ImageStream;
-import io.fabric8.openshift.api.model.OAuthAccessToken;
-import io.fabric8.openshift.api.model.OAuthClient;
-import io.fabric8.openshift.api.model.OAuthClientAuthorization;
-import io.fabric8.openshift.api.model.Route;
+import io.fabric8.kubernetes.api.model.*;
+import io.fabric8.openshift.api.model.*;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.commons.lang.builder.ToStringBuilder;
+
+import javax.annotation.Generated;
+import javax.validation.Valid;
+import javax.validation.constraints.NotNull;
+import java.util.*;
 
 
 /**
@@ -348,7 +323,7 @@ public class Template implements KubernetesJson, HasMetadata {
      */
     @JsonProperty("objects")
     public List<HasMetadata> getObjects() {
-        List<HasMetadata> allItems = new ArrayList<>(objects);
+        HasMetadatSet allItems = new HasMetadatSet(objects);
         allItems.addAll(services);
         allItems.addAll(replicationControllers);
         allItems.addAll(pods);
@@ -362,7 +337,7 @@ public class Template implements KubernetesJson, HasMetadata {
         allItems.addAll(oAuthAccessTokens);
         allItems.addAll(namespaces);
         allItems.addAll(secrets);
-        return allItems;
+        return new ArrayList<>(allItems);
     }
 
     /**
