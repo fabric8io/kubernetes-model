@@ -19,6 +19,7 @@ import (
 	oauthapi "github.com/openshift/origin/pkg/oauth/api/v1beta3"
 	routeapi "github.com/openshift/origin/pkg/route/api/v1beta3"
 	templateapi "github.com/openshift/origin/pkg/template/api/v1beta3"
+	configapi "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api/v1"
 
 	"github.com/fabric8io/origin-schema-generator/pkg/schemagen"
 )
@@ -57,6 +58,7 @@ type Schema struct {
 	OAuthAuthorizeTokenList      oauthapi.OAuthAuthorizeTokenList
 	OAuthClientList              oauthapi.OAuthClientList
 	OAuthClientAuthorizationList oauthapi.OAuthClientAuthorizationList
+	Config                       configapi.Config
 }
 
 func main() {
@@ -69,6 +71,7 @@ func main() {
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/util", "io.fabric8.kubernetes.api.model.util", "kubernetes_util_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors", "io.fabric8.kubernetes.api.model.errors", "kubernetes_errors_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model.base", "kubernetes_base_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api/v1", "io.fabric8.kubernetes.api.model.config", "kubernetes_config_"},
 		{"github.com/fsouza/go-dockerclient", "io.fabric8.docker.client.dockerclient", "docker_"},
 		{"speter.net/go/exp/math/dec/inf", "io.fabric8.openshift.client.util", "speter_inf_"},
 		{"github.com/openshift/origin/pkg/build/api/v1beta3", "io.fabric8.openshift.api.model", "os_build_"},

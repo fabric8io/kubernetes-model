@@ -2161,6 +2161,275 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.base.TypeMeta"
     },
+    "kubernetes_config_AuthInfo": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "client-certificate": {
+          "type": "string",
+          "description": ""
+        },
+        "client-certificate-data": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "client-key": {
+          "type": "string",
+          "description": ""
+        },
+        "client-key-data": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "extensions": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_config_NamedExtension",
+            "javaType": "io.fabric8.kubernetes.api.model.config.NamedExtension"
+          }
+        },
+        "password": {
+          "type": "string",
+          "description": ""
+        },
+        "token": {
+          "type": "string",
+          "description": ""
+        },
+        "username": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.config.AuthInfo"
+    },
+    "kubernetes_config_Cluster": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "api-version": {
+          "type": "string",
+          "description": ""
+        },
+        "certificate-authority": {
+          "type": "string",
+          "description": ""
+        },
+        "certificate-authority-data": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "integer",
+            "description": ""
+          }
+        },
+        "extensions": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_config_NamedExtension",
+            "javaType": "io.fabric8.kubernetes.api.model.config.NamedExtension"
+          }
+        },
+        "insecure-skip-tls-verify": {
+          "type": "boolean",
+          "description": ""
+        },
+        "server": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.config.Cluster"
+    },
+    "kubernetes_config_Config": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1beta3",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3"
+          ]
+        },
+        "clusters": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_config_NamedCluster",
+            "javaType": "io.fabric8.kubernetes.api.model.config.NamedCluster"
+          }
+        },
+        "contexts": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_config_NamedContext",
+            "javaType": "io.fabric8.kubernetes.api.model.config.NamedContext"
+          }
+        },
+        "current-context": {
+          "type": "string",
+          "description": ""
+        },
+        "extensions": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_config_NamedExtension",
+            "javaType": "io.fabric8.kubernetes.api.model.config.NamedExtension"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "Config",
+          "required": true
+        },
+        "preferences": {
+          "$ref": "#/definitions/kubernetes_config_Preferences",
+          "javaType": "io.fabric8.kubernetes.api.model.config.Preferences"
+        },
+        "users": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_config_NamedAuthInfo",
+            "javaType": "io.fabric8.kubernetes.api.model.config.NamedAuthInfo"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.config.Config"
+    },
+    "kubernetes_config_Context": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "cluster": {
+          "type": "string",
+          "description": ""
+        },
+        "extensions": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_config_NamedExtension",
+            "javaType": "io.fabric8.kubernetes.api.model.config.NamedExtension"
+          }
+        },
+        "namespace": {
+          "type": "string",
+          "description": ""
+        },
+        "user": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.config.Context"
+    },
+    "kubernetes_config_NamedAuthInfo": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": ""
+        },
+        "user": {
+          "$ref": "#/definitions/kubernetes_config_AuthInfo",
+          "javaType": "io.fabric8.kubernetes.api.model.config.AuthInfo"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.config.NamedAuthInfo"
+    },
+    "kubernetes_config_NamedCluster": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "cluster": {
+          "$ref": "#/definitions/kubernetes_config_Cluster",
+          "javaType": "io.fabric8.kubernetes.api.model.config.Cluster"
+        },
+        "name": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.config.NamedCluster"
+    },
+    "kubernetes_config_NamedContext": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "context": {
+          "$ref": "#/definitions/kubernetes_config_Context",
+          "javaType": "io.fabric8.kubernetes.api.model.config.Context"
+        },
+        "name": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.config.NamedContext"
+    },
+    "kubernetes_config_NamedExtension": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "extension": {
+          "$ref": "#/definitions/kubernetes_runtime_RawExtension",
+          "javaType": "Object"
+        },
+        "name": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.config.NamedExtension"
+    },
+    "kubernetes_config_Preferences": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "colors": {
+          "type": "boolean",
+          "description": ""
+        },
+        "extensions": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_config_NamedExtension",
+            "javaType": "io.fabric8.kubernetes.api.model.config.NamedExtension"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.config.Preferences"
+    },
     "kubernetes_errors_StatusError": {
       "type": "object",
       "description": "",
@@ -4010,6 +4279,10 @@
     "BuildList": {
       "$ref": "#/definitions/os_build_BuildList",
       "javaType": "io.fabric8.openshift.api.model.BuildList"
+    },
+    "Config": {
+      "$ref": "#/definitions/kubernetes_config_Config",
+      "javaType": "io.fabric8.kubernetes.api.model.config.Config"
     },
     "ContainerStatus": {
       "$ref": "#/definitions/kubernetes_ContainerStatus",
