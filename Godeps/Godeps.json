@@ -21,6 +21,11 @@
 			"Rev": "6b6b47a777b4802c9c1360ea0d583da6cfec7363"
 		},
 		{
+			"ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api",
+			"Comment": "v0.17.0-441-g6b6b47a",
+			"Rev": "6b6b47a777b4802c9c1360ea0d583da6cfec7363"
+		},
+		{
 			"ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/conversion",
 			"Comment": "v0.17.0-441-g6b6b47a",
 			"Rev": "6b6b47a777b4802c9c1360ea0d583da6cfec7363"

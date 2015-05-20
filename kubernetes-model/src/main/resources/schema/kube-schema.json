@@ -2400,7 +2400,7 @@
       "properties": {
         "extension": {
           "$ref": "#/definitions/kubernetes_runtime_RawExtension",
-          "javaType": "Object"
+          "javaType": "io.fabric8.kubernetes.api.model.HasMetadata"
         },
         "name": {
           "type": "string",
