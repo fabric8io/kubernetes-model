@@ -114,7 +114,7 @@
         },
         "privileged": {
           "type": "boolean",
-          "description": "whether or not the container is granted privileged status; defaults to false; cannot be updated"
+          "description": "whether or not the container is granted privileged status; defaults to false; cannot be updated; deprecated;  See SecurityContext."
         },
         "readinessProbe": {
           "$ref": "#/definitions/kubernetes_Probe",
@@ -123,6 +123,10 @@
         "resources": {
           "$ref": "#/definitions/kubernetes_ResourceRequirements",
           "javaType": "io.fabric8.kubernetes.api.model.ResourceRequirements"
+        },
+        "securityContext": {
+          "$ref": "#/definitions/kubernetes_SecurityContext",
+          "javaType": "io.fabric8.kubernetes.api.model.SecurityContext"
         },
         "terminationMessagePath": {
           "type": "string",
@@ -470,7 +474,7 @@
       "type": "object",
       "description": "",
       "properties": {
-        "fieldPath": {
+        "fieldRef": {
           "$ref": "#/definitions/kubernetes_ObjectFieldSelector",
           "javaType": "io.fabric8.kubernetes.api.model.ObjectFieldSelector"
         }
@@ -1281,6 +1285,11 @@
       "type": "object",
       "description": "",
       "properties": {
+        "activeDeadlineSeconds": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        },
         "containers": {
           "type": "array",
           "description": "list of containers belonging to the pod; cannot be updated; containers cannot currently be added or removed; there must be at least one container in a Pod",
@@ -1313,6 +1322,10 @@
         "restartPolicy": {
           "type": "string",
           "description": "restart policy for all containers within the pod; one of RestartPolicyAlways"
+        },
+        "serviceAccount": {
+          "type": "string",
+          "description": "name of the ServiceAccount to use to run this pod"
         },
         "terminationGracePeriodSeconds": {
           "type": "integer",
@@ -1366,6 +1379,10 @@
         "podIP": {
           "type": "string",
           "description": "IP address allocated to the pod; routable at least within the cluster; empty if not yet allocated"
+        },
+        "startTime": {
+          "type": "string",
+          "description": "RFC 3339 date and time at which the object was acknowledged by the Kubelet.  This is before the Kubelet pulled the container image(s) for the pod."
         }
       },
       "additionalProperties": true,
@@ -1553,7 +1570,7 @@
         },
         "requests": {
           "type": "object",
-          "description": "Minimum amount of resources requested",
+          "description": "Minimum amount of resources requested; requests are honored only for persistent volumes as of now",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
             "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
@@ -1563,6 +1580,30 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.ResourceRequirements"
+    },
+    "kubernetes_SELinuxOptions": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "level": {
+          "type": "string",
+          "description": "the level label to apply to the container"
+        },
+        "role": {
+          "type": "string",
+          "description": "the role label to apply to the container"
+        },
+        "type": {
+          "type": "string",
+          "description": "the type label to apply to the container"
+        },
+        "user": {
+          "type": "string",
+          "description": "the user label to apply to the container"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.SELinuxOptions"
     },
     "kubernetes_Secret": {
       "type": "object",
@@ -1581,13 +1622,13 @@
         },
         "data": {
           "type": "object",
-          "description": "data contains the secret data.  Each key must be a valid DNS_SUBDOMAIN.  Each value must be a base64 encoded string",
+          "description": "data contains the secret data.  Each key must be a valid DNS_SUBDOMAIN or leading dot followed by valid DNS_SUBDOMAIN.  Each value must be a base64 encoded string as described in https://tools.ietf.org/html/rfc4648#section-4",
           "additionalProperties": {
             "type": "array",
-            "description": "data contains the secret data.  Each key must be a valid DNS_SUBDOMAIN.  Each value must be a base64 encoded string",
+            "description": "data contains the secret data.  Each key must be a valid DNS_SUBDOMAIN or leading dot followed by valid DNS_SUBDOMAIN.  Each value must be a base64 encoded string as described in https://tools.ietf.org/html/rfc4648#section-4",
             "items": {
               "type": "integer",
-              "description": "data contains the secret data.  Each key must be a valid DNS_SUBDOMAIN.  Each value must be a base64 encoded string"
+              "description": "data contains the secret data.  Each key must be a valid DNS_SUBDOMAIN or leading dot followed by valid DNS_SUBDOMAIN.  Each value must be a base64 encoded string as described in https://tools.ietf.org/html/rfc4648#section-4"
             }
           },
           "javaType": "java.util.Map\u003cString,String\u003e"
@@ -1661,6 +1702,31 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.SecretVolumeSource"
+    },
+    "kubernetes_SecurityContext": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "capabilities": {
+          "$ref": "#/definitions/kubernetes_Capabilities",
+          "javaType": "io.fabric8.kubernetes.api.model.Capabilities"
+        },
+        "privileged": {
+          "type": "boolean",
+          "description": "run the container in privileged mode"
+        },
+        "runAsUser": {
+          "type": "integer",
+          "description": "the user id that runs the first process in the container",
+          "javaType": "Long"
+        },
+        "seLinuxOptions": {
+          "$ref": "#/definitions/kubernetes_SELinuxOptions",
+          "javaType": "io.fabric8.kubernetes.api.model.SELinuxOptions"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.SecurityContext"
     },
     "kubernetes_Service": {
       "type": "object",
@@ -2478,9 +2544,9 @@
           "$ref": "#/definitions/os_build_DockerBuildStrategy",
           "javaType": "io.fabric8.openshift.api.model.DockerBuildStrategy"
         },
-        "stiStrategy": {
-          "$ref": "#/definitions/os_build_STIBuildStrategy",
-          "javaType": "io.fabric8.openshift.api.model.STIBuildStrategy"
+        "sourceStrategy": {
+          "$ref": "#/definitions/os_build_SourceBuildStrategy",
+          "javaType": "io.fabric8.openshift.api.model.SourceBuildStrategy"
         },
         "type": {
           "type": "string",
@@ -2533,6 +2599,10 @@
         "from": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
           "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+        },
+        "pullSecretName": {
+          "type": "string",
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -2548,6 +2618,10 @@
         },
         "noCache": {
           "type": "boolean",
+          "description": ""
+        },
+        "pullSecretName": {
+          "type": "string",
           "description": ""
         }
       },
@@ -2606,7 +2680,7 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.ImageChangeTrigger"
     },
-    "os_build_STIBuildStrategy": {
+    "os_build_SourceBuildStrategy": {
       "type": "object",
       "description": "",
       "properties": {
@@ -2626,13 +2700,17 @@
           "type": "boolean",
           "description": ""
         },
+        "pullSecretName": {
+          "type": "string",
+          "description": ""
+        },
         "scripts": {
           "type": "string",
           "description": ""
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.openshift.api.model.STIBuildStrategy"
+      "javaType": "io.fabric8.openshift.api.model.SourceBuildStrategy"
     },
     "os_build_SourceControlUser": {
       "type": "object",
@@ -2684,15 +2762,15 @@
       "properties": {
         "command": {
           "type": "array",
-          "description": "",
+          "description": "optionally overrides the container command (default is specified by the image)",
           "items": {
             "type": "string",
-            "description": ""
+            "description": "optionally overrides the container command (default is specified by the image)"
           }
         },
         "environment": {
           "type": "array",
-          "description": "",
+          "description": "environment variables provided to the deployment process container",
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -2700,7 +2778,7 @@
         },
         "image": {
           "type": "string",
-          "description": ""
+          "description": "a Docker image which can carry out a deployment"
         }
       },
       "additionalProperties": true,
@@ -2716,7 +2794,7 @@
         },
         "type": {
           "type": "string",
-          "description": ""
+          "description": "the type of trigger that resulted in a new deployment"
         }
       },
       "additionalProperties": true,
@@ -2791,7 +2869,7 @@
         },
         "items": {
           "type": "array",
-          "description": "",
+          "description": "a list of deployment configs",
           "items": {
             "$ref": "#/definitions/os_deploy_DeploymentConfig",
             "javaType": "io.fabric8.openshift.api.model.DeploymentConfig"
@@ -2817,14 +2895,14 @@
       "properties": {
         "replicas": {
           "type": "integer",
-          "description": ""
+          "description": "the desired number of replicas"
         },
         "selector": {
           "type": "object",
-          "description": "",
+          "description": "a label query over pods that should match the replicas count",
           "additionalProperties": {
             "type": "string",
-            "description": ""
+            "description": "a label query over pods that should match the replicas count"
           },
           "javaType": "java.util.Map\u003cString,String\u003e"
         },
@@ -2842,7 +2920,7 @@
         },
         "triggers": {
           "type": "array",
-          "description": "",
+          "description": "how new deployments are triggered",
           "items": {
             "$ref": "#/definitions/os_deploy_DeploymentTriggerPolicy",
             "javaType": "io.fabric8.openshift.api.model.DeploymentTriggerPolicy"
@@ -2862,7 +2940,7 @@
         },
         "latestVersion": {
           "type": "integer",
-          "description": ""
+          "description": "used to determine whether the current deployment is out of sync"
         }
       },
       "additionalProperties": true,
@@ -2874,7 +2952,7 @@
       "properties": {
         "causes": {
           "type": "array",
-          "description": "",
+          "description": "extended data associated with all the causes for creating a new deployment",
           "items": {
             "$ref": "#/definitions/os_deploy_DeploymentCause",
             "javaType": "io.fabric8.openshift.api.model.DeploymentCause"
@@ -2882,7 +2960,7 @@
         },
         "message": {
           "type": "string",
-          "description": ""
+          "description": "a user specified change message"
         }
       },
       "additionalProperties": true,
@@ -2910,7 +2988,7 @@
         },
         "type": {
           "type": "string",
-          "description": ""
+          "description": "the name of a deployment strategy"
         }
       },
       "additionalProperties": true,
@@ -2922,14 +3000,14 @@
       "properties": {
         "automatic": {
           "type": "boolean",
-          "description": ""
+          "description": "whether detection of a new tag value should trigger a deployment"
         },
         "containerNames": {
           "type": "array",
-          "description": "",
+          "description": "restricts tag updates to a set of container names in the pod",
           "items": {
             "type": "string",
-            "description": ""
+            "description": "restricts tag updates to a set of container names in the pod"
           }
         },
         "from": {
@@ -2938,7 +3016,7 @@
         },
         "lastTriggeredImage": {
           "type": "string",
-          "description": ""
+          "description": "the last image to be triggered"
         }
       },
       "additionalProperties": true,
@@ -2954,7 +3032,7 @@
         },
         "type": {
           "type": "string",
-          "description": ""
+          "description": "the type of the trigger"
         }
       },
       "additionalProperties": true,
@@ -2966,19 +3044,19 @@
       "properties": {
         "command": {
           "type": "array",
-          "description": "",
+          "description": "the hook command and its arguments",
           "items": {
             "type": "string",
-            "description": ""
+            "description": "the hook command and its arguments"
           }
         },
         "containerName": {
           "type": "string",
-          "description": ""
+          "description": "the name of a container from the pod template whose image will be used for the hook container"
         },
         "env": {
           "type": "array",
-          "description": "",
+          "description": "environment variables provided to the hook container",
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -2998,7 +3076,7 @@
         },
         "failurePolicy": {
           "type": "string",
-          "description": ""
+          "description": "what action to take if the hook fails"
         }
       },
       "additionalProperties": true,
