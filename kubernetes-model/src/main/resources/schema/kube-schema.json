@@ -384,7 +384,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "kind": {
@@ -424,7 +425,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -666,7 +668,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -739,7 +742,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "kind": {
@@ -779,7 +783,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -844,7 +849,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "kind": {
@@ -932,7 +938,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -1200,7 +1207,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "kind": {
@@ -1256,7 +1264,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -1449,7 +1458,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "kind": {
@@ -1489,7 +1499,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -1617,7 +1628,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "data": {
@@ -1666,7 +1678,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -1740,7 +1753,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "kind": {
@@ -1780,7 +1794,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -2060,7 +2075,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "code": {
@@ -2265,7 +2281,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "clusters": {
@@ -2506,7 +2523,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "kind": {
@@ -2546,7 +2564,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "kind": {
@@ -2586,7 +2605,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -2671,7 +2691,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -3093,7 +3114,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "kind": {
@@ -3133,7 +3155,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -3402,7 +3425,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "dockerImageManifest": {
@@ -3450,7 +3474,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -3487,7 +3512,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "kind": {
@@ -3527,7 +3553,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -3669,7 +3696,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "authorizeToken": {
@@ -3738,7 +3766,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -3775,7 +3804,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "clientName": {
@@ -3840,7 +3870,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -3877,7 +3908,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "kind": {
@@ -3925,7 +3957,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "clientName": {
@@ -3977,7 +4010,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -4014,7 +4048,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -4051,7 +4086,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "kind": {
@@ -4091,7 +4127,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "items": {
@@ -4214,7 +4251,8 @@
           "enum": [
             "v1beta1",
             "v1beta2",
-            "v1beta3"
+            "v1beta3",
+            "v1"
           ]
         },
         "kind": {
