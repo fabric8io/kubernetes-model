@@ -153,24 +153,24 @@ type DeploymentList struct {
 const (
 	// DeploymentConfigAnnotation is an annotation name used to correlate a deployment with the
 	// DeploymentConfig on which the deployment is based.
-	DeploymentConfigAnnotation = "deploymentConfig"
+	DeploymentConfigAnnotation = "openshift.io/deployment-config.name"
 	// DeploymentAnnotation is an annotation on a deployer Pod. The annotation value is the name
 	// of the deployment (a ReplicationController) on which the deployer Pod acts.
-	DeploymentAnnotation = "deployment"
+	DeploymentAnnotation = "openshift.io/deployment.name"
 	// DeploymentPodAnnotation is an annotation on a deployment (a ReplicationController). The
 	// annotation value is the name of the deployer Pod which will act upon the ReplicationController
 	// to implement the deployment behavior.
-	DeploymentPodAnnotation = "pod"
-	// DeploymentStatusAnnotation is an annotation name used to retrieve the DeploymentStatus of
+	DeploymentPodAnnotation = "openshift.io/deployer-pod.name"
+	// DeploymentStatusAnnotation is an annotation name used to retrieve the DeploymentPhase of
 	// a deployment.
-	DeploymentStatusAnnotation = "deploymentStatus"
+	DeploymentStatusAnnotation = "openshift.io/deployment.phase"
 	// DeploymentEncodedConfigAnnotation is an annotation name used to retrieve specific encoded
 	// DeploymentConfig on which a given deployment is based.
-	DeploymentEncodedConfigAnnotation = "encodedDeploymentConfig"
+	DeploymentEncodedConfigAnnotation = "openshift.io/encoded-deployment-config"
 	// DeploymentVersionAnnotation is an annotation on a deployment (a ReplicationController). The
 	// annotation value is the LatestVersion value of the DeploymentConfig which was the basis for
 	// the deployment.
-	DeploymentVersionAnnotation = "deploymentVersion"
+	DeploymentVersionAnnotation = "openshift.io/deployment-config.latest-version"
 	// DeploymentLabel is the name of a label used to correlate a deployment with the Pod created
 	// to execute the deployment logic.
 	// TODO: This is a workaround for upstream's lack of annotation support on PodTemplate. Once
@@ -183,6 +183,12 @@ const (
 	// new deployment.
 	// TODO: This should be made public upstream.
 	DesiredReplicasAnnotation = "kubectl.kubernetes.io/desired-replicas"
+	// DeploymentStatusReasonAnnotation represents the reason for deployment being in a given state
+	// Used for specifying the reason for cancellation or failure of a deployment
+	DeploymentStatusReasonAnnotation = "openshift.io/deployment.status-reason"
+	// DeploymentCancelledAnnotation indicates that the deployment has been cancelled
+	// The annotation value does not matter and its mere presence indicates cancellation
+	DeploymentCancelledAnnotation = "openshift.io/deployment.cancelled"
 )
 
 // DeploymentConfig represents a configuration for a single deployment (represented as a

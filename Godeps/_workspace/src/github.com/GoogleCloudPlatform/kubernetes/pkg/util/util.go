@@ -214,8 +214,13 @@ func ApplyOomScoreAdj(pid int, value int) error {
 		pidStr = strconv.Itoa(pid)
 	}
 
-	if err := ioutil.WriteFile(path.Join("/proc", pidStr, "oom_score_adj"), []byte(strconv.Itoa(value)), 0700); err != nil {
-		fmt.Errorf("failed to set oom_score_adj to %d: %v", value, err)
+	oom_value, err := ioutil.ReadFile(path.Join("/proc", pidStr, "oom_score_adj"))
+	if err != nil {
+		return fmt.Errorf("failed to read oom_score_adj: %v", err)
+	} else if string(oom_value) != strconv.Itoa(value) {
+		if err := ioutil.WriteFile(path.Join("/proc", pidStr, "oom_score_adj"), []byte(strconv.Itoa(value)), 0700); err != nil {
+			return fmt.Errorf("failed to set oom_score_adj to %d: %v", value, err)
+		}
 	}
 
 	return nil
@@ -397,6 +402,7 @@ func chooseHostInterfaceNativeGo() (net.IP, error) {
 		return nil, err
 	}
 	i := 0
+	var ip net.IP
 	for i = range intfs {
 		if flagsSet(intfs[i].Flags, net.FlagUp) && flagsClear(intfs[i].Flags, net.FlagLoopback|net.FlagPointToPoint) {
 			addrs, err := intfs[i].Addrs()
@@ -404,24 +410,25 @@ func chooseHostInterfaceNativeGo() (net.IP, error) {
 				return nil, err
 			}
 			if len(addrs) > 0 {
-				// This interface should suffice.
-				break
+				for _, addr := range addrs {
+					if addrIP, _, err := net.ParseCIDR(addr.String()); err == nil {
+						if addrIP.To4() != nil {
+							ip = addrIP.To4()
+							break
+						}
+					}
+				}
+				if ip != nil {
+					// This interface should suffice.
+					break
+				}
 			}
 		}
 	}
-	if i == len(intfs) {
-		return nil, err
+	if ip == nil {
+		return nil, fmt.Errorf("no acceptable interface from host")
 	}
 	glog.V(4).Infof("Choosing interface %s for from-host portals", intfs[i].Name)
-	addrs, err := intfs[i].Addrs()
-	if err != nil {
-		return nil, err
-	}
-	glog.V(4).Infof("Interface %s = %s", intfs[i].Name, addrs[0].String())
-	ip, _, err := net.ParseCIDR(addrs[0].String())
-	if err != nil {
-		return nil, err
-	}
 	return ip, nil
 }
 
