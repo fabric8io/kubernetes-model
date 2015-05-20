@@ -7,6 +7,8 @@ build:
 
 update-deps:
 	pushd $(GOPATH)/src/github.com/openshift/origin && \
+		git fetch origin && \
+		git checkout -B $(tag) refs/tags/$(tag) && \
 		godep restore && \
 		popd && \
 		godep save cmd/generate/generate.go && \
