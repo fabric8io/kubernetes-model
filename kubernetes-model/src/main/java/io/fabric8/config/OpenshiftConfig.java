@@ -54,7 +54,7 @@ import io.sundr.builder.annotations.ExternalBuildables;
         "io.fabric8.openshift.api.model.RouteList",
         "io.fabric8.openshift.api.model.RouteSpec",
         "io.fabric8.openshift.api.model.RouteStatus",
-        "io.fabric8.openshift.api.model.STIBuildStrategy",
+        "io.fabric8.openshift.api.model.SourceBuildStrategy",
         "io.fabric8.openshift.api.model.SourceControlUser",
         "io.fabric8.openshift.api.model.SourceRevision",
         "io.fabric8.openshift.api.model.TLSConfig",
