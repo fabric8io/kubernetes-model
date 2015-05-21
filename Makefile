@@ -1,4 +1,5 @@
 SHELL := /bin/bash
+tag := $(shell cat .openshift-version)
 
 build:
 	godep go build ./cmd/generate/generate.go
@@ -6,7 +7,8 @@ build:
 	mvn clean install
 
 update-deps:
-	pushd $(GOPATH)/src/github.com/openshift/origin && \
+	echo $(tag) > .openshift-version && \
+		pushd $(GOPATH)/src/github.com/openshift/origin && \
 		git fetch origin && \
 		git checkout -B $(tag) refs/tags/$(tag) && \
 		godep restore && \

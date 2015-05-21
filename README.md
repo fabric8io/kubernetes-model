@@ -26,12 +26,23 @@ You should now be able to view the generated schema in `kube-schema.json`
 Update dependency API's
 -----------------------
 
-Following [godep](https://github.com/tools/godep/blob/master/Readme.md)   
+To update openshift/kubernetes dependencies, run:
 
-___To update Kubernetes___   
-go get -u github.com/GoogleCloudPlatform/kubernetes/   
-godep update github.com/GoogleCloudPlatform/kubernetes/...   
+    make [tag=v0.5.2] update-deps
 
-___To update Openshift___   
-go get -u github.com/openshift/origin/   
-godep update github.com/openshift/origin/...   
+Where the optional tag value is the tagged version of OpenShift. This will update all
+dependencies to those consistent with Openshift dependencies, including Kubernetes.
+This command should also be run when you need to have any new dependencies included
+in Godeps workspace, e.g. adding a new package for schema generation.
+
+If you do not specify a tag value then the tag value will be read from .openshift-version
+in the root of the schema generator repo.
+
+So if you're just looking to ensure all dependencies are vendored in the godep workspace
+run:
+
+    make update-deps
+
+If you're looking to update the version of openshift & it's dependencies run:
+
+    make tag=<openshift_tag> update-deps
