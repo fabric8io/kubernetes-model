@@ -4297,6 +4297,44 @@
         "io.fabric8.kubernetes.api.model.HasMetadata"
       ]
     },
+    "os_template_TemplateList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1beta3",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3",
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/os_template_Template",
+            "javaType": "io.fabric8.openshift.api.model.template.Template"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "TemplateList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.template.TemplateList"
+    },
     "speter_inf_Dec": {
       "type": "object",
       "description": "",
@@ -4441,6 +4479,10 @@
     "Template": {
       "$ref": "#/definitions/os_template_Template",
       "javaType": "io.fabric8.openshift.api.model.template.Template"
+    },
+    "TemplateList": {
+      "$ref": "#/definitions/os_template_TemplateList",
+      "javaType": "io.fabric8.openshift.api.model.template.TemplateList"
     }
   },
   "additionalProperties": true

@@ -49,6 +49,7 @@ type Schema struct {
 	RouteList                    routeapi.RouteList
 	ContainerStatus              kapi.ContainerStatus
 	Template                     templateapi.Template
+	TemplateList                 templateapi.TemplateList
 	TagEvent                     imageapi.TagEvent
 	OAuthClient                  oauthapi.OAuthClient
 	OAuthAccessToken             oauthapi.OAuthAccessToken
