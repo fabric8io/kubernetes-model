@@ -230,6 +230,20 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesJson
     })
     @Override
     public void setItems(List<HasMetadata> items) {
+        this.services.clear();
+        this.replicationControllers.clear();
+        this.pods.clear();
+        this.buildConfigs.clear();
+        this.deploymentConfigs.clear();
+        this.imageStreams.clear();
+        this.routes.clear();
+        this.templates.clear();
+        this.oAuthClients.clear();
+        this.oAuthClientAuthorizations.clear();
+        this.oAuthAccessTokens.clear();
+        this.namespaces.clear();
+        this.secrets.clear();
+
         for (HasMetadata item : items) {
             if (item instanceof Service) {
                 this.services.add((Service) item);
