@@ -27,12 +27,12 @@ public class KubernetesListTest {
         assertEquals(replicationController.getKind(), "ReplicationController");
         
         KubernetesList kubernetesList = new KubernetesListBuilder()
-                .addNewService()
+                .addNewServiceItem()
                 .withNewMetadata()
                     .withName("test-service")
                 .endMetadata()
                 .and()
-                .addNewReplicationController()
+                .addNewReplicationControllerItem()
                 .withNewMetadata()
                     .withName("test-controller")
                 .endMetadata()
@@ -48,14 +48,14 @@ public class KubernetesListTest {
     @Test
     public void testVisitor() throws JsonProcessingException {
         KubernetesList list = new KubernetesListBuilder()
-                .addNewPod()
+                .addNewPodItem()
                     .withNewSpec()
                         .addNewContainer()
                             .withName("my-container")
                             .withImage("my/image")
                         .endContainer()
                     .endSpec()
-                .endPod()
+                .and()
                 .build();
 
         list = new KubernetesListBuilder(list).accept(new io.fabric8.common.Visitor() {
@@ -64,7 +64,7 @@ public class KubernetesListTest {
                     ((io.fabric8.kubernetes.api.model.PodSpecBuilder)item).addNewContainer()
                             .withName("other-container")
                             .withImage("other/image")
-                            .endContainer();
+                            .and();
                 }
             }
         }).build();

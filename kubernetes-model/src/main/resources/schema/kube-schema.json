@@ -1413,7 +1413,6 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.PodTemplateSpec",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.HasMetadata"
       ]
     },
     "kubernetes_Probe": {
@@ -3446,6 +3445,7 @@
           "description": ""
         },
         "kind": {
+          "type": "string",
           "type": "string",
           "description": "",
           "default": "Image",

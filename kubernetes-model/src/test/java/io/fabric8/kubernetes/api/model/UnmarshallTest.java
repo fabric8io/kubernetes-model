@@ -1,7 +1,6 @@
 package io.fabric8.kubernetes.api.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.fabric8.KubernetesJson;
 import io.fabric8.common.Visitor;
 import io.fabric8.kubernetes.api.model.resource.Quantity;
 import io.fabric8.openshift.api.model.template.Template;
@@ -26,7 +25,7 @@ public class UnmarshallTest {
     @Test
     public void testUnmarshallWithVisitors() throws Exception {
         ObjectMapper mapper = new ObjectMapper(); // can reuse, share globally
-        KubernetesList list = (KubernetesList) mapper.readValue(getClass().getResourceAsStream("/simple-list.json"), KubernetesJson.class);
+        KubernetesList list = (KubernetesList) mapper.readValue(getClass().getResourceAsStream("/simple-list.json"), HasKind.class);
         final AtomicInteger integer = new AtomicInteger();
         new KubernetesListBuilder(list).accept(new Visitor() {
             public void visit(Object o) {
@@ -39,7 +38,7 @@ public class UnmarshallTest {
         Assert.assertTrue(integer.intValue() >= 3);
 
 
-        Template template = (Template) mapper.readValue(getClass().getResourceAsStream("/simple-template.json"), KubernetesJson.class);
+        Template template = (Template) mapper.readValue(getClass().getResourceAsStream("/simple-template.json"), HasKind.class);
         integer.set(0);
         new TemplateBuilder(template).accept(new Visitor() {
             public void visit(Object o) {
