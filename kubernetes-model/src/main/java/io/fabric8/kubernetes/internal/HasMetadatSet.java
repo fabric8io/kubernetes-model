@@ -1,4 +1,6 @@
-package io.fabric8.kubernetes.api.model;
+package io.fabric8.kubernetes.internal;
+
+import io.fabric8.kubernetes.api.model.HasMetadata;
 
 import java.util.Collection;
 import java.util.SortedSet;

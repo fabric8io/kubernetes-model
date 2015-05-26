@@ -63,13 +63,14 @@
       <plugin>
         <groupId>org.jsonschema2pojo</groupId>
         <artifactId>jsonschema2pojo-maven-plugin</artifactId>
-        <version>0.4.10</version>
+        <version>${jsonschema2pojo.version}</version>
         <configuration>
           <sourceDirectory>${kube.dir}/schema</sourceDirectory>
           <targetPackage>io.fabric8.kubernetes.api.model</targetPackage>
           <includeConstructors>true</includeConstructors>
           <includeJsr303Annotations>true</includeJsr303Annotations>
           <outputDirectory>${basedir}/target/generated-sources</outputDirectory>
+          <customAnnotator>io.fabric8.kubernetes.annotator.KubernetesTypeAnnotator</customAnnotator>
         </configuration>
         <executions>
           <execution>
@@ -78,6 +79,13 @@
             </goals>
           </execution>
         </executions>
+        <dependencies>
+          <dependency>
+            <groupId>io.fabric8.schemagenerator</groupId>
+            <artifactId>kubernetes-annotator</artifactId>
+            <version>${project.version}</version>
+          </dependency>
+        </dependencies>
       </plugin>
       <plugin>
         <artifactId>maven-antrun-plugin</artifactId>

@@ -1,4 +1,7 @@
-package io.fabric8.kubernetes.api.model;
+package io.fabric8.kubernetes.internal;
+
+import io.fabric8.kubernetes.api.model.HasMetadata;
+import io.fabric8.kubernetes.api.model.Service;
 
 import java.util.Comparator;
 

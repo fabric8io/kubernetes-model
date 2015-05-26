@@ -2,6 +2,8 @@ package io.fabric8.kubernetes.api.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 import javax.annotation.Generated;
 import java.util.List;
@@ -27,8 +29,8 @@ import java.util.List;
         "selfLink",
         "uid"
 })
-
-public class KubernetesList extends BaseKubernetesList implements HasKind {
+@JsonDeserialize(using = JsonDeserializer.None.class)
+public class KubernetesList extends BaseKubernetesList implements KubernetesResource {
 
     /**
      * No args constructor for use in serialization
