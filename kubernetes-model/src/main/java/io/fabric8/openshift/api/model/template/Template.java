@@ -2,6 +2,8 @@
 package io.fabric8.openshift.api.model.template;
 
 import com.fasterxml.jackson.annotation.*;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.fabric8.kubernetes.api.model.*;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
@@ -27,7 +29,8 @@ import java.util.*;
     "objects",
     "parameters"
 })
-public class Template implements  HasMetadata {
+@JsonDeserialize(using = JsonDeserializer.None.class)
+public class Template implements HasMetadata {
 
     /**
      *
