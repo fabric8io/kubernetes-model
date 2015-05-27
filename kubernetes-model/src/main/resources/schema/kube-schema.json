@@ -1426,10 +1426,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.PodTemplateSpec",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.HasMetadata"
-      ]
+      "javaType": "io.fabric8.kubernetes.api.model.PodTemplateSpec"
     },
     "kubernetes_Probe": {
       "type": "object",
