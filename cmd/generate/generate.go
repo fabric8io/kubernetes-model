@@ -12,14 +12,15 @@ import (
 	kerrors "github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
 	resourceapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource"
 	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta3"
+	configapi "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api/v1"
 	kutil "github.com/GoogleCloudPlatform/kubernetes/pkg/util"
+	watch "github.com/GoogleCloudPlatform/kubernetes/pkg/watch/json"
 	buildapi "github.com/openshift/origin/pkg/build/api/v1beta3"
 	deployapi "github.com/openshift/origin/pkg/deploy/api/v1beta3"
 	imageapi "github.com/openshift/origin/pkg/image/api/v1beta3"
 	oauthapi "github.com/openshift/origin/pkg/oauth/api/v1beta3"
 	routeapi "github.com/openshift/origin/pkg/route/api/v1beta3"
 	templateapi "github.com/openshift/origin/pkg/template/api/v1beta3"
-	configapi "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api/v1"
 
 	"github.com/fabric8io/origin-schema-generator/pkg/schemagen"
 )
@@ -60,16 +61,16 @@ type Schema struct {
 	OAuthClientList              oauthapi.OAuthClientList
 	OAuthClientAuthorizationList oauthapi.OAuthClientAuthorizationList
 	Config                       configapi.Config
+	WatchEvent                   watch.WatchEvent
 }
 
 func main() {
 	packages := []schemagen.PackageDescriptor{
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta3", "io.fabric8.kubernetes.api.model", "kubernetes_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta3", "io.fabric8.kubernetes.api.model", "kubernetes_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1beta3", "io.fabric8.kubernetes.api.model", "kubernetes_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource", "io.fabric8.kubernetes.api.model.resource", "kubernetes_resource_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime", "io.fabric8.kubernetes.api.model.runtime", "kubernetes_runtime_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/util", "io.fabric8.kubernetes.api.model.util", "kubernetes_util_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/watch/json", "io.fabric8.kubernetes.api.watch", "kubernetes_watch_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors", "io.fabric8.kubernetes.api.model.errors", "kubernetes_errors_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model.base", "kubernetes_base_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api/v1", "io.fabric8.kubernetes.api.model.config", "kubernetes_config_"},

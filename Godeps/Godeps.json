@@ -56,6 +56,11 @@
 			"Rev": "6b6b47a777b4802c9c1360ea0d583da6cfec7363"
 		},
 		{
+			"ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/watch",
+			"Comment": "v0.17.0-441-g6b6b47a",
+			"Rev": "6b6b47a777b4802c9c1360ea0d583da6cfec7363"
+		},
+		{
 			"ImportPath": "github.com/GoogleCloudPlatform/kubernetes/third_party/forked/reflect",
 			"Comment": "v0.17.0-441-g6b6b47a",
 			"Rev": "6b6b47a777b4802c9c1360ea0d583da6cfec7363"

@@ -695,7 +695,10 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.BaseKubernetesList"
+      "javaType": "io.fabric8.kubernetes.api.model.BaseKubernetesList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
     },
     "kubernetes_ListMeta": {
       "type": "object",
@@ -810,7 +813,10 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.NamespaceList"
+      "javaType": "io.fabric8.kubernetes.api.model.NamespaceList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
     },
     "kubernetes_NamespaceSpec": {
       "type": "object",
@@ -965,7 +971,10 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.NodeList"
+      "javaType": "io.fabric8.kubernetes.api.model.NodeList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
     },
     "kubernetes_NodeSpec": {
       "type": "object",
@@ -1417,9 +1426,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.PodTemplateSpec",
-      "javaInterfaces": [
-      ]
+      "javaType": "io.fabric8.kubernetes.api.model.PodTemplateSpec"
     },
     "kubernetes_Probe": {
       "type": "object",
@@ -2525,6 +2532,22 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.util.IntOrString"
     },
+    "kubernetes_watch_WatchEvent": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "object": {
+          "$ref": "#/definitions/kubernetes_runtime_RawExtension",
+          "javaType": "io.fabric8.kubernetes.api.model.HasMetadata"
+        },
+        "type": {
+          "type": "string",
+          "description": "the type of watch event; may be ADDED"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.watch.WatchEvent"
+    },
     "os_build_Build": {
       "type": "object",
       "description": "",
@@ -3469,7 +3492,6 @@
           "description": ""
         },
         "kind": {
-          "type": "string",
           "type": "string",
           "description": "",
           "default": "Image",
@@ -4534,6 +4556,10 @@
     "TemplateList": {
       "$ref": "#/definitions/os_template_TemplateList",
       "javaType": "io.fabric8.openshift.api.model.template.TemplateList"
+    },
+    "WatchEvent": {
+      "$ref": "#/definitions/kubernetes_watch_WatchEvent",
+      "javaType": "io.fabric8.kubernetes.api.watch.WatchEvent"
     }
   },
   "additionalProperties": true
