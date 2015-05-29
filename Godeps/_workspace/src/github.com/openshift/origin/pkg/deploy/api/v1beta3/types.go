@@ -115,6 +115,13 @@ type RollingDeploymentStrategyParams struct {
 	// TimeoutSeconds is the time to wait for updates before giving up. If the
 	// value is nil, a default will be used.
 	TimeoutSeconds *int64 `json:"timeoutSeconds,omitempty" description:"the time to wait for updates before giving up"`
+	// Pre is a lifecycle hook which is executed before the deployment process
+	// begins. All LifecycleHookFailurePolicy values are supported.
+	Pre *LifecycleHook `json:"pre,omitempty" description:"a hook executed before the strategy starts the deployment"`
+	// Post is a lifecycle hook which is executed after the strategy has
+	// finished all deployment logic. The LifecycleHookFailurePolicyAbort policy
+	// is NOT supported.
+	Post *LifecycleHook `json:"post,omitempty" description:"a hook executed after the strategy finishes the deployment"`
 }
 
 // These constants represent keys used for correlating objects related to deployments.
@@ -154,6 +161,24 @@ const (
 	// The annotation value does not matter and its mere presence indicates cancellation
 	DeploymentCancelledAnnotation = "openshift.io/deployment.cancelled"
 )
+
+// These constants represent the various reasons for cancelling a deployment
+// or for a deployment being placed in a failed state
+const (
+	DeploymentCancelledByUser                 = "The deployment was cancelled by the user"
+	DeploymentCancelledNewerDeploymentExists  = "The deployment was cancelled as a newer deployment was found running"
+	DeploymentFailedUnrelatedDeploymentExists = "The deployment failed as an unrelated pod with the same name as this deployment is already running"
+	DeploymentFailedDeployerPodNoLongerExists = "The deployment failed as the deployer pod no longer exists"
+)
+
+// This constant represents the maximum duration that a deployment is allowed to run
+// This is set as the default value for ActiveDeadlineSeconds for the deployer pod
+// Currently set to 6 hours
+const MaxDeploymentDurationSeconds int64 = 21600
+
+// This constant represents the value for the DeploymentCancelledAnnotation annotation
+// that signifies that the deployment should be cancelled
+const DeploymentCancelledAnnotationValue = "true"
 
 // DeploymentConfig represents a configuration for a single deployment (represented as a
 // ReplicationController). It also contains details about changes which resulted in the current

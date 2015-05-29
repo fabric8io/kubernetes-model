@@ -88,7 +88,7 @@
         },
         "imagePullPolicy": {
           "type": "string",
-          "description": "image pull policy; one of PullAlways"
+          "description": "image pull policy; one of Always"
         },
         "lifecycle": {
           "$ref": "#/definitions/kubernetes_Lifecycle",
@@ -716,6 +716,50 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
     },
+    "kubernetes_LoadBalancerIngress": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "hostname": {
+          "type": "string",
+          "description": "hostname of ingress point"
+        },
+        "ip": {
+          "type": "string",
+          "description": "IP address of ingress point"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.LoadBalancerIngress"
+    },
+    "kubernetes_LoadBalancerStatus": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "ingress": {
+          "type": "array",
+          "description": "load-balancer ingress points",
+          "items": {
+            "$ref": "#/definitions/kubernetes_LoadBalancerIngress",
+            "javaType": "io.fabric8.kubernetes.api.model.LoadBalancerIngress"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.LoadBalancerStatus"
+    },
+    "kubernetes_LocalObjectReference": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "name of the referent"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
+    },
     "kubernetes_NFSVolumeSource": {
       "type": "object",
       "description": "",
@@ -1135,7 +1179,7 @@
         },
         "namespace": {
           "type": "string",
-          "description": "namespace of the object; cannot be updated",
+          "description": "namespace of the object; must be a DNS_LABEL; cannot be updated",
           "maxLength": 253,
           "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
@@ -1334,6 +1378,14 @@
           "type": "boolean",
           "description": "host networking requested for this pod"
         },
+        "imagePullSecrets": {
+          "type": "array",
+          "description": "list of references to secrets in the same namespace available for pulling the container images",
+          "items": {
+            "$ref": "#/definitions/kubernetes_LocalObjectReference",
+            "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
+          }
+        },
         "nodeSelector": {
           "type": "object",
           "description": "selector which must match a node's labels for the pod to be scheduled on that node",
@@ -1457,6 +1509,50 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.Probe"
+    },
+    "kubernetes_RBDVolumeSource": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "fsType": {
+          "type": "string",
+          "description": "file system type to mount"
+        },
+        "image": {
+          "type": "string",
+          "description": "rados image name"
+        },
+        "keyring": {
+          "type": "string",
+          "description": "keyring is the path to key ring for rados user; default is /etc/ceph/keyring; optional"
+        },
+        "monitors": {
+          "type": "array",
+          "description": "a collection of Ceph monitors",
+          "items": {
+            "type": "string",
+            "description": "a collection of Ceph monitors"
+          }
+        },
+        "pool": {
+          "type": "string",
+          "description": "rados pool name; default is rbd; optional"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "rbd volume to be mounted with read-only permissions"
+        },
+        "secretRef": {
+          "$ref": "#/definitions/kubernetes_LocalObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
+        },
+        "user": {
+          "type": "string",
+          "description": "rados user name; default is admin; optional"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.RBDVolumeSource"
     },
     "kubernetes_ReplicationController": {
       "type": "object",
@@ -1851,6 +1947,10 @@
           "maxLength": 63,
           "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
+        "nodePort": {
+          "type": "integer",
+          "description": "the port on each node on which this service is exposed"
+        },
         "port": {
           "type": "integer",
           "description": "the port number that is exposed"
@@ -1889,10 +1989,10 @@
         },
         "publicIPs": {
           "type": "array",
-          "description": "externally visible IPs (e.g. load balancers) that should be proxied to this service",
+          "description": "deprecated. externally visible IPs (e.g. load balancers) that should be proxied to this service",
           "items": {
             "type": "string",
-            "description": "externally visible IPs (e.g. load balancers) that should be proxied to this service"
+            "description": "deprecated. externally visible IPs (e.g. load balancers) that should be proxied to this service"
           }
         },
         "selector": {
@@ -1907,6 +2007,10 @@
         "sessionAffinity": {
           "type": "string",
           "description": "enable client IP based session affinity; must be ClientIP or None; defaults to None"
+        },
+        "type": {
+          "type": "string",
+          "description": "type of this service; must be ClusterIP"
         }
       },
       "additionalProperties": true,
@@ -1915,6 +2019,12 @@
     "kubernetes_ServiceStatus": {
       "type": "object",
       "description": "",
+      "properties": {
+        "loadBalancer": {
+          "$ref": "#/definitions/kubernetes_LoadBalancerStatus",
+          "javaType": "io.fabric8.kubernetes.api.model.LoadBalancerStatus"
+        }
+      },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.ServiceStatus"
     },
@@ -1992,6 +2102,10 @@
           "$ref": "#/definitions/kubernetes_PersistentVolumeClaimVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaimVolumeSource"
         },
+        "rbd": {
+          "$ref": "#/definitions/kubernetes_RBDVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.RBDVolumeSource"
+        },
         "secret": {
           "$ref": "#/definitions/kubernetes_SecretVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.SecretVolumeSource"
@@ -2059,6 +2173,10 @@
         "persistentVolumeClaim": {
           "$ref": "#/definitions/kubernetes_PersistentVolumeClaimVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaimVolumeSource"
+        },
+        "rbd": {
+          "$ref": "#/definitions/kubernetes_RBDVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.RBDVolumeSource"
         },
         "secret": {
           "$ref": "#/definitions/kubernetes_SecretVolumeSource",
@@ -2296,15 +2414,7 @@
       "properties": {
         "apiVersion": {
           "type": "string",
-          "description": "",
-          "default": "v1beta3",
-          "required": true,
-          "enum": [
-            "v1beta1",
-            "v1beta2",
-            "v1beta3",
-            "v1"
-          ]
+          "description": ""
         },
         "clusters": {
           "type": "array",
@@ -2336,9 +2446,7 @@
         },
         "kind": {
           "type": "string",
-          "description": "",
-          "default": "Config",
-          "required": true
+          "description": ""
         },
         "preferences": {
           "$ref": "#/definitions/kubernetes_config_Preferences",
@@ -2764,9 +2872,9 @@
       "type": "object",
       "description": "",
       "properties": {
-        "pushSecretName": {
-          "type": "string",
-          "description": ""
+        "pushSecret": {
+          "$ref": "#/definitions/kubernetes_LocalObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
         },
         "to": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
@@ -2788,9 +2896,9 @@
           "$ref": "#/definitions/os_build_GitBuildSource",
           "javaType": "io.fabric8.openshift.api.model.GitBuildSource"
         },
-        "sourceSecretName": {
-          "type": "string",
-          "description": ""
+        "sourceSecret": {
+          "$ref": "#/definitions/kubernetes_LocalObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
         },
         "type": {
           "type": "string",
@@ -2933,9 +3041,9 @@
           "$ref": "#/definitions/kubernetes_ObjectReference",
           "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
         },
-        "pullSecretName": {
-          "type": "string",
-          "description": ""
+        "pullSecret": {
+          "$ref": "#/definitions/kubernetes_LocalObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
         }
       },
       "additionalProperties": true,
@@ -2953,9 +3061,9 @@
           "type": "boolean",
           "description": ""
         },
-        "pullSecretName": {
-          "type": "string",
-          "description": ""
+        "pullSecret": {
+          "$ref": "#/definitions/kubernetes_LocalObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
         }
       },
       "additionalProperties": true,
@@ -3033,9 +3141,9 @@
           "type": "boolean",
           "description": ""
         },
-        "pullSecretName": {
-          "type": "string",
-          "description": ""
+        "pullSecret": {
+          "$ref": "#/definitions/kubernetes_LocalObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
         },
         "scripts": {
           "type": "string",
@@ -3444,6 +3552,14 @@
           "type": "integer",
           "description": "the time to wait between polling deployment status after update",
           "javaType": "Long"
+        },
+        "post": {
+          "$ref": "#/definitions/os_deploy_LifecycleHook",
+          "javaType": "io.fabric8.openshift.api.model.LifecycleHook"
+        },
+        "pre": {
+          "$ref": "#/definitions/os_deploy_LifecycleHook",
+          "javaType": "io.fabric8.openshift.api.model.LifecycleHook"
         },
         "timeoutSeconds": {
           "type": "integer",

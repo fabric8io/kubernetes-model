@@ -21,12 +21,12 @@ func ValidateRoute(route *routeapi.Route) fielderrors.ValidationErrorList {
 	//host is not required but if it is set ensure it meets DNS requirements
 	if len(route.Host) > 0 {
 		if !util.IsDNS1123Subdomain(route.Host) {
-			result = append(result, fielderrors.NewFieldInvalid("host", route.Host, "Host must conform to DNS 952 subdomain conventions"))
+			result = append(result, fielderrors.NewFieldInvalid("host", route.Host, "host must conform to DNS 952 subdomain conventions"))
 		}
 	}
 
 	if len(route.Path) > 0 && !strings.HasPrefix(route.Path, "/") {
-		result = append(result, fielderrors.NewFieldInvalid("path", route.Path, "Path must begin with /"))
+		result = append(result, fielderrors.NewFieldInvalid("path", route.Path, "path must begin with /"))
 	}
 
 	if len(route.ServiceName) == 0 {
@@ -85,5 +85,26 @@ func validateTLS(route *routeapi.Route) fielderrors.ValidationErrorList {
 		msg := fmt.Sprintf("invalid value for termination, acceptable values are %s, %s, %s, or emtpy (no tls specified)", routeapi.TLSTerminationEdge, routeapi.TLSTerminationPassthrough, routeapi.TLSTerminationReencrypt)
 		result = append(result, fielderrors.NewFieldInvalid("termination", tls.Termination, msg))
 	}
+	result = append(result, validateNoDoubleEscapes(tls)...)
 	return result
+}
+
+// validateNoDoubleEscapes ensures double escaped newlines are not in the certificates.  Double
+// escaped newlines may be a remnant of old code which used to replace them for the user unnecessarily.
+// TODO this is a temporary validation to reject any of our examples with double slashes.  Remove this quickly.
+func validateNoDoubleEscapes(tls *routeapi.TLSConfig) fielderrors.ValidationErrorList {
+	allErrs := fielderrors.ValidationErrorList{}
+	if strings.Contains(tls.CACertificate, "\\n") {
+		allErrs = append(allErrs, fielderrors.NewFieldInvalid("caCertificate", tls.CACertificate, `double escaped new lines (\\n) are invalid`))
+	}
+	if strings.Contains(tls.Certificate, "\\n") {
+		allErrs = append(allErrs, fielderrors.NewFieldInvalid("certificate", tls.Certificate, `double escaped new lines (\\n) are invalid`))
+	}
+	if strings.Contains(tls.Key, "\\n") {
+		allErrs = append(allErrs, fielderrors.NewFieldInvalid("key", tls.Key, `double escaped new lines (\\n) are invalid`))
+	}
+	if strings.Contains(tls.DestinationCACertificate, "\\n") {
+		allErrs = append(allErrs, fielderrors.NewFieldInvalid("destinationCACertificate", tls.DestinationCACertificate, `double escaped new lines (\\n) are invalid`))
+	}
+	return allErrs
 }
