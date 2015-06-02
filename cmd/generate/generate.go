@@ -40,6 +40,8 @@ type Schema struct {
 	NamespaceList                kapi.NamespaceList
 	Secret                       kapi.Secret
 	SecretList                   kapi.SecretList
+	ServiceAccount               kapi.ServiceAccount
+	ServiceAccountList           kapi.ServiceAccountList
 	Quantity                     resourceapi.Quantity
 	StatusError                  kerrors.StatusError
 	BuildList                    buildapi.BuildList

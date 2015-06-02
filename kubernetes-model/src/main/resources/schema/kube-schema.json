@@ -1800,6 +1800,88 @@
         "io.fabric8.kubernetes.api.model.HasMetadata"
       ]
     },
+    "kubernetes_ServiceAccount": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1beta3",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3",
+            "v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ServiceAccount",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "secrets": {
+          "type": "array",
+          "description": "list of secrets that can be used by pods running as this service account",
+          "items": {
+            "$ref": "#/definitions/kubernetes_ObjectReference",
+            "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.ServiceAccount",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_ServiceAccountList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1beta3",
+          "required": true,
+          "enum": [
+            "v1beta1",
+            "v1beta2",
+            "v1beta3",
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "list of ServiceAccounts",
+          "items": {
+            "$ref": "#/definitions/kubernetes_ServiceAccount",
+            "javaType": "io.fabric8.kubernetes.api.model.ServiceAccount"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ServiceAccountList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.ServiceAccountList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "kubernetes_ServiceList": {
       "type": "object",
       "description": "",
@@ -4536,6 +4618,14 @@
     "SecretList": {
       "$ref": "#/definitions/kubernetes_SecretList",
       "javaType": "io.fabric8.kubernetes.api.model.SecretList"
+    },
+    "ServiceAccount": {
+      "$ref": "#/definitions/kubernetes_ServiceAccount",
+      "javaType": "io.fabric8.kubernetes.api.model.ServiceAccount"
+    },
+    "ServiceAccountList": {
+      "$ref": "#/definitions/kubernetes_ServiceAccountList",
+      "javaType": "io.fabric8.kubernetes.api.model.ServiceAccountList"
     },
     "ServiceList": {
       "$ref": "#/definitions/kubernetes_ServiceList",
