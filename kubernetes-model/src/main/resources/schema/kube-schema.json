@@ -382,8 +382,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -423,8 +421,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -669,8 +665,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -790,8 +784,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -831,8 +823,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -900,8 +890,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -989,8 +977,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -1261,8 +1247,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -1318,8 +1302,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -1564,8 +1546,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -1605,8 +1585,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -1737,8 +1715,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -1787,8 +1763,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -1865,8 +1839,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -1906,8 +1878,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -1947,8 +1917,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -1988,8 +1956,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -2294,8 +2260,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -2748,8 +2712,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -2789,8 +2751,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -2830,8 +2790,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -2919,8 +2877,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -3345,8 +3301,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -3386,8 +3340,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -3667,8 +3619,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -3716,8 +3666,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -3757,8 +3705,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -3798,8 +3744,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -3947,8 +3891,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -4017,8 +3959,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -4058,8 +3998,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -4124,8 +4062,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -4165,8 +4101,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -4214,8 +4148,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -4267,8 +4199,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -4308,8 +4238,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -4349,8 +4277,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -4390,8 +4316,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -4517,8 +4441,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]
@@ -4575,8 +4497,6 @@
           "default": "v1beta3",
           "required": true,
           "enum": [
-            "v1beta1",
-            "v1beta2",
             "v1beta3",
             "v1"
           ]

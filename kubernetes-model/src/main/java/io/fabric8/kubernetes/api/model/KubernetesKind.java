@@ -6,6 +6,8 @@ import java.util.Map;
 public enum KubernetesKind {
 
     List(KubernetesList.class),
+    ServiceAccount(ServiceAccount.class),
+    ServiceAccountList(ServiceAccountList.class),
     Service(Service.class),
     ServiceList(ServiceList.class),
     Pod(Pod.class),
