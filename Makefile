@@ -2,7 +2,7 @@ SHELL := /bin/bash
 tag := $(shell cat .openshift-version)
 
 build:
-	godep go build ./cmd/generate/generate.go
+	CGO_ENABLED=0 godep go build -a ./cmd/generate/generate.go
 	./generate > kubernetes-model/src/main/resources/schema/kube-schema.json
 	mvn clean install
 
