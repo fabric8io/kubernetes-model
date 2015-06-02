@@ -320,7 +320,7 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 							Type:     "string",
 							Default:  apiVersion,
 							Required: true,
-							Enum:     []interface{}{"v1beta1", "v1beta2", "v1beta3", "v1"},
+							Enum:     []interface{}{"v1beta3", "v1"},
 						},
 					}
 				default:
