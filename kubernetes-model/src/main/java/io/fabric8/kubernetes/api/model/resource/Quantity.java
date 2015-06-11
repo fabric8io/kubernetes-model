@@ -112,11 +112,11 @@ public class Quantity {
         @Override
         public void serialize(Quantity value, JsonGenerator jgen, SerializerProvider provider) throws IOException, JsonProcessingException {
             if (value != null && value.getAmount() != null) {
+                jgen.writeNumber(value.getAmount());
             } else {
                 jgen.writeNull();
             }
         }
-
     }
 
     public static class Deserializer extends JsonDeserializer<Quantity> {
