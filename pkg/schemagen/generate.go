@@ -241,14 +241,23 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSO
 		}
 	case reflect.Array:
 	case reflect.Slice:
-		return JSONPropertyDescriptor{
-			JSONDescriptor: &JSONDescriptor{
-				Type:        "array",
-				Description: desc,
-			},
-			JSONArrayDescriptor: &JSONArrayDescriptor{
-				Items: g.getPropertyDescriptor(t.Elem(), desc),
-			},
+		if g.javaTypeArrayList(t.Elem()) == "String" {
+			return JSONPropertyDescriptor{
+				JSONDescriptor: &JSONDescriptor{
+					Type:        "string",
+					Description: desc,
+				},
+			}
+		} else {
+			return JSONPropertyDescriptor{
+				JSONDescriptor: &JSONDescriptor{
+					Type:        "array",
+					Description: desc,
+				},
+				JSONArrayDescriptor: &JSONArrayDescriptor{
+					Items: g.getPropertyDescriptor(t.Elem(), desc),
+				},
+			}
 		}
 	case reflect.Map:
 		return JSONPropertyDescriptor{

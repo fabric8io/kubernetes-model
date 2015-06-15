@@ -1723,12 +1723,8 @@
           "type": "object",
           "description": "data contains the secret data.  Each key must be a valid DNS_SUBDOMAIN or leading dot followed by valid DNS_SUBDOMAIN.  Each value must be a base64 encoded string as described in https://tools.ietf.org/html/rfc4648#section-4",
           "additionalProperties": {
-            "type": "array",
-            "description": "data contains the secret data.  Each key must be a valid DNS_SUBDOMAIN or leading dot followed by valid DNS_SUBDOMAIN.  Each value must be a base64 encoded string as described in https://tools.ietf.org/html/rfc4648#section-4",
-            "items": {
-              "type": "integer",
-              "description": "data contains the secret data.  Each key must be a valid DNS_SUBDOMAIN or leading dot followed by valid DNS_SUBDOMAIN.  Each value must be a base64 encoded string as described in https://tools.ietf.org/html/rfc4648#section-4"
-            }
+            "type": "string",
+            "description": "data contains the secret data.  Each key must be a valid DNS_SUBDOMAIN or leading dot followed by valid DNS_SUBDOMAIN.  Each value must be a base64 encoded string as described in https://tools.ietf.org/html/rfc4648#section-4"
           },
           "javaType": "java.util.Map\u003cString,String\u003e"
         },
@@ -2371,24 +2367,16 @@
           "description": ""
         },
         "client-certificate-data": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "type": "integer",
-            "description": ""
-          }
+          "type": "string",
+          "description": ""
         },
         "client-key": {
           "type": "string",
           "description": ""
         },
         "client-key-data": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "type": "integer",
-            "description": ""
-          }
+          "type": "string",
+          "description": ""
         },
         "extensions": {
           "type": "array",
@@ -2427,12 +2415,8 @@
           "description": ""
         },
         "certificate-authority-data": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "type": "integer",
-            "description": ""
-          }
+          "type": "string",
+          "description": ""
         },
         "extensions": {
           "type": "array",
@@ -2655,12 +2639,8 @@
       "description": "",
       "properties": {
         "RawJSON": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "type": "integer",
-            "description": ""
-          }
+          "type": "string",
+          "description": ""
         }
       },
       "additionalProperties": true,
