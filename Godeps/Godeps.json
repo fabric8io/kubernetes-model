@@ -127,33 +127,33 @@
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/build/api",
-			"Comment": "v0.5.3",
-			"Rev": "9503be85ce88d450b777f3873ddebccd34056633"
+			"Comment": "v0.6.1",
+			"Rev": "160d4b693d264cf0d8d041de270f64308c330081"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/deploy/api",
-			"Comment": "v0.5.3",
-			"Rev": "9503be85ce88d450b777f3873ddebccd34056633"
+			"Comment": "v0.6.1",
+			"Rev": "160d4b693d264cf0d8d041de270f64308c330081"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/image/api",
-			"Comment": "v0.5.3",
-			"Rev": "9503be85ce88d450b777f3873ddebccd34056633"
+			"Comment": "v0.6.1",
+			"Rev": "160d4b693d264cf0d8d041de270f64308c330081"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/oauth/api/v1beta3",
-			"Comment": "v0.5.3",
-			"Rev": "9503be85ce88d450b777f3873ddebccd34056633"
+			"Comment": "v0.6.1",
+			"Rev": "160d4b693d264cf0d8d041de270f64308c330081"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/route/api",
-			"Comment": "v0.5.3",
-			"Rev": "9503be85ce88d450b777f3873ddebccd34056633"
+			"Comment": "v0.6.1",
+			"Rev": "160d4b693d264cf0d8d041de270f64308c330081"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/template/api",
-			"Comment": "v0.5.3",
-			"Rev": "9503be85ce88d450b777f3873ddebccd34056633"
+			"Comment": "v0.6.1",
+			"Rev": "160d4b693d264cf0d8d041de270f64308c330081"
 		},
 		{
 			"ImportPath": "github.com/spf13/pflag",

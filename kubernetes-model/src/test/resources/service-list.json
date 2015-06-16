@@ -1,8 +1,8 @@
 {
   "kind": "ServiceList",
-  "apiVersion": "v1beta3",
+  "apiVersion": "v1",
   "metadata": {
-    "selfLink": "/api/v1beta3/services",
+    "selfLink": "/api/v1/services",
     "resourceVersion": "443"
   },
   "items": [
@@ -10,7 +10,7 @@
       "metadata": {
         "name": "app-library",
         "namespace": "default",
-        "selfLink": "/api/v1beta3/namespaces/default/services/app-library",
+        "selfLink": "/api/v1/namespaces/default/services/app-library",
         "uid": "d2907fce-02e4-11e5-8091-08002719a237",
         "resourceVersion": "79",
         "creationTimestamp": "2015-05-25T13:49:11Z",
@@ -41,7 +41,7 @@
       "metadata": {
         "name": "app-library-jolokia",
         "namespace": "default",
-        "selfLink": "/api/v1beta3/namespaces/default/services/app-library-jolokia",
+        "selfLink": "/api/v1/namespaces/default/services/app-library-jolokia",
         "uid": "d2a01536-02e4-11e5-8091-08002719a237",
         "resourceVersion": "81",
         "creationTimestamp": "2015-05-25T13:49:11Z"
@@ -68,7 +68,7 @@
       "metadata": {
         "name": "docker-registry",
         "namespace": "default",
-        "selfLink": "/api/v1beta3/namespaces/default/services/docker-registry",
+        "selfLink": "/api/v1/namespaces/default/services/docker-registry",
         "uid": "d1058b17-02e4-11e5-8091-08002719a237",
         "resourceVersion": "58",
         "creationTimestamp": "2015-05-25T13:49:08Z",
@@ -97,7 +97,7 @@
       "metadata": {
         "name": "fabric8-console-service",
         "namespace": "default",
-        "selfLink": "/api/v1beta3/namespaces/default/services/fabric8-console-service",
+        "selfLink": "/api/v1/namespaces/default/services/fabric8-console-service",
         "uid": "d3ec3762-02e4-11e5-8091-08002719a237",
         "resourceVersion": "93",
         "creationTimestamp": "2015-05-25T13:49:13Z"
@@ -123,7 +123,7 @@
       "metadata": {
         "name": "fabric8-forge",
         "namespace": "default",
-        "selfLink": "/api/v1beta3/namespaces/default/services/fabric8-forge",
+        "selfLink": "/api/v1/namespaces/default/services/fabric8-forge",
         "uid": "d3615083-02e4-11e5-8091-08002719a237",
         "resourceVersion": "88",
         "creationTimestamp": "2015-05-25T13:49:12Z",
@@ -154,7 +154,7 @@
       "metadata": {
         "name": "kubernetes",
         "namespace": "default",
-        "selfLink": "/api/v1beta3/namespaces/default/services/kubernetes",
+        "selfLink": "/api/v1/namespaces/default/services/kubernetes",
         "uid": "bc84b6f4-02e4-11e5-8091-08002719a237",
         "resourceVersion": "5",
         "creationTimestamp": "2015-05-25T13:48:34Z",
@@ -182,7 +182,7 @@
       "metadata": {
         "name": "kubernetes-ro",
         "namespace": "default",
-        "selfLink": "/api/v1beta3/namespaces/default/services/kubernetes-ro",
+        "selfLink": "/api/v1/namespaces/default/services/kubernetes-ro",
         "uid": "bc85c655-02e4-11e5-8091-08002719a237",
         "resourceVersion": "4",
         "creationTimestamp": "2015-05-25T13:48:34Z",
@@ -210,7 +210,7 @@
       "metadata": {
         "name": "router",
         "namespace": "default",
-        "selfLink": "/api/v1beta3/namespaces/default/services/router",
+        "selfLink": "/api/v1/namespaces/default/services/router",
         "uid": "d0391be9-02e4-11e5-8091-08002719a237",
         "resourceVersion": "52",
         "creationTimestamp": "2015-05-25T13:49:07Z",
