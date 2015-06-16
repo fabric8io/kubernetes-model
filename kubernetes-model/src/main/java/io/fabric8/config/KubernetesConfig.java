@@ -63,6 +63,7 @@ import io.sundr.builder.annotations.ExternalBuildables;
         "io.fabric8.kubernetes.api.model.Secret",
         "io.fabric8.kubernetes.api.model.SecretList",
         "io.fabric8.kubernetes.api.model.SecretVolumeSource",
+        "io.fabric8.kubernetes.api.model.SecurityContext",
         "io.fabric8.kubernetes.api.model.Service",
         "io.fabric8.kubernetes.api.model.ServiceAccount",
         "io.fabric8.kubernetes.api.model.ServiceAccountList",
