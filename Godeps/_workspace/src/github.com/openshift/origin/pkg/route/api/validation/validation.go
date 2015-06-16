@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/validation"
 	kval "github.com/GoogleCloudPlatform/kubernetes/pkg/api/validation"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/util/fielderrors"
 
+	oapi "github.com/openshift/origin/pkg/api"
 	routeapi "github.com/openshift/origin/pkg/route/api"
 )
 
@@ -16,7 +18,7 @@ func ValidateRoute(route *routeapi.Route) fielderrors.ValidationErrorList {
 	result := fielderrors.ValidationErrorList{}
 
 	//ensure meta is set properly
-	result = append(result, kval.ValidateObjectMeta(&route.ObjectMeta, true, kval.ValidatePodName)...)
+	result = append(result, kval.ValidateObjectMeta(&route.ObjectMeta, true, oapi.GetNameValidationFunc(kval.ValidatePodName)).Prefix("metadata")...)
 
 	//host is not required but if it is set ensure it meets DNS requirements
 	if len(route.Host) > 0 {
@@ -38,6 +40,14 @@ func ValidateRoute(route *routeapi.Route) fielderrors.ValidationErrorList {
 	}
 
 	return result
+}
+
+func ValidateRouteUpdate(route *routeapi.Route, older *routeapi.Route) fielderrors.ValidationErrorList {
+	allErrs := fielderrors.ValidationErrorList{}
+	allErrs = append(allErrs, validation.ValidateObjectMetaUpdate(&route.ObjectMeta, &older.ObjectMeta).Prefix("metadata")...)
+
+	allErrs = append(allErrs, ValidateRoute(route)...)
+	return allErrs
 }
 
 // ValidateTLS tests fields for different types of TLS combinations are set.  Called

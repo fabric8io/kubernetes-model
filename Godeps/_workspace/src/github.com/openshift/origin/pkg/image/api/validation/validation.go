@@ -2,29 +2,20 @@ package validation
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/validation"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/util/fielderrors"
 	"github.com/docker/distribution/registry/api/v2"
 
+	oapi "github.com/openshift/origin/pkg/api"
 	"github.com/openshift/origin/pkg/image/api"
 )
 
-func MinimalNameValidation(name string, prefix bool) (bool, string) {
-	for _, illegal := range []string{"%", "/"} {
-		if strings.Contains(name, illegal) {
-			return false, fmt.Sprintf(`may not contain "%s"`, illegal)
-		}
-	}
-	return true, ""
-}
-
 func ValidateImageStreamName(name string, prefix bool) (bool, string) {
-	// Sanity check to make sure we never allow invalid characters, no matter what RepositoryNameComponentRegexp allows
-	if ok, msg := MinimalNameValidation(name, false); !ok {
-		return false, msg
+	if ok, reason := oapi.MinimalNameRequirements(name, prefix); !ok {
+		return ok, reason
 	}
+
 	if len(name) < v2.RepositoryNameComponentMinLength {
 		return false, fmt.Sprintf("must be at least %d characters long", v2.RepositoryNameComponentMinLength)
 	}
@@ -38,7 +29,7 @@ func ValidateImageStreamName(name string, prefix bool) (bool, string) {
 func ValidateImage(image *api.Image) fielderrors.ValidationErrorList {
 	result := fielderrors.ValidationErrorList{}
 
-	result = append(result, validation.ValidateObjectMeta(&image.ObjectMeta, false, MinimalNameValidation).Prefix("metadata")...)
+	result = append(result, validation.ValidateObjectMeta(&image.ObjectMeta, false, oapi.MinimalNameRequirements).Prefix("metadata")...)
 
 	if len(image.DockerImageReference) == 0 {
 		result = append(result, fielderrors.NewFieldRequired("dockerImageReference"))
@@ -54,7 +45,6 @@ func ValidateImage(image *api.Image) fielderrors.ValidationErrorList {
 // ValidateImageStream tests required fields for an ImageStream.
 func ValidateImageStream(stream *api.ImageStream) fielderrors.ValidationErrorList {
 	result := fielderrors.ValidationErrorList{}
-
 	result = append(result, validation.ValidateObjectMeta(&stream.ObjectMeta, true, ValidateImageStreamName).Prefix("metadata")...)
 
 	// Ensure we can generate a valid docker image repository from namespace/name
@@ -75,8 +65,12 @@ func ValidateImageStream(stream *api.ImageStream) fielderrors.ValidationErrorLis
 		}
 	}
 	for tag, tagRef := range stream.Spec.Tags {
-		if len(tagRef.DockerImageReference) > 0 && tagRef.From != nil {
-			result = append(result, fielderrors.NewFieldInvalid(fmt.Sprintf("spec.tags[%s]", tag), "", "only 1 of dockerImageReference or from may be set"))
+		if tagRef.From != nil {
+			switch tagRef.From.Kind {
+			case "DockerImage", "ImageStreamImage", "ImageStreamTag":
+			default:
+				result = append(result, fielderrors.NewFieldInvalid(fmt.Sprintf("spec.tags[%s].from.kind", tag), tagRef.From.Kind, "valid values are 'DockerImage', 'ImageStreamImage', 'ImageStreamTag'"))
+			}
 		}
 	}
 	for tag, history := range stream.Status.Tags {
@@ -93,7 +87,7 @@ func ValidateImageStream(stream *api.ImageStream) fielderrors.ValidationErrorLis
 func ValidateImageStreamUpdate(newStream, oldStream *api.ImageStream) fielderrors.ValidationErrorList {
 	result := fielderrors.ValidationErrorList{}
 
-	result = append(result, validation.ValidateObjectMetaUpdate(&oldStream.ObjectMeta, &newStream.ObjectMeta).Prefix("metadata")...)
+	result = append(result, validation.ValidateObjectMetaUpdate(&newStream.ObjectMeta, &oldStream.ObjectMeta).Prefix("metadata")...)
 	result = append(result, ValidateImageStream(newStream)...)
 
 	return result
@@ -102,7 +96,7 @@ func ValidateImageStreamUpdate(newStream, oldStream *api.ImageStream) fielderror
 // ValidateImageStreamStatusUpdate tests required fields for an ImageStream status update.
 func ValidateImageStreamStatusUpdate(newStream, oldStream *api.ImageStream) fielderrors.ValidationErrorList {
 	result := fielderrors.ValidationErrorList{}
-	result = append(result, validation.ValidateObjectMetaUpdate(&oldStream.ObjectMeta, &newStream.ObjectMeta).Prefix("metadata")...)
+	result = append(result, validation.ValidateObjectMetaUpdate(&newStream.ObjectMeta, &oldStream.ObjectMeta).Prefix("metadata")...)
 	newStream.Spec.Tags = oldStream.Spec.Tags
 	newStream.Spec.DockerImageRepository = oldStream.Spec.DockerImageRepository
 	return result
@@ -111,6 +105,7 @@ func ValidateImageStreamStatusUpdate(newStream, oldStream *api.ImageStream) fiel
 // ValidateImageStreamMapping tests required fields for an ImageStreamMapping.
 func ValidateImageStreamMapping(mapping *api.ImageStreamMapping) fielderrors.ValidationErrorList {
 	result := fielderrors.ValidationErrorList{}
+	result = append(result, validation.ValidateObjectMeta(&mapping.ObjectMeta, true, oapi.MinimalNameRequirements).Prefix("metadata")...)
 
 	hasRepository := len(mapping.DockerImageRepository) != 0
 	hasName := len(mapping.Name) != 0

@@ -323,13 +323,13 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 						},
 					}
 				case "apiVersion":
-					apiVersion := "v1beta3"
+					apiVersion := "v1"
 					v = JSONPropertyDescriptor{
 						JSONDescriptor: &JSONDescriptor{
 							Type:     "string",
 							Default:  apiVersion,
 							Required: true,
-							Enum:     []interface{}{"v1beta3", "v1"},
+							Enum:     []interface{}{"v1"},
 						},
 					}
 				default:
