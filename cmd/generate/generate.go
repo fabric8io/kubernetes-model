@@ -44,6 +44,7 @@ type Schema struct {
 	ServiceAccountList           kapi.ServiceAccountList
 	Quantity                     resourceapi.Quantity
 	StatusError                  kerrors.StatusError
+	BuildRequest                 buildapi.BuildRequest
 	BuildList                    buildapi.BuildList
 	BuildConfigList              buildapi.BuildConfigList
 	ImageList                    imageapi.ImageList

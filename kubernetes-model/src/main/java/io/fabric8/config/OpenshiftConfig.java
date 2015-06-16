@@ -8,6 +8,7 @@ import io.sundr.builder.annotations.ExternalBuildables;
         "io.fabric8.openshift.api.model.BuildConfigList",
         "io.fabric8.openshift.api.model.BuildConfigSpec",
         "io.fabric8.openshift.api.model.BuildConfigStatus",
+        "io.fabric8.openshift.api.model.BuildRequest",
         "io.fabric8.openshift.api.model.BuildList",
         "io.fabric8.openshift.api.model.BuildOutput",
         "io.fabric8.openshift.api.model.BuildSource",
