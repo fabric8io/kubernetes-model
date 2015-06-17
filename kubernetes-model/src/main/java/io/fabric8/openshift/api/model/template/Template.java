@@ -39,7 +39,7 @@ public class Template implements HasMetadata {
      */
     @JsonProperty("apiVersion")
     @NotNull
-    private Template.ApiVersion apiVersion = Template.ApiVersion.fromValue("v1beta3");
+    private Template.ApiVersion apiVersion = Template.ApiVersion.fromValue("v1");
     /**
      *
      * (Required)
@@ -271,7 +271,6 @@ public class Template implements HasMetadata {
     @Generated("org.jsonschema2pojo")
     public static enum ApiVersion {
 
-        V_1_BETA_3("v1beta3"),
         V_1("v1");
         private final java.lang.String value;
         private static Map<java.lang.String, Template.ApiVersion> constants = new HashMap<java.lang.String, Template.ApiVersion>();
