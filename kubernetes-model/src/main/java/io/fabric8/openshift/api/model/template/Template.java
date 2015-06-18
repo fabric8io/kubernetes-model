@@ -4,7 +4,9 @@ package io.fabric8.openshift.api.model.template;
 import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import io.fabric8.kubernetes.api.model.*;
+import io.fabric8.kubernetes.api.model.HasMetadata;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.internal.HasMetadataComparator;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.apache.commons.lang.builder.ToStringBuilder;
@@ -101,7 +103,6 @@ public class Template implements HasMetadata {
         this.kind = kind;
         this.labels = labels;
         this.metadata = metadata;
-        this.objects = objects;
         this.parameters = parameters;
 
         this.setObjects(objects);
@@ -211,7 +212,9 @@ public class Template implements HasMetadata {
     }
 
     public void setObjects(List<HasMetadata> objects) {
-        this.objects = objects;
+        List<HasMetadata> sortedObjects = new ArrayList<>(objects);
+        Collections.sort(sortedObjects, new HasMetadataComparator());
+        this.objects = sortedObjects;
     }
 
     /**
