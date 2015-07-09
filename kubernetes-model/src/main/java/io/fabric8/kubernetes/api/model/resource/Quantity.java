@@ -21,8 +21,8 @@ import java.util.Map;
 
 
 /**
- * 
- * 
+ *
+ *
  */
 @JsonDeserialize(using = Quantity.Deserializer.class)
 @JsonSerialize(using = Quantity.Serializer.class)
@@ -35,13 +35,13 @@ public class Quantity {
 
     /**
      * No args constructor for use in serialization
-     * 
+     *
      */
     public Quantity() {
     }
 
     /**
-     * 
+     *
      * @param Format
      * @param Amount
      */
@@ -112,7 +112,7 @@ public class Quantity {
         @Override
         public void serialize(Quantity value, JsonGenerator jgen, SerializerProvider provider) throws IOException, JsonProcessingException {
             if (value != null && value.getAmount() != null) {
-                jgen.writeNumber(value.getAmount());
+                jgen.writeString(value.getAmount());
             } else {
                 jgen.writeNull();
             }
