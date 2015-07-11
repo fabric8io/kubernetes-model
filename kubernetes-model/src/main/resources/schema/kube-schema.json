@@ -437,7 +437,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.EndpointsList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "kubernetes_EnvVar": {
@@ -680,7 +681,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.BaseKubernetesList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "kubernetes_ListMeta": {
@@ -836,7 +838,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.NamespaceList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "kubernetes_NamespaceSpec": {
@@ -988,7 +991,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.NodeList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "kubernetes_NodeSpec": {
@@ -1311,7 +1315,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.PodList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "kubernetes_PodSpec": {
@@ -1592,7 +1597,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.ReplicationControllerList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "kubernetes_ReplicationControllerSpec": {
@@ -1764,7 +1770,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.SecretList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "kubernetes_SecretVolumeSource": {
@@ -1915,7 +1922,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.ServiceAccountList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "kubernetes_ServiceList": {
@@ -1953,7 +1961,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.ServiceList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "kubernetes_ServicePort": {
@@ -2763,7 +2772,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.BuildConfigList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "os_build_BuildConfigSpec": {
@@ -2853,7 +2863,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.BuildList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "os_build_BuildOutput": {
@@ -3356,7 +3367,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.DeploymentConfigList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "os_deploy_DeploymentConfigSpec": {
@@ -3680,7 +3692,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.ImageList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "os_image_ImageStream": {
@@ -3756,7 +3769,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.ImageStreamList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "os_image_ImageStreamSpec": {
@@ -3819,7 +3833,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.NamedTagEventList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "os_image_NamedTagReference": {
@@ -3969,7 +3984,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.OAuthAccessTokenList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "os_oauth_OAuthAuthorizeToken": {
@@ -4070,7 +4086,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.OAuthAuthorizeTokenList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "os_oauth_OAuthClient": {
@@ -4204,7 +4221,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.OAuthClientAuthorizationList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "os_oauth_OAuthClientList": {
@@ -4242,7 +4260,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.OAuthClientList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "os_route_Route": {
@@ -4318,7 +4337,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.RouteList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "os_route_RouteSpec": {
@@ -4497,7 +4517,8 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.template.TemplateList",
       "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
     "speter_inf_Dec": {
