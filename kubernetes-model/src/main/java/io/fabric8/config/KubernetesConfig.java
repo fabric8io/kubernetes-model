@@ -22,6 +22,8 @@ import io.sundr.builder.annotations.ExternalBuildables;
         "io.fabric8.kubernetes.api.model.EndpointsList",
         "io.fabric8.kubernetes.api.model.EnvVar",
         "io.fabric8.kubernetes.api.model.EnvVarSource",
+        "io.fabric8.kubernetes.api.model.Event",
+        "io.fabric8.kubernetes.api.model.EventList",
         "io.fabric8.kubernetes.api.model.ExecAction",
         "io.fabric8.kubernetes.api.model.GCEPersistentDiskVolumeSource",
         "io.fabric8.kubernetes.api.model.GitRepoVolumeSource",

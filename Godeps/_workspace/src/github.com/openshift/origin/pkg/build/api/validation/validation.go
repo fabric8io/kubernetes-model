@@ -18,7 +18,7 @@ func ValidateBuild(build *buildapi.Build) fielderrors.ValidationErrorList {
 	allErrs := fielderrors.ValidationErrorList{}
 	allErrs = append(allErrs, validation.ValidateObjectMeta(&build.ObjectMeta, true, validation.NameIsDNSSubdomain).Prefix("metadata")...)
 
-	allErrs = append(allErrs, validateBuildParameters(&build.Parameters).Prefix("parameters")...)
+	allErrs = append(allErrs, validateBuildParameters(&build.Parameters).Prefix("spec")...)
 	return allErrs
 }
 
@@ -27,6 +27,11 @@ func ValidateBuildUpdate(build *buildapi.Build, older *buildapi.Build) fielderro
 	allErrs = append(allErrs, validation.ValidateObjectMetaUpdate(&build.ObjectMeta, &older.ObjectMeta).Prefix("metadata")...)
 
 	allErrs = append(allErrs, ValidateBuild(build)...)
+
+	if !kapi.Semantic.DeepEqual(build.Parameters, older.Parameters) {
+		allErrs = append(allErrs, fielderrors.NewFieldInvalid("spec", build.Parameters, "spec is immutable"))
+	}
+
 	return allErrs
 }
 
@@ -46,8 +51,8 @@ func ValidateBuildConfig(config *buildapi.BuildConfig) fielderrors.ValidationErr
 			}
 		}
 	}
-	allErrs = append(allErrs, validateBuildParameters(&config.Parameters).Prefix("parameters")...)
-	allErrs = append(allErrs, validateBuildConfigOutput(&config.Parameters.Output).Prefix("parameters.output")...)
+	allErrs = append(allErrs, validateBuildParameters(&config.Parameters).Prefix("spec")...)
+	allErrs = append(allErrs, validateBuildConfigOutput(&config.Parameters.Output).Prefix("spec.output")...)
 	return allErrs
 }
 
@@ -189,12 +194,15 @@ func validateStrategy(strategy *buildapi.BuildStrategy) fielderrors.ValidationEr
 		} else {
 			allErrs = append(allErrs, validateSourceStrategy(strategy.SourceStrategy).Prefix("stiStrategy")...)
 		}
+
 	case strategy.Type == buildapi.DockerBuildStrategyType:
 		// DockerStrategy is currently optional, initialize it to a default state if it's not set.
 		if strategy.DockerStrategy == nil {
-			strategy.DockerStrategy = &buildapi.DockerBuildStrategy{}
+			allErrs = append(allErrs, fielderrors.NewFieldRequired("dockerStrategy"))
+		} else {
+			allErrs = append(allErrs, validateDockerStrategy(strategy.DockerStrategy).Prefix("dockerStrategy")...)
 		}
-		allErrs = append(allErrs, validateSecretRef(strategy.DockerStrategy.PullSecret).Prefix("pullSecret")...)
+
 	case strategy.Type == buildapi.CustomBuildStrategyType:
 		if strategy.CustomStrategy == nil {
 			allErrs = append(allErrs, fielderrors.NewFieldRequired("customStrategy"))
@@ -208,10 +216,29 @@ func validateStrategy(strategy *buildapi.BuildStrategy) fielderrors.ValidationEr
 	return allErrs
 }
 
+func validateDockerStrategy(strategy *buildapi.DockerBuildStrategy) fielderrors.ValidationErrorList {
+	allErrs := fielderrors.ValidationErrorList{}
+
+	if strategy.From != nil && strategy.From.Kind == "ImageStreamTag" {
+		if _, _, ok := imageapi.SplitImageStreamTag(strategy.From.Name); !ok {
+			allErrs = append(allErrs, fielderrors.NewFieldInvalid("from.name", strategy.From.Name, "ImageStreamTag object references must be in the form <name>:<tag>"))
+		}
+	}
+
+	allErrs = append(allErrs, validateSecretRef(strategy.PullSecret).Prefix("pullSecret")...)
+	return allErrs
+}
+
 func validateSourceStrategy(strategy *buildapi.SourceBuildStrategy) fielderrors.ValidationErrorList {
 	allErrs := fielderrors.ValidationErrorList{}
-	if strategy.From == nil || len(strategy.From.Name) == 0 {
+	if len(strategy.From.Name) == 0 {
 		allErrs = append(allErrs, fielderrors.NewFieldRequired("from"))
+
+	}
+	if strategy.From.Kind == "ImageStreamTag" {
+		if _, _, ok := imageapi.SplitImageStreamTag(strategy.From.Name); !ok {
+			allErrs = append(allErrs, fielderrors.NewFieldInvalid("from.name", strategy.From.Name, "ImageStreamTag object references must be in the form <name>:<tag>"))
+		}
 	}
 	allErrs = append(allErrs, validateSecretRef(strategy.PullSecret).Prefix("pullSecret")...)
 	return allErrs
@@ -219,8 +246,13 @@ func validateSourceStrategy(strategy *buildapi.SourceBuildStrategy) fielderrors.
 
 func validateCustomStrategy(strategy *buildapi.CustomBuildStrategy) fielderrors.ValidationErrorList {
 	allErrs := fielderrors.ValidationErrorList{}
-	if strategy.From == nil || len(strategy.From.Name) == 0 {
+	if len(strategy.From.Name) == 0 {
 		allErrs = append(allErrs, fielderrors.NewFieldRequired("from"))
+	}
+	if strategy.From.Kind == "ImageStreamTag" {
+		if _, _, ok := imageapi.SplitImageStreamTag(strategy.From.Name); !ok {
+			allErrs = append(allErrs, fielderrors.NewFieldInvalid("from.name", strategy.From.Name, "ImageStreamTag object references must be in the form <name>:<tag>"))
+		}
 	}
 	allErrs = append(allErrs, validateSecretRef(strategy.PullSecret).Prefix("pullSecret")...)
 	return allErrs

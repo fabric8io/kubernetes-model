@@ -2,7 +2,7 @@
 	"ImportPath": "github.com/fabric8io/origin-schema-generator",
 	"GoVersion": "go1.4.2",
 	"Packages": [
-		"cmd/generate/generate.go"
+		"./..."
 	],
 	"Deps": [
 		{
@@ -127,33 +127,33 @@
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/build/api",
-			"Comment": "v0.6.1",
-			"Rev": "160d4b693d264cf0d8d041de270f64308c330081"
+			"Comment": "v1.0.1",
+			"Rev": "1b601951daa44964c9bc7e4a2264d65489e3a58c"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/deploy/api",
-			"Comment": "v0.6.1",
-			"Rev": "160d4b693d264cf0d8d041de270f64308c330081"
+			"Comment": "v1.0.1",
+			"Rev": "1b601951daa44964c9bc7e4a2264d65489e3a58c"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/image/api",
-			"Comment": "v0.6.1",
-			"Rev": "160d4b693d264cf0d8d041de270f64308c330081"
+			"Comment": "v1.0.1",
+			"Rev": "1b601951daa44964c9bc7e4a2264d65489e3a58c"
 		},
 		{
-			"ImportPath": "github.com/openshift/origin/pkg/oauth/api/v1beta3",
-			"Comment": "v0.6.1",
-			"Rev": "160d4b693d264cf0d8d041de270f64308c330081"
+			"ImportPath": "github.com/openshift/origin/pkg/oauth/api/v1",
+			"Comment": "v1.0.1",
+			"Rev": "1b601951daa44964c9bc7e4a2264d65489e3a58c"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/route/api",
-			"Comment": "v0.6.1",
-			"Rev": "160d4b693d264cf0d8d041de270f64308c330081"
+			"Comment": "v1.0.1",
+			"Rev": "1b601951daa44964c9bc7e4a2264d65489e3a58c"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/template/api",
-			"Comment": "v0.6.1",
-			"Rev": "160d4b693d264cf0d8d041de270f64308c330081"
+			"Comment": "v1.0.1",
+			"Rev": "1b601951daa44964c9bc7e4a2264d65489e3a58c"
 		},
 		{
 			"ImportPath": "github.com/spf13/pflag",

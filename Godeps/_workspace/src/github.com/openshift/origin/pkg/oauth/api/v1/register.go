@@ -1,11 +1,11 @@
-package v1beta3
+package v1
 
 import (
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/api"
 )
 
 func init() {
-	api.Scheme.AddKnownTypes("v1beta3",
+	api.Scheme.AddKnownTypes("v1",
 		&OAuthAccessToken{},
 		&OAuthAccessTokenList{},
 		&OAuthAuthorizeToken{},

@@ -3207,6 +3207,14 @@
       "type": "object",
       "description": "",
       "properties": {
+        "env": {
+          "type": "array",
+          "description": "additional environment variables you want to pass into a builder container",
+          "items": {
+            "$ref": "#/definitions/kubernetes_EnvVar",
+            "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
+          }
+        },
         "from": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
           "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
@@ -3227,6 +3235,14 @@
       "type": "object",
       "description": "",
       "properties": {
+        "httpProxy": {
+          "type": "string",
+          "description": "specifies a http proxy to be used during git clone operations"
+        },
+        "httpsProxy": {
+          "type": "string",
+          "description": "specifies a https proxy to be used during git clone operations"
+        },
         "ref": {
           "type": "string",
           "description": "identifies the branch/tag/ref to build"
