@@ -26,6 +26,7 @@ import (
 )
 
 type Schema struct {
+	BaseKubernetesList           kapi.List
 	ObjectMeta                   kapi.ObjectMeta
 	PodList                      kapi.PodList
 	ReplicationControllerList    kapi.ReplicationControllerList
@@ -35,10 +36,15 @@ type Schema struct {
 	EventList                    kapi.EventList
 	Node                         kapi.Node
 	NodeList                     kapi.NodeList
-	BaseKubernetesList           kapi.List
 	EnvVar                       kapi.EnvVar
 	Namespace                    kapi.Namespace
 	NamespaceList                kapi.NamespaceList
+	PersistentVolume             kapi.PersistentVolume
+	PersistentVolumeList         kapi.PersistentVolumeList
+	PersistentVolumeClaim        kapi.PersistentVolumeClaim
+	PersistentVolumeClaimList    kapi.PersistentVolumeClaimList
+	ResourceQuota                kapi.ResourceQuota
+	ResourceQuotaList            kapi.ResourceQuotaList
 	Secret                       kapi.Secret
 	SecretList                   kapi.SecretList
 	ServiceAccount               kapi.ServiceAccount

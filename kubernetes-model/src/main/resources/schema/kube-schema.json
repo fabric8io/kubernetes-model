@@ -1323,6 +1323,174 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
     },
+    "kubernetes_PersistentVolume": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PersistentVolume",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/kubernetes_PersistentVolumeSpec",
+          "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeSpec"
+        },
+        "status": {
+          "$ref": "#/definitions/kubernetes_PersistentVolumeStatus",
+          "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeStatus"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.PersistentVolume",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_PersistentVolumeClaim": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PersistentVolumeClaim",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/kubernetes_PersistentVolumeClaimSpec",
+          "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaimSpec"
+        },
+        "status": {
+          "$ref": "#/definitions/kubernetes_PersistentVolumeClaimStatus",
+          "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaimStatus"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaim",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_PersistentVolumeClaimList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "a list of persistent volume claims",
+          "items": {
+            "$ref": "#/definitions/kubernetes_PersistentVolumeClaim",
+            "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaim"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PersistentVolumeClaimList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaimList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kubernetes_PersistentVolumeClaimSpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "accessModes": {
+          "type": "array",
+          "description": "the desired access modes the volume should have",
+          "items": {
+            "type": "string",
+            "description": "the desired access modes the volume should have"
+          }
+        },
+        "resources": {
+          "$ref": "#/definitions/kubernetes_ResourceRequirements",
+          "javaType": "io.fabric8.kubernetes.api.model.ResourceRequirements"
+        },
+        "volumeName": {
+          "type": "string",
+          "description": "the binding reference to the persistent volume backing this claim"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaimSpec"
+    },
+    "kubernetes_PersistentVolumeClaimStatus": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "accessModes": {
+          "type": "array",
+          "description": "the actual access modes the volume has",
+          "items": {
+            "type": "string",
+            "description": "the actual access modes the volume has"
+          }
+        },
+        "capacity": {
+          "type": "object",
+          "description": "the actual resources the volume has",
+          "additionalProperties": {
+            "$ref": "#/definitions/kubernetes_resource_Quantity",
+            "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+          },
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.resource.Quantity\u003e"
+        },
+        "phase": {
+          "type": "string",
+          "description": "the current phase of the claim"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaimStatus"
+    },
     "kubernetes_PersistentVolumeClaimVolumeSource": {
       "type": "object",
       "description": "",
@@ -1338,6 +1506,142 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaimVolumeSource"
+    },
+    "kubernetes_PersistentVolumeList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "list of persistent volumes",
+          "items": {
+            "$ref": "#/definitions/kubernetes_PersistentVolume",
+            "javaType": "io.fabric8.kubernetes.api.model.PersistentVolume"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PersistentVolumeList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kubernetes_PersistentVolumeSource": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "awsElasticBlockStore": {
+          "$ref": "#/definitions/kubernetes_AWSElasticBlockStoreVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.AWSElasticBlockStoreVolumeSource"
+        },
+        "gcePersistentDisk": {
+          "$ref": "#/definitions/kubernetes_GCEPersistentDiskVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.GCEPersistentDiskVolumeSource"
+        },
+        "glusterfs": {
+          "$ref": "#/definitions/kubernetes_GlusterfsVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.GlusterfsVolumeSource"
+        },
+        "hostPath": {
+          "$ref": "#/definitions/kubernetes_HostPathVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.HostPathVolumeSource"
+        },
+        "nfs": {
+          "$ref": "#/definitions/kubernetes_NFSVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.NFSVolumeSource"
+        },
+        "rbd": {
+          "$ref": "#/definitions/kubernetes_RBDVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.RBDVolumeSource"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeSource"
+    },
+    "kubernetes_PersistentVolumeSpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "accessModes": {
+          "type": "array",
+          "description": "all ways the volume can be mounted",
+          "items": {
+            "type": "string",
+            "description": "all ways the volume can be mounted"
+          }
+        },
+        "awsElasticBlockStore": {
+          "$ref": "#/definitions/kubernetes_AWSElasticBlockStoreVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.AWSElasticBlockStoreVolumeSource"
+        },
+        "capacity": {
+          "type": "object",
+          "description": "a description of the persistent volume's resources and capacity",
+          "additionalProperties": {
+            "$ref": "#/definitions/kubernetes_resource_Quantity",
+            "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+          },
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.resource.Quantity\u003e"
+        },
+        "claimRef": {
+          "$ref": "#/definitions/kubernetes_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+        },
+        "gcePersistentDisk": {
+          "$ref": "#/definitions/kubernetes_GCEPersistentDiskVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.GCEPersistentDiskVolumeSource"
+        },
+        "glusterfs": {
+          "$ref": "#/definitions/kubernetes_GlusterfsVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.GlusterfsVolumeSource"
+        },
+        "hostPath": {
+          "$ref": "#/definitions/kubernetes_HostPathVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.HostPathVolumeSource"
+        },
+        "nfs": {
+          "$ref": "#/definitions/kubernetes_NFSVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.NFSVolumeSource"
+        },
+        "rbd": {
+          "$ref": "#/definitions/kubernetes_RBDVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.RBDVolumeSource"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeSpec"
+    },
+    "kubernetes_PersistentVolumeStatus": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "phase": {
+          "type": "string",
+          "description": "the current phase of a persistent volume"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeStatus"
     },
     "kubernetes_Pod": {
       "type": "object",
@@ -1754,6 +2058,126 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.ReplicationControllerStatus"
+    },
+    "kubernetes_ResourceQuota": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ResourceQuota",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/kubernetes_ResourceQuotaSpec",
+          "javaType": "io.fabric8.kubernetes.api.model.ResourceQuotaSpec"
+        },
+        "status": {
+          "$ref": "#/definitions/kubernetes_ResourceQuotaStatus",
+          "javaType": "io.fabric8.kubernetes.api.model.ResourceQuotaStatus"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.ResourceQuota",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_ResourceQuotaList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "items is a list of ResourceQuota objects",
+          "items": {
+            "$ref": "#/definitions/kubernetes_ResourceQuota",
+            "javaType": "io.fabric8.kubernetes.api.model.ResourceQuota"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ResourceQuotaList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.ResourceQuotaList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kubernetes_ResourceQuotaSpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "hard": {
+          "type": "object",
+          "description": "hard is the set of desired hard limits for each named resource",
+          "additionalProperties": {
+            "$ref": "#/definitions/kubernetes_resource_Quantity",
+            "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+          },
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.resource.Quantity\u003e"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.ResourceQuotaSpec"
+    },
+    "kubernetes_ResourceQuotaStatus": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "hard": {
+          "type": "object",
+          "description": "hard is the set of enforced hard limits for each named resource",
+          "additionalProperties": {
+            "$ref": "#/definitions/kubernetes_resource_Quantity",
+            "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+          },
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.resource.Quantity\u003e"
+        },
+        "used": {
+          "type": "object",
+          "description": "used is the current observed total usage of the resource in the namespace",
+          "additionalProperties": {
+            "$ref": "#/definitions/kubernetes_resource_Quantity",
+            "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+          },
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.resource.Quantity\u003e"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.ResourceQuotaStatus"
     },
     "kubernetes_ResourceRequirements": {
       "type": "object",
@@ -4763,6 +5187,22 @@
       "$ref": "#/definitions/kubernetes_ObjectMeta",
       "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
     },
+    "PersistentVolume": {
+      "$ref": "#/definitions/kubernetes_PersistentVolume",
+      "javaType": "io.fabric8.kubernetes.api.model.PersistentVolume"
+    },
+    "PersistentVolumeClaim": {
+      "$ref": "#/definitions/kubernetes_PersistentVolumeClaim",
+      "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaim"
+    },
+    "PersistentVolumeClaimList": {
+      "$ref": "#/definitions/kubernetes_PersistentVolumeClaimList",
+      "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaimList"
+    },
+    "PersistentVolumeList": {
+      "$ref": "#/definitions/kubernetes_PersistentVolumeList",
+      "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeList"
+    },
     "PodList": {
       "$ref": "#/definitions/kubernetes_PodList",
       "javaType": "io.fabric8.kubernetes.api.model.PodList"
@@ -4774,6 +5214,14 @@
     "ReplicationControllerList": {
       "$ref": "#/definitions/kubernetes_ReplicationControllerList",
       "javaType": "io.fabric8.kubernetes.api.model.ReplicationControllerList"
+    },
+    "ResourceQuota": {
+      "$ref": "#/definitions/kubernetes_ResourceQuota",
+      "javaType": "io.fabric8.kubernetes.api.model.ResourceQuota"
+    },
+    "ResourceQuotaList": {
+      "$ref": "#/definitions/kubernetes_ResourceQuotaList",
+      "javaType": "io.fabric8.kubernetes.api.model.ResourceQuotaList"
     },
     "RouteList": {
       "$ref": "#/definitions/os_route_RouteList",
