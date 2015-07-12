@@ -32,6 +32,7 @@ type Schema struct {
 	ServiceList                  kapi.ServiceList
 	Endpoints                    kapi.Endpoints
 	EndpointsList                kapi.EndpointsList
+	EventList                    kapi.EventList
 	Node                         kapi.Node
 	NodeList                     kapi.NodeList
 	BaseKubernetesList           kapi.List
