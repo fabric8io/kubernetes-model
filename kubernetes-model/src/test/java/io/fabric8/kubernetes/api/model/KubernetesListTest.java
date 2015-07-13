@@ -3,6 +3,7 @@ package io.fabric8.kubernetes.api.model;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.hamcrest.CoreMatchers;
 import org.junit.Test;
+import io.fabric8.kubernetes.api.builder.Visitor;
 
 import static org.junit.Assert.*;
 
@@ -58,7 +59,7 @@ public class KubernetesListTest {
                 .and()
                 .build();
 
-        list = new KubernetesListBuilder(list).accept(new io.fabric8.common.Visitor() {
+        list = new KubernetesListBuilder(list).accept(new Visitor() {
             public void visit(Object item) {
                 if (item instanceof io.fabric8.kubernetes.api.model.PodSpecBuilder) {
                     ((io.fabric8.kubernetes.api.model.PodSpecBuilder)item).addNewContainer()

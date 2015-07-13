@@ -2,7 +2,8 @@ package io.fabric8.config;
 
 import io.sundr.builder.annotations.ExternalBuildables;
 
-@ExternalBuildables(editableEnabled=true, validationEnabled = true, builderPackage = "io.fabric8.common", value = {
+@ExternalBuildables(editableEnabled=true, validationEnabled = true, builderPackage = "io.fabric8.kubernetes.api.builder", value = {
+
         "io.fabric8.kubernetes.api.model.BaseKubernetesList",
         "io.fabric8.kubernetes.api.model.KubernetesList",
 
@@ -88,8 +89,8 @@ import io.sundr.builder.annotations.ExternalBuildables;
         "io.fabric8.kubernetes.api.model.Volume",
         "io.fabric8.kubernetes.api.model.VolumeMount",
 
-        "io.fabric8.kubernetes.api.model.util.IntOrString",
-        "io.fabric8.kubernetes.api.model.resource.Quantity"
+        "io.fabric8.kubernetes.api.model.IntOrString",
+        "io.fabric8.kubernetes.api.model.Quantity"
 })
 public class KubernetesConfig {
 }

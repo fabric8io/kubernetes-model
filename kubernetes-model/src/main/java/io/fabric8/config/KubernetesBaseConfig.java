@@ -2,7 +2,7 @@ package io.fabric8.config;
 
 import io.sundr.builder.annotations.ExternalBuildables;
 
-@ExternalBuildables(editableEnabled=false, validationEnabled = true, builderPackage = "io.fabric8.common", value = {
+@ExternalBuildables(editableEnabled=false, validationEnabled = true, builderPackage = "io.fabric8.kubernetes.api.builder", value = {
         "io.fabric8.kubernetes.api.model.base.ListMeta",
         "io.fabric8.kubernetes.api.model.base.ObjectMeta",
         "io.fabric8.kubernetes.api.model.base.ObjectReference",

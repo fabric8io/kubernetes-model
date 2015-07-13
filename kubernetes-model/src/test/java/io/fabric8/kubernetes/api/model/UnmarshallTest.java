@@ -1,10 +1,9 @@
 package io.fabric8.kubernetes.api.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.fabric8.common.Visitor;
-import io.fabric8.kubernetes.api.model.resource.Quantity;
-import io.fabric8.openshift.api.model.template.Template;
-import io.fabric8.openshift.api.model.template.TemplateBuilder;
+import io.fabric8.kubernetes.api.builder.Visitor;
+import io.fabric8.openshift.api.model.Template;
+import io.fabric8.openshift.api.model.TemplateBuilder;
 import org.junit.Assert;
 import org.junit.Test;
 

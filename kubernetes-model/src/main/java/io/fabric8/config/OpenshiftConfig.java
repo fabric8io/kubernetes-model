@@ -2,7 +2,8 @@ package io.fabric8.config;
 
 import io.sundr.builder.annotations.ExternalBuildables;
 
-@ExternalBuildables(editableEnabled=false, validationEnabled = true, builderPackage = "io.fabric8.common", value = {
+@ExternalBuildables(editableEnabled=true, validationEnabled = true, builderPackage = "io.fabric8.kubernetes.api.builder", value = {
+
         "io.fabric8.openshift.api.model.Build",
         "io.fabric8.openshift.api.model.BuildConfig",
         "io.fabric8.openshift.api.model.BuildConfigList",
@@ -61,7 +62,7 @@ import io.sundr.builder.annotations.ExternalBuildables;
         "io.fabric8.openshift.api.model.TLSConfig",
         "io.fabric8.openshift.api.model.TagEvent",
         "io.fabric8.openshift.api.model.WebHookTrigger",
-        "io.fabric8.openshift.api.model.template.Template",
+        "io.fabric8.openshift.api.model.Template",
         "io.fabric8.openshift.api.model.template.Parameter"
 })
 public class OpenshiftConfig {

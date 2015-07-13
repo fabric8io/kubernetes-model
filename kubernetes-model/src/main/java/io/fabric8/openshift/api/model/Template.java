@@ -1,5 +1,5 @@
 
-package io.fabric8.openshift.api.model.template;
+package io.fabric8.openshift.api.model;
 
 import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.databind.JsonDeserializer;

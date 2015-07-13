@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	kerrors "github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
 	resourceapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource"
 	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1"
 	configapi "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api/v1"
@@ -49,8 +48,8 @@ type Schema struct {
 	SecretList                   kapi.SecretList
 	ServiceAccount               kapi.ServiceAccount
 	ServiceAccountList           kapi.ServiceAccountList
+	Status                       kapi.Status
 	Quantity                     resourceapi.Quantity
-	StatusError                  kerrors.StatusError
 	BuildRequest                 buildapi.BuildRequest
 	BuildList                    buildapi.BuildList
 	BuildConfigList              buildapi.BuildConfigList
@@ -77,21 +76,19 @@ type Schema struct {
 func main() {
 	packages := []schemagen.PackageDescriptor{
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1", "io.fabric8.kubernetes.api.model", "kubernetes_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource", "io.fabric8.kubernetes.api.model.resource", "kubernetes_resource_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource", "io.fabric8.kubernetes.api.model", "kubernetes_resource_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime", "io.fabric8.kubernetes.api.model.runtime", "kubernetes_runtime_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/util", "io.fabric8.kubernetes.api.model.util", "kubernetes_util_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/watch/json", "io.fabric8.kubernetes.api.watch", "kubernetes_watch_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors", "io.fabric8.kubernetes.api.model.errors", "kubernetes_errors_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model.base", "kubernetes_base_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api/v1", "io.fabric8.kubernetes.api.model.config", "kubernetes_config_"},
-		{"github.com/fsouza/go-dockerclient", "io.fabric8.docker.client.dockerclient", "docker_"},
-		{"speter.net/go/exp/math/dec/inf", "io.fabric8.openshift.client.util", "speter_inf_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/util", "io.fabric8.kubernetes.api.model", "kubernetes_util_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/watch/json", "io.fabric8.kubernetes.api.model", "kubernetes_watch_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors", "io.fabric8.kubernetes.api.model", "kubernetes_errors_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api/v1", "io.fabric8.kubernetes.api.model", "kubernetes_config_"},
+		{"speter.net/go/exp/math/dec/inf", "io.fabric8.openshift.api.model", "speter_inf_"},
 		{"github.com/openshift/origin/pkg/build/api/v1", "io.fabric8.openshift.api.model", "os_build_"},
 		{"github.com/openshift/origin/pkg/deploy/api/v1", "io.fabric8.openshift.api.model", "os_deploy_"},
 		{"github.com/openshift/origin/pkg/image/api/v1", "io.fabric8.openshift.api.model", "os_image_"},
 		{"github.com/openshift/origin/pkg/oauth/api/v1", "io.fabric8.openshift.api.model", "os_oauth_"},
 		{"github.com/openshift/origin/pkg/route/api/v1", "io.fabric8.openshift.api.model", "os_route_"},
-		{"github.com/openshift/origin/pkg/template/api/v1", "io.fabric8.openshift.api.model.template", "os_template_"},
+		{"github.com/openshift/origin/pkg/template/api/v1", "io.fabric8.openshift.api.model", "os_template_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{

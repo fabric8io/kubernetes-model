@@ -1,5 +1,5 @@
 
-package io.fabric8.kubernetes.api.model.resource;
+package io.fabric8.kubernetes.api.model;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;

@@ -677,7 +677,7 @@
         },
         "port": {
           "$ref": "#/definitions/kubernetes_util_IntOrString",
-          "javaType": "io.fabric8.kubernetes.api.model.util.IntOrString"
+          "javaType": "io.fabric8.kubernetes.api.model.IntOrString"
         }
       },
       "additionalProperties": true,
@@ -1145,9 +1145,9 @@
           "description": "compute resource capacity of the node; http://docs.k8s.io/resources.md",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
-            "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+            "javaType": "io.fabric8.kubernetes.api.model.Quantity"
           },
-          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.resource.Quantity\u003e"
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.Quantity\u003e"
         },
         "conditions": {
           "type": "array",
@@ -1479,9 +1479,9 @@
           "description": "the actual resources the volume has",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
-            "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+            "javaType": "io.fabric8.kubernetes.api.model.Quantity"
           },
-          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.resource.Quantity\u003e"
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.Quantity\u003e"
         },
         "phase": {
           "type": "string",
@@ -1599,9 +1599,9 @@
           "description": "a description of the persistent volume's resources and capacity",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
-            "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+            "javaType": "io.fabric8.kubernetes.api.model.Quantity"
           },
-          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.resource.Quantity\u003e"
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.Quantity\u003e"
         },
         "claimRef": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
@@ -2145,9 +2145,9 @@
           "description": "hard is the set of desired hard limits for each named resource",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
-            "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+            "javaType": "io.fabric8.kubernetes.api.model.Quantity"
           },
-          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.resource.Quantity\u003e"
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.Quantity\u003e"
         }
       },
       "additionalProperties": true,
@@ -2162,18 +2162,18 @@
           "description": "hard is the set of enforced hard limits for each named resource",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
-            "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+            "javaType": "io.fabric8.kubernetes.api.model.Quantity"
           },
-          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.resource.Quantity\u003e"
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.Quantity\u003e"
         },
         "used": {
           "type": "object",
           "description": "used is the current observed total usage of the resource in the namespace",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
-            "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+            "javaType": "io.fabric8.kubernetes.api.model.Quantity"
           },
-          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.resource.Quantity\u003e"
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.Quantity\u003e"
         }
       },
       "additionalProperties": true,
@@ -2188,18 +2188,18 @@
           "description": "Maximum amount of compute resources allowed",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
-            "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+            "javaType": "io.fabric8.kubernetes.api.model.Quantity"
           },
-          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.resource.Quantity\u003e"
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.Quantity\u003e"
         },
         "requests": {
           "type": "object",
           "description": "Minimum amount of resources requested; requests are honored only for persistent volumes as of now",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
-            "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+            "javaType": "io.fabric8.kubernetes.api.model.Quantity"
           },
-          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.resource.Quantity\u003e"
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.Quantity\u003e"
         }
       },
       "additionalProperties": true,
@@ -2526,7 +2526,7 @@
         },
         "targetPort": {
           "$ref": "#/definitions/kubernetes_util_IntOrString",
-          "javaType": "io.fabric8.kubernetes.api.model.util.IntOrString"
+          "javaType": "io.fabric8.kubernetes.api.model.IntOrString"
         }
       },
       "additionalProperties": true,
@@ -2589,13 +2589,108 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.ServiceStatus"
     },
+    "kubernetes_Status": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "code": {
+          "type": "integer",
+          "description": "suggested HTTP return code for this status; 0 if not set"
+        },
+        "details": {
+          "$ref": "#/definitions/kubernetes_StatusDetails",
+          "javaType": "io.fabric8.kubernetes.api.model.StatusDetails"
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "Status",
+          "required": true
+        },
+        "message": {
+          "type": "string",
+          "description": "human-readable description of the status of this operation"
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        },
+        "reason": {
+          "type": "string",
+          "description": "machine-readable description of why this operation is in the 'Failure' status; if this value is empty there is no information available; a reason clarifies an HTTP status code but does not override it"
+        },
+        "status": {
+          "type": "string",
+          "description": "status of the operation; either Success"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.Status"
+    },
+    "kubernetes_StatusCause": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "field of the resource that has caused this error"
+        },
+        "message": {
+          "type": "string",
+          "description": "human-readable description of the cause of the error; this field may be presented as-is to a reader"
+        },
+        "reason": {
+          "type": "string",
+          "description": "machine-readable description of the cause of the error; if this value is empty there is no information available"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.StatusCause"
+    },
+    "kubernetes_StatusDetails": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "causes": {
+          "type": "array",
+          "description": "the Causes array includes more details associated with the StatusReason failure; not all StatusReasons may provide detailed causes",
+          "items": {
+            "$ref": "#/definitions/kubernetes_StatusCause",
+            "javaType": "io.fabric8.kubernetes.api.model.StatusCause"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "the kind attribute of the resource associated with the status StatusReason; on some operations may differ from the requested resource Kind"
+        },
+        "name": {
+          "type": "string",
+          "description": "the name attribute of the resource associated with the status StatusReason (when there is a single name which can be described)"
+        },
+        "retryAfterSeconds": {
+          "type": "integer",
+          "description": "the number of seconds before the client should attempt to retry this operation"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.StatusDetails"
+    },
     "kubernetes_TCPSocketAction": {
       "type": "object",
       "description": "",
       "properties": {
         "port": {
           "$ref": "#/definitions/kubernetes_util_IntOrString",
-          "javaType": "io.fabric8.kubernetes.api.model.util.IntOrString"
+          "javaType": "io.fabric8.kubernetes.api.model.IntOrString"
         }
       },
       "additionalProperties": true,
@@ -2747,133 +2842,6 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.VolumeSource"
     },
-    "kubernetes_base_ListMeta": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "resourceVersion": {
-          "type": "string",
-          "description": ""
-        },
-        "selfLink": {
-          "type": "string",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.base.ListMeta"
-    },
-    "kubernetes_base_Status": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "apiVersion": {
-          "type": "string",
-          "description": "",
-          "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
-        },
-        "code": {
-          "type": "integer",
-          "description": ""
-        },
-        "details": {
-          "$ref": "#/definitions/kubernetes_base_StatusDetails",
-          "javaType": "io.fabric8.kubernetes.api.model.base.StatusDetails"
-        },
-        "kind": {
-          "type": "string",
-          "description": "",
-          "default": "Status",
-          "required": true
-        },
-        "message": {
-          "type": "string",
-          "description": ""
-        },
-        "metadata": {
-          "$ref": "#/definitions/kubernetes_base_ListMeta",
-          "javaType": "io.fabric8.kubernetes.api.model.base.ListMeta"
-        },
-        "reason": {
-          "type": "string",
-          "description": ""
-        },
-        "status": {
-          "type": "string",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.base.Status"
-    },
-    "kubernetes_base_StatusCause": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "field": {
-          "type": "string",
-          "description": ""
-        },
-        "message": {
-          "type": "string",
-          "description": ""
-        },
-        "reason": {
-          "type": "string",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.base.StatusCause"
-    },
-    "kubernetes_base_StatusDetails": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "causes": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "$ref": "#/definitions/kubernetes_base_StatusCause",
-            "javaType": "io.fabric8.kubernetes.api.model.base.StatusCause"
-          }
-        },
-        "id": {
-          "type": "string",
-          "description": ""
-        },
-        "kind": {
-          "type": "string",
-          "description": ""
-        },
-        "retryAfterSeconds": {
-          "type": "integer",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.base.StatusDetails"
-    },
-    "kubernetes_base_TypeMeta": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "apiVersion": {
-          "type": "string",
-          "description": ""
-        },
-        "kind": {
-          "type": "string",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.base.TypeMeta"
-    },
     "kubernetes_config_AuthInfo": {
       "type": "object",
       "description": "",
@@ -2899,7 +2867,7 @@
           "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_config_NamedExtension",
-            "javaType": "io.fabric8.kubernetes.api.model.config.NamedExtension"
+            "javaType": "io.fabric8.kubernetes.api.model.NamedExtension"
           }
         },
         "password": {
@@ -2916,7 +2884,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.config.AuthInfo"
+      "javaType": "io.fabric8.kubernetes.api.model.AuthInfo"
     },
     "kubernetes_config_Cluster": {
       "type": "object",
@@ -2939,7 +2907,7 @@
           "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_config_NamedExtension",
-            "javaType": "io.fabric8.kubernetes.api.model.config.NamedExtension"
+            "javaType": "io.fabric8.kubernetes.api.model.NamedExtension"
           }
         },
         "insecure-skip-tls-verify": {
@@ -2952,7 +2920,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.config.Cluster"
+      "javaType": "io.fabric8.kubernetes.api.model.Cluster"
     },
     "kubernetes_config_Config": {
       "type": "object",
@@ -2967,7 +2935,7 @@
           "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_config_NamedCluster",
-            "javaType": "io.fabric8.kubernetes.api.model.config.NamedCluster"
+            "javaType": "io.fabric8.kubernetes.api.model.NamedCluster"
           }
         },
         "contexts": {
@@ -2975,7 +2943,7 @@
           "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_config_NamedContext",
-            "javaType": "io.fabric8.kubernetes.api.model.config.NamedContext"
+            "javaType": "io.fabric8.kubernetes.api.model.NamedContext"
           }
         },
         "current-context": {
@@ -2987,7 +2955,7 @@
           "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_config_NamedExtension",
-            "javaType": "io.fabric8.kubernetes.api.model.config.NamedExtension"
+            "javaType": "io.fabric8.kubernetes.api.model.NamedExtension"
           }
         },
         "kind": {
@@ -2996,19 +2964,19 @@
         },
         "preferences": {
           "$ref": "#/definitions/kubernetes_config_Preferences",
-          "javaType": "io.fabric8.kubernetes.api.model.config.Preferences"
+          "javaType": "io.fabric8.kubernetes.api.model.Preferences"
         },
         "users": {
           "type": "array",
           "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_config_NamedAuthInfo",
-            "javaType": "io.fabric8.kubernetes.api.model.config.NamedAuthInfo"
+            "javaType": "io.fabric8.kubernetes.api.model.NamedAuthInfo"
           }
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.config.Config"
+      "javaType": "io.fabric8.kubernetes.api.model.Config"
     },
     "kubernetes_config_Context": {
       "type": "object",
@@ -3023,7 +2991,7 @@
           "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_config_NamedExtension",
-            "javaType": "io.fabric8.kubernetes.api.model.config.NamedExtension"
+            "javaType": "io.fabric8.kubernetes.api.model.NamedExtension"
           }
         },
         "namespace": {
@@ -3036,7 +3004,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.config.Context"
+      "javaType": "io.fabric8.kubernetes.api.model.Context"
     },
     "kubernetes_config_NamedAuthInfo": {
       "type": "object",
@@ -3048,11 +3016,11 @@
         },
         "user": {
           "$ref": "#/definitions/kubernetes_config_AuthInfo",
-          "javaType": "io.fabric8.kubernetes.api.model.config.AuthInfo"
+          "javaType": "io.fabric8.kubernetes.api.model.AuthInfo"
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.config.NamedAuthInfo"
+      "javaType": "io.fabric8.kubernetes.api.model.NamedAuthInfo"
     },
     "kubernetes_config_NamedCluster": {
       "type": "object",
@@ -3060,7 +3028,7 @@
       "properties": {
         "cluster": {
           "$ref": "#/definitions/kubernetes_config_Cluster",
-          "javaType": "io.fabric8.kubernetes.api.model.config.Cluster"
+          "javaType": "io.fabric8.kubernetes.api.model.Cluster"
         },
         "name": {
           "type": "string",
@@ -3068,7 +3036,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.config.NamedCluster"
+      "javaType": "io.fabric8.kubernetes.api.model.NamedCluster"
     },
     "kubernetes_config_NamedContext": {
       "type": "object",
@@ -3076,7 +3044,7 @@
       "properties": {
         "context": {
           "$ref": "#/definitions/kubernetes_config_Context",
-          "javaType": "io.fabric8.kubernetes.api.model.config.Context"
+          "javaType": "io.fabric8.kubernetes.api.model.Context"
         },
         "name": {
           "type": "string",
@@ -3084,7 +3052,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.config.NamedContext"
+      "javaType": "io.fabric8.kubernetes.api.model.NamedContext"
     },
     "kubernetes_config_NamedExtension": {
       "type": "object",
@@ -3100,7 +3068,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.config.NamedExtension"
+      "javaType": "io.fabric8.kubernetes.api.model.NamedExtension"
     },
     "kubernetes_config_Preferences": {
       "type": "object",
@@ -3115,24 +3083,12 @@
           "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_config_NamedExtension",
-            "javaType": "io.fabric8.kubernetes.api.model.config.NamedExtension"
+            "javaType": "io.fabric8.kubernetes.api.model.NamedExtension"
           }
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.config.Preferences"
-    },
-    "kubernetes_errors_StatusError": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "ErrStatus": {
-          "$ref": "#/definitions/kubernetes_base_Status",
-          "javaType": "io.fabric8.kubernetes.api.model.base.Status"
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.errors.StatusError"
+      "javaType": "io.fabric8.kubernetes.api.model.Preferences"
     },
     "kubernetes_resource_Quantity": {
       "type": "object",
@@ -3140,7 +3096,7 @@
       "properties": {
         "Amount": {
           "$ref": "#/definitions/speter_inf_Dec",
-          "javaType": "io.fabric8.openshift.client.util.Dec"
+          "javaType": "io.fabric8.openshift.api.model.Dec"
         },
         "Format": {
           "type": "string",
@@ -3148,7 +3104,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+      "javaType": "io.fabric8.kubernetes.api.model.Quantity"
     },
     "kubernetes_runtime_RawExtension": {
       "type": "object",
@@ -3180,7 +3136,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.util.IntOrString"
+      "javaType": "io.fabric8.kubernetes.api.model.IntOrString"
     },
     "kubernetes_watch_WatchEvent": {
       "type": "object",
@@ -3196,7 +3152,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.watch.WatchEvent"
+      "javaType": "io.fabric8.kubernetes.api.model.WatchEvent"
     },
     "os_build_Build": {
       "type": "object",
@@ -4978,7 +4934,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.openshift.api.model.template.Parameter"
+      "javaType": "io.fabric8.openshift.api.model.Parameter"
     },
     "os_template_Template": {
       "type": "object",
@@ -5025,12 +4981,12 @@
           "description": "optional: list of parameters used during template to config transformation",
           "items": {
             "$ref": "#/definitions/os_template_Parameter",
-            "javaType": "io.fabric8.openshift.api.model.template.Parameter"
+            "javaType": "io.fabric8.openshift.api.model.Parameter"
           }
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.openshift.api.model.template.Template",
+      "javaType": "io.fabric8.openshift.api.model.Template",
       "javaInterfaces": [
         "io.fabric8.kubernetes.api.model.HasMetadata"
       ]
@@ -5053,7 +5009,7 @@
           "description": "list of templates",
           "items": {
             "$ref": "#/definitions/os_template_Template",
-            "javaType": "io.fabric8.openshift.api.model.template.Template"
+            "javaType": "io.fabric8.openshift.api.model.Template"
           }
         },
         "kind": {
@@ -5068,7 +5024,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.openshift.api.model.template.TemplateList",
+      "javaType": "io.fabric8.openshift.api.model.TemplateList",
       "javaInterfaces": [
         "io.fabric8.kubernetes.api.model.KubernetesResource",
         "io.fabric8.kubernetes.api.model.KubernetesResourceList"
@@ -5078,7 +5034,7 @@
       "type": "object",
       "description": "",
       "additionalProperties": true,
-      "javaType": "io.fabric8.openshift.client.util.Dec"
+      "javaType": "io.fabric8.openshift.api.model.Dec"
     }
   },
   "type": "object",
@@ -5101,7 +5057,7 @@
     },
     "Config": {
       "$ref": "#/definitions/kubernetes_config_Config",
-      "javaType": "io.fabric8.kubernetes.api.model.config.Config"
+      "javaType": "io.fabric8.kubernetes.api.model.Config"
     },
     "ContainerStatus": {
       "$ref": "#/definitions/kubernetes_ContainerStatus",
@@ -5209,7 +5165,7 @@
     },
     "Quantity": {
       "$ref": "#/definitions/kubernetes_resource_Quantity",
-      "javaType": "io.fabric8.kubernetes.api.model.resource.Quantity"
+      "javaType": "io.fabric8.kubernetes.api.model.Quantity"
     },
     "ReplicationControllerList": {
       "$ref": "#/definitions/kubernetes_ReplicationControllerList",
@@ -5247,9 +5203,9 @@
       "$ref": "#/definitions/kubernetes_ServiceList",
       "javaType": "io.fabric8.kubernetes.api.model.ServiceList"
     },
-    "StatusError": {
-      "$ref": "#/definitions/kubernetes_errors_StatusError",
-      "javaType": "io.fabric8.kubernetes.api.model.errors.StatusError"
+    "Status": {
+      "$ref": "#/definitions/kubernetes_Status",
+      "javaType": "io.fabric8.kubernetes.api.model.Status"
     },
     "TagEvent": {
       "$ref": "#/definitions/os_image_TagEvent",
@@ -5257,15 +5213,15 @@
     },
     "Template": {
       "$ref": "#/definitions/os_template_Template",
-      "javaType": "io.fabric8.openshift.api.model.template.Template"
+      "javaType": "io.fabric8.openshift.api.model.Template"
     },
     "TemplateList": {
       "$ref": "#/definitions/os_template_TemplateList",
-      "javaType": "io.fabric8.openshift.api.model.template.TemplateList"
+      "javaType": "io.fabric8.openshift.api.model.TemplateList"
     },
     "WatchEvent": {
       "$ref": "#/definitions/kubernetes_watch_WatchEvent",
-      "javaType": "io.fabric8.kubernetes.api.watch.WatchEvent"
+      "javaType": "io.fabric8.kubernetes.api.model.WatchEvent"
     }
   },
   "additionalProperties": true

@@ -20,15 +20,15 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>io.fabric8.schemagenerator</groupId>
-    <artifactId>origin-schema-generator</artifactId>
-    <version>0.0.55-SNAPSHOT</version>
+    <groupId>io.fabric8</groupId>
+    <artifactId>kubernetes-model-generator</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>kubernetes-model</artifactId>
   <packaging>bundle</packaging>
 
-  <name>Fabric8 :: Kubernetes Generated Model</name>
+  <name>Fabric8 :: Kubernetes Model</name>
 
   <properties>
     <clone-kube>true</clone-kube>
@@ -82,8 +82,8 @@
         </executions>
         <dependencies>
           <dependency>
-            <groupId>io.fabric8.schemagenerator</groupId>
-            <artifactId>kubernetes-annotator</artifactId>
+            <groupId>io.fabric8</groupId>
+            <artifactId>kubernetes-model-annotator</artifactId>
             <version>${project.version}</version>
           </dependency>
         </dependencies>
@@ -97,9 +97,9 @@
             <configuration>
               <target>
                 <echo>removing the duplicate generated calss</echo>
-                <delete file="${basedir}/target/generated-sources/io/fabric8/kubernetes/api/model/util/IntOrString.java" verbose="true" />
-                <delete file="${basedir}/target/generated-sources/io/fabric8/kubernetes/api/model/resource/Quantity.java" verbose="true" />
-                <delete file="${basedir}/target/generated-sources/io/fabric8/openshift/api/model/template/Template.java" verbose="true" />
+                <delete file="${basedir}/target/generated-sources/io/fabric8/kubernetes/api/model/IntOrString.java" verbose="true" />
+                <delete file="${basedir}/target/generated-sources/io/fabric8/kubernetes/api/model/Quantity.java" verbose="true" />
+                <delete file="${basedir}/target/generated-sources/io/fabric8/openshift/api/model/Template.java" verbose="true" />
                 <delete file="${basedir}/target/generated-sources/io/fabric8/kubernetes/api/model/HasMetadata.java" verbose="true" />
               </target>
             </configuration>
@@ -118,7 +118,7 @@
           <instructions>
             <Bundle-SymbolicName>${project.groupId}.${project.artifactId}</Bundle-SymbolicName>
             <Export-Package>
-              io.fabric8.docker.api.model,
+              io.fabric8.kubernetes.api.builder,
               io.fabric8.kubernetes.api.model,
               io.fabric8.openshift.api.model
             </Export-Package>
