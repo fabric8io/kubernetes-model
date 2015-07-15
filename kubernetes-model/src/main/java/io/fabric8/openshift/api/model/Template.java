@@ -1,4 +1,3 @@
-
 package io.fabric8.openshift.api.model;
 
 import com.fasterxml.jackson.annotation.*;
@@ -24,28 +23,24 @@ import java.util.*;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Generated("org.jsonschema2pojo")
 @JsonPropertyOrder({
-    "apiVersion",
-    "kind",
-    "labels",
-    "metadata",
-    "objects",
-    "parameters"
+        "apiVersion",
+        "kind",
+        "labels",
+        "metadata",
+        "objects",
+        "parameters"
 })
 @JsonDeserialize(using = JsonDeserializer.None.class)
 public class Template implements HasMetadata {
 
     /**
-     *
      * (Required)
-     *
      */
     @JsonProperty("apiVersion")
     @NotNull
     private Template.ApiVersion apiVersion = Template.ApiVersion.fromValue("v1");
     /**
-     *
      * (Required)
-     *
      */
     @JsonProperty("kind")
     @NotNull
@@ -84,13 +79,11 @@ public class Template implements HasMetadata {
 
     /**
      * No args constructor for use in serialization
-     *
      */
     public Template() {
     }
 
     /**
-     *
      * @param apiVersion
      * @param labels
      * @param parameters
@@ -104,16 +97,13 @@ public class Template implements HasMetadata {
         this.labels = labels;
         this.metadata = metadata;
         this.parameters = parameters;
-
-        this.setObjects(objects);
+        this.objects = objects;
     }
 
     /**
-     *
      * (Required)
      *
-     * @return
-     *     The apiVersion
+     * @return The apiVersion
      */
     @JsonProperty("apiVersion")
     public Template.ApiVersion getApiVersion() {
@@ -121,11 +111,9 @@ public class Template implements HasMetadata {
     }
 
     /**
-     *
      * (Required)
      *
-     * @param apiVersion
-     *     The apiVersion
+     * @param apiVersion The apiVersion
      */
     @JsonProperty("apiVersion")
     public void setApiVersion(Template.ApiVersion apiVersion) {
@@ -133,11 +121,9 @@ public class Template implements HasMetadata {
     }
 
     /**
-     *
      * (Required)
      *
-     * @return
-     *     The kind
+     * @return The kind
      */
     @JsonProperty("kind")
     public java.lang.String getKind() {
@@ -145,11 +131,9 @@ public class Template implements HasMetadata {
     }
 
     /**
-     *
      * (Required)
      *
-     * @param kind
-     *     The kind
+     * @param kind The kind
      */
     @JsonProperty("kind")
     public void setKind(java.lang.String kind) {
@@ -157,10 +141,7 @@ public class Template implements HasMetadata {
     }
 
     /**
-     *
-     *
-     * @return
-     *     The labels
+     * @return The labels
      */
     @JsonProperty("labels")
     public Map<String, String> getLabels() {
@@ -168,10 +149,7 @@ public class Template implements HasMetadata {
     }
 
     /**
-     *
-     *
-     * @param labels
-     *     The labels
+     * @param labels The labels
      */
     @JsonProperty("labels")
     public void setLabels(Map<String, String> labels) {
@@ -179,10 +157,7 @@ public class Template implements HasMetadata {
     }
 
     /**
-     *
-     *
-     * @return
-     *     The metadata
+     * @return The metadata
      */
     @JsonProperty("metadata")
     public ObjectMeta getMetadata() {
@@ -190,10 +165,7 @@ public class Template implements HasMetadata {
     }
 
     /**
-     *
-     *
-     * @param metadata
-     *     The metadata
+     * @param metadata The metadata
      */
     @JsonProperty("metadata")
     public void setMetadata(ObjectMeta metadata) {
@@ -201,27 +173,21 @@ public class Template implements HasMetadata {
     }
 
     /**
-     *
-     *
-     * @return
-     *     The objects
+     * @return The objects
      */
     @JsonProperty("objects")
     public List<HasMetadata> getObjects() {
-        return objects;
+        List<HasMetadata> sortedObjects = new ArrayList<>(objects);
+        Collections.sort(sortedObjects, new HasMetadataComparator());
+        return sortedObjects;
     }
 
     public void setObjects(List<HasMetadata> objects) {
-        List<HasMetadata> sortedObjects = new ArrayList<>(objects);
-        Collections.sort(sortedObjects, new HasMetadataComparator());
-        this.objects = sortedObjects;
+        this.objects = objects;
     }
 
     /**
-     *
-     *
-     * @return
-     *     The parameters
+     * @return The parameters
      */
     @JsonProperty("parameters")
     public List<Parameter> getParameters() {
@@ -229,10 +195,7 @@ public class Template implements HasMetadata {
     }
 
     /**
-     *
-     *
-     * @param parameters
-     *     The parameters
+     * @param parameters The parameters
      */
     @JsonProperty("parameters")
     public void setParameters(List<Parameter> parameters) {
@@ -275,23 +238,18 @@ public class Template implements HasMetadata {
     public static enum ApiVersion {
 
         V_1("v1");
-        private final java.lang.String value;
         private static Map<java.lang.String, Template.ApiVersion> constants = new HashMap<java.lang.String, Template.ApiVersion>();
 
         static {
-            for (Template.ApiVersion c: values()) {
+            for (Template.ApiVersion c : values()) {
                 constants.put(c.value, c);
             }
         }
 
+        private final java.lang.String value;
+
         private ApiVersion(java.lang.String value) {
             this.value = value;
-        }
-
-        @JsonValue
-        @Override
-        public java.lang.String toString() {
-            return this.value;
         }
 
         @JsonCreator
@@ -302,6 +260,12 @@ public class Template implements HasMetadata {
             } else {
                 return constant;
             }
+        }
+
+        @JsonValue
+        @Override
+        public java.lang.String toString() {
+            return this.value;
         }
 
     }
