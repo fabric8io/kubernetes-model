@@ -10,6 +10,7 @@ import (
 	"time"
 
 	resourceapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource"
+	rapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
 	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1"
 	configapi "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api/v1"
 	kutil "github.com/GoogleCloudPlatform/kubernetes/pkg/util"
@@ -71,6 +72,7 @@ type Schema struct {
 	OAuthClientAuthorizationList oauthapi.OAuthClientAuthorizationList
 	Config                       configapi.Config
 	WatchEvent                   watch.WatchEvent
+	RootPaths                    rapi.RootPaths
 }
 
 func main() {
@@ -89,6 +91,7 @@ func main() {
 		{"github.com/openshift/origin/pkg/oauth/api/v1", "io.fabric8.openshift.api.model", "os_oauth_"},
 		{"github.com/openshift/origin/pkg/route/api/v1", "io.fabric8.openshift.api.model", "os_route_"},
 		{"github.com/openshift/origin/pkg/template/api/v1", "io.fabric8.openshift.api.model", "os_template_"},
+		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api", "io.fabric8.kubernetes.api.root", "api_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{
