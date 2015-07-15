@@ -2,6 +2,22 @@
   "id": "http://fabric8.io/fabric8/v2/Schema#",
   "$schema": "http://json-schema.org/schema#",
   "definitions": {
+    "api_RootPaths": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "paths": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.root.RootPaths"
+    },
     "kubernetes_AWSElasticBlockStoreVolumeSource": {
       "type": "object",
       "description": "",
@@ -5178,6 +5194,10 @@
     "ResourceQuotaList": {
       "$ref": "#/definitions/kubernetes_ResourceQuotaList",
       "javaType": "io.fabric8.kubernetes.api.model.ResourceQuotaList"
+    },
+    "RootPaths": {
+      "$ref": "#/definitions/api_RootPaths",
+      "javaType": "io.fabric8.kubernetes.api.root.RootPaths"
     },
     "RouteList": {
       "$ref": "#/definitions/os_route_RouteList",

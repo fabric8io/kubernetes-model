@@ -120,7 +120,8 @@
             <Export-Package>
               io.fabric8.kubernetes.api.builder,
               io.fabric8.kubernetes.api.model,
-              io.fabric8.openshift.api.model
+              io.fabric8.openshift.api.model,
+              io.fabric8.openshift.api.root
             </Export-Package>
           </instructions>
         </configuration>
