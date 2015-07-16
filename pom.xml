@@ -108,7 +108,7 @@
   </properties>
 
   <modules>
-    <module>kubernetes-annotator</module>
+    <module>kubernetes-model-annotator</module>
     <module>kubernetes-model</module>
   </modules>
 
