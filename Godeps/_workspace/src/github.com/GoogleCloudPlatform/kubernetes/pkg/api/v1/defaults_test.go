@@ -258,6 +258,9 @@ func TestSetDefaultPersistentVolume(t *testing.T) {
 	if pv2.Status.Phase != versioned.VolumePending {
 		t.Errorf("Expected volume phase %v, got %v", versioned.VolumePending, pv2.Status.Phase)
 	}
+	if pv2.Spec.PersistentVolumeReclaimPolicy != versioned.PersistentVolumeReclaimRetain {
+		t.Errorf("Expected pv reclaim policy %v, got %v", versioned.PersistentVolumeReclaimRetain, pv2.Spec.PersistentVolumeReclaimPolicy)
+	}
 }
 
 func TestSetDefaultPersistentVolumeClaim(t *testing.T) {
@@ -396,6 +399,9 @@ func TestSetDefaultNodeExternalID(t *testing.T) {
 	n2 := obj2.(*versioned.Node)
 	if n2.Spec.ExternalID != name {
 		t.Errorf("Expected default External ID: %s, got: %s", name, n2.Spec.ExternalID)
+	}
+	if n2.Spec.ProviderID != "" {
+		t.Errorf("Expected empty default Cloud Provider ID, got: %s", n2.Spec.ProviderID)
 	}
 }
 
