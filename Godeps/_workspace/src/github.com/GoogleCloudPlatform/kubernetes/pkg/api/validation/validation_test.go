@@ -85,20 +85,20 @@ func TestValidateObjectMetaNamespaces(t *testing.T) {
 
 func TestValidateObjectMetaUpdateIgnoresCreationTimestamp(t *testing.T) {
 	if errs := ValidateObjectMetaUpdate(
-		&api.ObjectMeta{Name: "test", ResourceVersion: "1", CreationTimestamp: util.NewTime(time.Unix(10, 0))},
-		&api.ObjectMeta{Name: "test", ResourceVersion: "1"},
-	); len(errs) != 0 {
-		t.Fatalf("unexpected errors: %v", errs)
-	}
-	if errs := ValidateObjectMetaUpdate(
 		&api.ObjectMeta{Name: "test", ResourceVersion: "1"},
 		&api.ObjectMeta{Name: "test", ResourceVersion: "1", CreationTimestamp: util.NewTime(time.Unix(10, 0))},
 	); len(errs) != 0 {
 		t.Fatalf("unexpected errors: %v", errs)
 	}
 	if errs := ValidateObjectMetaUpdate(
+		&api.ObjectMeta{Name: "test", ResourceVersion: "1", CreationTimestamp: util.NewTime(time.Unix(10, 0))},
+		&api.ObjectMeta{Name: "test", ResourceVersion: "1"},
+	); len(errs) != 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if errs := ValidateObjectMetaUpdate(
+		&api.ObjectMeta{Name: "test", ResourceVersion: "1", CreationTimestamp: util.NewTime(time.Unix(10, 0))},
 		&api.ObjectMeta{Name: "test", ResourceVersion: "1", CreationTimestamp: util.NewTime(time.Unix(11, 0))},
-		&api.ObjectMeta{Name: "test", ResourceVersion: "1", CreationTimestamp: util.NewTime(time.Unix(10, 0))},
 	); len(errs) != 0 {
 		t.Fatalf("unexpected errors: %v", errs)
 	}
@@ -493,7 +493,6 @@ func TestValidatePorts(t *testing.T) {
 		{Name: "easy", ContainerPort: 82, Protocol: "TCP"},
 		{Name: "as", ContainerPort: 83, Protocol: "UDP"},
 		{Name: "do-re-me", ContainerPort: 84, Protocol: "UDP"},
-		{Name: "baby-you-and-me", ContainerPort: 82, Protocol: "tcp"},
 		{ContainerPort: 85, Protocol: "TCP"},
 	}
 	if errs := validatePorts(successCase); len(errs) != 0 {
@@ -513,8 +512,9 @@ func TestValidatePorts(t *testing.T) {
 		F string
 		D string
 	}{
-		"name > 63 characters": {[]api.ContainerPort{{Name: strings.Repeat("a", 64), ContainerPort: 80, Protocol: "TCP"}}, errors.ValidationErrorTypeInvalid, "[0].name", dns1123LabelErrorMsg},
-		"name not a DNS label": {[]api.ContainerPort{{Name: "a.b.c", ContainerPort: 80, Protocol: "TCP"}}, errors.ValidationErrorTypeInvalid, "[0].name", dns1123LabelErrorMsg},
+		"name > 15 characters":                     {[]api.ContainerPort{{Name: strings.Repeat("a", 16), ContainerPort: 80, Protocol: "TCP"}}, errors.ValidationErrorTypeInvalid, "[0].name", portNameErrorMsg},
+		"name not a IANA svc name ":                {[]api.ContainerPort{{Name: "a.b.c", ContainerPort: 80, Protocol: "TCP"}}, errors.ValidationErrorTypeInvalid, "[0].name", portNameErrorMsg},
+		"name not a IANA svc name (i.e. a number)": {[]api.ContainerPort{{Name: "80", ContainerPort: 80, Protocol: "TCP"}}, errors.ValidationErrorTypeInvalid, "[0].name", portNameErrorMsg},
 		"name not unique": {[]api.ContainerPort{
 			{Name: "abc", ContainerPort: 80, Protocol: "TCP"},
 			{Name: "abc", ContainerPort: 81, Protocol: "TCP"},
@@ -522,7 +522,8 @@ func TestValidatePorts(t *testing.T) {
 		"zero container port":    {[]api.ContainerPort{{ContainerPort: 0, Protocol: "TCP"}}, errors.ValidationErrorTypeInvalid, "[0].containerPort", portRangeErrorMsg},
 		"invalid container port": {[]api.ContainerPort{{ContainerPort: 65536, Protocol: "TCP"}}, errors.ValidationErrorTypeInvalid, "[0].containerPort", portRangeErrorMsg},
 		"invalid host port":      {[]api.ContainerPort{{ContainerPort: 80, HostPort: 65536, Protocol: "TCP"}}, errors.ValidationErrorTypeInvalid, "[0].hostPort", portRangeErrorMsg},
-		"invalid protocol":       {[]api.ContainerPort{{ContainerPort: 80, Protocol: "ICMP"}}, errors.ValidationErrorTypeNotSupported, "[0].protocol", ""},
+		"invalid protocol case":  {[]api.ContainerPort{{ContainerPort: 80, Protocol: "tcp"}}, errors.ValidationErrorTypeNotSupported, "[0].protocol", "supported values: TCP, UDP"},
+		"invalid protocol":       {[]api.ContainerPort{{ContainerPort: 80, Protocol: "ICMP"}}, errors.ValidationErrorTypeNotSupported, "[0].protocol", "supported values: TCP, UDP"},
 		"protocol required":      {[]api.ContainerPort{{Name: "abc", ContainerPort: 80}}, errors.ValidationErrorTypeRequired, "[0].protocol", ""},
 	}
 	for k, v := range errorCases {
@@ -642,7 +643,7 @@ func TestValidateEnv(t *testing.T) {
 					},
 				},
 			}},
-			expectedError: "[0].valueFrom.fieldRef.fieldPath: unsupported value 'status.phase'",
+			expectedError: "[0].valueFrom.fieldRef.fieldPath: unsupported value 'status.phase': supported values: metadata.name, metadata.namespace",
 		},
 	}
 	for _, tc := range errorCases {
@@ -712,9 +713,9 @@ func TestValidateProbe(t *testing.T) {
 func TestValidateHandler(t *testing.T) {
 	successCases := []api.Handler{
 		{Exec: &api.ExecAction{Command: []string{"echo"}}},
-		{HTTPGet: &api.HTTPGetAction{Path: "/", Port: util.NewIntOrStringFromInt(1), Host: ""}},
-		{HTTPGet: &api.HTTPGetAction{Path: "/foo", Port: util.NewIntOrStringFromInt(65535), Host: "host"}},
-		{HTTPGet: &api.HTTPGetAction{Path: "/", Port: util.NewIntOrStringFromString("port"), Host: ""}},
+		{HTTPGet: &api.HTTPGetAction{Path: "/", Port: util.NewIntOrStringFromInt(1), Host: "", Scheme: "HTTP"}},
+		{HTTPGet: &api.HTTPGetAction{Path: "/foo", Port: util.NewIntOrStringFromInt(65535), Host: "host", Scheme: "HTTP"}},
+		{HTTPGet: &api.HTTPGetAction{Path: "/", Port: util.NewIntOrStringFromString("port"), Host: "", Scheme: "HTTP"}},
 	}
 	for _, h := range successCases {
 		if errs := validateHandler(&h); len(errs) != 0 {
@@ -1049,9 +1050,10 @@ func TestValidatePodSpec(t *testing.T) {
 			NodeSelector: map[string]string{
 				"key": "value",
 			},
-			Host:                  "foobar",
+			NodeName:              "foobar",
 			DNSPolicy:             api.DNSClusterFirst,
 			ActiveDeadlineSeconds: &activeDeadlineSeconds,
+			ServiceAccountName:    "acct",
 		},
 		{ // Populate HostNetwork.
 			Containers: []api.Container{
@@ -1092,6 +1094,12 @@ func TestValidatePodSpec(t *testing.T) {
 			RestartPolicy: api.RestartPolicyAlways,
 			Containers:    []api.Container{{Name: "ctr", Image: "image", ImagePullPolicy: "IfNotPresent"}},
 		},
+		"bad service account name": {
+			Containers:         []api.Container{{Name: "ctr", Image: "image", ImagePullPolicy: "IfNotPresent"}},
+			RestartPolicy:      api.RestartPolicyAlways,
+			DNSPolicy:          api.DNSClusterFirst,
+			ServiceAccountName: "invalidName",
+		},
 		"bad restart policy": {
 			RestartPolicy: "UnknowPolicy",
 			DNSPolicy:     api.DNSClusterFirst,
@@ -1116,7 +1124,7 @@ func TestValidatePodSpec(t *testing.T) {
 			NodeSelector: map[string]string{
 				"key": "value",
 			},
-			Host:                  "foobar",
+			NodeName:              "foobar",
 			DNSPolicy:             api.DNSClusterFirst,
 			ActiveDeadlineSeconds: &activeDeadlineSeconds,
 		},
@@ -1151,7 +1159,7 @@ func TestValidatePod(t *testing.T) {
 				NodeSelector: map[string]string{
 					"key": "value",
 				},
-				Host: "foobar",
+				NodeName: "foobar",
 			},
 		},
 	}
@@ -1428,7 +1436,7 @@ func makeValidService() api.Service {
 			Selector:        map[string]string{"key": "val"},
 			SessionAffinity: "None",
 			Type:            api.ServiceTypeClusterIP,
-			Ports:           []api.ServicePort{{Name: "p", Protocol: "TCP", Port: 8675}},
+			Ports:           []api.ServicePort{{Name: "p", Protocol: "TCP", Port: 8675, TargetPort: util.NewIntOrStringFromInt(8675)}},
 		},
 	}
 }
@@ -1547,7 +1555,7 @@ func TestValidateService(t *testing.T) {
 		{
 			name: "empty port[1] name",
 			tweakSvc: func(s *api.Service) {
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "", Protocol: "TCP", Port: 12345})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "", Protocol: "TCP", Port: 12345, TargetPort: util.NewIntOrStringFromInt(12345)})
 			},
 			numErrs: 1,
 		},
@@ -1555,7 +1563,7 @@ func TestValidateService(t *testing.T) {
 			name: "empty multi-port port[0] name",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Ports[0].Name = ""
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "p", Protocol: "TCP", Port: 12345})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "p", Protocol: "TCP", Port: 12345, TargetPort: util.NewIntOrStringFromInt(12345)})
 			},
 			numErrs: 1,
 		},
@@ -1581,9 +1589,9 @@ func TestValidateService(t *testing.T) {
 			numErrs: 1,
 		},
 		{
-			name: "invalid portal ip",
+			name: "invalid cluster ip",
 			tweakSvc: func(s *api.Service) {
-				s.Spec.PortalIP = "invalid"
+				s.Spec.ClusterIP = "invalid"
 			},
 			numErrs: 1,
 		},
@@ -1633,7 +1641,7 @@ func TestValidateService(t *testing.T) {
 			name: "dup port name",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Ports[0].Name = "p"
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "p", Port: 12345, Protocol: "TCP"})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "p", Port: 12345, Protocol: "TCP", TargetPort: util.NewIntOrStringFromInt(12345)})
 			},
 			numErrs: 1,
 		},
@@ -1649,7 +1657,7 @@ func TestValidateService(t *testing.T) {
 			name: "invalid load balancer protocol 2",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Type = api.ServiceTypeLoadBalancer
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "UDP"})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "UDP", TargetPort: util.NewIntOrStringFromInt(12345)})
 			},
 			numErrs: 1,
 		},
@@ -1676,16 +1684,16 @@ func TestValidateService(t *testing.T) {
 			numErrs: 0,
 		},
 		{
-			name: "valid portal ip - none ",
+			name: "valid cluster ip - none ",
 			tweakSvc: func(s *api.Service) {
-				s.Spec.PortalIP = "None"
+				s.Spec.ClusterIP = "None"
 			},
 			numErrs: 0,
 		},
 		{
-			name: "valid portal ip - empty",
+			name: "valid cluster ip - empty",
 			tweakSvc: func(s *api.Service) {
-				s.Spec.PortalIP = ""
+				s.Spec.ClusterIP = ""
 				s.Spec.Ports[0].TargetPort = util.NewIntOrStringFromString("http")
 			},
 			numErrs: 0,
@@ -1708,7 +1716,7 @@ func TestValidateService(t *testing.T) {
 			name: "valid type loadbalancer 2 ports",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Type = api.ServiceTypeLoadBalancer
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP"})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP", TargetPort: util.NewIntOrStringFromInt(12345)})
 			},
 			numErrs: 0,
 		},
@@ -1716,7 +1724,7 @@ func TestValidateService(t *testing.T) {
 			name: "valid external load balancer 2 ports",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Type = api.ServiceTypeLoadBalancer
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP"})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP", TargetPort: util.NewIntOrStringFromInt(12345)})
 			},
 			numErrs: 0,
 		},
@@ -1724,8 +1732,8 @@ func TestValidateService(t *testing.T) {
 			name: "duplicate nodeports",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Type = api.ServiceTypeNodePort
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 1, Protocol: "TCP", NodePort: 1})
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "r", Port: 2, Protocol: "TCP", NodePort: 1})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 1, Protocol: "TCP", NodePort: 1, TargetPort: util.NewIntOrStringFromInt(1)})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "r", Port: 2, Protocol: "TCP", NodePort: 1, TargetPort: util.NewIntOrStringFromInt(2)})
 			},
 			numErrs: 1,
 		},
@@ -1733,8 +1741,8 @@ func TestValidateService(t *testing.T) {
 			name: "duplicate nodeports (different protocols)",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Type = api.ServiceTypeNodePort
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 1, Protocol: "TCP", NodePort: 1})
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "r", Port: 2, Protocol: "UDP", NodePort: 1})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 1, Protocol: "TCP", NodePort: 1, TargetPort: util.NewIntOrStringFromInt(1)})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "r", Port: 2, Protocol: "UDP", NodePort: 1, TargetPort: util.NewIntOrStringFromInt(2)})
 			},
 			numErrs: 0,
 		},
@@ -1763,7 +1771,7 @@ func TestValidateService(t *testing.T) {
 			name: "valid type loadbalancer 2 ports",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Type = api.ServiceTypeLoadBalancer
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP"})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP", TargetPort: util.NewIntOrStringFromInt(12345)})
 			},
 			numErrs: 0,
 		},
@@ -1771,7 +1779,7 @@ func TestValidateService(t *testing.T) {
 			name: "valid type loadbalancer with NodePort",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Type = api.ServiceTypeLoadBalancer
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP", NodePort: 12345})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP", NodePort: 12345, TargetPort: util.NewIntOrStringFromInt(12345)})
 			},
 			numErrs: 0,
 		},
@@ -1779,7 +1787,7 @@ func TestValidateService(t *testing.T) {
 			name: "valid type=NodePort service with NodePort",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Type = api.ServiceTypeNodePort
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP", NodePort: 12345})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP", NodePort: 12345, TargetPort: util.NewIntOrStringFromInt(12345)})
 			},
 			numErrs: 0,
 		},
@@ -1787,7 +1795,7 @@ func TestValidateService(t *testing.T) {
 			name: "valid type=NodePort service without NodePort",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Type = api.ServiceTypeNodePort
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP"})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP", TargetPort: util.NewIntOrStringFromInt(12345)})
 			},
 			numErrs: 0,
 		},
@@ -1795,7 +1803,7 @@ func TestValidateService(t *testing.T) {
 			name: "valid cluster service without NodePort",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Type = api.ServiceTypeClusterIP
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP"})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP", TargetPort: util.NewIntOrStringFromInt(12345)})
 			},
 			numErrs: 0,
 		},
@@ -1803,7 +1811,7 @@ func TestValidateService(t *testing.T) {
 			name: "invalid cluster service with NodePort",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Type = api.ServiceTypeClusterIP
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP", NodePort: 12345})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP", NodePort: 12345, TargetPort: util.NewIntOrStringFromInt(12345)})
 			},
 			numErrs: 1,
 		},
@@ -1811,8 +1819,8 @@ func TestValidateService(t *testing.T) {
 			name: "invalid public service with duplicate NodePort",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Type = api.ServiceTypeNodePort
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "p1", Port: 1, Protocol: "TCP", NodePort: 1})
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "p2", Port: 2, Protocol: "TCP", NodePort: 1})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "p1", Port: 1, Protocol: "TCP", NodePort: 1, TargetPort: util.NewIntOrStringFromInt(1)})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "p2", Port: 2, Protocol: "TCP", NodePort: 1, TargetPort: util.NewIntOrStringFromInt(2)})
 			},
 			numErrs: 1,
 		},
@@ -1820,7 +1828,7 @@ func TestValidateService(t *testing.T) {
 			name: "valid type=LoadBalancer",
 			tweakSvc: func(s *api.Service) {
 				s.Spec.Type = api.ServiceTypeLoadBalancer
-				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP"})
+				s.Spec.Ports = append(s.Spec.Ports, api.ServicePort{Name: "q", Port: 12345, Protocol: "TCP", TargetPort: util.NewIntOrStringFromInt(12345)})
 			},
 			numErrs: 0,
 		},
@@ -2556,18 +2564,18 @@ func TestValidateServiceUpdate(t *testing.T) {
 			numErrs: 0,
 		},
 		{
-			name: "change portal IP",
+			name: "change cluster IP",
 			tweakSvc: func(oldSvc, newSvc *api.Service) {
-				oldSvc.Spec.PortalIP = "1.2.3.4"
-				newSvc.Spec.PortalIP = "8.6.7.5"
+				oldSvc.Spec.ClusterIP = "1.2.3.4"
+				newSvc.Spec.ClusterIP = "8.6.7.5"
 			},
 			numErrs: 1,
 		},
 		{
-			name: "remove portal IP",
+			name: "remove cluster IP",
 			tweakSvc: func(oldSvc, newSvc *api.Service) {
-				oldSvc.Spec.PortalIP = "1.2.3.4"
-				newSvc.Spec.PortalIP = ""
+				oldSvc.Spec.ClusterIP = "1.2.3.4"
+				newSvc.Spec.ClusterIP = ""
 			},
 			numErrs: 1,
 		},
@@ -2670,6 +2678,64 @@ func TestValidateLimitRange(t *testing.T) {
 					api.ResourceCPU:    resource.MustParse("0"),
 					api.ResourceMemory: resource.MustParse("100"),
 				},
+				Default: api.ResourceList{
+					api.ResourceCPU:    resource.MustParse("50"),
+					api.ResourceMemory: resource.MustParse("500"),
+				},
+			},
+		},
+	}
+
+	invalidSpecDuplicateType := api.LimitRangeSpec{
+		Limits: []api.LimitRangeItem{
+			{
+				Type: api.LimitTypePod,
+				Max: api.ResourceList{
+					api.ResourceCPU:    resource.MustParse("100"),
+					api.ResourceMemory: resource.MustParse("10000"),
+				},
+				Min: api.ResourceList{
+					api.ResourceCPU:    resource.MustParse("0"),
+					api.ResourceMemory: resource.MustParse("100"),
+				},
+			},
+			{
+				Type: api.LimitTypePod,
+				Min: api.ResourceList{
+					api.ResourceCPU:    resource.MustParse("0"),
+					api.ResourceMemory: resource.MustParse("100"),
+				},
+			},
+		},
+	}
+
+	invalidSpecRangeMaxLessThanMin := api.LimitRangeSpec{
+		Limits: []api.LimitRangeItem{
+			{
+				Type: api.LimitTypePod,
+				Max: api.ResourceList{
+					api.ResourceCPU: resource.MustParse("10"),
+				},
+				Min: api.ResourceList{
+					api.ResourceCPU: resource.MustParse("1000"),
+				},
+			},
+		},
+	}
+
+	invalidSpecRangeDefaultOutsideRange := api.LimitRangeSpec{
+		Limits: []api.LimitRangeItem{
+			{
+				Type: api.LimitTypePod,
+				Max: api.ResourceList{
+					api.ResourceCPU: resource.MustParse("1000"),
+				},
+				Min: api.ResourceList{
+					api.ResourceCPU: resource.MustParse("100"),
+				},
+				Default: api.ResourceList{
+					api.ResourceCPU: resource.MustParse("2000"),
+				},
 			},
 		},
 	}
@@ -2710,6 +2776,18 @@ func TestValidateLimitRange(t *testing.T) {
 			api.LimitRange{ObjectMeta: api.ObjectMeta{Name: "abc", Namespace: "^Invalid"}, Spec: spec},
 			dns1123LabelErrorMsg,
 		},
+		"duplicate limit type": {
+			api.LimitRange{ObjectMeta: api.ObjectMeta{Name: "abc", Namespace: "foo"}, Spec: invalidSpecDuplicateType},
+			"",
+		},
+		"min value 1k is greater than max value 10": {
+			api.LimitRange{ObjectMeta: api.ObjectMeta{Name: "abc", Namespace: "foo"}, Spec: invalidSpecRangeMaxLessThanMin},
+			"min value 1k is greater than max value 10",
+		},
+		"invalid spec default outside range": {
+			api.LimitRange{ObjectMeta: api.ObjectMeta{Name: "abc", Namespace: "foo"}, Spec: invalidSpecRangeDefaultOutsideRange},
+			"default value 2k is greater than max value 1k",
+		},
 	}
 	for k, v := range errorCases {
 		errs := ValidateLimitRange(&v.R)
@@ -2717,11 +2795,7 @@ func TestValidateLimitRange(t *testing.T) {
 			t.Errorf("expected failure for %s", k)
 		}
 		for i := range errs {
-			field := errs[i].(*errors.ValidationError).Field
 			detail := errs[i].(*errors.ValidationError).Detail
-			if field != "metadata.name" && field != "metadata.namespace" {
-				t.Errorf("%s: missing prefix for: %v", k, errs[i])
-			}
 			if detail != v.D {
 				t.Errorf("%s: expected error detail either empty or %s, got %s", k, v.D, detail)
 			}
@@ -2787,7 +2861,7 @@ func TestValidateResourceQuota(t *testing.T) {
 			field := errs[i].(*errors.ValidationError).Field
 			detail := errs[i].(*errors.ValidationError).Detail
 			if field != "metadata.name" && field != "metadata.namespace" {
-				t.Errorf("%s: missing prefix for: %v", k, errs[i])
+				t.Errorf("%s: missing prefix for: %v", k, field)
 			}
 			if detail != v.D {
 				t.Errorf("%s: expected error detail either empty or %s, got %s", k, v.D, detail)
@@ -3350,10 +3424,23 @@ func TestValidateEndpoints(t *testing.T) {
 			},
 			errorType: "FieldValueRequired",
 		},
+		"Address is link-local": {
+			endpoints: api.Endpoints{
+				ObjectMeta: api.ObjectMeta{Name: "mysvc", Namespace: "namespace"},
+				Subsets: []api.EndpointSubset{
+					{
+						Addresses: []api.EndpointAddress{{IP: "169.254.169.254"}},
+						Ports:     []api.EndpointPort{{Name: "p", Port: 93, Protocol: "TCP"}},
+					},
+				},
+			},
+			errorType:   "FieldValueInvalid",
+			errorDetail: "link-local",
+		},
 	}
 
 	for k, v := range errorCases {
-		if errs := ValidateEndpoints(&v.endpoints); len(errs) == 0 || errs[0].(*errors.ValidationError).Type != v.errorType || errs[0].(*errors.ValidationError).Detail != v.errorDetail {
+		if errs := ValidateEndpoints(&v.endpoints); len(errs) == 0 || errs[0].(*errors.ValidationError).Type != v.errorType || !strings.Contains(errs[0].(*errors.ValidationError).Detail, v.errorDetail) {
 			t.Errorf("Expected error type %s with detail %s for %s, got %v", v.errorType, v.errorDetail, k, errs)
 		}
 	}

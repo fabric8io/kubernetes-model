@@ -321,6 +321,19 @@ func (s *Scheme) AddGeneratedConversionFuncs(conversionFuncs ...interface{}) err
 	return s.raw.AddGeneratedConversionFuncs(conversionFuncs...)
 }
 
+// AddDeepCopyFuncs adds a function to the list of deep-copy functions.
+// For the expected format of deep-copy function, see the comment for
+// Copier.RegisterDeepCopyFunction.
+func (s *Scheme) AddDeepCopyFuncs(deepCopyFuncs ...interface{}) error {
+	return s.raw.AddDeepCopyFuncs(deepCopyFuncs...)
+}
+
+// Similar to AddDeepCopyFuncs, but registers deep-copy functions that were
+// automatically generated.
+func (s *Scheme) AddGeneratedDeepCopyFuncs(deepCopyFuncs ...interface{}) error {
+	return s.raw.AddGeneratedDeepCopyFuncs(deepCopyFuncs...)
+}
+
 // AddFieldLabelConversionFunc adds a conversion function to convert field selectors
 // of the given kind from the given version to internal version representation.
 func (s *Scheme) AddFieldLabelConversionFunc(version, kind string, conversionFunc FieldLabelConversionFunc) error {
@@ -347,6 +360,11 @@ func (s *Scheme) AddDefaultingFuncs(defaultingFuncs ...interface{}) error {
 	return s.raw.AddDefaultingFuncs(defaultingFuncs...)
 }
 
+// Performs a deep copy of the given object.
+func (s *Scheme) DeepCopy(src interface{}) (interface{}, error) {
+	return s.raw.DeepCopy(src)
+}
+
 // Convert will attempt to convert in into out. Both must be pointers.
 // For easy testing of conversion functions. Returns an error if the conversion isn't
 // possible.
@@ -358,11 +376,11 @@ func (s *Scheme) Convert(in, out interface{}) error {
 // versioned representation to an unversioned one.
 func (s *Scheme) ConvertFieldLabel(version, kind, label, value string) (string, string, error) {
 	if s.fieldLabelConversionFuncs[version] == nil {
-		return "", "", fmt.Errorf("No conversion function found for version: %s", version)
+		return "", "", fmt.Errorf("No field label conversion function found for version: %s", version)
 	}
 	conversionFunc, ok := s.fieldLabelConversionFuncs[version][kind]
 	if !ok {
-		return "", "", fmt.Errorf("No conversion function found for version %s and kind %s", version, kind)
+		return "", "", fmt.Errorf("No field label conversion function found for version %s and kind %s", version, kind)
 	}
 	return conversionFunc(label, value)
 }
@@ -441,15 +459,12 @@ func (s *Scheme) DecodeInto(data []byte, obj Object) error {
 }
 
 // Copy does a deep copy of an API object.  Useful mostly for tests.
-// TODO(dbsmith): implement directly instead of via Encode/Decode
-// TODO(claytonc): Copy cannot be used for objects which do not encode type information, such
-// as lists of runtime.Objects
-func (s *Scheme) Copy(obj Object) (Object, error) {
-	data, err := s.EncodeToVersion(obj, "")
+func (s *Scheme) Copy(src Object) (Object, error) {
+	dst, err := s.raw.DeepCopy(src)
 	if err != nil {
 		return nil, err
 	}
-	return s.Decode(data)
+	return dst.(Object), nil
 }
 
 func (s *Scheme) CopyOrDie(obj Object) Object {

@@ -72,18 +72,18 @@
       "properties": {
         "args": {
           "type": "array",
-          "description": "command array; the docker image's cmd is used if this is not provided; arguments to the entrypoint; cannot be updated",
+          "description": "command array; the docker image's cmd is used if this is not provided; arguments to the entrypoint; cannot be updated; variable references $(VAR_NAME) are expanded using the container's environment variables; if a variable cannot be resolved",
           "items": {
             "type": "string",
-            "description": "command array; the docker image's cmd is used if this is not provided; arguments to the entrypoint; cannot be updated"
+            "description": "command array; the docker image's cmd is used if this is not provided; arguments to the entrypoint; cannot be updated; variable references $(VAR_NAME) are expanded using the container's environment variables; if a variable cannot be resolved"
           }
         },
         "command": {
           "type": "array",
-          "description": "entrypoint array; not executed within a shell; the docker image's entrypoint is used if this is not provided; cannot be updated",
+          "description": "entrypoint array; not executed within a shell; the docker image's entrypoint is used if this is not provided; cannot be updated; variable references $(VAR_NAME) are expanded using the container's environment variables; if a variable cannot be resolved",
           "items": {
             "type": "string",
-            "description": "entrypoint array; not executed within a shell; the docker image's entrypoint is used if this is not provided; cannot be updated"
+            "description": "entrypoint array; not executed within a shell; the docker image's entrypoint is used if this is not provided; cannot be updated; variable references $(VAR_NAME) are expanded using the container's environment variables; if a variable cannot be resolved"
           }
         },
         "env": {
@@ -174,7 +174,7 @@
         },
         "name": {
           "type": "string",
-          "description": "name for the port that can be referred to by services; must be a DNS_LABEL and unique without the pod"
+          "description": "name for the port that can be referred to by services; must be an IANA_SVC_NAME and unique within the pod"
         },
         "protocol": {
           "type": "string",
@@ -192,7 +192,7 @@
           "$ref": "#/definitions/kubernetes_ContainerStateRunning",
           "javaType": "io.fabric8.kubernetes.api.model.ContainerStateRunning"
         },
-        "termination": {
+        "terminated": {
           "$ref": "#/definitions/kubernetes_ContainerStateTerminated",
           "javaType": "io.fabric8.kubernetes.api.model.ContainerStateTerminated"
         },
@@ -468,7 +468,7 @@
         },
         "value": {
           "type": "string",
-          "description": "value of the environment variable; defaults to empty string"
+          "description": "value of the environment variable; defaults to empty string; variable references $(VAR_NAME) are expanded using the previously defined environment varibles in the container and any service environment variables; if a variable cannot be resolved"
         },
         "valueFrom": {
           "$ref": "#/definitions/kubernetes_EnvVarSource",
@@ -694,6 +694,10 @@
         "port": {
           "$ref": "#/definitions/kubernetes_util_IntOrString",
           "javaType": "io.fabric8.kubernetes.api.model.IntOrString"
+        },
+        "scheme": {
+          "type": "string",
+          "description": "scheme to connect with"
         }
       },
       "additionalProperties": true,
@@ -1130,11 +1134,15 @@
       "properties": {
         "externalID": {
           "type": "string",
-          "description": "external ID assigned to the node by some machine database (e.g. a cloud provider). Defaults to node name when empty."
+          "description": "deprecated. External ID assigned to the node by some machine database (e.g. a cloud provider). Defaults to node name when empty."
         },
         "podCIDR": {
           "type": "string",
           "description": "pod IP range assigned to the node"
+        },
+        "providerID": {
+          "type": "string",
+          "description": "ID of the node assigned by the cloud provider in the format: \u003cProviderName\u003e://\u003cProviderSpecificNodeID\u003e"
         },
         "unschedulable": {
           "type": "boolean",
@@ -1265,6 +1273,11 @@
         "generateName": {
           "type": "string",
           "description": "an optional prefix to use to generate a unique name; has the same validation rules as name; optional"
+        },
+        "generation": {
+          "type": "integer",
+          "description": "a sequence number representing a specific generation of the desired state; populated by the system; read-only",
+          "javaType": "Long"
         },
         "labels": {
           "type": "object",
@@ -1582,6 +1595,10 @@
           "$ref": "#/definitions/kubernetes_HostPathVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.HostPathVolumeSource"
         },
+        "iscsi": {
+          "$ref": "#/definitions/kubernetes_ISCSIVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.ISCSIVolumeSource"
+        },
         "nfs": {
           "$ref": "#/definitions/kubernetes_NFSVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.NFSVolumeSource"
@@ -1635,9 +1652,17 @@
           "$ref": "#/definitions/kubernetes_HostPathVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.HostPathVolumeSource"
         },
+        "iscsi": {
+          "$ref": "#/definitions/kubernetes_ISCSIVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.ISCSIVolumeSource"
+        },
         "nfs": {
           "$ref": "#/definitions/kubernetes_NFSVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.NFSVolumeSource"
+        },
+        "persistentVolumeReclaimPolicy": {
+          "type": "string",
+          "description": "what happens to a volume when released from its claim; Valid options are Retain (default) and Recycle.  Recyling must be supported by the volume plugin underlying this persistent volume."
         },
         "rbd": {
           "$ref": "#/definitions/kubernetes_RBDVolumeSource",
@@ -1651,9 +1676,17 @@
       "type": "object",
       "description": "",
       "properties": {
+        "message": {
+          "type": "string",
+          "description": "human-readable message indicating details about why the volume is in this state"
+        },
         "phase": {
           "type": "string",
           "description": "the current phase of a persistent volume"
+        },
+        "reason": {
+          "type": "string",
+          "description": "(brief) reason the volume is not is not available"
         }
       },
       "additionalProperties": true,
@@ -1773,10 +1806,6 @@
           "type": "string",
           "description": "DNS policy for containers within the pod; one of 'ClusterFirst' or 'Default'"
         },
-        "host": {
-          "type": "string",
-          "description": "host requested for this pod"
-        },
         "hostNetwork": {
           "type": "boolean",
           "description": "host networking requested for this pod"
@@ -1789,6 +1818,10 @@
             "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
           }
         },
+        "nodeName": {
+          "type": "string",
+          "description": "node requested for this pod"
+        },
         "nodeSelector": {
           "type": "object",
           "description": "selector which must match a node's labels for the pod to be scheduled on that node",
@@ -1800,9 +1833,9 @@
         },
         "restartPolicy": {
           "type": "string",
-          "description": "restart policy for all containers within the pod; one of RestartPolicyAlways"
+          "description": "restart policy for all containers within the pod; one of Always"
         },
-        "serviceAccount": {
+        "serviceAccountName": {
           "type": "string",
           "description": "name of the ServiceAccount to use to run this pod"
         },
@@ -1858,6 +1891,10 @@
         "podIP": {
           "type": "string",
           "description": "IP address allocated to the pod; routable at least within the cluster; empty if not yet allocated"
+        },
+        "reason": {
+          "type": "string",
+          "description": "(brief-CamelCase) reason indicating details about why the pod is in this condition"
         },
         "startTime": {
           "type": "string",
@@ -2054,10 +2091,6 @@
         "template": {
           "$ref": "#/definitions/kubernetes_PodTemplateSpec",
           "javaType": "io.fabric8.kubernetes.api.model.PodTemplateSpec"
-        },
-        "templateRef": {
-          "$ref": "#/definitions/kubernetes_ObjectReference",
-          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
         }
       },
       "additionalProperties": true,
@@ -2067,6 +2100,11 @@
       "type": "object",
       "description": "",
       "properties": {
+        "observedGeneration": {
+          "type": "integer",
+          "description": "reflects the generation of the most recently observed replication controller",
+          "javaType": "Long"
+        },
         "replicas": {
           "type": "integer",
           "description": "most recently oberved number of replicas"
@@ -2415,6 +2453,14 @@
             "v1"
           ]
         },
+        "imagePullSecrets": {
+          "type": "array",
+          "description": "list of references to secrets in the same namespace available for pulling container images",
+          "items": {
+            "$ref": "#/definitions/kubernetes_LocalObjectReference",
+            "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
+          }
+        },
         "kind": {
           "type": "string",
           "description": "",
@@ -2530,7 +2576,7 @@
         },
         "nodePort": {
           "type": "integer",
-          "description": "the port on each node on which this service is exposed"
+          "description": "the port on each node on which this service is exposed when type=NodePort or LoadBalancer; usually assigned by the system; if specified"
         },
         "port": {
           "type": "integer",
@@ -2552,6 +2598,10 @@
       "type": "object",
       "description": "",
       "properties": {
+        "clusterIP": {
+          "type": "string",
+          "description": "IP address of the service; usually assigned by the system; if specified"
+        },
         "deprecatedPublicIPs": {
           "type": "array",
           "description": "deprecated. externally visible IPs (e.g. load balancers) that should be proxied to this service",
@@ -2559,10 +2609,6 @@
             "type": "string",
             "description": "deprecated. externally visible IPs (e.g. load balancers) that should be proxied to this service"
           }
-        },
-        "portalIP": {
-          "type": "string",
-          "description": ""
         },
         "ports": {
           "type": "array",
@@ -3611,6 +3657,10 @@
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
           }
         },
+        "forcePull": {
+          "type": "boolean",
+          "description": "forces the source build to pull the image if true"
+        },
         "from": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
           "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
@@ -3698,6 +3748,10 @@
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
           }
+        },
+        "forcePull": {
+          "type": "boolean",
+          "description": "forces the source build to pull the image if true"
         },
         "from": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
@@ -3920,10 +3974,6 @@
         "template": {
           "$ref": "#/definitions/kubernetes_PodTemplateSpec",
           "javaType": "io.fabric8.kubernetes.api.model.PodTemplateSpec"
-        },
-        "templateRef": {
-          "$ref": "#/definitions/kubernetes_ObjectReference",
-          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
         },
         "triggers": {
           "type": "array",

@@ -46,14 +46,13 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesReso
                           List<HasMetadata> items,
                           String kind,
                           ListMeta metadata) {
-        super(apiVersion, null, kind, metadata);
-        this.setItems(new ArrayList<HasMetadata>(items));
+        super(apiVersion, items, kind, metadata);
     }
 
     @Override
-    public void setItems(List<HasMetadata> items) {
-        List<HasMetadata> sortedItems = new ArrayList<>(items);
+    public List<HasMetadata> getItems() {
+        List<HasMetadata> sortedItems = new ArrayList<>(super.getItems());
         Collections.sort(sortedItems, new HasMetadataComparator());
-        super.setItems(sortedItems);
+        return sortedItems;
     }
 }

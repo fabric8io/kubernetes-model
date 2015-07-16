@@ -45,6 +45,12 @@ import (
 //         [a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*
 //     or more simply:
 //         DNS_LABEL(\.DNS_LABEL)*
+//
+// IANA_SVC_NAME: This is a string, no more than 15 characters long, that
+//      conforms to the definition of IANA service name in RFC 6335.
+//      It must contains at least one letter [a-z] and it must contains only [a-z0-9-].
+//      Hypens ('-') cannot be leading or trailing character of the string
+//      and cannot be adjacent to other hyphens.
 
 // TypeMeta describes an individual object in an API response or request
 // with strings representing the type of the object and its API schema version.
@@ -115,6 +121,10 @@ type ObjectMeta struct {
 	// resource or set of resources. Only servers will generate resource versions.
 	ResourceVersion string `json:"resourceVersion,omitempty" description:"string that identifies the internal version of this object that can be used by clients to determine when objects have changed; populated by the system, read-only; value must be treated as opaque by clients and passed unmodified back to the server: http://docs.k8s.io/api-conventions.md#concurrency-control-and-consistency"`
 
+	// A sequence number representing a specific generation of the desired state.
+	// Currently only implemented by replication controllers.
+	Generation int64 `json:"generation,omitempty" description:"a sequence number representing a specific generation of the desired state; populated by the system; read-only"`
+
 	// CreationTimestamp is a timestamp representing the server time when this object was
 	// created. It is not guaranteed to be set in happens-before order across separate operations.
 	// Clients may not set this value. It is represented in RFC3339 form and is in UTC.
@@ -147,38 +157,6 @@ const (
 	// NamespaceAll is the default argument to specify on a context when you want to list or filter resources across all namespaces
 	NamespaceAll string = ""
 )
-
-//
-//// ContainerManifest corresponds to the Container Manifest format, documented at:
-//// https://developers.google.com/compute/docs/containers/container_vms#container_manifest
-//// This is used as the representation of Kubernetes workloads.
-//// DEPRECATED: Exists to allow backwards compatible storage for clients accessing etcd
-//// directly.
-//type ContainerManifest struct {
-//	// Required: This must be a supported version string, such as "v1beta1".
-//	Version string `json:"version"`
-//	// Required: This must be a DNS_SUBDOMAIN.
-//	// TODO: ID on Manifest is deprecated and will be removed in the future.
-//	ID string `json:"id"`
-//	// TODO: UUID on Manifest is deprecated in the future once we are done
-//	// with the API refactoring. It is required for now to determine the instance
-//	// of a Pod.
-//	UUID          types.UID      `json:"uuid,omitempty"`
-//	Volumes       []Volume      `json:"volumes"`
-//	Containers    []Container   `json:"containers"`
-//	RestartPolicy RestartPolicy `json:"restartPolicy,omitempty"`
-//}
-//
-//// ContainerManifestList is used to communicate container manifests to kubelet.
-//// DEPRECATED: Exists to allow backwards compatible storage for clients accessing etcd
-//// directly.
-//type ContainerManifestList struct {
-//	TypeMeta `json:",inline"`
-//	// ID is the legacy field representing Name
-//	ID string `json:"id,omitempty"`
-//
-//	Items []ContainerManifest `json:"items,omitempty"`
-//}
 
 // Volume represents a named volume in a pod that may be accessed by any containers in the pod.
 type Volume struct {
@@ -221,9 +199,9 @@ type VolumeSource struct {
 	// Glusterfs represents a Glusterfs mount on the host that shares a pod's lifetime
 	Glusterfs *GlusterfsVolumeSource `json:"glusterfs,omitempty" description:"Glusterfs volume that will be mounted on the host machine "`
 	// PersistentVolumeClaimVolumeSource represents a reference to a PersistentVolumeClaim in the same namespace
-	PersistentVolumeClaimVolumeSource *PersistentVolumeClaimVolumeSource `json:"persistentVolumeClaim,omitempty" description:"a reference to a PersistentVolumeClaim in the same namespace"`
+	PersistentVolumeClaim *PersistentVolumeClaimVolumeSource `json:"persistentVolumeClaim,omitempty" description:"a reference to a PersistentVolumeClaim in the same namespace"`
 	// RBD represents a Rados Block Device mount on the host that shares a pod's lifetime
-	RBD *RBDVolumeSource `json:"rbd" description:"rados block volume that will be mounted on the host machine"`
+	RBD *RBDVolumeSource `json:"rbd,omitempty" description:"rados block volume that will be mounted on the host machine"`
 }
 
 type PersistentVolumeClaimVolumeSource struct {
@@ -252,7 +230,10 @@ type PersistentVolumeSource struct {
 	// NFS represents an NFS mount on the host
 	NFS *NFSVolumeSource `json:"nfs,omitempty" description:"NFS volume resource provisioned by an admin"`
 	// RBD represents a Rados Block Device mount on the host that shares a pod's lifetime
-	RBD *RBDVolumeSource `json:"rbd" description:"rados block volume that will be mounted on the host machine"`
+	RBD *RBDVolumeSource `json:"rbd,omitempty" description:"rados block volume that will be mounted on the host machine"`
+	// ISCSI represents an ISCSI Disk resource that is attached to a
+	// kubelet's host machine and then exposed to the pod.
+	ISCSI *ISCSIVolumeSource `json:"iscsi,omitempty" description:"an iSCSI disk resource provisioned by an admin"`
 }
 
 type PersistentVolume struct {
@@ -277,11 +258,33 @@ type PersistentVolumeSpec struct {
 	// ClaimRef is expected to be non-nil when bound.
 	// claim.VolumeName is the authoritative bind between PV and PVC.
 	ClaimRef *ObjectReference `json:"claimRef,omitempty" description:"when bound, a reference to the bound claim"`
+	// Optional: what happens to a persistent volume when released from its claim.
+	PersistentVolumeReclaimPolicy PersistentVolumeReclaimPolicy `json:"persistentVolumeReclaimPolicy,omitempty" description:"what happens to a volume when released from its claim; Valid options are Retain (default) and Recycle.  Recyling must be supported by the volume plugin underlying this persistent volume."`
 }
+
+// PersistentVolumeReclaimPolicy describes a policy for end-of-life maintenance of persistent volumes
+type PersistentVolumeReclaimPolicy string
+
+const (
+	// PersistentVolumeReclaimRecycle means the volume will be recycled back into the pool of unbound persistent volumes on release from its claim.
+	// The volume plugin must support Recycling.
+	PersistentVolumeReclaimRecycle PersistentVolumeReclaimPolicy = "Recycle"
+	// PersistentVolumeReclaimDelete means the volume will be deleted from Kubernetes on release from its claim.
+	// The volume plugin must support Deletion.
+	// TODO: implement w/ DeletableVolumePlugin
+	// PersistentVolumeReclaimDelete PersistentVolumeReclaimPolicy = "Delete"
+	// PersistentVolumeReclaimRetain means the volume will left in its current phase (Released) for manual reclamation by the administrator.
+	// The default policy is Retain.
+	PersistentVolumeReclaimRetain PersistentVolumeReclaimPolicy = "Retain"
+)
 
 type PersistentVolumeStatus struct {
 	// Phase indicates if a volume is available, bound to a claim, or released by a claim
 	Phase PersistentVolumePhase `json:"phase,omitempty" description:"the current phase of a persistent volume"`
+	// A human-readable message indicating details about why the volume is in this state.
+	Message string `json:"message,omitempty" description:"human-readable message indicating details about why the volume is in this state"`
+	// Reason is a brief CamelCase string that describes any failure and is meant for machine parsing and tidy display in the CLI
+	Reason string `json:"reason,omitempty" description:"(brief) reason the volume is not is not available"`
 }
 
 type PersistentVolumeList struct {
@@ -345,12 +348,16 @@ const (
 	// used for PersistentVolumes that are not available
 	VolumePending PersistentVolumePhase = "Pending"
 	// used for PersistentVolumes that are not yet bound
+	// Available volumes are held by the binder and matched to PersistentVolumeClaims
 	VolumeAvailable PersistentVolumePhase = "Available"
 	// used for PersistentVolumes that are bound
 	VolumeBound PersistentVolumePhase = "Bound"
 	// used for PersistentVolumes where the bound PersistentVolumeClaim was deleted
 	// released volumes must be recycled before becoming available again
+	// this phase is used by the persistent volume claim binder to signal to another process to reclaim the resource
 	VolumeReleased PersistentVolumePhase = "Released"
+	// used for PersistentVolumes that failed to be correctly recycled or deleted after being released from a claim
+	VolumeFailed PersistentVolumePhase = "Failed"
 )
 
 type PersistentVolumeClaimPhase string
@@ -522,9 +529,9 @@ type ISCSIVolumeSource struct {
 
 // ContainerPort represents a network port in a single container.
 type ContainerPort struct {
-	// Optional: If specified, this must be a DNS_LABEL.  Each named port
+	// Optional: If specified, this must be a IANA_SVC_NAME.  Each named port
 	// in a pod must have a unique name.
-	Name string `json:"name,omitempty" description:"name for the port that can be referred to by services; must be a DNS_LABEL and unique without the pod"`
+	Name string `json:"name,omitempty" description:"name for the port that can be referred to by services; must be a IANA_SVC_NAME and unique within the pod"`
 	// Optional: If specified, this must be a valid port number, 0 < x < 65536.
 	// If HostNetwork is specified, this must match ContainerPort.
 	HostPort int `json:"hostPort,omitempty" description:"number of port to expose on the host; most containers do not need this"`
@@ -550,9 +557,15 @@ type VolumeMount struct {
 type EnvVar struct {
 	// Required: This must be a C_IDENTIFIER.
 	Name string `json:"name" description:"name of the environment variable; must be a C_IDENTIFIER"`
-	// Optional: No more than one of the following may be set.
-	// Optional: Defaults to ""
-	Value string `json:"value,omitempty" description:"value of the environment variable; defaults to empty string"`
+	// Optional: no more than one of the following may be specified.
+	// Optional: Defaults to ""; variable references $(VAR_NAME) are expanded
+	// using the previous defined environment variables in the container and
+	// any service environment variables.  If a variable cannot be resolved,
+	// the reference in the input string will be unchanged.  The $(VAR_NAME)
+	// syntax can be escaped with a double $$, ie: $$(VAR_NAME).  Escaped
+	// references will never be expanded, regardless of whether the variable
+	// exists or not.
+	Value string `json:"value,omitempty" description:"value of the environment variable; defaults to empty string; variable references $(VAR_NAME) are expanded using the previously defined environment varibles in the container and any service environment variables; if a variable cannot be resolved, the reference in the input string will be unchanged; the $(VAR_NAME) syntax can be escaped with a double $$, ie: $$(VAR_NAME) ; escaped references will never be expanded, regardless of whether the variable exists or not"`
 	// Optional: Specifies a source the value of this var should come from.
 	ValueFrom *EnvVarSource `json:"valueFrom,omitempty" description:"source for the environment variable's value; cannot be used if value is not empty"`
 }
@@ -576,15 +589,27 @@ type HTTPGetAction struct {
 	// Optional: Path to access on the HTTP server.
 	Path string `json:"path,omitempty" description:"path to access on the HTTP server"`
 	// Required: Name or number of the port to access on the container.
-	Port util.IntOrString `json:"port" description:"number or name of the port to access on the container"`
+	Port util.IntOrString `json:"port" description:"number or name of the port to access on the container; number must be in the range 1 to 65535; name must be a IANA_SVC_NAME"`
 	// Optional: Host name to connect to, defaults to the pod IP.
 	Host string `json:"host,omitempty" description:"hostname to connect to; defaults to pod IP"`
+	// Optional: Scheme to use for connecting to the host, defaults to HTTP.
+	Scheme URIScheme `json:"scheme,omitempty" description:"scheme to connect with, must be HTTP or HTTPS, defaults to HTTP"`
 }
+
+// URIScheme identifies the scheme used for connection to a host for Get actions
+type URIScheme string
+
+const (
+	// URISchemeHTTP means that the scheme used will be http://
+	URISchemeHTTP URIScheme = "HTTP"
+	// URISchemeHTTPS means that the scheme used will be https://
+	URISchemeHTTPS URIScheme = "HTTPS"
+)
 
 // TCPSocketAction describes an action based on opening a socket
 type TCPSocketAction struct {
 	// Required: Port to connect to.
-	Port util.IntOrString `json:"port" description:"number of name of the port to access on the container"`
+	Port util.IntOrString `json:"port" description:"number or name of the port to access on the container; number must be in the range 1 to 65535; name must be a IANA_SVC_NAME"`
 }
 
 // ExecAction describes a "run in container" action.
@@ -653,9 +678,17 @@ type Container struct {
 	// Required.
 	Image string `json:"image" description:"Docker image name"`
 	// Optional: The docker image's entrypoint is used if this is not provided; cannot be updated.
-	Command []string `json:"command,omitempty" description:"entrypoint array; not executed within a shell; the docker image's entrypoint is used if this is not provided; cannot be updated"`
+	// Variable references $(VAR_NAME) are expanded using the container's environment.  If a variable
+	// cannot be resolved, the reference in the input string will be unchanged.  The $(VAR_NAME) syntax
+	// can be escaped with a double $$, ie: $$(VAR_NAME).  Escaped references will never be expanded,
+	// regardless of whether the variable exists or not.
+	Command []string `json:"command,omitempty" description:"entrypoint array; not executed within a shell; the docker image's entrypoint is used if this is not provided; cannot be updated; variable references $(VAR_NAME) are expanded using the container's environment variables; if a variable cannot be resolved, the reference in the input string will be unchanged; the $(VAR_NAME) syntax can be escaped with a double $$, ie: $$(VAR_NAME) ; escaped references will never be expanded, regardless of whether the variable exists or not"`
 	// Optional: The docker image's cmd is used if this is not provided; cannot be updated.
-	Args []string `json:"args,omitempty" description:"command array; the docker image's cmd is used if this is not provided; arguments to the entrypoint; cannot be updated"`
+	// Variable references $(VAR_NAME) are expanded using the container's environment.  If a variable
+	// cannot be resolved, the reference in the input string will be unchanged.  The $(VAR_NAME) syntax
+	// can be escaped with a double $$, ie: $$(VAR_NAME).  Escaped references will never be expanded,
+	// regardless of whether the variable exists or not.
+	Args []string `json:"args,omitempty" description:"command array; the docker image's cmd is used if this is not provided; arguments to the entrypoint; cannot be updated; variable references $(VAR_NAME) are expanded using the container's environment variables; if a variable cannot be resolved, the reference in the input string will be unchanged; the $(VAR_NAME) syntax can be escaped with a double $$, ie: $$(VAR_NAME) ; escaped references will never be expanded, regardless of whether the variable exists or not"`
 	// Optional: Defaults to Docker's default.
 	WorkingDir     string               `json:"workingDir,omitempty" description:"container's working directory; defaults to image's default; cannot be updated"`
 	Ports          []ContainerPort      `json:"ports,omitempty" description:"list of ports to expose from the container; cannot be updated" patchStrategy:"merge" patchMergeKey:"containerPort"`
@@ -832,7 +865,7 @@ type PodSpec struct {
 	Volumes []Volume `json:"volumes,omitempty" description:"list of volumes that can be mounted by containers belonging to the pod" patchStrategy:"merge" patchMergeKey:"name"`
 	// Required: there must be at least one container in a pod.
 	Containers    []Container   `json:"containers" description:"list of containers belonging to the pod; cannot be updated; containers cannot currently be added or removed; there must be at least one container in a Pod" patchStrategy:"merge" patchMergeKey:"name"`
-	RestartPolicy RestartPolicy `json:"restartPolicy,omitempty" description:"restart policy for all containers within the pod; one of RestartPolicyAlways, RestartPolicyOnFailure, RestartPolicyNever"`
+	RestartPolicy RestartPolicy `json:"restartPolicy,omitempty" description:"restart policy for all containers within the pod; one of Always, OnFailure, Never; defaults to Always"`
 	// Optional duration in seconds the pod needs to terminate gracefully. May be decreased in delete request.
 	// Value must be non-negative integer. The value zero indicates delete immediately.
 	// If this value is nil, the default grace period will be used instead.
@@ -847,7 +880,7 @@ type PodSpec struct {
 	NodeSelector map[string]string `json:"nodeSelector,omitempty" description:"selector which must match a node's labels for the pod to be scheduled on that node"`
 
 	// ServiceAccount is the name of the ServiceAccount to use to run this pod
-	ServiceAccount string `json:"serviceAccount" description:"name of the ServiceAccount to use to run this pod"`
+	ServiceAccount string `json:"serviceAccount,omitempty" description:"name of the ServiceAccount to use to run this pod"`
 
 	// Host is a request to schedule this pod onto a specific host.  If it is non-empty,
 	// the the scheduler simply schedules this pod onto that host, assuming that it fits
@@ -870,6 +903,8 @@ type PodStatus struct {
 	Conditions []PodCondition `json:"Condition,omitempty" description:"current service state of pod" patchStrategy:"merge" patchMergeKey:"type"`
 	// A human readable message indicating details about why the pod is in this state.
 	Message string `json:"message,omitempty" description:"human readable message indicating details about why the pod is in this condition"`
+	// A brief CamelCase message indicating details about why the pod is in this state. e.g. 'OutOfDisk'
+	Reason string `json:"reason,omitempty" description:"(brief-CamelCase) reason indicating details about why the pod is in this condition"`
 
 	HostIP string `json:"hostIP,omitempty" description:"IP address of the host to which the pod is assigned; empty if not yet scheduled"`
 	PodIP  string `json:"podIP,omitempty" description:"IP address allocated to the pod; routable at least within the cluster; empty if not yet allocated"`
@@ -940,8 +975,8 @@ type PodTemplateList struct {
 
 // ReplicationControllerSpec is the specification of a replication controller.
 type ReplicationControllerSpec struct {
-	// Replicas is the number of desired replicas.
-	Replicas int `json:"replicas,omitempty" description:"number of replicas desired"`
+	// Replicas is the number of desired replicas. This is a pointer to distinguish between explicit zero and unspecified.
+	Replicas *int `json:"replicas,omitempty" description:"number of replicas desired"`
 
 	// Selector is a label query over pods that should match the Replicas count.
 	// If Selector is empty, it is defaulted to the labels present on the Pod template.
@@ -949,7 +984,7 @@ type ReplicationControllerSpec struct {
 
 	// TemplateRef is a reference to an object that describes the pod that will be created if
 	// insufficient replicas are detected.
-	TemplateRef *ObjectReference `json:"templateRef,omitempty" description:"reference to an object that describes the pod that will be created if insufficient replicas are detected"`
+	//TemplateRef *ObjectReference `json:"templateRef,omitempty" description:"reference to an object that describes the pod that will be created if insufficient replicas are detected"`
 
 	// Template is the object that describes the pod that will be created if
 	// insufficient replicas are detected. This takes precedence over a
@@ -962,6 +997,9 @@ type ReplicationControllerSpec struct {
 type ReplicationControllerStatus struct {
 	// Replicas is the number of actual replicas.
 	Replicas int `json:"replicas" description:"most recently oberved number of replicas"`
+
+	// ObservedGeneration is the most recent generation observed by the controller.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty" description:"reflects the generation of the most recently observed replication controller"`
 }
 
 // ReplicationController represents the configuration of a replication controller.
@@ -1088,7 +1126,7 @@ type ServicePort struct {
 	// If this is a string, it will be looked up as a named port in the
 	// target Pod's container ports.  If this is not specified, the value
 	// of Port is used (an identity map).
-	TargetPort util.IntOrString `json:"targetPort,omitempty" description:"the port to access on the pods targeted by the service; defaults to the service port"`
+	TargetPort util.IntOrString `json:"targetPort,omitempty" description:"number or name of the port to access on the pods targeted by the service; defaults to the service port; number must be in the range 1 to 65535; name must be a IANA_SVC_NAME"`
 
 	// The port on each node on which this service is exposed.
 	// Default is to auto-allocate a port if the ServiceType of this Service requires one.
@@ -1133,6 +1171,11 @@ type ServiceAccount struct {
 
 	// Secrets is the list of secrets allowed to be used by pods running using this ServiceAccount
 	Secrets []ObjectReference `json:"secrets,omitempty" description:"list of secrets that can be used by pods running as this service account" patchStrategy:"merge" patchMergeKey:"name"`
+
+	// ImagePullSecrets is a list of references to secrets in the same namespace to use for pulling any images
+	// in pods that reference this ServiceAccount.  ImagePullSecrets are distinct from Secrets because Secrets
+	// can be mounted in the pod, but ImagePullSecrets are only accessed by the kubelet.
+	ImagePullSecrets []LocalObjectReference `json:"imagePullSecrets,omitempty" description:"list of references to secrets in the same namespace available for pulling container images"`
 }
 
 // ServiceAccountList is a list of ServiceAccount objects
@@ -1214,7 +1257,9 @@ type NodeSpec struct {
 	// PodCIDR represents the pod IP range assigned to the node
 	PodCIDR string `json:"podCIDR,omitempty" description:"pod IP range assigned to the node"`
 	// External ID of the node assigned by some machine database (e.g. a cloud provider)
-	ExternalID string `json:"externalID,omitempty" description:"external ID assigned to the node by some machine database (e.g. a cloud provider). Defaults to node name when empty."`
+	ExternalID string `json:"externalID,omitempty" description:"deprecated. External ID assigned to the node by some machine database (e.g. a cloud provider). Defaults to node name when empty."`
+	// ID of the node assigned by the cloud provider
+	ProviderID string `json:"providerID,omitempty" description:"ID of the node assigned by the cloud provider in the format: <ProviderName>://<ProviderSpecificNodeID>"`
 	// Unschedulable controls node schedulability of new pods. By default node is schedulable.
 	Unschedulable bool `json:"unschedulable,omitempty" description:"disable pod scheduling on the node"`
 }
@@ -1841,6 +1886,8 @@ const (
 	ServiceAccountTokenKey = "token"
 	// ServiceAccountKubeconfigKey is the key of the optional kubeconfig data for SecretTypeServiceAccountToken secrets
 	ServiceAccountKubeconfigKey = "kubernetes.kubeconfig"
+	// ServiceAccountRootCAKey is the key of the optional root certificate authority for SecretTypeServiceAccountToken secrets
+	ServiceAccountRootCAKey = "ca.crt"
 
 	// SecretTypeDockercfg contains a dockercfg file that follows the same format rules as ~/.dockercfg
 	//

@@ -113,6 +113,9 @@ func addDefaultingFuncs() {
 			if obj.Status.Phase == "" {
 				obj.Status.Phase = VolumePending
 			}
+			if obj.Spec.PersistentVolumeReclaimPolicy == "" {
+				obj.Spec.PersistentVolumeReclaimPolicy = PersistentVolumeReclaimRetain
+			}
 		},
 		func(obj *PersistentVolumeClaim) {
 			if obj.Status.Phase == "" {
@@ -133,6 +136,9 @@ func addDefaultingFuncs() {
 		func(obj *HTTPGetAction) {
 			if obj.Path == "" {
 				obj.Path = "/"
+			}
+			if obj.Scheme == "" {
+				obj.Scheme = URISchemeHTTP
 			}
 		},
 		func(obj *NamespaceStatus) {
