@@ -1,9 +1,14 @@
 package io.fabric8.config;
 
+import io.fabric8.kubernetes.api.model.Doneable;
 import io.sundr.builder.annotations.ExternalBuildables;
+import io.sundr.builder.annotations.Inline;
 
-@ExternalBuildables(editableEnabled=true, validationEnabled = true, builderPackage = "io.fabric8.kubernetes.api.builder", value = {
-
+@ExternalBuildables(editableEnabled=true, validationEnabled = true, builderPackage = "io.fabric8.kubernetes.api.builder",
+        inline = {
+                @Inline(type = Doneable.class, prefix = "Doneable", value = "done")
+        },
+        value = {
         "io.fabric8.openshift.api.model.Build",
         "io.fabric8.openshift.api.model.BuildConfig",
         "io.fabric8.openshift.api.model.BuildConfigList",
