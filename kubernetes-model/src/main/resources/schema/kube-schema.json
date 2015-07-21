@@ -36,7 +36,7 @@
         },
         "volumeID": {
           "type": "string",
-          "description": "unique id of the PD resource in AWS"
+          "description": "unique id of the PD resource in AWS; see http://releases.k8s.io/v1.0.0/docs/volumes.md#awselasticblockstore"
         }
       },
       "additionalProperties": true,
@@ -96,7 +96,7 @@
         },
         "image": {
           "type": "string",
-          "description": "Docker image name"
+          "description": "Docker image name; see http://releases.k8s.io/v1.0.0/docs/images.md"
         },
         "imagePullPolicy": {
           "type": "string",
@@ -270,11 +270,11 @@
       "properties": {
         "containerID": {
           "type": "string",
-          "description": "container's ID in the format 'docker://\u003ccontainer_id\u003e'"
+          "description": "container's ID in the format 'docker://\u003ccontainer_id\u003e'; see http://releases.k8s.io/v1.0.0/docs/container-environment.md#container-information"
         },
         "image": {
           "type": "string",
-          "description": "image of the container"
+          "description": "image of the container; see http://releases.k8s.io/v1.0.0/docs/images.md"
         },
         "imageID": {
           "type": "string",
@@ -312,7 +312,7 @@
       "properties": {
         "medium": {
           "type": "string",
-          "description": "type of storage used to back the volume; must be an empty string (default) or Memory"
+          "description": "type of storage used to back the volume; must be an empty string (default) or Memory; see http://releases.k8s.io/v1.0.0/docs/volumes.md#emptydir"
         }
       },
       "additionalProperties": true,
@@ -633,7 +633,7 @@
         },
         "pdName": {
           "type": "string",
-          "description": "unique name of the PD resource in GCE"
+          "description": "unique name of the PD resource in GCE; see http://releases.k8s.io/v1.0.0/docs/volumes.md#gcepersistentdisk"
         },
         "readOnly": {
           "type": "boolean",
@@ -665,15 +665,15 @@
       "properties": {
         "endpoints": {
           "type": "string",
-          "description": "gluster hosts endpoints name"
+          "description": "gluster hosts endpoints name; see http://releases.k8s.io/v1.0.0/examples/glusterfs/README.md#create-a-pod"
         },
         "path": {
           "type": "string",
-          "description": "path to gluster volume"
+          "description": "path to gluster volume; see http://releases.k8s.io/v1.0.0/examples/glusterfs/README.md#create-a-pod"
         },
         "readOnly": {
           "type": "boolean",
-          "description": "glusterfs volume to be mounted with read-only permissions"
+          "description": "glusterfs volume to be mounted with read-only permissions; see http://releases.k8s.io/v1.0.0/examples/glusterfs/README.md#create-a-pod"
         }
       },
       "additionalProperties": true,
@@ -729,7 +729,7 @@
       "properties": {
         "path": {
           "type": "string",
-          "description": "path of the directory on the host"
+          "description": "path of the directory on the host; see http://releases.k8s.io/v1.0.0/docs/volumes.md#hostpath"
         }
       },
       "additionalProperties": true,
@@ -872,7 +872,7 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "name of the referent"
+          "description": "name of the referent; see http://releases.k8s.io/v1.0.0/docs/identifiers.md#names"
         }
       },
       "additionalProperties": true,
@@ -884,15 +884,15 @@
       "properties": {
         "path": {
           "type": "string",
-          "description": "the path that is exported by the NFS server"
+          "description": "the path that is exported by the NFS server; see http://releases.k8s.io/v1.0.0/docs/volumes.md#nfs"
         },
         "readOnly": {
           "type": "boolean",
-          "description": "forces the NFS export to be mounted with read-only permissions"
+          "description": "forces the NFS export to be mounted with read-only permissions; see http://releases.k8s.io/v1.0.0/docs/volumes.md#nfs"
         },
         "server": {
           "type": "string",
-          "description": "the hostname or IP address of the NFS server"
+          "description": "the hostname or IP address of the NFS server; see http://releases.k8s.io/v1.0.0/docs/volumes.md#nfs"
         }
       },
       "additionalProperties": true,
@@ -951,7 +951,7 @@
         },
         "items": {
           "type": "array",
-          "description": "items is the list of Namespace objects in the list",
+          "description": "items is the list of Namespace objects in the list; see http://releases.k8s.io/v1.0.0/docs/namespaces.md",
           "items": {
             "$ref": "#/definitions/kubernetes_Namespace",
             "javaType": "io.fabric8.kubernetes.api.model.Namespace"
@@ -981,10 +981,10 @@
       "properties": {
         "finalizers": {
           "type": "array",
-          "description": "an opaque list of values that must be empty to permanently remove object from storage",
+          "description": "an opaque list of values that must be empty to permanently remove object from storage; see http://releases.k8s.io/v1.0.0/docs/design/namespaces.md#finalizers",
           "items": {
             "type": "string",
-            "description": "an opaque list of values that must be empty to permanently remove object from storage"
+            "description": "an opaque list of values that must be empty to permanently remove object from storage; see http://releases.k8s.io/v1.0.0/docs/design/namespaces.md#finalizers"
           }
         }
       },
@@ -997,7 +997,7 @@
       "properties": {
         "phase": {
           "type": "string",
-          "description": "phase is the current lifecycle phase of the namespace"
+          "description": "phase is the current lifecycle phase of the namespace; see http://releases.k8s.io/v1.0.0/docs/design/namespaces.md#phases"
         }
       },
       "additionalProperties": true,
@@ -1146,7 +1146,7 @@
         },
         "unschedulable": {
           "type": "boolean",
-          "description": "disable pod scheduling on the node"
+          "description": "disable pod scheduling on the node; see http://releases.k8s.io/v1.0.0/docs/node.md#manual-node-administration"
         }
       },
       "additionalProperties": true,
@@ -1158,7 +1158,7 @@
       "properties": {
         "addresses": {
           "type": "array",
-          "description": "list of addresses reachable to the node",
+          "description": "list of addresses reachable to the node; see http://releases.k8s.io/v1.0.0/docs/node.md#node-addresses",
           "items": {
             "$ref": "#/definitions/kubernetes_NodeAddress",
             "javaType": "io.fabric8.kubernetes.api.model.NodeAddress"
@@ -1166,7 +1166,7 @@
         },
         "capacity": {
           "type": "object",
-          "description": "compute resource capacity of the node; http://docs.k8s.io/resources.md",
+          "description": "compute resource capacity of the node; see http://releases.k8s.io/v1.0.0/docs/compute_resources.md",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
             "javaType": "io.fabric8.kubernetes.api.model.Quantity"
@@ -1175,7 +1175,7 @@
         },
         "conditions": {
           "type": "array",
-          "description": "list of node conditions observed",
+          "description": "list of node conditions observed; see http://releases.k8s.io/v1.0.0/docs/node.md#node-condition",
           "items": {
             "$ref": "#/definitions/kubernetes_NodeCondition",
             "javaType": "io.fabric8.kubernetes.api.model.NodeCondition"
@@ -1187,7 +1187,7 @@
         },
         "phase": {
           "type": "string",
-          "description": "most recently observed lifecycle phase of the node"
+          "description": "most recently observed lifecycle phase of the node; see http://releases.k8s.io/v1.0.0/docs/node.md#node-phase"
         }
       },
       "additionalProperties": true,
@@ -1255,10 +1255,10 @@
       "properties": {
         "annotations": {
           "type": "object",
-          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects",
+          "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects; see http://releases.k8s.io/v1.0.0/docs/annotations.md",
           "additionalProperties": {
             "type": "string",
-            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects"
+            "description": "map of string keys and values that can be used by external tooling to store and retrieve arbitrary metadata about objects; see http://releases.k8s.io/v1.0.0/docs/annotations.md"
           },
           "javaType": "java.util.Map\u003cString,String\u003e"
         },
@@ -1281,22 +1281,22 @@
         },
         "labels": {
           "type": "object",
-          "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services",
+          "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services; see http://releases.k8s.io/v1.0.0/docs/labels.md",
           "additionalProperties": {
             "type": "string",
-            "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services"
+            "description": "map of string keys and values that can be used to organize and categorize objects; may match selectors of replication controllers and services; see http://releases.k8s.io/v1.0.0/docs/labels.md"
           },
           "javaType": "java.util.Map\u003cString,String\u003e"
         },
         "name": {
           "type": "string",
-          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated",
+          "description": "string that identifies an object. Must be unique within a namespace; cannot be updated; see http://releases.k8s.io/v1.0.0/docs/identifiers.md#names",
           "maxLength": 63,
           "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "namespace": {
           "type": "string",
-          "description": "namespace of the object; must be a DNS_LABEL; cannot be updated",
+          "description": "namespace of the object; must be a DNS_LABEL; cannot be updated; see http://releases.k8s.io/v1.0.0/docs/namespaces.md",
           "maxLength": 253,
           "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
         },
@@ -1310,7 +1310,7 @@
         },
         "uid": {
           "type": "string",
-          "description": "unique UUID across space and time; populated by the system; read-only"
+          "description": "unique UUID across space and time; populated by the system; read-only; see http://releases.k8s.io/v1.0.0/docs/identifiers.md#uids"
         }
       },
       "additionalProperties": true,
@@ -1330,15 +1330,15 @@
         },
         "kind": {
           "type": "string",
-          "description": "kind of the referent"
+          "description": "kind of the referent; see http://releases.k8s.io/v1.0.0/docs/api-conventions.md#types-kinds"
         },
         "name": {
           "type": "string",
-          "description": "name of the referent"
+          "description": "name of the referent; see http://releases.k8s.io/v1.0.0/docs/identifiers.md#names"
         },
         "namespace": {
           "type": "string",
-          "description": "namespace of the referent"
+          "description": "namespace of the referent; see http://releases.k8s.io/v1.0.0/docs/namespaces.md"
         },
         "resourceVersion": {
           "type": "string",
@@ -1346,7 +1346,7 @@
         },
         "uid": {
           "type": "string",
-          "description": "uid of the referent"
+          "description": "uid of the referent; see http://releases.k8s.io/v1.0.0/docs/identifiers.md#uids"
         }
       },
       "additionalProperties": true,
@@ -1443,7 +1443,7 @@
         },
         "items": {
           "type": "array",
-          "description": "a list of persistent volume claims",
+          "description": "a list of persistent volume claims; see http://releases.k8s.io/v1.0.0/docs/persistent-volumes.md#persistentvolumeclaims",
           "items": {
             "$ref": "#/definitions/kubernetes_PersistentVolumeClaim",
             "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaim"
@@ -1473,10 +1473,10 @@
       "properties": {
         "accessModes": {
           "type": "array",
-          "description": "the desired access modes the volume should have",
+          "description": "the desired access modes the volume should have; see http://releases.k8s.io/v1.0.0/docs/persistent-volumes.md#access-modes-1",
           "items": {
             "type": "string",
-            "description": "the desired access modes the volume should have"
+            "description": "the desired access modes the volume should have; see http://releases.k8s.io/v1.0.0/docs/persistent-volumes.md#access-modes-1"
           }
         },
         "resources": {
@@ -1497,10 +1497,10 @@
       "properties": {
         "accessModes": {
           "type": "array",
-          "description": "the actual access modes the volume has",
+          "description": "the actual access modes the volume has; see http://releases.k8s.io/v1.0.0/docs/persistent-volumes.md#access-modes-1",
           "items": {
             "type": "string",
-            "description": "the actual access modes the volume has"
+            "description": "the actual access modes the volume has; see http://releases.k8s.io/v1.0.0/docs/persistent-volumes.md#access-modes-1"
           }
         },
         "capacity": {
@@ -1526,7 +1526,7 @@
       "properties": {
         "claimName": {
           "type": "string",
-          "description": "the name of the claim in the same namespace to be mounted as a volume"
+          "description": "the name of the claim in the same namespace to be mounted as a volume; see http://releases.k8s.io/v1.0.0/docs/persistent-volumes.md#persistentvolumeclaims"
         },
         "readOnly": {
           "type": "boolean",
@@ -1551,7 +1551,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of persistent volumes",
+          "description": "list of persistent volumes; see http://releases.k8s.io/v1.0.0/docs/persistent-volumes.md",
           "items": {
             "$ref": "#/definitions/kubernetes_PersistentVolume",
             "javaType": "io.fabric8.kubernetes.api.model.PersistentVolume"
@@ -1617,10 +1617,10 @@
       "properties": {
         "accessModes": {
           "type": "array",
-          "description": "all ways the volume can be mounted",
+          "description": "all ways the volume can be mounted; see http://releases.k8s.io/v1.0.0/docs/persistent-volumes.md#access-modes",
           "items": {
             "type": "string",
-            "description": "all ways the volume can be mounted"
+            "description": "all ways the volume can be mounted; see http://releases.k8s.io/v1.0.0/docs/persistent-volumes.md#access-modes"
           }
         },
         "awsElasticBlockStore": {
@@ -1629,7 +1629,7 @@
         },
         "capacity": {
           "type": "object",
-          "description": "a description of the persistent volume's resources and capacity",
+          "description": "a description of the persistent volume's resources and capacityr; see http://releases.k8s.io/v1.0.0/docs/persistent-volumes.md#capacity",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
             "javaType": "io.fabric8.kubernetes.api.model.Quantity"
@@ -1662,7 +1662,7 @@
         },
         "persistentVolumeReclaimPolicy": {
           "type": "string",
-          "description": "what happens to a volume when released from its claim; Valid options are Retain (default) and Recycle.  Recyling must be supported by the volume plugin underlying this persistent volume."
+          "description": "what happens to a volume when released from its claim; Valid options are Retain (default) and Recycle.  Recyling must be supported by the volume plugin underlying this persistent volume. See http://releases.k8s.io/v1.0.0/docs/persistent-volumes.md#recycling-policy"
         },
         "rbd": {
           "$ref": "#/definitions/kubernetes_RBDVolumeSource",
@@ -1682,7 +1682,7 @@
         },
         "phase": {
           "type": "string",
-          "description": "the current phase of a persistent volume"
+          "description": "the current phase of a persistent volume; see http://releases.k8s.io/v1.0.0/docs/persistent-volumes.md#phase"
         },
         "reason": {
           "type": "string",
@@ -1761,7 +1761,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of pods",
+          "description": "list of pods; see http://releases.k8s.io/v1.0.0/docs/pods.md",
           "items": {
             "$ref": "#/definitions/kubernetes_Pod",
             "javaType": "io.fabric8.kubernetes.api.model.Pod"
@@ -1796,7 +1796,7 @@
         },
         "containers": {
           "type": "array",
-          "description": "list of containers belonging to the pod; cannot be updated; containers cannot currently be added or removed; there must be at least one container in a Pod",
+          "description": "list of containers belonging to the pod; cannot be updated; containers cannot currently be added or removed; there must be at least one container in a Pod; see http://releases.k8s.io/v1.0.0/docs/containers.md",
           "items": {
             "$ref": "#/definitions/kubernetes_Container",
             "javaType": "io.fabric8.kubernetes.api.model.Container"
@@ -1812,7 +1812,7 @@
         },
         "imagePullSecrets": {
           "type": "array",
-          "description": "list of references to secrets in the same namespace available for pulling the container images",
+          "description": "list of references to secrets in the same namespace available for pulling the container images; see http://releases.k8s.io/v1.0.0/docs/images.md#specifying-imagepullsecrets-on-a-pod",
           "items": {
             "$ref": "#/definitions/kubernetes_LocalObjectReference",
             "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
@@ -1824,10 +1824,10 @@
         },
         "nodeSelector": {
           "type": "object",
-          "description": "selector which must match a node's labels for the pod to be scheduled on that node",
+          "description": "selector which must match a node's labels for the pod to be scheduled on that node; see http://releases.k8s.io/v1.0.0/examples/node-selection/README.md",
           "additionalProperties": {
             "type": "string",
-            "description": "selector which must match a node's labels for the pod to be scheduled on that node"
+            "description": "selector which must match a node's labels for the pod to be scheduled on that node; see http://releases.k8s.io/v1.0.0/examples/node-selection/README.md"
           },
           "javaType": "java.util.Map\u003cString,String\u003e"
         },
@@ -1837,7 +1837,7 @@
         },
         "serviceAccountName": {
           "type": "string",
-          "description": "name of the ServiceAccount to use to run this pod"
+          "description": "name of the ServiceAccount to use to run this pod; see http://releases.k8s.io/v1.0.0/docs/service_accounts.md"
         },
         "terminationGracePeriodSeconds": {
           "type": "integer",
@@ -1846,7 +1846,7 @@
         },
         "volumes": {
           "type": "array",
-          "description": "list of volumes that can be mounted by containers belonging to the pod",
+          "description": "list of volumes that can be mounted by containers belonging to the pod; see http://releases.k8s.io/v1.0.0/docs/volumes.md",
           "items": {
             "$ref": "#/definitions/kubernetes_Volume",
             "javaType": "io.fabric8.kubernetes.api.model.Volume"
@@ -1862,7 +1862,7 @@
       "properties": {
         "conditions": {
           "type": "array",
-          "description": "current service state of pod",
+          "description": "current service state of pod; see http://releases.k8s.io/v1.0.0/docs/pod-states.md#pod-conditions",
           "items": {
             "$ref": "#/definitions/kubernetes_PodCondition",
             "javaType": "io.fabric8.kubernetes.api.model.PodCondition"
@@ -1870,7 +1870,7 @@
         },
         "containerStatuses": {
           "type": "array",
-          "description": "list of container statuses",
+          "description": "list of container statuses; see http://releases.k8s.io/v1.0.0/docs/pod-states.md#container-statuses",
           "items": {
             "$ref": "#/definitions/kubernetes_ContainerStatus",
             "javaType": "io.fabric8.kubernetes.api.model.ContainerStatus"
@@ -1886,7 +1886,7 @@
         },
         "phase": {
           "type": "string",
-          "description": "current condition of the pod."
+          "description": "current condition of the pod; see http://releases.k8s.io/v1.0.0/docs/pod-states.md#pod-phase"
         },
         "podIP": {
           "type": "string",
@@ -1934,7 +1934,7 @@
         },
         "initialDelaySeconds": {
           "type": "integer",
-          "description": "number of seconds after the container has started before liveness probes are initiated",
+          "description": "number of seconds after the container has started before liveness probes are initiated; see http://releases.k8s.io/v1.0.0/docs/pod-states.md#container-probes",
           "javaType": "Long"
         },
         "tcpSocket": {
@@ -1943,7 +1943,7 @@
         },
         "timeoutSeconds": {
           "type": "integer",
-          "description": "number of seconds after which liveness probes timeout; defaults to 1 second",
+          "description": "number of seconds after which liveness probes timeout; defaults to 1 second; see http://releases.k8s.io/v1.0.0/docs/pod-states.md#container-probes",
           "javaType": "Long"
         }
       },
@@ -1960,27 +1960,27 @@
         },
         "image": {
           "type": "string",
-          "description": "rados image name"
+          "description": "rados image name; see http://releases.k8s.io/v1.0.0/examples/rbd/README.md#how-to-use-it"
         },
         "keyring": {
           "type": "string",
-          "description": "keyring is the path to key ring for rados user; default is /etc/ceph/keyring; optional"
+          "description": "keyring is the path to key ring for rados user; default is /etc/ceph/keyring; optional; see http://releases.k8s.io/v1.0.0/examples/rbd/README.md#how-to-use-it"
         },
         "monitors": {
           "type": "array",
-          "description": "a collection of Ceph monitors",
+          "description": "a collection of Ceph monitors; see http://releases.k8s.io/v1.0.0/examples/rbd/README.md#how-to-use-it",
           "items": {
             "type": "string",
-            "description": "a collection of Ceph monitors"
+            "description": "a collection of Ceph monitors; see http://releases.k8s.io/v1.0.0/examples/rbd/README.md#how-to-use-it"
           }
         },
         "pool": {
           "type": "string",
-          "description": "rados pool name; default is rbd; optional"
+          "description": "rados pool name; default is rbd; optional; see http://releases.k8s.io/v1.0.0/examples/rbd/README.md#how-to-use-it"
         },
         "readOnly": {
           "type": "boolean",
-          "description": "rbd volume to be mounted with read-only permissions"
+          "description": "rbd volume to be mounted with read-only permissions; see http://releases.k8s.io/v1.0.0/examples/rbd/README.md#how-to-use-it"
         },
         "secretRef": {
           "$ref": "#/definitions/kubernetes_LocalObjectReference",
@@ -1988,7 +1988,7 @@
         },
         "user": {
           "type": "string",
-          "description": "rados user name; default is admin; optional"
+          "description": "rados user name; default is admin; optional; see http://releases.k8s.io/v1.0.0/examples/rbd/README.md#how-to-use-it"
         }
       },
       "additionalProperties": true,
@@ -2047,7 +2047,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of replication controllers",
+          "description": "list of replication controllers; see http://releases.k8s.io/v1.0.0/docs/replication-controller.md",
           "items": {
             "$ref": "#/definitions/kubernetes_ReplicationController",
             "javaType": "io.fabric8.kubernetes.api.model.ReplicationController"
@@ -2077,7 +2077,7 @@
       "properties": {
         "replicas": {
           "type": "integer",
-          "description": "number of replicas desired; defaults to 1"
+          "description": "number of replicas desired; defaults to 1; see http://releases.k8s.io/v1.0.0/docs/replication-controller.md#what-is-a-replication-controller"
         },
         "selector": {
           "type": "object",
@@ -2107,7 +2107,7 @@
         },
         "replicas": {
           "type": "integer",
-          "description": "most recently oberved number of replicas"
+          "description": "most recently oberved number of replicas; see http://releases.k8s.io/v1.0.0/docs/replication-controller.md#what-is-a-replication-controller"
         }
       },
       "additionalProperties": true,
@@ -2166,7 +2166,7 @@
         },
         "items": {
           "type": "array",
-          "description": "items is a list of ResourceQuota objects",
+          "description": "items is a list of ResourceQuota objects; see http://releases.k8s.io/v1.0.0/docs/design/admission_control_resource_quota.md#admissioncontrol-plugin-resourcequota",
           "items": {
             "$ref": "#/definitions/kubernetes_ResourceQuota",
             "javaType": "io.fabric8.kubernetes.api.model.ResourceQuota"
@@ -2196,7 +2196,7 @@
       "properties": {
         "hard": {
           "type": "object",
-          "description": "hard is the set of desired hard limits for each named resource",
+          "description": "hard is the set of desired hard limits for each named resource; see http://releases.k8s.io/v1.0.0/docs/design/admission_control_resource_quota.md#admissioncontrol-plugin-resourcequota",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
             "javaType": "io.fabric8.kubernetes.api.model.Quantity"
@@ -2213,7 +2213,7 @@
       "properties": {
         "hard": {
           "type": "object",
-          "description": "hard is the set of enforced hard limits for each named resource",
+          "description": "hard is the set of enforced hard limits for each named resource; see http://releases.k8s.io/v1.0.0/docs/design/admission_control_resource_quota.md#admissioncontrol-plugin-resourcequota",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
             "javaType": "io.fabric8.kubernetes.api.model.Quantity"
@@ -2239,7 +2239,7 @@
       "properties": {
         "limits": {
           "type": "object",
-          "description": "Maximum amount of compute resources allowed",
+          "description": "Maximum amount of compute resources allowed; see http://releases.k8s.io/v1.0.0/docs/design/resources.md#resource-specifications",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
             "javaType": "io.fabric8.kubernetes.api.model.Quantity"
@@ -2248,7 +2248,7 @@
         },
         "requests": {
           "type": "object",
-          "description": "Minimum amount of resources requested; requests are honored only for persistent volumes as of now",
+          "description": "Minimum amount of resources requested; requests are honored only for persistent volumes as of now; see http://releases.k8s.io/v1.0.0/docs/design/resources.md#resource-specifications",
           "additionalProperties": {
             "$ref": "#/definitions/kubernetes_resource_Quantity",
             "javaType": "io.fabric8.kubernetes.api.model.Quantity"
@@ -2265,19 +2265,19 @@
       "properties": {
         "level": {
           "type": "string",
-          "description": "the level label to apply to the container"
+          "description": "the level label to apply to the container; see http://releases.k8s.io/v1.0.0/docs/labels.md"
         },
         "role": {
           "type": "string",
-          "description": "the role label to apply to the container"
+          "description": "the role label to apply to the container; see http://releases.k8s.io/v1.0.0/docs/labels.md"
         },
         "type": {
           "type": "string",
-          "description": "the type label to apply to the container"
+          "description": "the type label to apply to the container; see http://releases.k8s.io/v1.0.0/docs/labels.md"
         },
         "user": {
           "type": "string",
-          "description": "the user label to apply to the container"
+          "description": "the user label to apply to the container; see http://releases.k8s.io/v1.0.0/docs/labels.md"
         }
       },
       "additionalProperties": true,
@@ -2341,7 +2341,7 @@
         },
         "items": {
           "type": "array",
-          "description": "items is a list of secret objects",
+          "description": "items is a list of secret objects; see http://releases.k8s.io/v1.0.0/docs/secrets.md",
           "items": {
             "$ref": "#/definitions/kubernetes_Secret",
             "javaType": "io.fabric8.kubernetes.api.model.Secret"
@@ -2371,7 +2371,7 @@
       "properties": {
         "secretName": {
           "type": "string",
-          "description": "secretName is the name of a secret in the pod's namespace"
+          "description": "secretName is the name of a secret in the pod's namespace; see http://releases.k8s.io/v1.0.0/docs/volumes.md#secrets"
         }
       },
       "additionalProperties": true,
@@ -2387,11 +2387,11 @@
         },
         "privileged": {
           "type": "boolean",
-          "description": "run the container in privileged mode"
+          "description": "run the container in privileged mode; see http://releases.k8s.io/v1.0.0/docs/design/security_context.md#security-context"
         },
         "runAsUser": {
           "type": "integer",
-          "description": "the user id that runs the first process in the container",
+          "description": "the user id that runs the first process in the container; see http://releases.k8s.io/v1.0.0/docs/design/security_context.md#security-context",
           "javaType": "Long"
         },
         "seLinuxOptions": {
@@ -2455,7 +2455,7 @@
         },
         "imagePullSecrets": {
           "type": "array",
-          "description": "list of references to secrets in the same namespace available for pulling container images",
+          "description": "list of references to secrets in the same namespace available for pulling container images; see http://releases.k8s.io/v1.0.0/docs/secrets.md#manually-specifying-an-imagepullsecret",
           "items": {
             "$ref": "#/definitions/kubernetes_LocalObjectReference",
             "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
@@ -2473,7 +2473,7 @@
         },
         "secrets": {
           "type": "array",
-          "description": "list of secrets that can be used by pods running as this service account",
+          "description": "list of secrets that can be used by pods running as this service account; see http://releases.k8s.io/v1.0.0/docs/secrets.md",
           "items": {
             "$ref": "#/definitions/kubernetes_ObjectReference",
             "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
@@ -2501,7 +2501,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of ServiceAccounts",
+          "description": "list of ServiceAccounts; see http://releases.k8s.io/v1.0.0/docs/service_accounts.md#service-accounts",
           "items": {
             "$ref": "#/definitions/kubernetes_ServiceAccount",
             "javaType": "io.fabric8.kubernetes.api.model.ServiceAccount"
@@ -2612,7 +2612,7 @@
         },
         "ports": {
           "type": "array",
-          "description": "ports exposed by the service",
+          "description": "ports exposed by the service; see http://releases.k8s.io/v1.0.0/docs/services.md#virtual-ips-and-service-proxies",
           "items": {
             "$ref": "#/definitions/kubernetes_ServicePort",
             "javaType": "io.fabric8.kubernetes.api.model.ServicePort"
@@ -2629,7 +2629,7 @@
         },
         "sessionAffinity": {
           "type": "string",
-          "description": "enable client IP based session affinity; must be ClientIP or None; defaults to None"
+          "description": "enable client IP based session affinity; must be ClientIP or None; defaults to None; see http://releases.k8s.io/v1.0.0/docs/services.md#virtual-ips-and-service-proxies"
         },
         "type": {
           "type": "string",
@@ -2732,7 +2732,7 @@
         },
         "kind": {
           "type": "string",
-          "description": "the kind attribute of the resource associated with the status StatusReason; on some operations may differ from the requested resource Kind"
+          "description": "the kind attribute of the resource associated with the status StatusReason; on some operations may differ from the requested resource Kind; see http://releases.k8s.io/v1.0.0/docs/api-conventions.md#types-kinds"
         },
         "name": {
           "type": "string",
@@ -2764,7 +2764,7 @@
       "properties": {
         "apiVersion": {
           "type": "string",
-          "description": "version of the schema the object should have"
+          "description": "version of the schema the object should have; see http://releases.k8s.io/v1.0.0/docs/api-conventions.md#resources"
         },
         "kind": {
           "type": "string",
@@ -2808,7 +2808,7 @@
         },
         "name": {
           "type": "string",
-          "description": "volume name; must be a DNS_LABEL and unique within the pod",
+          "description": "volume name; must be a DNS_LABEL and unique within the pod; see http://releases.k8s.io/v1.0.0/docs/identifiers.md#names",
           "maxLength": 63,
           "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
