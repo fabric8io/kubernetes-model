@@ -31,7 +31,7 @@
   <artifactId>kubernetes-model-generator</artifactId>
   <packaging>pom</packaging>
 
-  <name>Fabric8 :: Origin Schema Generate</name>
+  <name>Fabric8 :: Kubernetes Model Parent</name>
 
   <url>http://fabric8.io/</url>
   <inceptionYear>2011</inceptionYear>
@@ -61,9 +61,9 @@
   </developers>
 
   <scm>
-      <connection>scm:git:git@github.com:fabric8io/origin-schema-generator.git</connection>
-      <developerConnection>scm:git:git@github.com:fabric8io/origin-schema-generator.git</developerConnection>
-      <url>http://github.com/fabric8io/origin-schema-generator/</url>
+      <connection>scm:git:git@github.com:fabric8io/kubernetes-model.git</connection>
+      <developerConnection>scm:git:git@github.com:fabric8io/kubernetes-model.git</developerConnection>
+      <url>http://github.com/fabric8io/kubernetes-model/</url>
       <tag>${project.version}</tag>
   </scm>
 
