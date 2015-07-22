@@ -7,6 +7,8 @@ import com.sun.codemodel.JDefinedClass;
 import com.sun.codemodel.JEnumConstant;
 import com.sun.codemodel.JFieldVar;
 import com.sun.codemodel.JMethod;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import org.jsonschema2pojo.Jackson2Annotator;
 
 public class KubernetesTypeAnnotator extends Jackson2Annotator {
@@ -15,6 +17,8 @@ public class KubernetesTypeAnnotator extends Jackson2Annotator {
     public void propertyOrder(JDefinedClass clazz, JsonNode propertiesNode) {
         //We just want to make sure we avoid infinite loops
         clazz.annotate(JsonDeserialize.class).param("using", JsonDeserializer.None.class);
+        clazz.annotate(ToString.class);
+        clazz.annotate(EqualsAndHashCode.class);
     }
 
     @Override

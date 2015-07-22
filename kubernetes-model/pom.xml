@@ -49,13 +49,14 @@
       <artifactId>validation-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>commons-lang</groupId>
-      <artifactId>commons-lang</artifactId>
-    </dependency>
-    <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <scope>provided</scope>
     </dependency>
   </dependencies>
 
@@ -70,6 +71,8 @@
           <targetPackage>io.fabric8.kubernetes.api.model</targetPackage>
           <includeConstructors>true</includeConstructors>
           <includeJsr303Annotations>true</includeJsr303Annotations>
+          <includeToString>false</includeToString>
+          <includeHashcodeAndEquals>false</includeHashcodeAndEquals>
           <outputDirectory>${basedir}/target/generated-sources</outputDirectory>
           <customAnnotator>io.fabric8.kubernetes.annotator.KubernetesTypeAnnotator</customAnnotator>
         </configuration>
