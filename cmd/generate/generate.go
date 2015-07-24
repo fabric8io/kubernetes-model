@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	resourceapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource"
 	rapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
+	resourceapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource"
 	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1"
 	configapi "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api/v1"
 	kutil "github.com/GoogleCloudPlatform/kubernetes/pkg/util"
@@ -22,7 +22,7 @@ import (
 	routeapi "github.com/openshift/origin/pkg/route/api/v1"
 	templateapi "github.com/openshift/origin/pkg/template/api/v1"
 
-	"github.com/fabric8io/origin-schema-generator/pkg/schemagen"
+	"github.com/fabric8io/kubernetes-model/pkg/schemagen"
 )
 
 type Schema struct {

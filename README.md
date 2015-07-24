@@ -15,10 +15,7 @@ Building
 To build, clone repo and run:  
 
 ```
-cd origin-schema-generator
-godep restore
-go build ./cmd/generate/generate.go  
-./generate > kube-schema.json  
+make
 ```
 
 You should now be able to view the generated schema in `kube-schema.json`
