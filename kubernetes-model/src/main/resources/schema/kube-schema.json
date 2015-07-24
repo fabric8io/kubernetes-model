@@ -16,7 +16,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.root.RootPaths"
+      "javaType": "io.fabric8.kubernetes.api.model.RootPaths"
     },
     "kubernetes_AWSElasticBlockStoreVolumeSource": {
       "type": "object",
@@ -5247,7 +5247,7 @@
     },
     "RootPaths": {
       "$ref": "#/definitions/api_RootPaths",
-      "javaType": "io.fabric8.kubernetes.api.root.RootPaths"
+      "javaType": "io.fabric8.kubernetes.api.model.RootPaths"
     },
     "RouteList": {
       "$ref": "#/definitions/os_route_RouteList",
