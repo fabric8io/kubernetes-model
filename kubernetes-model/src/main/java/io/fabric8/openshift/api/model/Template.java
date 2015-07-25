@@ -21,9 +21,8 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.fabric8.kubernetes.api.model.HasMetadata;
 import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.internal.HasMetadataComparator;
-import org.apache.commons.lang.builder.EqualsBuilder;
-import org.apache.commons.lang.builder.HashCodeBuilder;
-import org.apache.commons.lang.builder.ToStringBuilder;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 import javax.annotation.Generated;
 import javax.validation.Valid;
@@ -46,6 +45,8 @@ import java.util.*;
         "parameters"
 })
 @JsonDeserialize(using = JsonDeserializer.None.class)
+@EqualsAndHashCode
+@ToString
 public class Template implements HasMetadata {
 
     /**
@@ -217,11 +218,6 @@ public class Template implements HasMetadata {
         this.parameters = parameters;
     }
 
-    @Override
-    public java.lang.String toString() {
-        return ToStringBuilder.reflectionToString(this);
-    }
-
     @JsonAnyGetter
     public Map<java.lang.String, java.lang.Object> getAdditionalProperties() {
         return this.additionalProperties;
@@ -230,23 +226,6 @@ public class Template implements HasMetadata {
     @JsonAnySetter
     public void setAdditionalProperty(java.lang.String name, java.lang.Object value) {
         this.additionalProperties.put(name, value);
-    }
-
-    @Override
-    public int hashCode() {
-        return new HashCodeBuilder().append(apiVersion).append(kind).append(labels).append(metadata).append(objects).append(parameters).append(additionalProperties).toHashCode();
-    }
-
-    @Override
-    public boolean equals(java.lang.Object other) {
-        if (other == this) {
-            return true;
-        }
-        if ((other instanceof Template) == false) {
-            return false;
-        }
-        Template rhs = ((Template) other);
-        return new EqualsBuilder().append(apiVersion, rhs.apiVersion).append(kind, rhs.kind).append(labels, rhs.labels).append(metadata, rhs.metadata).append(objects, rhs.objects).append(parameters, rhs.parameters).append(additionalProperties, rhs.additionalProperties).isEquals();
     }
 
     @Generated("org.jsonschema2pojo")

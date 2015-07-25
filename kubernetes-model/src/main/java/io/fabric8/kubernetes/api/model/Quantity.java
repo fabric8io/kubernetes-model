@@ -25,9 +25,8 @@ import com.fasterxml.jackson.core.ObjectCodec;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import org.apache.commons.lang.builder.EqualsBuilder;
-import org.apache.commons.lang.builder.HashCodeBuilder;
-import org.apache.commons.lang.builder.ToStringBuilder;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 import javax.annotation.Generated;
 import java.io.IOException;
@@ -42,6 +41,8 @@ import java.util.Map;
 @JsonDeserialize(using = Quantity.Deserializer.class)
 @JsonSerialize(using = Quantity.Serializer.class)
 @Generated("org.jsonschema2pojo")
+@ToString
+@EqualsAndHashCode
 public class Quantity {
 
     private String amount;
@@ -90,10 +91,6 @@ public class Quantity {
         this.format = format;
     }
 
-    @Override
-    public String toString() {
-        return ToStringBuilder.reflectionToString(this);
-    }
 
     @JsonAnyGetter
     public Map<String, Object> getAdditionalProperties() {
@@ -103,23 +100,6 @@ public class Quantity {
     @JsonAnySetter
     public void setAdditionalProperty(String name, Object value) {
         this.additionalProperties.put(name, value);
-    }
-
-    @Override
-    public int hashCode() {
-        return new HashCodeBuilder().append(amount).append(format).append(additionalProperties).toHashCode();
-    }
-
-    @Override
-    public boolean equals(Object other) {
-        if (other == this) {
-            return true;
-        }
-        if ((other instanceof Quantity) == false) {
-            return false;
-        }
-        Quantity rhs = ((Quantity) other);
-        return new EqualsBuilder().append(amount, rhs.amount).append(format, rhs.format).append(additionalProperties, rhs.additionalProperties).isEquals();
     }
 
     public static class Serializer extends JsonSerializer<Quantity> {

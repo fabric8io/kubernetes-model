@@ -33,9 +33,8 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import org.apache.commons.lang.builder.EqualsBuilder;
-import org.apache.commons.lang.builder.HashCodeBuilder;
-import org.apache.commons.lang.builder.ToStringBuilder;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 import javax.annotation.Generated;
 import java.io.IOException;
@@ -51,6 +50,8 @@ import java.util.Map;
     "Kind",
     "StrVal"
 })
+@ToString
+@EqualsAndHashCode
 public class IntOrString {
 
     @JsonProperty("IntVal")
@@ -140,21 +141,6 @@ public class IntOrString {
     @JsonProperty("StrVal")
     public void setStrVal(String StrVal) {
         this.StrVal = StrVal;
-    }
-
-    @Override
-    public String toString() {
-        return ToStringBuilder.reflectionToString(this);
-    }
-
-    @Override
-    public int hashCode() {
-        return HashCodeBuilder.reflectionHashCode(this);
-    }
-
-    @Override
-    public boolean equals(Object other) {
-        return EqualsBuilder.reflectionEquals(this, other);
     }
 
     @JsonAnyGetter
