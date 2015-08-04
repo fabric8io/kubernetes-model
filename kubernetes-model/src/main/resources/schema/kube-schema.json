@@ -66,6 +66,38 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.Capabilities"
     },
+    "kubernetes_CephFSVolumeSource": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "monitors": {
+          "type": "array",
+          "description": "a collection of Ceph monitors",
+          "items": {
+            "type": "string",
+            "description": "a collection of Ceph monitors"
+          }
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "Ceph fs to be mounted with read-only permissions"
+        },
+        "secretFile": {
+          "type": "string",
+          "description": "path to secret for rados user; default is /etc/ceph/user.secret; optional"
+        },
+        "secretRef": {
+          "$ref": "#/definitions/kubernetes_LocalObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
+        },
+        "user": {
+          "type": "string",
+          "description": "rados user name; default is admin; optional"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.CephFSVolumeSource"
+    },
     "kubernetes_Container": {
       "type": "object",
       "description": "",
@@ -878,6 +910,42 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
     },
+    "kubernetes_MetadataFile": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "fieldRef": {
+          "$ref": "#/definitions/kubernetes_ObjectFieldSelector",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectFieldSelector"
+        },
+        "name": {
+          "type": "string",
+          "description": "the name of the file to be created"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.MetadataFile"
+    },
+    "kubernetes_MetadataVolumeSource": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "items": {
+          "type": "array",
+          "description": "list of metadata files",
+          "items": {
+            "$ref": "#/definitions/kubernetes_MetadataFile",
+            "javaType": "io.fabric8.kubernetes.api.model.MetadataFile"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.MetadataVolumeSource",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
     "kubernetes_NFSVolumeSource": {
       "type": "object",
       "description": "",
@@ -1583,6 +1651,10 @@
           "$ref": "#/definitions/kubernetes_AWSElasticBlockStoreVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.AWSElasticBlockStoreVolumeSource"
         },
+        "cephfs": {
+          "$ref": "#/definitions/kubernetes_CephFSVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.CephFSVolumeSource"
+        },
         "gcePersistentDisk": {
           "$ref": "#/definitions/kubernetes_GCEPersistentDiskVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.GCEPersistentDiskVolumeSource"
@@ -1635,6 +1707,10 @@
             "javaType": "io.fabric8.kubernetes.api.model.Quantity"
           },
           "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.Quantity\u003e"
+        },
+        "cephfs": {
+          "$ref": "#/definitions/kubernetes_CephFSVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.CephFSVolumeSource"
         },
         "claimRef": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
@@ -1806,6 +1882,10 @@
           "type": "string",
           "description": "DNS policy for containers within the pod; one of 'ClusterFirst' or 'Default'"
         },
+        "host": {
+          "type": "string",
+          "description": "deprecated"
+        },
         "hostNetwork": {
           "type": "boolean",
           "description": "host networking requested for this pod"
@@ -1834,6 +1914,10 @@
         "restartPolicy": {
           "type": "string",
           "description": "restart policy for all containers within the pod; one of Always"
+        },
+        "serviceAccount": {
+          "type": "string",
+          "description": "deprecated"
         },
         "serviceAccountName": {
           "type": "string",
@@ -2259,6 +2343,49 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.ResourceRequirements"
     },
+    "kubernetes_RunAsUserStrategyOptions": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "strategy used to generate RunAsUser"
+        },
+        "uid": {
+          "type": "integer",
+          "description": "the uid to always run as; required for MustRunAs",
+          "javaType": "Long"
+        },
+        "uidRangeMax": {
+          "type": "integer",
+          "description": "max value for range based allocators",
+          "javaType": "Long"
+        },
+        "uidRangeMin": {
+          "type": "integer",
+          "description": "min value for range based allocators",
+          "javaType": "Long"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.RunAsUserStrategyOptions"
+    },
+    "kubernetes_SELinuxContextStrategyOptions": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "seLinuxOptions": {
+          "$ref": "#/definitions/kubernetes_SELinuxOptions",
+          "javaType": "io.fabric8.kubernetes.api.model.SELinuxOptions"
+        },
+        "type": {
+          "type": "string",
+          "description": "strategy used to generate the SELinux context"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.SELinuxContextStrategyOptions"
+    },
     "kubernetes_SELinuxOptions": {
       "type": "object",
       "description": "",
@@ -2389,6 +2516,10 @@
           "type": "boolean",
           "description": "run the container in privileged mode; see http://releases.k8s.io/v1.0.0/docs/design/security_context.md#security-context"
         },
+        "runAsNonRoot": {
+          "type": "boolean",
+          "description": "indicates the container must be run as a non-root user either by specifying the runAsUser or in the image specification"
+        },
         "runAsUser": {
           "type": "integer",
           "description": "the user id that runs the first process in the container; see http://releases.k8s.io/v1.0.0/docs/design/security_context.md#security-context",
@@ -2401,6 +2532,123 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.SecurityContext"
+    },
+    "kubernetes_SecurityContextConstraints": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "allowHostDirVolumePlugin": {
+          "type": "boolean",
+          "description": "allow the use of the host dir volume plugin"
+        },
+        "allowHostNetwork": {
+          "type": "boolean",
+          "description": "allow the use of the hostNetwork in the pod spec"
+        },
+        "allowHostPorts": {
+          "type": "boolean",
+          "description": "allow the use of the host ports in the containers"
+        },
+        "allowPrivilegedContainer": {
+          "type": "boolean",
+          "description": "allow containers to run as privileged"
+        },
+        "allowedCapabilities": {
+          "type": "array",
+          "description": "capabilities that are allowed to be added",
+          "items": {
+            "type": "string",
+            "description": "capabilities that are allowed to be added"
+          }
+        },
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "groups": {
+          "type": "array",
+          "description": "groups allowed to use this SecurityContextConstraints",
+          "items": {
+            "type": "string",
+            "description": "groups allowed to use this SecurityContextConstraints"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "SecurityContextConstraints",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "runAsUser": {
+          "$ref": "#/definitions/kubernetes_RunAsUserStrategyOptions",
+          "javaType": "io.fabric8.kubernetes.api.model.RunAsUserStrategyOptions"
+        },
+        "seLinuxContext": {
+          "$ref": "#/definitions/kubernetes_SELinuxContextStrategyOptions",
+          "javaType": "io.fabric8.kubernetes.api.model.SELinuxContextStrategyOptions"
+        },
+        "users": {
+          "type": "array",
+          "description": "users allowed to use this SecurityContextConstraints",
+          "items": {
+            "type": "string",
+            "description": "users allowed to use this SecurityContextConstraints"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.SecurityContextConstraints",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_SecurityContextConstraintsList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_SecurityContextConstraints",
+            "javaType": "io.fabric8.kubernetes.api.model.SecurityContextConstraints"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "SecurityContextConstraintsList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.SecurityContextConstraintsList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
     },
     "kubernetes_Service": {
       "type": "object",
@@ -2610,6 +2858,10 @@
             "description": "deprecated. externally visible IPs (e.g. load balancers) that should be proxied to this service"
           }
         },
+        "portalIP": {
+          "type": "string",
+          "description": "deprecated"
+        },
         "ports": {
           "type": "array",
           "description": "ports exposed by the service; see http://releases.k8s.io/v1.0.0/docs/services.md#virtual-ips-and-service-proxies",
@@ -2782,6 +3034,10 @@
           "$ref": "#/definitions/kubernetes_AWSElasticBlockStoreVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.AWSElasticBlockStoreVolumeSource"
         },
+        "cephfs": {
+          "$ref": "#/definitions/kubernetes_CephFSVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.CephFSVolumeSource"
+        },
         "emptyDir": {
           "$ref": "#/definitions/kubernetes_EmptyDirVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.EmptyDirVolumeSource"
@@ -2805,6 +3061,10 @@
         "iscsi": {
           "$ref": "#/definitions/kubernetes_ISCSIVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.ISCSIVolumeSource"
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_MetadataVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.MetadataVolumeSource"
         },
         "name": {
           "type": "string",
@@ -2860,6 +3120,10 @@
           "$ref": "#/definitions/kubernetes_AWSElasticBlockStoreVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.AWSElasticBlockStoreVolumeSource"
         },
+        "cephfs": {
+          "$ref": "#/definitions/kubernetes_CephFSVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.CephFSVolumeSource"
+        },
         "emptyDir": {
           "$ref": "#/definitions/kubernetes_EmptyDirVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.EmptyDirVolumeSource"
@@ -2883,6 +3147,10 @@
         "iscsi": {
           "$ref": "#/definitions/kubernetes_ISCSIVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.ISCSIVolumeSource"
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_MetadataVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.MetadataVolumeSource"
         },
         "nfs": {
           "$ref": "#/definitions/kubernetes_NFSVolumeSource",
@@ -4177,6 +4445,10 @@
           "description": "the time to wait for updates before giving up",
           "javaType": "Long"
         },
+        "updatePercent": {
+          "type": "integer",
+          "description": "the percentage of replicas to scale up or down each interval (negative value switches scale order to down/up instead of up/down)"
+        },
         "updatePeriodSeconds": {
           "type": "integer",
           "description": "the time to wait between individual pod updates",
@@ -5260,6 +5532,14 @@
     "SecretList": {
       "$ref": "#/definitions/kubernetes_SecretList",
       "javaType": "io.fabric8.kubernetes.api.model.SecretList"
+    },
+    "SecurityContextConstraints": {
+      "$ref": "#/definitions/kubernetes_SecurityContextConstraints",
+      "javaType": "io.fabric8.kubernetes.api.model.SecurityContextConstraints"
+    },
+    "SecurityContextConstraintsList": {
+      "$ref": "#/definitions/kubernetes_SecurityContextConstraintsList",
+      "javaType": "io.fabric8.kubernetes.api.model.SecurityContextConstraintsList"
     },
     "ServiceAccount": {
       "$ref": "#/definitions/kubernetes_ServiceAccount",

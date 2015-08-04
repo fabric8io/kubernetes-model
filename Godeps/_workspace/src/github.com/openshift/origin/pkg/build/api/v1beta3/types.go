@@ -7,9 +7,6 @@ import (
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 )
 
-// BuildLabel is the key of a Pod label whose value is the Name of a Build which is run.
-const BuildLabel = "build"
-
 // Build encapsulates the inputs needed to produce a new deployable image, as well as
 // the status of the execution and a reference to the Pod which executed the build.
 type Build struct {
@@ -207,7 +204,7 @@ const (
 
 // CustomBuildStrategy defines input parameters specific to Custom build.
 type CustomBuildStrategy struct {
-	// From is reference to an ImageStream, ImageStreamTag, or ImageStreamImage from which
+	// From is reference to an ImageStreamTag, or ImageStreamImage from which
 	// the docker image should be pulled
 	From kapi.ObjectReference `json:"from"`
 
@@ -227,7 +224,7 @@ type CustomBuildStrategy struct {
 
 // DockerBuildStrategy defines input parameters specific to Docker build.
 type DockerBuildStrategy struct {
-	// From is reference to an ImageStream, ImageStreamTag, or ImageStreamImage from which
+	// From is reference to an ImageStreamTag, or ImageStreamImage from which
 	// the docker image should be pulled
 	// the resulting image will be used in the FROM line of the Dockerfile for this build.
 	From *kapi.ObjectReference `json:"from,omitempty"`
@@ -243,11 +240,14 @@ type DockerBuildStrategy struct {
 
 	// Env contains additional environment variables you want to pass into a builder container
 	Env []kapi.EnvVar `json:"env,omitempty" description:"additional environment variables you want to pass into a builder container"`
+
+	// ForcePull describes if the builder should pull the images from registry prior to building.
+	ForcePull bool `json:"forcePull,omitempty" description:"forces the source build to pull the image if true"`
 }
 
 // SourceBuildStrategy defines input parameters specific to an Source build.
 type SourceBuildStrategy struct {
-	// From is reference to an ImageStream, ImageStreamTag, or ImageStreamImage from which
+	// From is reference to an ImageStreamTag, or ImageStreamImage from which
 	// the docker image should be pulled
 	From kapi.ObjectReference `json:"from"`
 
@@ -264,6 +264,9 @@ type SourceBuildStrategy struct {
 
 	// Incremental flag forces the Source build to do incremental builds if true.
 	Incremental bool `json:"incremental,omitempty"`
+
+	// ForcePull describes if the builder should pull the images from registry prior to building.
+	ForcePull bool `json:"forcePull,omitempty" description:"forces the source build to pull the image if true"`
 }
 
 // BuildOutput is input to a build strategy and describes the Docker image that the strategy
