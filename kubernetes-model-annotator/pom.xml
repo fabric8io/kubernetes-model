@@ -45,5 +45,10 @@
             <groupId>com.fasterxml.jackson.module</groupId>
             <artifactId>jackson-module-jaxb-annotations</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.sundr</groupId>
+            <artifactId>sundr-annotations</artifactId>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
 </project>

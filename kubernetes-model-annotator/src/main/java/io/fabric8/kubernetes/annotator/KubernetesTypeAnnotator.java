@@ -1,12 +1,12 @@
 /**
  * Copyright (C) 2011 Red Hat, Inc.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,10 +18,14 @@ package io.fabric8.kubernetes.annotator;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.sun.codemodel.JClassAlreadyExistsException;
+import com.sun.codemodel.JCodeModel;
 import com.sun.codemodel.JDefinedClass;
 import com.sun.codemodel.JEnumConstant;
 import com.sun.codemodel.JFieldVar;
 import com.sun.codemodel.JMethod;
+import io.sundr.builder.annotations.Buildable;
+import io.sundr.builder.annotations.Inline;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import org.jsonschema2pojo.Jackson2Annotator;
@@ -31,9 +35,22 @@ public class KubernetesTypeAnnotator extends Jackson2Annotator {
     @Override
     public void propertyOrder(JDefinedClass clazz, JsonNode propertiesNode) {
         //We just want to make sure we avoid infinite loops
-        clazz.annotate(JsonDeserialize.class).param("using", JsonDeserializer.None.class);
+        clazz.annotate(JsonDeserialize.class)
+                .param("using", JsonDeserializer.None.class);
         clazz.annotate(ToString.class);
         clazz.annotate(EqualsAndHashCode.class);
+        try {
+            clazz.annotate(Buildable.class)
+                    .param("editableEnabled", true)
+                    .param("validationEnabled", true)
+                    .param("builderPackage", "io.fabric8.kubernetes.api.builder")
+                    .annotationParam("inline", Inline.class)
+                    .param("type", new JCodeModel()._class("io.fabric8.kubernetes.api.model.Doneable"))
+                    .param("prefix", "Doneable")
+                    .param("value", "done");
+        } catch (JClassAlreadyExistsException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override

@@ -25,6 +25,8 @@ import com.fasterxml.jackson.core.ObjectCodec;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import io.sundr.builder.annotations.Buildable;
+import io.sundr.builder.annotations.Inline;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
@@ -40,9 +42,9 @@ import java.util.Map;
  */
 @JsonDeserialize(using = Quantity.Deserializer.class)
 @JsonSerialize(using = Quantity.Serializer.class)
-@Generated("org.jsonschema2pojo")
 @ToString
 @EqualsAndHashCode
+@Buildable(editableEnabled = true, validationEnabled = true, builderPackage = "io.fabric8.kubernetes.api.builder", inline = @Inline(type = Doneable.class, prefix = "Doneable", value = "done"))
 public class Quantity {
 
     private String amount;

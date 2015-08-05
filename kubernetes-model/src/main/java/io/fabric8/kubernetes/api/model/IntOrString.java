@@ -33,16 +33,16 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import io.sundr.builder.annotations.Buildable;
+import io.sundr.builder.annotations.Inline;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
-import javax.annotation.Generated;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@Generated("org.jsonschema2pojo")
 @JsonDeserialize(using = IntOrString.Deserializer.class)
 @JsonSerialize(using = IntOrString.Serializer.class)
 @JsonPropertyOrder({
@@ -52,6 +52,7 @@ import java.util.Map;
 })
 @ToString
 @EqualsAndHashCode
+@Buildable(editableEnabled = true, validationEnabled = true, builderPackage = "io.fabric8.kubernetes.api.builder", inline = @Inline(type = Doneable.class, prefix = "Doneable", value = "done"))
 public class IntOrString {
 
     @JsonProperty("IntVal")

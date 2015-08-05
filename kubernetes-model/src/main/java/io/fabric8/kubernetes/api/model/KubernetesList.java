@@ -20,6 +20,8 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.fabric8.kubernetes.internal.HasMetadataComparator;
+import io.sundr.builder.annotations.Buildable;
+import io.sundr.builder.annotations.Inline;
 
 import javax.annotation.Generated;
 import java.util.ArrayList;
@@ -48,6 +50,7 @@ import java.util.List;
         "uid"
 })
 @JsonDeserialize(using = JsonDeserializer.None.class)
+@Buildable(editableEnabled = true, validationEnabled = true, builderPackage = "io.fabric8.kubernetes.api.builder", inline = @Inline(type = Doneable.class, prefix = "Doneable", value = "done"))
 public class KubernetesList extends BaseKubernetesList implements KubernetesResource {
 
     /**
