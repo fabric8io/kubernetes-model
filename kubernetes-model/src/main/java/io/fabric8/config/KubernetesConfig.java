@@ -98,6 +98,8 @@ import io.sundr.builder.annotations.Inline;
         "io.fabric8.kubernetes.api.model.SecretList",
         "io.fabric8.kubernetes.api.model.SecretVolumeSource",
         "io.fabric8.kubernetes.api.model.SecurityContext",
+        "io.fabric8.kubernetes.api.model.SecurityContextConstraints",
+        "io.fabric8.kubernetes.api.model.SecurityContextConstraintsList",
         "io.fabric8.kubernetes.api.model.Service",
         "io.fabric8.kubernetes.api.model.ServiceAccount",
         "io.fabric8.kubernetes.api.model.ServiceAccountList",
