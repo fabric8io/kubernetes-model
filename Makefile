@@ -30,4 +30,6 @@ update-deps:
 		godep restore && \
 		popd && \
 		godep save cmd/generate/generate.go && \
-		godep update ...
+		godep update ... && \
+		rm -rf Godeps/_workspace/src/github.com/GoogleCloudPlatform/kubernetes && \
+		cp -r $(GOPATH)/src/github.com/openshift/origin/Godeps/_workspace/src/github.com/GoogleCloudPlatform/kubernetes Godeps/_workspace/src/github.com/GoogleCloudPlatform/kubernetes
