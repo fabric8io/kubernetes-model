@@ -15,43 +15,7 @@
  */
 package io.fabric8.kubernetes.api.model;
 
-import io.fabric8.openshift.api.model.BuildConfigList;
-import io.fabric8.openshift.api.model.BuildList;
-import io.fabric8.openshift.api.model.ClusterPolicy;
-import io.fabric8.openshift.api.model.ClusterPolicyBinding;
-import io.fabric8.openshift.api.model.ClusterPolicyBindingList;
-import io.fabric8.openshift.api.model.ClusterPolicyList;
-import io.fabric8.openshift.api.model.ClusterRoleBinding;
-import io.fabric8.openshift.api.model.ClusterRoleBindingList;
-import io.fabric8.openshift.api.model.DeploymentConfigList;
-import io.fabric8.openshift.api.model.Group;
-import io.fabric8.openshift.api.model.GroupList;
-import io.fabric8.openshift.api.model.Identity;
-import io.fabric8.openshift.api.model.IdentityList;
-import io.fabric8.openshift.api.model.ImageList;
-import io.fabric8.openshift.api.model.ImageStreamList;
-import io.fabric8.openshift.api.model.OAuthAccessToken;
-import io.fabric8.openshift.api.model.OAuthAccessTokenList;
-import io.fabric8.openshift.api.model.OAuthAuthorizeToken;
-import io.fabric8.openshift.api.model.OAuthAuthorizeTokenList;
-import io.fabric8.openshift.api.model.OAuthClient;
-import io.fabric8.openshift.api.model.OAuthClientAuthorization;
-import io.fabric8.openshift.api.model.OAuthClientAuthorizationList;
-import io.fabric8.openshift.api.model.OAuthClientList;
-import io.fabric8.openshift.api.model.Policy;
-import io.fabric8.openshift.api.model.PolicyBinding;
-import io.fabric8.openshift.api.model.PolicyBindingList;
-import io.fabric8.openshift.api.model.PolicyList;
-import io.fabric8.openshift.api.model.Role;
-import io.fabric8.openshift.api.model.RoleBinding;
-import io.fabric8.openshift.api.model.RoleBindingList;
-import io.fabric8.openshift.api.model.RoleList;
-import io.fabric8.openshift.api.model.RouteList;
-import io.fabric8.openshift.api.model.TagEvent;
-import io.fabric8.openshift.api.model.Template;
-import io.fabric8.openshift.api.model.TemplateList;
-import io.fabric8.openshift.api.model.User;
-import io.fabric8.openshift.api.model.UserList;
+import io.fabric8.openshift.api.model.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -59,51 +23,46 @@ import java.util.Map;
 public enum KubernetesKind {
 
     List(KubernetesList.class),
-    ObjectMeta(ObjectMeta.class),
-    PodList(PodList.class),
-    ReplicationControllerList(ReplicationControllerList.class),
-    ServiceList(ServiceList.class),
-    Endpoints(Endpoints.class),
-    EndpointsList(EndpointsList.class),
-    EventList(EventList.class),
-    Node(Node.class),
-    NodeList(NodeList.class),
-    EnvVar(EnvVar.class),
-    Namespace(Namespace.class),
-    NamespaceList(NamespaceList.class),
-    PersistentVolume(PersistentVolume.class),
-    PersistentVolumeList(PersistentVolumeList.class),
-    PersistentVolumeClaim(PersistentVolumeClaim.class),
-    PersistentVolumeClaimList(PersistentVolumeClaimList.class),
-    ResourceQuota(ResourceQuota.class),
-    ResourceQuotaList(ResourceQuotaList.class),
-    Secret(Secret.class),
-    SecretList(SecretList.class),
-    SecurityContextConstraints(SecurityContextConstraints.class),
-    SecurityContextConstraintsList(SecurityContextConstraintsList.class),
     ServiceAccount(ServiceAccount.class),
     ServiceAccountList(ServiceAccountList.class),
-    Status(Status.class),
-    Quantity(Quantity.class),
-    BuildRequest(io.fabric8.openshift.api.model.BuildRequest.class),
+    Service(Service.class),
+    ServiceList(ServiceList.class),
+    Pod(Pod.class),
+    PodList(PodList.class),
+    ReplicationController(ReplicationController.class),
+    ReplicationControllerList(ReplicationControllerList.class),
+    Namespace(Namespace.class),
+    NamespaceList(NamespaceList.class),
+    Secret(Secret.class),
+    SecretList(SecretList.class),
+    Endpoints(Endpoints.class),
+    EndpointsList(EndpointsList.class),
+    Node(Node.class),
+    NodeList(NodeList.class),
+    Build(Build.class),
     BuildList(BuildList.class),
+    BuildConfig(BuildConfig.class),
     BuildConfigList(BuildConfigList.class),
-    ImageList(ImageList.class),
-    ImageStreamList(ImageStreamList.class),
+    DeploymentConfig(DeploymentConfig.class),
     DeploymentConfigList(DeploymentConfigList.class),
+    Image(Image.class),
+    ImageList(ImageList.class),
+    ImageStream(ImageStream.class),
+    ImageStreamList(ImageStreamList.class),
+    NameTagReference(NamedTagReference.class),
+    NameTagEventList(NamedTagEventList.class),
+    Route(Route.class),
     RouteList(RouteList.class),
-    ContainerStatus(ContainerStatus.class),
     Template(Template.class),
     TemplateList(TemplateList.class),
-    TagEvent(TagEvent.class),
     OAuthClient(OAuthClient.class),
-    OAuthAccessToken(OAuthAccessToken.class),
-    OAuthAuthorizeToken(OAuthAuthorizeToken.class),
-    OAuthClientAuthorization(OAuthClientAuthorization.class),
-    OAuthAccessTokenList(OAuthAccessTokenList.class),
-    OAuthAuthorizeTokenList(OAuthAuthorizeTokenList.class),
     OAuthClientList(OAuthClientList.class),
+    OAuthClientAuthorization(OAuthClientAuthorization.class),
     OAuthClientAuthorizationList(OAuthClientAuthorizationList.class),
+    OAuthAuthorizeToken(OAuthAuthorizeToken.class),
+    OAuthAuthorizeTokenList(OAuthAuthorizeTokenList.class),
+    OAuthAccessToken(OAuthAccessToken.class),
+    OAuthAccessTokenList(OAuthAccessTokenList.class),
     ClusterPolicy(ClusterPolicy.class),
     ClusterPolicyList(ClusterPolicyList.class),
     ClusterPolicyBinding(ClusterPolicyBinding.class),
