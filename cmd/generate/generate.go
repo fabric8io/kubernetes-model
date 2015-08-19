@@ -30,12 +30,14 @@ import (
 	configapi "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api/v1"
 	kutil "github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 	watch "github.com/GoogleCloudPlatform/kubernetes/pkg/watch/json"
+	authapi "github.com/openshift/origin/pkg/authorization/api/v1"
 	buildapi "github.com/openshift/origin/pkg/build/api/v1"
 	deployapi "github.com/openshift/origin/pkg/deploy/api/v1"
 	imageapi "github.com/openshift/origin/pkg/image/api/v1"
 	oauthapi "github.com/openshift/origin/pkg/oauth/api/v1"
 	routeapi "github.com/openshift/origin/pkg/route/api/v1"
 	templateapi "github.com/openshift/origin/pkg/template/api/v1"
+	userapi "github.com/openshift/origin/pkg/user/api/v1"
 
 	"github.com/fabric8io/kubernetes-model/pkg/schemagen"
 )
@@ -87,6 +89,26 @@ type Schema struct {
 	OAuthAuthorizeTokenList        oauthapi.OAuthAuthorizeTokenList
 	OAuthClientList                oauthapi.OAuthClientList
 	OAuthClientAuthorizationList   oauthapi.OAuthClientAuthorizationList
+	ClusterPolicy                  authapi.ClusterPolicy
+	ClusterPolicyList              authapi.ClusterPolicyList
+	ClusterPolicyBinding           authapi.ClusterPolicyBinding
+	ClusterPolicyBindingList       authapi.ClusterPolicyBindingList
+	Policy                         authapi.Policy
+	PolicyList                     authapi.PolicyList
+	PolicyBinding                  authapi.PolicyBinding
+	PolicyBindingList              authapi.PolicyBindingList
+	Role                           authapi.Role
+	RoleList                       authapi.RoleList
+	RoleBinding                    authapi.RoleBinding
+	RoleBindingList                authapi.RoleBindingList
+	ClusterRoleBinding             authapi.ClusterRoleBinding
+	ClusterRoleBindingList         authapi.ClusterRoleBindingList
+	User                           userapi.User
+	UserList                       userapi.UserList
+	Group                          userapi.Group
+	GroupList                      userapi.GroupList
+	Identity                       userapi.Identity
+	IdentityList                   userapi.IdentityList
 	Config                         configapi.Config
 	WatchEvent                     watch.WatchEvent
 	RootPaths                      rapi.RootPaths
@@ -108,6 +130,8 @@ func main() {
 		{"github.com/openshift/origin/pkg/oauth/api/v1", "io.fabric8.openshift.api.model", "os_oauth_"},
 		{"github.com/openshift/origin/pkg/route/api/v1", "io.fabric8.openshift.api.model", "os_route_"},
 		{"github.com/openshift/origin/pkg/template/api/v1", "io.fabric8.openshift.api.model", "os_template_"},
+		{"github.com/openshift/origin/pkg/user/api/v1", "io.fabric8.openshift.api.model", "os_user_"},
+		{"github.com/openshift/origin/pkg/authorization/api/v1", "io.fabric8.openshift.api.model", "os_authorization_"},
 		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model", "api_"},
 	}
 

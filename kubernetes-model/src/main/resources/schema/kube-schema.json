@@ -3480,6 +3480,739 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.WatchEvent"
     },
+    "os_authorization_ClusterPolicy": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ClusterPolicy",
+          "required": true
+        },
+        "lastModified": {
+          "type": "string",
+          "description": "last time any part of the object was created"
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "roles": {
+          "type": "array",
+          "description": "all the roles held by this policy",
+          "items": {
+            "$ref": "#/definitions/os_authorization_NamedClusterRole",
+            "javaType": "io.fabric8.openshift.api.model.NamedClusterRole"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ClusterPolicy",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "os_authorization_ClusterPolicyBinding": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ClusterPolicyBinding",
+          "required": true
+        },
+        "lastModified": {
+          "type": "string",
+          "description": "last time any part of the object was created"
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "policyRef": {
+          "$ref": "#/definitions/kubernetes_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+        },
+        "roleBindings": {
+          "type": "array",
+          "description": "all the role bindings held by this policy",
+          "items": {
+            "$ref": "#/definitions/os_authorization_NamedClusterRoleBinding",
+            "javaType": "io.fabric8.openshift.api.model.NamedClusterRoleBinding"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ClusterPolicyBinding",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "os_authorization_ClusterPolicyBindingList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "list of cluster policy bindings",
+          "items": {
+            "$ref": "#/definitions/os_authorization_ClusterPolicyBinding",
+            "javaType": "io.fabric8.openshift.api.model.ClusterPolicyBinding"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ClusterPolicyBindingList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ClusterPolicyBindingList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "os_authorization_ClusterPolicyList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "list of cluster policies",
+          "items": {
+            "$ref": "#/definitions/os_authorization_ClusterPolicy",
+            "javaType": "io.fabric8.openshift.api.model.ClusterPolicy"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ClusterPolicyList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ClusterPolicyList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "os_authorization_ClusterRole": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ClusterRole",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "rules": {
+          "type": "array",
+          "description": "list of policy rules",
+          "items": {
+            "$ref": "#/definitions/os_authorization_PolicyRule",
+            "javaType": "io.fabric8.openshift.api.model.PolicyRule"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ClusterRole",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "os_authorization_ClusterRoleBinding": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "groupNames": {
+          "type": "array",
+          "description": "all the groups directly bound to the role",
+          "items": {
+            "type": "string",
+            "description": "all the groups directly bound to the role"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ClusterRoleBinding",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "roleRef": {
+          "$ref": "#/definitions/kubernetes_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+        },
+        "userNames": {
+          "type": "array",
+          "description": "all user names directly bound to the role",
+          "items": {
+            "type": "string",
+            "description": "all user names directly bound to the role"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ClusterRoleBinding",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "os_authorization_ClusterRoleBindingList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "list of cluster role bindings",
+          "items": {
+            "$ref": "#/definitions/os_authorization_ClusterRoleBinding",
+            "javaType": "io.fabric8.openshift.api.model.ClusterRoleBinding"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ClusterRoleBindingList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ClusterRoleBindingList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "os_authorization_NamedClusterRole": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "name of the cluster role"
+        },
+        "role": {
+          "$ref": "#/definitions/os_authorization_ClusterRole",
+          "javaType": "io.fabric8.openshift.api.model.ClusterRole"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.NamedClusterRole"
+    },
+    "os_authorization_NamedClusterRoleBinding": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "name of the cluster role binding"
+        },
+        "roleBinding": {
+          "$ref": "#/definitions/os_authorization_ClusterRoleBinding",
+          "javaType": "io.fabric8.openshift.api.model.ClusterRoleBinding"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.NamedClusterRoleBinding"
+    },
+    "os_authorization_NamedRole": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "name of the role"
+        },
+        "role": {
+          "$ref": "#/definitions/os_authorization_Role",
+          "javaType": "io.fabric8.openshift.api.model.Role"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.NamedRole"
+    },
+    "os_authorization_NamedRoleBinding": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "name of the roleBinding"
+        },
+        "roleBinding": {
+          "$ref": "#/definitions/os_authorization_RoleBinding",
+          "javaType": "io.fabric8.openshift.api.model.RoleBinding"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.NamedRoleBinding"
+    },
+    "os_authorization_Policy": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "Policy",
+          "required": true
+        },
+        "lastModified": {
+          "type": "string",
+          "description": "last time that any part of the policy was created"
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "roles": {
+          "type": "array",
+          "description": "roles held by this policy",
+          "items": {
+            "$ref": "#/definitions/os_authorization_NamedRole",
+            "javaType": "io.fabric8.openshift.api.model.NamedRole"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.Policy",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "os_authorization_PolicyBinding": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PolicyBinding",
+          "required": true
+        },
+        "lastModified": {
+          "type": "string",
+          "description": "last time that any part of the object was created"
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "policyRef": {
+          "$ref": "#/definitions/kubernetes_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+        },
+        "roleBindings": {
+          "type": "array",
+          "description": "all roleBindings held by this policyBinding",
+          "items": {
+            "$ref": "#/definitions/os_authorization_NamedRoleBinding",
+            "javaType": "io.fabric8.openshift.api.model.NamedRoleBinding"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.PolicyBinding",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "os_authorization_PolicyBindingList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "list of policy bindings",
+          "items": {
+            "$ref": "#/definitions/os_authorization_PolicyBinding",
+            "javaType": "io.fabric8.openshift.api.model.PolicyBinding"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PolicyBindingList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.PolicyBindingList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "os_authorization_PolicyList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "list of policies",
+          "items": {
+            "$ref": "#/definitions/os_authorization_Policy",
+            "javaType": "io.fabric8.openshift.api.model.Policy"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PolicyList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.PolicyList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "os_authorization_PolicyRule": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "attributeRestrictions": {
+          "$ref": "#/definitions/kubernetes_runtime_RawExtension",
+          "javaType": "io.fabric8.kubernetes.api.model.HasMetadata"
+        },
+        "nonResourceURLs": {
+          "type": "array",
+          "description": "set of partial urls that a user should have access to. *s are allowed",
+          "items": {
+            "type": "string",
+            "description": "set of partial urls that a user should have access to. *s are allowed"
+          }
+        },
+        "resourceNames": {
+          "type": "array",
+          "description": "optional white list of names that the rule applies to.  An empty set means that everything is allowed.",
+          "items": {
+            "type": "string",
+            "description": "optional white list of names that the rule applies to.  An empty set means that everything is allowed."
+          }
+        },
+        "resources": {
+          "type": "array",
+          "description": "list of resources this rule applies to.  * represents all resources.",
+          "items": {
+            "type": "string",
+            "description": "list of resources this rule applies to.  * represents all resources."
+          }
+        },
+        "verbs": {
+          "type": "array",
+          "description": "list of verbs that apply to ALL the resourceKinds and attributeRestrictions contained in this rule.  The verb * represents all kinds.",
+          "items": {
+            "type": "string",
+            "description": "list of verbs that apply to ALL the resourceKinds and attributeRestrictions contained in this rule.  The verb * represents all kinds."
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.PolicyRule"
+    },
+    "os_authorization_Role": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "Role",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "rules": {
+          "type": "array",
+          "description": "all the rules for this role",
+          "items": {
+            "$ref": "#/definitions/os_authorization_PolicyRule",
+            "javaType": "io.fabric8.openshift.api.model.PolicyRule"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.Role",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "os_authorization_RoleBinding": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "groupNames": {
+          "type": "array",
+          "description": "all the groups directly bound to the role",
+          "items": {
+            "type": "string",
+            "description": "all the groups directly bound to the role"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "RoleBinding",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "roleRef": {
+          "$ref": "#/definitions/kubernetes_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+        },
+        "userNames": {
+          "type": "array",
+          "description": "all the usernames directly bound to the role",
+          "items": {
+            "type": "string",
+            "description": "all the usernames directly bound to the role"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.RoleBinding",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "os_authorization_RoleBindingList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "list of role bindings",
+          "items": {
+            "$ref": "#/definitions/os_authorization_RoleBinding",
+            "javaType": "io.fabric8.openshift.api.model.RoleBinding"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "RoleBindingList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.RoleBindingList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "os_authorization_RoleList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "list of roles",
+          "items": {
+            "$ref": "#/definitions/os_authorization_Role",
+            "javaType": "io.fabric8.openshift.api.model.Role"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "RoleList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.RoleList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
     "os_build_Build": {
       "type": "object",
       "description": "",
@@ -5360,6 +6093,262 @@
         "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
+    "os_user_Group": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "Group",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "users": {
+          "type": "array",
+          "description": "list of users in this group",
+          "items": {
+            "type": "string",
+            "description": "list of users in this group"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.Group",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "os_user_GroupList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "list of groups",
+          "items": {
+            "$ref": "#/definitions/os_user_Group",
+            "javaType": "io.fabric8.openshift.api.model.Group"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "GroupList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.GroupList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "os_user_Identity": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "extra": {
+          "type": "object",
+          "description": "extra information for this identity",
+          "additionalProperties": {
+            "type": "string",
+            "description": "extra information for this identity"
+          },
+          "javaType": "java.util.Map\u003cString,String\u003e"
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "Identity",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "providerName": {
+          "type": "string",
+          "description": "source of identity information"
+        },
+        "providerUserName": {
+          "type": "string",
+          "description": "uniquely represents this identity in the scope of the provider"
+        },
+        "user": {
+          "$ref": "#/definitions/kubernetes_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.Identity",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "os_user_IdentityList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "list of identities",
+          "items": {
+            "$ref": "#/definitions/os_user_Identity",
+            "javaType": "io.fabric8.openshift.api.model.Identity"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "IdentityList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.IdentityList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "os_user_User": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "fullName": {
+          "type": "string",
+          "description": "full name of user"
+        },
+        "groups": {
+          "type": "array",
+          "description": "list of groups",
+          "items": {
+            "type": "string",
+            "description": "list of groups"
+          }
+        },
+        "identities": {
+          "type": "array",
+          "description": "list of identities",
+          "items": {
+            "type": "string",
+            "description": "list of identities"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "User",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.User",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "os_user_UserList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "list of users",
+          "items": {
+            "$ref": "#/definitions/os_user_User",
+            "javaType": "io.fabric8.openshift.api.model.User"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "UserList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.UserList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
     "speter_inf_Dec": {
       "type": "object",
       "description": "",
@@ -5384,6 +6373,30 @@
     "BuildRequest": {
       "$ref": "#/definitions/os_build_BuildRequest",
       "javaType": "io.fabric8.openshift.api.model.BuildRequest"
+    },
+    "ClusterPolicy": {
+      "$ref": "#/definitions/os_authorization_ClusterPolicy",
+      "javaType": "io.fabric8.openshift.api.model.ClusterPolicy"
+    },
+    "ClusterPolicyBinding": {
+      "$ref": "#/definitions/os_authorization_ClusterPolicyBinding",
+      "javaType": "io.fabric8.openshift.api.model.ClusterPolicyBinding"
+    },
+    "ClusterPolicyBindingList": {
+      "$ref": "#/definitions/os_authorization_ClusterPolicyBindingList",
+      "javaType": "io.fabric8.openshift.api.model.ClusterPolicyBindingList"
+    },
+    "ClusterPolicyList": {
+      "$ref": "#/definitions/os_authorization_ClusterPolicyList",
+      "javaType": "io.fabric8.openshift.api.model.ClusterPolicyList"
+    },
+    "ClusterRoleBinding": {
+      "$ref": "#/definitions/os_authorization_ClusterRoleBinding",
+      "javaType": "io.fabric8.openshift.api.model.ClusterRoleBinding"
+    },
+    "ClusterRoleBindingList": {
+      "$ref": "#/definitions/os_authorization_ClusterRoleBindingList",
+      "javaType": "io.fabric8.openshift.api.model.ClusterRoleBindingList"
     },
     "Config": {
       "$ref": "#/definitions/kubernetes_config_Config",
@@ -5412,6 +6425,22 @@
     "EventList": {
       "$ref": "#/definitions/kubernetes_EventList",
       "javaType": "io.fabric8.kubernetes.api.model.EventList"
+    },
+    "Group": {
+      "$ref": "#/definitions/os_user_Group",
+      "javaType": "io.fabric8.openshift.api.model.Group"
+    },
+    "GroupList": {
+      "$ref": "#/definitions/os_user_GroupList",
+      "javaType": "io.fabric8.openshift.api.model.GroupList"
+    },
+    "Identity": {
+      "$ref": "#/definitions/os_user_Identity",
+      "javaType": "io.fabric8.openshift.api.model.Identity"
+    },
+    "IdentityList": {
+      "$ref": "#/definitions/os_user_IdentityList",
+      "javaType": "io.fabric8.openshift.api.model.IdentityList"
     },
     "ImageList": {
       "$ref": "#/definitions/os_image_ImageList",
@@ -5493,6 +6522,22 @@
       "$ref": "#/definitions/kubernetes_PodList",
       "javaType": "io.fabric8.kubernetes.api.model.PodList"
     },
+    "Policy": {
+      "$ref": "#/definitions/os_authorization_Policy",
+      "javaType": "io.fabric8.openshift.api.model.Policy"
+    },
+    "PolicyBinding": {
+      "$ref": "#/definitions/os_authorization_PolicyBinding",
+      "javaType": "io.fabric8.openshift.api.model.PolicyBinding"
+    },
+    "PolicyBindingList": {
+      "$ref": "#/definitions/os_authorization_PolicyBindingList",
+      "javaType": "io.fabric8.openshift.api.model.PolicyBindingList"
+    },
+    "PolicyList": {
+      "$ref": "#/definitions/os_authorization_PolicyList",
+      "javaType": "io.fabric8.openshift.api.model.PolicyList"
+    },
     "Quantity": {
       "$ref": "#/definitions/kubernetes_resource_Quantity",
       "javaType": "io.fabric8.kubernetes.api.model.Quantity"
@@ -5508,6 +6553,22 @@
     "ResourceQuotaList": {
       "$ref": "#/definitions/kubernetes_ResourceQuotaList",
       "javaType": "io.fabric8.kubernetes.api.model.ResourceQuotaList"
+    },
+    "Role": {
+      "$ref": "#/definitions/os_authorization_Role",
+      "javaType": "io.fabric8.openshift.api.model.Role"
+    },
+    "RoleBinding": {
+      "$ref": "#/definitions/os_authorization_RoleBinding",
+      "javaType": "io.fabric8.openshift.api.model.RoleBinding"
+    },
+    "RoleBindingList": {
+      "$ref": "#/definitions/os_authorization_RoleBindingList",
+      "javaType": "io.fabric8.openshift.api.model.RoleBindingList"
+    },
+    "RoleList": {
+      "$ref": "#/definitions/os_authorization_RoleList",
+      "javaType": "io.fabric8.openshift.api.model.RoleList"
     },
     "RootPaths": {
       "$ref": "#/definitions/api_RootPaths",
@@ -5560,6 +6621,14 @@
     "TemplateList": {
       "$ref": "#/definitions/os_template_TemplateList",
       "javaType": "io.fabric8.openshift.api.model.TemplateList"
+    },
+    "User": {
+      "$ref": "#/definitions/os_user_User",
+      "javaType": "io.fabric8.openshift.api.model.User"
+    },
+    "UserList": {
+      "$ref": "#/definitions/os_user_UserList",
+      "javaType": "io.fabric8.openshift.api.model.UserList"
     },
     "WatchEvent": {
       "$ref": "#/definitions/kubernetes_watch_WatchEvent",
