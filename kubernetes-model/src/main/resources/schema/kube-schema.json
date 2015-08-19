@@ -940,11 +940,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.MetadataVolumeSource",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource",
-        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
-      ]
+      "javaType": "io.fabric8.kubernetes.api.model.MetadataVolumeSource"
     },
     "kubernetes_NFSVolumeSource": {
       "type": "object",
@@ -4678,11 +4674,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.openshift.api.model.NamedTagEventList",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource",
-        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
-      ]
+      "javaType": "io.fabric8.openshift.api.model.NamedTagEventList"
     },
     "os_image_NamedTagReference": {
       "type": "object",

@@ -163,7 +163,10 @@ func (g *schemaGenerator) javaInterfaces(t reflect.Type) []string {
 	if _, ok := t.FieldByName("ObjectMeta"); t.Name() != "PodTemplateSpec" && ok {
 		return []string{"io.fabric8.kubernetes.api.model.HasMetadata"}
 	}
-	if _, ok := t.FieldByName("Items"); ok {
+
+	_, hasItems := t.FieldByName("Items")
+	_, hasListMeta := t.FieldByName("ListMeta")
+	if hasItems && hasListMeta {
 		return []string{"io.fabric8.kubernetes.api.model.KubernetesResource", "io.fabric8.kubernetes.api.model.KubernetesResourceList"}
 	}
 	return nil
