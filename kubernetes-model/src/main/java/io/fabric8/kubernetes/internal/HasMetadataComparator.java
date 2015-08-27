@@ -57,13 +57,13 @@ public class HasMetadataComparator implements Comparator<HasMetadata> {
             return 0;
         }
 
-        String classNameA = a.getClass().getSimpleName();
-        String classNameB = b.getClass().getSimpleName();
-
-        int kindOrderCompare = getKindValue(classNameA).compareTo(getKindValue(classNameB));
+        int kindOrderCompare = getKindValue(a.getKind()).compareTo(getKindValue(b.getKind()));
         if (kindOrderCompare != 0) {
             return kindOrderCompare;
         }
+
+        String classNameA = a.getClass().getSimpleName();
+        String classNameB = b.getClass().getSimpleName();
 
         int classCompare = classNameA.compareTo(classNameB);
         if (classCompare != 0) {
