@@ -23,6 +23,8 @@ import java.util.Map;
 public enum KubernetesKind {
 
     List(KubernetesList.class),
+    SecurityContextConstraints(SecurityContextConstraints.class),
+    SecurityContextConstraintsList(SecurityContextConstraintsList.class),
     ServiceAccount(ServiceAccount.class),
     ServiceAccountList(ServiceAccountList.class),
     Service(Service.class),
