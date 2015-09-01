@@ -36,6 +36,10 @@ public class HasMetadataComparator implements Comparator<HasMetadata> {
                     return 3;
                 case Service:
                     return 4;
+                case PersistentVolume:
+                    return 5;
+                case PersistentVolumeClaim:
+                    return 6;
                 default:
                     return 100;
             }

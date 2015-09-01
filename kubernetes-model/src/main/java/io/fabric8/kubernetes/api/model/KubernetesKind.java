@@ -84,7 +84,11 @@ public enum KubernetesKind {
     Group(Group.class),
     GroupList(GroupList.class),
     Identity(Identity.class),
-    IdentityList(IdentityList.class);
+    IdentityList(IdentityList.class),
+    PersistentVolume(PersistentVolume.class),
+    PersistentVolumeList(PersistentVolumeList.class),
+    PersistentVolumeClaim(PersistentVolumeClaim.class),
+    PersistentVolumeClaimList(PersistentVolumeClaimList.class);
 
     private static final Map<String, Class<? extends KubernetesResource>> map = new HashMap<>();
 
