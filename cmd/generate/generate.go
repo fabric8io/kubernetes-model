@@ -24,12 +24,6 @@ import (
 	"strings"
 	"time"
 
-	rapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	resourceapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource"
-	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1"
-	configapi "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api/v1"
-	kutil "github.com/GoogleCloudPlatform/kubernetes/pkg/util"
-	watch "github.com/GoogleCloudPlatform/kubernetes/pkg/watch/json"
 	authapi "github.com/openshift/origin/pkg/authorization/api/v1"
 	buildapi "github.com/openshift/origin/pkg/build/api/v1"
 	deployapi "github.com/openshift/origin/pkg/deploy/api/v1"
@@ -38,6 +32,12 @@ import (
 	routeapi "github.com/openshift/origin/pkg/route/api/v1"
 	templateapi "github.com/openshift/origin/pkg/template/api/v1"
 	userapi "github.com/openshift/origin/pkg/user/api/v1"
+	rapi "k8s.io/kubernetes/pkg/api"
+	resourceapi "k8s.io/kubernetes/pkg/api/resource"
+	kapi "k8s.io/kubernetes/pkg/api/v1"
+	configapi "k8s.io/kubernetes/pkg/client/clientcmd/api/v1"
+	kutil "k8s.io/kubernetes/pkg/util"
+	watch "k8s.io/kubernetes/pkg/watch/json"
 
 	"github.com/fabric8io/kubernetes-model/pkg/schemagen"
 )
@@ -116,13 +116,13 @@ type Schema struct {
 
 func main() {
 	packages := []schemagen.PackageDescriptor{
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/v1", "io.fabric8.kubernetes.api.model", "kubernetes_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource", "io.fabric8.kubernetes.api.model", "kubernetes_resource_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime", "io.fabric8.kubernetes.api.model.runtime", "kubernetes_runtime_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/util", "io.fabric8.kubernetes.api.model", "kubernetes_util_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/watch/json", "io.fabric8.kubernetes.api.model", "kubernetes_watch_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors", "io.fabric8.kubernetes.api.model", "kubernetes_errors_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api/v1", "io.fabric8.kubernetes.api.model", "kubernetes_config_"},
+		{"k8s.io/kubernetes/pkg/api/v1", "io.fabric8.kubernetes.api.model", "kubernetes_"},
+		{"k8s.io/kubernetes/pkg/api/resource", "io.fabric8.kubernetes.api.model", "kubernetes_resource_"},
+		{"k8s.io/kubernetes/pkg/runtime", "io.fabric8.kubernetes.api.model.runtime", "kubernetes_runtime_"},
+		{"k8s.io/kubernetes/pkg/util", "io.fabric8.kubernetes.api.model", "kubernetes_util_"},
+		{"k8s.io/kubernetes/pkg/watch/json", "io.fabric8.kubernetes.api.model", "kubernetes_watch_"},
+		{"k8s.io/kubernetes/pkg/api/errors", "io.fabric8.kubernetes.api.model", "kubernetes_errors_"},
+		{"k8s.io/kubernetes/pkg/client/clientcmd/api/v1", "io.fabric8.kubernetes.api.model", "kubernetes_config_"},
 		{"speter.net/go/exp/math/dec/inf", "io.fabric8.openshift.api.model", "speter_inf_"},
 		{"github.com/openshift/origin/pkg/build/api/v1", "io.fabric8.openshift.api.model", "os_build_"},
 		{"github.com/openshift/origin/pkg/deploy/api/v1", "io.fabric8.openshift.api.model", "os_deploy_"},
@@ -132,7 +132,7 @@ func main() {
 		{"github.com/openshift/origin/pkg/template/api/v1", "io.fabric8.openshift.api.model", "os_template_"},
 		{"github.com/openshift/origin/pkg/user/api/v1", "io.fabric8.openshift.api.model", "os_user_"},
 		{"github.com/openshift/origin/pkg/authorization/api/v1", "io.fabric8.openshift.api.model", "os_authorization_"},
-		{"github.com/GoogleCloudPlatform/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model", "api_"},
+		{"k8s.io/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model", "api_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{

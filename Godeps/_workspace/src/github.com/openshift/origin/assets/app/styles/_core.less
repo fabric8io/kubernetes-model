@@ -1,0 +1,471 @@
+//
+// Core
+// --------------------------------------------------
+
+html, body {
+  height: 100%;
+}
+
+.console-os {
+  background-color: @body-bg;
+  height: ~"calc(100% - 121px)"; // removes scrollbar on pages with less than full viewport content
+  #content-wrap {
+    height: 100%;
+    .content {
+      height: 100%;
+    }
+  }
+  .container-main {
+    background-color: @body-bg;
+    padding-bottom: @grid-gutter-width * 2;
+    .flex(@columns: 1);
+    h1 {
+      word-wrap: break-word;
+    }
+  }
+  #content-wrap > .container {
+    margin-top: 35px;
+    margin-bottom: @grid-gutter-width * 2;
+    h1 {
+      margin-top: 10px;
+    }
+  }
+}
+.console-os {
+  .navbar {
+    border: none;
+    margin-bottom: 0;
+  }
+  .navbar-pf {
+    background: @navbar-os-bg-color;
+    .navbar-header {
+      border-bottom-color: lighten(@navbar-pf-bg-color, 62%);
+    }
+    .navbar-utility > li {
+      > a {
+        border: 0;
+        font-size: 12px;
+        &:hover {
+        }
+      }
+    }
+    .navbar-brand { 
+      border: 0;
+      padding: 8px 0 8px;
+    }
+  }
+}
+
+.console-os .navbar-project {
+  border-bottom: 1px solid @navbar-os-project-border-color; 
+  padding-bottom: 20px;
+  position: relative;
+  background: @navbar-os-project-bg;
+  label.control-label {
+    color: @navbar-project-label-color;
+    font-size: 11px;
+    font-weight: 400;
+    margin: 8px 0 0 0;
+  }
+  .bootstrap-select > .btn {
+    width: 100%;
+    padding: 7px 25px 7px 10px;
+    font-size: @font-size-large;
+    line-height: @line-height-base;
+    color: @navbar-os-project-menu-color;
+    font-weight: 400;
+    background: @navbar-os-project-menu-bg;
+    border: @navbar-os-project-menu-border;
+    .caret {
+      font-size: @font-size-large + 5;
+    }
+    .filter-option {
+      text-overflow: ellipsis;
+    }
+  }
+  .dropdown-menu.open {
+    .dropdown-menu.inner.selectpicker {
+      li {
+        a {
+          padding: 5px 10px;
+        }
+      }
+    }
+  }
+  .navbar-project-search {
+    display: inline-block;
+  }
+  .form-group {
+    margin-bottom: 0;
+    .form-control {
+      height: @navbar-project-input-height;
+      margin-bottom: 0;
+    }
+  }
+  .active-filters {
+    /* If line-height is set, the active-filters div takes up space even
+       when no filters are active. */
+    line-height: 0;
+  }
+  .create-button-container {
+    margin-top: 15px;
+  }
+}
+@media (min-width: @screen-sm-min) {
+  .console-os {
+    .navbar-project {
+      .navbar-filter-widget {
+        /* Prevent the filter button from wrapping at wide screen sizes. */
+        min-width: 340px;
+      }
+      .create-button-container {
+        text-align: right;
+        /* Align button with other navbar controls that have a label above. */
+        margin-top: 30px;
+      }
+    }
+    .container-main {
+      // Ensures short content pages in IE have sidebars that extend beneath the left nav
+      min-height: 600px;
+    }
+  }
+}
+
+.separator {
+  border-top: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.breadcrumb {
+  margin-bottom: 0;
+}
+
+.empty-state-msg {
+  background-color: #ffffff;
+  border-radius: @border-radius-sm;
+  box-shadow: @osc-object-box-shadow;
+  font-weight: 300;
+  margin: auto;
+  max-width: 600px;
+  padding: 30px;
+  text-align: center;
+  p {
+    font-size: @font-size-large;
+    max-width: 400px;
+    margin: 30px auto;
+  }
+}
+
+
+// Create App
+// --------------------------------------------------
+
+ label.checkbox {
+  font-weight: normal;
+}
+
+.create-from-template,
+.create-from-image {
+  .template-name {
+    text-align: right;
+    span.fa {
+      font-size: 40px;
+    }
+    @media (min-width: @screen-sm-min) {
+      span.fa {
+        font-size: 100px;
+      }
+    }
+  }
+  span.fa.visible-xs-inline {
+    margin-right: 10px;
+  }
+  .flow {
+    .separator;
+    display: table;
+    margin-top: @grid-gutter-width;
+    width: 100%;
+    > .flow-block {
+      display: inline-block;
+      &.right {
+        font-size: @font-size-small;
+        font-weight: normal;
+      }
+      .action {
+          font-size: @font-size-small;
+          font-weight: normal;
+          // &:extend(.action-inline);
+        }
+      > ul.list-inline {
+        margin-bottom: 0;
+        > li {
+          font-size: @font-size-small;
+          text-align: left;
+        }
+      }
+    }
+  }
+  .first-section .flow {
+    margin-top: (@grid-gutter-width / 2);
+    border-top: 0;
+  }
+  .template-options {
+    line-height: 1.5;
+    .list-unstyled {
+      .options {
+        margin-bottom: 12px;
+      }
+      .help-block {
+        margin: 0 0 5px 2px;
+      }
+    }
+    .help-block {
+      margin-bottom: 5px;
+    }
+  }
+}
+
+.tag {
+  text-transform: uppercase;
+  margin-right: 10px;
+}
+
+.catalog {
+  .flex-display(@display: flex);
+
+  // Stack at mobile screen sizes
+  .flex-direction(@direction: column);
+
+  // Arrange in columns >767px
+  @media (min-width: @screen-sm-min) {
+    .flex-direction(@direction: row);
+    .flex-wrap(@wrap: wrap);
+    .justify-content(@justify: flex-start);
+    .tile-template, .tile-image {
+      .flex(@columns: 1 0 auto);
+      min-width: 150px;
+      max-width: 325px;
+      margin-right: (@grid-gutter-width / 2);
+    }
+  }
+}
+
+@media (min-width: 767px) {
+  .create-from-template,
+  .create-from-image {
+    .flow > .flow-block {
+      display: table-cell;
+      &.right {
+        // float: right;
+        text-align: right;
+      }
+    }
+    .form-group {
+      // Show name/value fields like labels and env vars side by side at wide screen sizes.
+      // Align text fields with read-only values.
+      width: 44%;
+      .form-control {
+        width: 100%;
+      }
+    }
+  }
+}
+
+.label-list li,
+.env-variable-list li {
+  &:first-child {
+    padding: 6px 0 0;
+  }
+  .key,
+  .value {
+    display: inline-block;
+    margin: 0;
+    width: 44%;
+  }
+  .key {
+    margin-left: 2px;
+  }
+  .btn {
+    vertical-align: top;
+  }
+}
+
+.label + .label {
+  margin-left: 3px;
+}
+
+// Misc
+// --------------------------------------------------
+.action-inline {
+  margin-left: @action-link-inline-margin;
+  font-size: @font-size-small;
+  i.pficon, i.fa {
+    color: @btn-default-color;
+    margin-right: 5px;
+  }
+}
+
+label.required:before {
+  content: '*';
+  position: absolute;
+  left: 10px;
+}
+
+.btn-xs {
+  padding: 0 4px;
+}
+.btn-lg, .btn-group-lg > .btn {
+  line-height: 1.334; // needed to make same height as inputs 
+}
+
+code {
+  white-space: normal;
+}
+
+
+.dl-horizontal {
+  &.left {
+    dt {
+      text-align: left;
+    }
+  }
+  &.indent {
+    margin-left: (@grid-gutter-width / 2); // 20px
+  }
+  dd {
+    &:extend(.clearfix all); // Including this here because it's not being set even though it's in /bootstrap/less/type.less dunno why?
+  }
+}
+
+.table-responsive {
+  overflow-x: auto; // remove when we update to latest patternfly with twbs 3.3.4
+}
+
+.table-events {
+  background-color: #fff;
+  > tbody {
+    + tbody {
+      border-top-width: 1px;
+    }
+  }
+  tr {
+    @media (min-width: @screen-md-min) {
+      td.event-time {
+        white-space: nowrap;
+      }
+    }
+  }
+}
+@media (max-width: @screen-xs-max) {
+  .table-events {
+    thead, tbody, th, td, tr {
+      display: block;
+    }
+    thead tr {
+      /* Hide table headers (but not display: none;, for accessibility) */
+      .sr-only();
+    }
+    > tbody {
+      > tr {
+        > td {
+           /* Behave like a row */
+          border: none;
+          border-bottom: 1px solid #eee;
+          padding: 3px 6px 2px 35%;
+          position: relative;
+          &:last-child {
+            border-bottom: none;
+          }
+          &:before {
+            /* Act as mobile table header */
+            content: attr(data-title);
+            position: absolute;
+            top: 3px;
+            left: 6px;
+            width: 35%; 
+            padding-right: 10px; 
+            white-space: nowrap;
+          }
+        }
+      }
+    }
+  }
+}
+
+.gutter-top-bottom {
+  padding: @grid-gutter-width / 2 0;
+  &.gutter-top-bottom-2x {
+    padding: @grid-gutter-width 0;
+  }
+}
+.gutter-top {
+  padding-top: @grid-gutter-width / 2;
+  &.gutter-top-2x {
+    padding-top: @grid-gutter-width;
+  }
+}
+.gutter-bottom {
+  padding-bottom: @grid-gutter-width / 2;
+  &.gutter-bottom-2x {
+    padding-bottom: @grid-gutter-width;
+  }
+}
+
+select:invalid {
+    box-shadow: none;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.break-word {
+  word-break: break-all; // Firefox
+  word-break: break-word; // Webkit and Microsoft
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.well > {
+  h1, h2, h3, h4, h5 {
+    &:first-child {
+      margin: 5px 0 15px;
+    }
+  }
+}
+
+.spinner.spinner-xs { // set height & width to 12px so that FF displays correctly
+  height: 12px;
+  width: 12px;
+}
+
+.attention-message {
+  background-color: lighten(@brand-primary, 20%);
+  border: 1px solid darken(@brand-primary, 10%);
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 1em 1em 2em;
+  min-width: 85%;
+  h1,p {
+    text-align: center;
+  }
+}
+
+.learn-more-block {
+  display: block;
+  font-size: @font-size-small;
+  font-weight: normal;
+}
+
+.short-id {
+  background-color: #f1f1f1;
+  color: #666;
+}
+.input-number {
+  width: 60px;
+}

@@ -1,0 +1,132 @@
+//
+// Tiles
+// --------------------------------------------------
+
+.tile {
+  background: @console-panel-color;
+  .panel_default_boxshadow();
+  padding: 10px 20px;
+  margin-bottom: 20px;
+  word-wrap: break-word;
+  .box-sizing(border-box);
+  // Prevent long, unbroken words from extending outside the tile.
+  overflow-x: hidden;
+  h1, h2, h3 {
+    margin: (@line-height-computed / 2) 0px;
+  }
+  h3 .tile-timestamp {
+    .text-muted;
+    .small;
+    @media (min-width: @screen-sm-min) {
+      .pull-right();
+    }
+    @media (max-width: @screen-sm-min) {
+      &:before {
+        // em dash and non-breaking space
+        content: '\2014\00a0'
+      }
+    }
+  }
+  .tile-table {
+    display: table;
+    width: 100%;
+    height: 48px;
+    .box-sizing(border-box);
+    .tile-table-cell {
+      display: table-cell;
+      vertical-align: top;
+      &:first-child {
+        width:55px;
+
+        img {
+          max-width: @tileHeadingIconFontSize;
+          max-height: 78px;
+        }
+      }
+      > p {
+        margin-bottom: 5px;
+        line-height: @line-height-base / 1.25;
+      }
+      &.template-icon {
+        text-align: center;
+      }
+    }
+    .font-icon.logo, .font-icon {
+      font-size: @tileHeadingIconFontSize;
+      line-height: normal;
+      text-shadow: 0 0 4px #FFFFFF;
+      opacity: .38;
+      vertical-align: bottom;
+    }
+    + p {
+      margin-top: 3px;
+      font-size: inherit;
+    }
+
+  }
+  .table-responsive {
+    border: 0;
+    margin: 10px 0 5px;
+    table {
+      .table;
+      .table-condensed;
+      .text-center;
+      .small;
+      margin-bottom: 0;
+      thead {
+        background-color: white;
+        background-image: none;
+        tr th {
+          .text-center;
+        }
+      }
+    }
+  }
+}
+.tile.tile-template {
+  a.label {
+    font-size: @font-size-small;
+  }
+}
+.tile.tile-project {
+  h2 {
+    margin: 10px 0;
+  }
+}
+.tile.tile-status {
+  background-color: @status-bg-color;
+  border-top: 5px solid @status-border-color;
+  margin-top: @grid-gutter-width;
+}
+
+.tile-click {
+  cursor: pointer;
+  position: relative;
+  &:hover {
+    .panel_default_boxshadow_hover();
+    .btn {
+      color: #000 !important;
+    }
+    .tile-target {
+      color: $openshiftBrightRed;
+      &:hover {
+        text-decoration: none;
+      }
+    }
+    .tile-table-cell > .font-icon, .font-icon.logo {
+      opacity: .75;
+    }
+  }
+}
+
+.label-tags {
+  a.label {
+    display: inline-block;
+    margin-right: 3px;
+    margin-top: -5px;
+    &:hover {
+      color: #111;
+      background-color: #eee !important;
+    }
+  }
+}
