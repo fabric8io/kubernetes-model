@@ -110,8 +110,8 @@
 		},
 		{
 			"ImportPath": "github.com/fsouza/go-dockerclient",
-			"Comment": "0.2.1-532-g2f1ad24",
-			"Rev": "2f1ad24900b2777139b5becee93eb63a75b00617"
+			"Comment": "0.2.1-652-g42d06e2",
+			"Rev": "42d06e2b125654477366c320dcea99107a86e9c2"
 		},
 		{
 			"ImportPath": "github.com/ghodss/yaml",
@@ -143,43 +143,53 @@
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/authorization/api",
-			"Comment": "v1.0.4",
-			"Rev": "757efd9ad9b707311fb96545910a6c7e381ded6c"
+			"Comment": "v1.0.5",
+			"Rev": "96963b6a8978813592914957905ba718c21431d6"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/build/api",
-			"Comment": "v1.0.4",
-			"Rev": "757efd9ad9b707311fb96545910a6c7e381ded6c"
+			"Comment": "v1.0.5",
+			"Rev": "96963b6a8978813592914957905ba718c21431d6"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/deploy/api",
-			"Comment": "v1.0.4",
-			"Rev": "757efd9ad9b707311fb96545910a6c7e381ded6c"
+			"Comment": "v1.0.5",
+			"Rev": "96963b6a8978813592914957905ba718c21431d6"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/image/api",
-			"Comment": "v1.0.4",
-			"Rev": "757efd9ad9b707311fb96545910a6c7e381ded6c"
+			"Comment": "v1.0.5",
+			"Rev": "96963b6a8978813592914957905ba718c21431d6"
+		},
+		{
+			"ImportPath": "github.com/openshift/origin/pkg/oauth/api",
+			"Comment": "v1.0.5",
+			"Rev": "96963b6a8978813592914957905ba718c21431d6"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/oauth/api/v1",
-			"Comment": "v1.0.4",
-			"Rev": "757efd9ad9b707311fb96545910a6c7e381ded6c"
+			"Comment": "v1.0.5",
+			"Rev": "96963b6a8978813592914957905ba718c21431d6"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/route/api",
-			"Comment": "v1.0.4",
-			"Rev": "757efd9ad9b707311fb96545910a6c7e381ded6c"
+			"Comment": "v1.0.5",
+			"Rev": "96963b6a8978813592914957905ba718c21431d6"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/template/api",
-			"Comment": "v1.0.4",
-			"Rev": "757efd9ad9b707311fb96545910a6c7e381ded6c"
+			"Comment": "v1.0.5",
+			"Rev": "96963b6a8978813592914957905ba718c21431d6"
+		},
+		{
+			"ImportPath": "github.com/openshift/origin/pkg/user/api",
+			"Comment": "v1.0.5",
+			"Rev": "96963b6a8978813592914957905ba718c21431d6"
 		},
 		{
 			"ImportPath": "github.com/openshift/origin/pkg/user/api/v1",
-			"Comment": "v1.0.4",
-			"Rev": "757efd9ad9b707311fb96545910a6c7e381ded6c"
+			"Comment": "v1.0.5",
+			"Rev": "96963b6a8978813592914957905ba718c21431d6"
 		},
 		{
 			"ImportPath": "github.com/prometheus/client_golang/model",
@@ -207,7 +217,7 @@
 		},
 		{
 			"ImportPath": "github.com/spf13/pflag",
-			"Rev": "381cb823881391d5673cf2fc41e38feba8a8e49a"
+			"Rev": "534019bcaea096fc0f0641afa2aed1e80cbb0ccc"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/ssh",
