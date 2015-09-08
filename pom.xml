@@ -26,7 +26,7 @@
   </parent>
 
   <groupId>io.fabric8</groupId>
-  <version>1.0.20-SNAPSHOT</version>
+  <version>1.0.20</version>
 
   <artifactId>kubernetes-model-generator</artifactId>
   <packaging>pom</packaging>
@@ -64,7 +64,7 @@
       <connection>scm:git:git@github.com:fabric8io/kubernetes-model.git</connection>
       <developerConnection>scm:git:git@github.com:fabric8io/kubernetes-model.git</developerConnection>
       <url>http://github.com/fabric8io/kubernetes-model/</url>
-      <tag>kubernetes-model-generator-1.0.15</tag>
+      <tag>kubernetes-model-generator-1.0.20</tag>
   </scm>
 
   <distributionManagement>
