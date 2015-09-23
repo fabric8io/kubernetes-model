@@ -29,6 +29,7 @@ import (
 	deployapi "github.com/openshift/origin/pkg/deploy/api/v1"
 	imageapi "github.com/openshift/origin/pkg/image/api/v1"
 	oauthapi "github.com/openshift/origin/pkg/oauth/api/v1"
+	projectapi "github.com/openshift/origin/pkg/project/api/v1"
 	routeapi "github.com/openshift/origin/pkg/route/api/v1"
 	templateapi "github.com/openshift/origin/pkg/template/api/v1"
 	userapi "github.com/openshift/origin/pkg/user/api/v1"
@@ -112,6 +113,8 @@ type Schema struct {
 	Config                         configapi.Config
 	WatchEvent                     watch.WatchEvent
 	RootPaths                      rapi.RootPaths
+	Project                        projectapi.Project
+	ProjectList                    projectapi.ProjectList
 }
 
 func main() {
@@ -132,6 +135,7 @@ func main() {
 		{"github.com/openshift/origin/pkg/template/api/v1", "io.fabric8.openshift.api.model", "os_template_"},
 		{"github.com/openshift/origin/pkg/user/api/v1", "io.fabric8.openshift.api.model", "os_user_"},
 		{"github.com/openshift/origin/pkg/authorization/api/v1", "io.fabric8.openshift.api.model", "os_authorization_"},
+		{"github.com/openshift/origin/pkg/project/api/v1", "io.fabric8.openshift.api.model", "os_project_"},
 		{"k8s.io/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model", "api_"},
 	}
 
