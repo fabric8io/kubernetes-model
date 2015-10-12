@@ -102,6 +102,7 @@ type Schema struct {
 	RoleList                       authapi.RoleList
 	RoleBinding                    authapi.RoleBinding
 	RoleBindingList                authapi.RoleBindingList
+	SubjectAccessReview            authapi.SubjectAccessReview
 	ClusterRoleBinding             authapi.ClusterRoleBinding
 	ClusterRoleBindingList         authapi.ClusterRoleBindingList
 	User                           userapi.User
