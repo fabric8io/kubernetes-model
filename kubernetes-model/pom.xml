@@ -38,7 +38,7 @@
   <dependencies>
     <dependency>
       <groupId>io.sundr</groupId>
-      <artifactId>sundr-annotations</artifactId>
+      <artifactId>builder-annotations</artifactId>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.module</groupId>
