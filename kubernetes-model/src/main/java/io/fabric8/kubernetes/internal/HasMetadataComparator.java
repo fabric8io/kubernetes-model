@@ -40,6 +40,8 @@ public class HasMetadataComparator implements Comparator<HasMetadata> {
                     return 5;
                 case PersistentVolumeClaim:
                     return 6;
+                case ImageStream:
+                    return 7;
                 default:
                     return 100;
             }
