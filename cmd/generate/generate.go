@@ -118,6 +118,7 @@ type Schema struct {
 	RootPaths                      rapi.RootPaths
 	Project                        projectapi.Project
 	ProjectList                    projectapi.ProjectList
+	ProjectRequest                 projectapi.ProjectRequest
 }
 
 func main() {
