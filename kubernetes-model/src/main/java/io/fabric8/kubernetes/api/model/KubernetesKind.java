@@ -20,6 +20,8 @@ import io.fabric8.openshift.api.model.*;
 import java.util.HashMap;
 import java.util.Map;
 
+
+@Deprecated
 public enum KubernetesKind {
 
     List(KubernetesList.class),

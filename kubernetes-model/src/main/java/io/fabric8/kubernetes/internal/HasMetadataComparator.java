@@ -16,7 +16,6 @@
 package io.fabric8.kubernetes.internal;
 
 import io.fabric8.kubernetes.api.model.HasMetadata;
-import io.fabric8.kubernetes.api.model.KubernetesKind;
 
 import java.util.Comparator;
 
@@ -24,23 +23,22 @@ public class HasMetadataComparator implements Comparator<HasMetadata> {
 
     private Integer getKindValue(String kind) {
         try {
-            KubernetesKind kindOrder = KubernetesKind.valueOf(kind);
-            switch (kindOrder) {
-                case SecurityContextConstraints:
+            switch (kind) {
+                case "SecurityContextConstraints":
                     return 0;
-                case Secret:
+                case "Secret":
                     return 1;
-                case ServiceAccount:
+                case "ServiceAccount":
                     return 2;
-                case OAuthClient:
+                case "OAuthClient":
                     return 3;
-                case Service:
+                case "Service":
                     return 4;
-                case PersistentVolume:
+                case "PersistentVolume":
                     return 5;
-                case PersistentVolumeClaim:
+                case "PersistentVolumeClaim":
                     return 6;
-                case ImageStream:
+                case "ImageStream":
                     return 7;
                 default:
                     return 100;
