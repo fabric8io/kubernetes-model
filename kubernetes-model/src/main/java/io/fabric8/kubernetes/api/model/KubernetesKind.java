@@ -88,7 +88,12 @@ public enum KubernetesKind {
     PersistentVolume(PersistentVolume.class),
     PersistentVolumeList(PersistentVolumeList.class),
     PersistentVolumeClaim(PersistentVolumeClaim.class),
-    PersistentVolumeClaimList(PersistentVolumeClaimList.class);
+    PersistentVolumeClaimList(PersistentVolumeClaimList.class),
+    SubjectAccessReview(SubjectAccessReview.class),
+    SubjectAccessReviewResponse(SubjectAccessReviewResponse.class),
+    LocalSubjectAccessReview(LocalSubjectAccessReview.class),
+    Project(Project.class),
+    ProjectRequest(ProjectRequest.class);
 
     private static final Map<String, Class<? extends KubernetesResource>> map = new HashMap<>();
 
