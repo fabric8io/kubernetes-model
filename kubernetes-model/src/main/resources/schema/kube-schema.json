@@ -6115,6 +6115,44 @@
         "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
+    "os_project_ProjectRequest": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "description": "description to apply to a project"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "display name to apply to a project"
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ProjectRequest",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ProjectRequest",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
     "os_project_ProjectSpec": {
       "type": "object",
       "description": "",
@@ -6860,6 +6898,10 @@
     "ProjectList": {
       "$ref": "#/definitions/os_project_ProjectList",
       "javaType": "io.fabric8.openshift.api.model.ProjectList"
+    },
+    "ProjectRequest": {
+      "$ref": "#/definitions/os_project_ProjectRequest",
+      "javaType": "io.fabric8.openshift.api.model.ProjectRequest"
     },
     "Quantity": {
       "$ref": "#/definitions/kubernetes_resource_Quantity",

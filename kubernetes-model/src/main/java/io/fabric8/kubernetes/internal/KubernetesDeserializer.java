@@ -21,14 +21,27 @@ import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.fabric8.kubernetes.api.model.KubernetesKind;
+import io.fabric8.kubernetes.api.model.KubernetesList;
 import io.fabric8.kubernetes.api.model.KubernetesResource;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class KubernetesDeserializer extends JsonDeserializer<KubernetesResource> {
 
     private static final String KIND = "kind";
+
+    private static final String KUBERNETES_PACKAGE_PREFIX = "io.fabric8.kubernetes.api.model.";
+    private static final String OPENSHIFT_PACKAGE_PREFIX = "io.fabric8.openshift.api.model.";
+
+    private static final Map<String, Class<? extends KubernetesResource>> MAP = new HashMap<>();
+
+
+    static {
+        // Exceptions (not just package prefix + class name) can be added here.
+        MAP.put("List", KubernetesList.class);
+    }
 
     @Override
     public KubernetesResource deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException, JsonProcessingException {
@@ -36,7 +49,7 @@ public class KubernetesDeserializer extends JsonDeserializer<KubernetesResource>
         JsonNode kind = node.get(KIND);
         if (kind != null) {
             String value = kind.textValue();
-            Class<? extends KubernetesResource> resourceType = KubernetesKind.getTypeForName(value);
+            Class<? extends KubernetesResource> resourceType = getTypeForName(value);
             if (resourceType == null) {
                 throw ctxt.mappingException("No resource type found for kind:" + value);
             } else {
@@ -44,5 +57,28 @@ public class KubernetesDeserializer extends JsonDeserializer<KubernetesResource>
             }
         }
         return null;
+    }
+
+    private static Class getTypeForName(String name) {
+        Class result = MAP.get(name);
+        if (result == null) {
+            result = loadClassIfExists(KUBERNETES_PACKAGE_PREFIX + name);
+            if (result == null) {
+                result = loadClassIfExists(OPENSHIFT_PACKAGE_PREFIX + name);
+            }
+        }
+
+        if (result != null) {
+            MAP.put(name, result);
+        }
+        return result;
+    }
+
+    private static Class loadClassIfExists(String className) {
+        try {
+            return KubernetesDeserializer.class.getClassLoader().loadClass(className);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 }
