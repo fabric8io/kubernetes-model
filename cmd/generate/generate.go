@@ -47,6 +47,7 @@ type Schema struct {
 	BaseKubernetesList             kapi.List
 	ObjectMeta                     kapi.ObjectMeta
 	PodList                        kapi.PodList
+	PodTemplateList                kapi.PodTemplateList
 	ReplicationControllerList      kapi.ReplicationControllerList
 	ServiceList                    kapi.ServiceList
 	Endpoints                      kapi.Endpoints
@@ -70,6 +71,9 @@ type Schema struct {
 	ServiceAccount                 kapi.ServiceAccount
 	ServiceAccountList             kapi.ServiceAccountList
 	Status                         kapi.Status
+	Binding                        kapi.Binding
+	LimitRangeList                 kapi.LimitRangeList
+	DeleteOptions                  kapi.DeleteOptions
 	Quantity                       resourceapi.Quantity
 	BuildRequest                   buildapi.BuildRequest
 	BuildList                      buildapi.BuildList
@@ -78,6 +82,7 @@ type Schema struct {
 	ImageStreamList                imageapi.ImageStreamList
 	DeploymentConfigList           deployapi.DeploymentConfigList
 	RouteList                      routeapi.RouteList
+	ComponentStatusList            kapi.ComponentStatusList
 	ContainerStatus                kapi.ContainerStatus
 	Template                       templateapi.Template
 	TemplateList                   templateapi.TemplateList

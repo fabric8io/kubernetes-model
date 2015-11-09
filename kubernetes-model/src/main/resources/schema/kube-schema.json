@@ -42,6 +42,40 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.AWSElasticBlockStoreVolumeSource"
     },
+    "kubernetes_Binding": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "Binding",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "target": {
+          "$ref": "#/definitions/kubernetes_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.Binding",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
     "kubernetes_Capabilities": {
       "type": "object",
       "description": "",
@@ -97,6 +131,107 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.CephFSVolumeSource"
+    },
+    "kubernetes_ComponentCondition": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "error": {
+          "type": "string",
+          "description": "error code from health check attempt (if any)"
+        },
+        "message": {
+          "type": "string",
+          "description": "health check message received from the component"
+        },
+        "status": {
+          "type": "string",
+          "description": "current status of this component condition"
+        },
+        "type": {
+          "type": "string",
+          "description": "type of component condition"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.ComponentCondition"
+    },
+    "kubernetes_ComponentStatus": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "conditions": {
+          "type": "array",
+          "description": "list of component conditions observed",
+          "items": {
+            "$ref": "#/definitions/kubernetes_ComponentCondition",
+            "javaType": "io.fabric8.kubernetes.api.model.ComponentCondition"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ComponentStatus",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.ComponentStatus",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_ComponentStatusList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "list of component status objects",
+          "items": {
+            "$ref": "#/definitions/kubernetes_ComponentStatus",
+            "javaType": "io.fabric8.kubernetes.api.model.ComponentStatus"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ComponentStatusList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.ComponentStatusList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
     },
     "kubernetes_Container": {
       "type": "object",
@@ -345,6 +480,34 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.ContainerStatus"
+    },
+    "kubernetes_DeleteOptions": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "gracePeriodSeconds": {
+          "type": "integer",
+          "description": "the duration in seconds to wait before deleting this object; defaults to a per object value if not specified; zero means delete immediately",
+          "javaType": "Long"
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "DeleteOptions",
+          "required": true
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.DeleteOptions"
     },
     "kubernetes_EmptyDirVolumeSource": {
       "type": "object",
@@ -818,6 +981,134 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.Lifecycle"
+    },
+    "kubernetes_LimitRange": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "LimitRange",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/kubernetes_LimitRangeSpec",
+          "javaType": "io.fabric8.kubernetes.api.model.LimitRangeSpec"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.LimitRange",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_LimitRangeItem": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "default": {
+          "type": "object",
+          "description": "default values on this kind by resource name if omitted",
+          "additionalProperties": {
+            "$ref": "#/definitions/kubernetes_resource_Quantity",
+            "javaType": "io.fabric8.kubernetes.api.model.Quantity"
+          },
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.Quantity\u003e"
+        },
+        "max": {
+          "type": "object",
+          "description": "max usage constraints on this kind by resource name",
+          "additionalProperties": {
+            "$ref": "#/definitions/kubernetes_resource_Quantity",
+            "javaType": "io.fabric8.kubernetes.api.model.Quantity"
+          },
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.Quantity\u003e"
+        },
+        "min": {
+          "type": "object",
+          "description": "min usage constraints on this kind by resource name",
+          "additionalProperties": {
+            "$ref": "#/definitions/kubernetes_resource_Quantity",
+            "javaType": "io.fabric8.kubernetes.api.model.Quantity"
+          },
+          "javaType": "java.util.Map\u003cString,io.fabric8.kubernetes.api.model.Quantity\u003e"
+        },
+        "type": {
+          "type": "string",
+          "description": "type of resource that this limit applies to"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.LimitRangeItem"
+    },
+    "kubernetes_LimitRangeList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "items is a list of LimitRange objects; see http://releases.k8s.io/HEAD/docs/design/admission_control_limit_range.md",
+          "items": {
+            "$ref": "#/definitions/kubernetes_LimitRange",
+            "javaType": "io.fabric8.kubernetes.api.model.LimitRange"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "LimitRangeList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.LimitRangeList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kubernetes_LimitRangeSpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "limits": {
+          "type": "array",
+          "description": "limits is the list of LimitRangeItem objects that are enforced",
+          "items": {
+            "$ref": "#/definitions/kubernetes_LimitRangeItem",
+            "javaType": "io.fabric8.kubernetes.api.model.LimitRangeItem"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.LimitRangeSpec"
     },
     "kubernetes_List": {
       "type": "object",
@@ -1991,6 +2282,79 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.PodStatus"
+    },
+    "kubernetes_PodTemplate": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PodTemplate",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "template": {
+          "$ref": "#/definitions/kubernetes_PodTemplateSpec",
+          "javaType": "io.fabric8.kubernetes.api.model.PodTemplateSpec"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.PodTemplate",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_PodTemplateList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true,
+          "enum": [
+            "v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "description": "list of pod templates",
+          "items": {
+            "$ref": "#/definitions/kubernetes_PodTemplate",
+            "javaType": "io.fabric8.kubernetes.api.model.PodTemplate"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PodTemplateList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.PodTemplateList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
     },
     "kubernetes_PodTemplateSpec": {
       "type": "object",
@@ -6711,6 +7075,10 @@
       "$ref": "#/definitions/kubernetes_List",
       "javaType": "io.fabric8.kubernetes.api.model.BaseKubernetesList"
     },
+    "Binding": {
+      "$ref": "#/definitions/kubernetes_Binding",
+      "javaType": "io.fabric8.kubernetes.api.model.Binding"
+    },
     "BuildConfigList": {
       "$ref": "#/definitions/os_build_BuildConfigList",
       "javaType": "io.fabric8.openshift.api.model.BuildConfigList"
@@ -6747,6 +7115,10 @@
       "$ref": "#/definitions/os_authorization_ClusterRoleBindingList",
       "javaType": "io.fabric8.openshift.api.model.ClusterRoleBindingList"
     },
+    "ComponentStatusList": {
+      "$ref": "#/definitions/kubernetes_ComponentStatusList",
+      "javaType": "io.fabric8.kubernetes.api.model.ComponentStatusList"
+    },
     "Config": {
       "$ref": "#/definitions/kubernetes_config_Config",
       "javaType": "io.fabric8.kubernetes.api.model.Config"
@@ -6754,6 +7126,10 @@
     "ContainerStatus": {
       "$ref": "#/definitions/kubernetes_ContainerStatus",
       "javaType": "io.fabric8.kubernetes.api.model.ContainerStatus"
+    },
+    "DeleteOptions": {
+      "$ref": "#/definitions/kubernetes_DeleteOptions",
+      "javaType": "io.fabric8.kubernetes.api.model.DeleteOptions"
     },
     "DeploymentConfigList": {
       "$ref": "#/definitions/os_deploy_DeploymentConfigList",
@@ -6798,6 +7174,10 @@
     "ImageStreamList": {
       "$ref": "#/definitions/os_image_ImageStreamList",
       "javaType": "io.fabric8.openshift.api.model.ImageStreamList"
+    },
+    "LimitRangeList": {
+      "$ref": "#/definitions/kubernetes_LimitRangeList",
+      "javaType": "io.fabric8.kubernetes.api.model.LimitRangeList"
     },
     "LocalSubjectAccessReview": {
       "$ref": "#/definitions/os_authorization_LocalSubjectAccessReview",
@@ -6874,6 +7254,10 @@
     "PodList": {
       "$ref": "#/definitions/kubernetes_PodList",
       "javaType": "io.fabric8.kubernetes.api.model.PodList"
+    },
+    "PodTemplateList": {
+      "$ref": "#/definitions/kubernetes_PodTemplateList",
+      "javaType": "io.fabric8.kubernetes.api.model.PodTemplateList"
     },
     "Policy": {
       "$ref": "#/definitions/os_authorization_Policy",
