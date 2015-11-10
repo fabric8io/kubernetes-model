@@ -36,6 +36,7 @@ import (
 	resourceapi "k8s.io/kubernetes/pkg/api/resource"
 	rapi "k8s.io/kubernetes/pkg/api/unversioned"
 	kapi "k8s.io/kubernetes/pkg/api/v1"
+	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 	configapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api/v1"
 	watch "k8s.io/kubernetes/pkg/watch/json"
 
@@ -124,6 +125,19 @@ type Schema struct {
 	ProjectList                    projectapi.ProjectList
 	ProjectRequest                 projectapi.ProjectRequest
 	ListMeta                       rapi.ListMeta
+	Job                            extensions.Job
+	JobList                        extensions.JobList
+	Scale                          extensions.Scale
+	HorizontalPodAutoscaler        extensions.HorizontalPodAutoscaler
+	HorizontalPodAutoscalerList    extensions.HorizontalPodAutoscalerList
+	ThirdPartyResource             extensions.ThirdPartyResource
+	ThirdPartyResourceList         extensions.ThirdPartyResourceList
+	Deployment                     extensions.Deployment
+	DeploymentList                 extensions.DeploymentList
+	DaemonSet                      extensions.DaemonSet
+	DaemonSetList                  extensions.DaemonSetList
+	Ingress                        extensions.Ingress
+	IngressList                    extensions.IngressList
 }
 
 func main() {
@@ -147,6 +161,7 @@ func main() {
 		{"github.com/openshift/origin/pkg/project/api/v1", "io.fabric8.openshift.api.model", "os_project_"},
 		{"k8s.io/kubernetes/pkg/api/unversioned", "io.fabric8.kubernetes.api.model", "api_"},
 		{"k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api/v1", "io.fabric8.kubernetes.api.model", "clientcmd_api_"},
+		{"k8s.io/kubernetes/pkg/apis/extensions/v1beta1", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_extensions_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{
