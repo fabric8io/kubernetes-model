@@ -4187,10 +4187,10 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "extensions/v1beta1",
           "required": true,
           "enum": [
-            "v1beta1"
+            "extensions/v1beta1"
           ]
         },
         "kind": {
@@ -4225,10 +4225,10 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "extensions/v1beta1",
           "required": true,
           "enum": [
-            "v1beta1"
+            "extensions/v1beta1"
           ]
         },
         "items": {
@@ -4305,10 +4305,10 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "extensions/v1beta1",
           "required": true,
           "enum": [
-            "v1beta1"
+            "extensions/v1beta1"
           ]
         },
         "kind": {
@@ -4343,10 +4343,10 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "extensions/v1beta1",
           "required": true,
           "enum": [
-            "v1beta1"
+            "extensions/v1beta1"
           ]
         },
         "items": {
@@ -4479,10 +4479,10 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "extensions/v1beta1",
           "required": true,
           "enum": [
-            "v1beta1"
+            "extensions/v1beta1"
           ]
         },
         "kind": {
@@ -4517,10 +4517,10 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "extensions/v1beta1",
           "required": true,
           "enum": [
-            "v1beta1"
+            "extensions/v1beta1"
           ]
         },
         "items": {
@@ -4609,10 +4609,10 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "extensions/v1beta1",
           "required": true,
           "enum": [
-            "v1beta1"
+            "extensions/v1beta1"
           ]
         },
         "kind": {
@@ -4663,10 +4663,10 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "extensions/v1beta1",
           "required": true,
           "enum": [
-            "v1beta1"
+            "extensions/v1beta1"
           ]
         },
         "items": {
@@ -4762,10 +4762,10 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "extensions/v1beta1",
           "required": true,
           "enum": [
-            "v1beta1"
+            "extensions/v1beta1"
           ]
         },
         "kind": {
@@ -4832,10 +4832,10 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "extensions/v1beta1",
           "required": true,
           "enum": [
-            "v1beta1"
+            "extensions/v1beta1"
           ]
         },
         "items": {
@@ -5000,10 +5000,10 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "extensions/v1beta1",
           "required": true,
           "enum": [
-            "v1beta1"
+            "extensions/v1beta1"
           ]
         },
         "kind": {
@@ -5095,10 +5095,10 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "extensions/v1beta1",
           "required": true,
           "enum": [
-            "v1beta1"
+            "extensions/v1beta1"
           ]
         },
         "description": {
@@ -5137,10 +5137,10 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1beta1",
+          "default": "extensions/v1beta1",
           "required": true,
           "enum": [
-            "v1beta1"
+            "extensions/v1beta1"
           ]
         },
         "items": {

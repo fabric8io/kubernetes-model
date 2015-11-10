@@ -343,6 +343,10 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 					}
 				case "apiVersion":
 					apiVersion := filepath.Base(t.PkgPath())
+					apiGroup := filepath.Base(strings.TrimSuffix(t.PkgPath(), apiVersion))
+					if apiGroup != "api" {
+						apiVersion = apiGroup + "/" + apiVersion
+					}
 					v = JSONPropertyDescriptor{
 						JSONDescriptor: &JSONDescriptor{
 							Type:     "string",
