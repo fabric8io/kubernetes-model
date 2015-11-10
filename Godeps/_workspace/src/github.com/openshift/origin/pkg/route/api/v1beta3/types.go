@@ -1,13 +1,15 @@
 package v1beta3
 
 import (
+	"k8s.io/kubernetes/pkg/api/unversioned"
 	kapi "k8s.io/kubernetes/pkg/api/v1beta3"
+	"k8s.io/kubernetes/pkg/util"
 )
 
 // Route encapsulates the inputs needed to connect an alias to endpoints.
 type Route struct {
-	kapi.TypeMeta   `json:",inline"`
-	kapi.ObjectMeta `json:"metadata,omitempty"`
+	unversioned.TypeMeta `json:",inline"`
+	kapi.ObjectMeta      `json:"metadata,omitempty"`
 
 	Spec   RouteSpec   `json:"spec"`
 	Status RouteStatus `json:"status"`
@@ -15,9 +17,9 @@ type Route struct {
 
 // RouteList is a collection of Routes.
 type RouteList struct {
-	kapi.TypeMeta `json:",inline"`
-	kapi.ListMeta `json:"metadata,omitempty"`
-	Items         []Route `json:"items"`
+	unversioned.TypeMeta `json:",inline"`
+	unversioned.ListMeta `json:"metadata,omitempty"`
+	Items                []Route `json:"items"`
 }
 
 // RouteSpec describes the route the user wishes to exist.
@@ -35,27 +37,27 @@ type RouteSpec struct {
 	// be defaulted to Service.
 	To kapi.ObjectReference `json:"to"`
 
+	// If specified, the port to be used by the router. Most routers will use all
+	// endpoints exposed by the service by default - set this value to instruct routers
+	// which port to use.
+	Port *RoutePort `json:"port,omitempty"`
+
 	// TLS provides the ability to configure certificates and termination for the route
 	TLS *TLSConfig `json:"tls,omitempty"`
 }
 
-/*
+// RoutePort defines a port mapping from a router to an endpoint in the service endpoints.
 type RoutePort struct {
-	// Name is the name of the port that is used by the router. Routers may require
-	// this field be set. Routers may decide which names to expose.
-	Name string `json:"name"`
-
-	// Optional: the name of the target endpoint port.
-	TargetName string `json:"targetName"`
-
-	// Optional: the value of the target endpoint port to expose. May be omitted if
-	// name is set, and vice versa.
+	// The target port on pods selected by the service this route points to.
+	// If this is a string, it will be looked up as a named port in the target
+	// endpoints port list. Required
 	TargetPort util.IntOrString `json:"targetPort"`
 }
-*/
 
-// RouteStatus describes the current state of this route.
-type RouteStatus struct{}
+// RouteStatus provides relevant info about the status of a route, including which routers
+// acknowledge it.
+type RouteStatus struct {
+}
 
 // RouterShard has information of a routing shard and is used to
 // generate host names and routing table entries when a routing shard is
@@ -88,10 +90,19 @@ type TLSConfig struct {
 	// DestinationCACertificate provides the contents of the ca certificate of the final destination.  When using reencrypt
 	// termination this file should be provided in order to have routers use it for health checks on the secure connection
 	DestinationCACertificate string `json:"destinationCACertificate,omitempty"`
+
+	// InsecureEdgeTerminationPolicy indicates the desired behavior for
+	// insecure connections to an edge-terminated route:
+	//   disable, allow or redirect
+	InsecureEdgeTerminationPolicy InsecureEdgeTerminationPolicyType `json:"insecureEdgeTerminationPolicy,omitempty"`
 }
 
 // TLSTerminationType dictates where the secure communication will stop
 type TLSTerminationType string
+
+// InsecureEdgeTerminationPolicyType dictates the behavior of insecure
+// connections to an edge-terminated route.
+type InsecureEdgeTerminationPolicyType string
 
 const (
 	// TLSTerminationEdge terminate encryption at the edge router.

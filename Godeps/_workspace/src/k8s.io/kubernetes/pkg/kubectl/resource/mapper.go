@@ -66,6 +66,7 @@ func (m *Mapper) InfoForData(data []byte, source string) (*Info, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to a server to handle %q: %v", mapping.Resource, err)
 	}
+
 	name, _ := mapping.MetadataAccessor.Name(obj)
 	namespace, _ := mapping.MetadataAccessor.Namespace(obj)
 	resourceVersion, _ := mapping.MetadataAccessor.ResourceVersion(obj)
@@ -87,7 +88,7 @@ func (m *Mapper) InfoForData(data []byte, source string) (*Info, error) {
 	}, nil
 }
 
-// InfoForData creates an Info object for the given Object. An error is returned
+// InfoForObject creates an Info object for the given Object. An error is returned
 // if the object cannot be introspected. Name and namespace will be set into Info
 // if the mapping's MetadataAccessor can retrieve them.
 func (m *Mapper) InfoForObject(obj runtime.Object) (*Info, error) {

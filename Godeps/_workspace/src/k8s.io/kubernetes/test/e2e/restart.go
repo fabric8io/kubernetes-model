@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client"
+	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/util/wait"
@@ -221,11 +221,11 @@ func restartNodes(provider string, nt time.Duration) error {
 	}
 }
 
-// TODO(mbforbes): Switch this to MIG recreate-instances. This can be done
+// TODO(marekbiskup): Switch this to MIG recreate-instances. This can be done
 // with the following bash, but needs to be written in Go:
 //
 //   # Step 1: Get instance names.
-//   list=$(gcloud preview instance-groups --project=${PROJECT} --zone=${ZONE} instances --group=${GROUP} list)
+//   list=$(gcloud compute instance-groups --project=${PROJECT} --zone=${ZONE} instances --group=${GROUP} list)
 //   i=""
 //   for l in $list; do
 // 	  i="${l##*/},${i}"

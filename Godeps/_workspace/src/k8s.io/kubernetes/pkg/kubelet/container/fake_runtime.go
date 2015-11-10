@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/volume"
 )
 
@@ -32,7 +33,6 @@ type FakeRuntime struct {
 	sync.Mutex
 	CalledFunctions   []string
 	PodList           []*Pod
-	ContainerList     []*Container
 	ImageList         []Image
 	PodStatus         api.PodStatus
 	StartedPods       []string
@@ -41,6 +41,7 @@ type FakeRuntime struct {
 	KilledContainers  []string
 	VersionInfo       string
 	Err               error
+	InspectErr        error
 }
 
 // FakeRuntime should implement Runtime.
@@ -87,7 +88,6 @@ func (f *FakeRuntime) ClearCalls() {
 
 	f.CalledFunctions = []string{}
 	f.PodList = []*Pod{}
-	f.ContainerList = []*Container{}
 	f.PodStatus = api.PodStatus{}
 	f.StartedPods = []string{}
 	f.KilledPods = []string{}
@@ -95,6 +95,7 @@ func (f *FakeRuntime) ClearCalls() {
 	f.KilledContainers = []string{}
 	f.VersionInfo = ""
 	f.Err = nil
+	f.InspectErr = nil
 }
 
 func (f *FakeRuntime) assertList(expect []string, test []string) error {
@@ -151,7 +152,7 @@ func (f *FakeRuntime) GetPods(all bool) ([]*Pod, error) {
 	return f.PodList, f.Err
 }
 
-func (f *FakeRuntime) SyncPod(pod *api.Pod, _ Pod, _ api.PodStatus, _ []api.Secret) error {
+func (f *FakeRuntime) SyncPod(pod *api.Pod, _ Pod, _ api.PodStatus, _ []api.Secret, backOff *util.Backoff) error {
 	f.Lock()
 	defer f.Unlock()
 
@@ -163,13 +164,13 @@ func (f *FakeRuntime) SyncPod(pod *api.Pod, _ Pod, _ api.PodStatus, _ []api.Secr
 	return f.Err
 }
 
-func (f *FakeRuntime) KillPod(pod Pod) error {
+func (f *FakeRuntime) KillPod(pod *api.Pod, runningPod Pod) error {
 	f.Lock()
 	defer f.Unlock()
 
 	f.CalledFunctions = append(f.CalledFunctions, "KillPod")
-	f.KilledPods = append(f.KilledPods, string(pod.ID))
-	for _, c := range pod.Containers {
+	f.KilledPods = append(f.KilledPods, string(runningPod.ID))
+	for _, c := range runningPod.Containers {
 		f.KilledContainers = append(f.KilledContainers, c.Name)
 	}
 	return f.Err
@@ -218,15 +219,7 @@ func (f *FakeRuntime) GetPodStatus(*api.Pod) (*api.PodStatus, error) {
 	return &status, f.Err
 }
 
-func (f *FakeRuntime) GetContainers(all bool) ([]*Container, error) {
-	f.Lock()
-	defer f.Unlock()
-
-	f.CalledFunctions = append(f.CalledFunctions, "GetContainers")
-	return f.ContainerList, f.Err
-}
-
-func (f *FakeRuntime) ExecInContainer(containerID string, cmd []string, stdin io.Reader, stdout, stderr io.WriteCloser, tty bool) error {
+func (f *FakeRuntime) ExecInContainer(containerID ContainerID, cmd []string, stdin io.Reader, stdout, stderr io.WriteCloser, tty bool) error {
 	f.Lock()
 	defer f.Unlock()
 
@@ -234,7 +227,7 @@ func (f *FakeRuntime) ExecInContainer(containerID string, cmd []string, stdin io
 	return f.Err
 }
 
-func (f *FakeRuntime) AttachContainer(containerID string, stdin io.Reader, stdout, stderr io.WriteCloser, tty bool) error {
+func (f *FakeRuntime) AttachContainer(containerID ContainerID, stdin io.Reader, stdout, stderr io.WriteCloser, tty bool) error {
 	f.Lock()
 	defer f.Unlock()
 
@@ -242,7 +235,7 @@ func (f *FakeRuntime) AttachContainer(containerID string, stdin io.Reader, stdou
 	return f.Err
 }
 
-func (f *FakeRuntime) RunInContainer(containerID string, cmd []string) ([]byte, error) {
+func (f *FakeRuntime) RunInContainer(containerID ContainerID, cmd []string) ([]byte, error) {
 	f.Lock()
 	defer f.Unlock()
 
@@ -250,7 +243,7 @@ func (f *FakeRuntime) RunInContainer(containerID string, cmd []string) ([]byte, 
 	return []byte{}, f.Err
 }
 
-func (f *FakeRuntime) GetContainerLogs(pod *api.Pod, containerID, tail string, follow bool, stdout, stderr io.Writer) (err error) {
+func (f *FakeRuntime) GetContainerLogs(pod *api.Pod, containerID ContainerID, logOptions *api.PodLogOptions, stdout, stderr io.Writer) (err error) {
 	f.Lock()
 	defer f.Unlock()
 
@@ -273,10 +266,10 @@ func (f *FakeRuntime) IsImagePresent(image ImageSpec) (bool, error) {
 	f.CalledFunctions = append(f.CalledFunctions, "IsImagePresent")
 	for _, i := range f.ImageList {
 		if i.ID == image.Image {
-			return true, f.Err
+			return true, nil
 		}
 	}
-	return false, f.Err
+	return false, f.InspectErr
 }
 
 func (f *FakeRuntime) ListImages() ([]Image, error) {
@@ -309,5 +302,13 @@ func (f *FakeRuntime) PortForward(pod *Pod, port uint16, stream io.ReadWriteClos
 	defer f.Unlock()
 
 	f.CalledFunctions = append(f.CalledFunctions, "PortForward")
+	return f.Err
+}
+
+func (f *FakeRuntime) GarbageCollect(gcPolicy ContainerGCPolicy) error {
+	f.Lock()
+	defer f.Unlock()
+
+	f.CalledFunctions = append(f.CalledFunctions, "GarbageCollect")
 	return f.Err
 }

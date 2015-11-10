@@ -8,15 +8,15 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/validation"
 	"k8s.io/kubernetes/pkg/controller/serviceaccount"
-	kutil "k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/util/sets"
 
 	// uservalidation "github.com/openshift/origin/pkg/user/api/validation"
 )
 
-func ExpandResources(rawResources kutil.StringSet) kutil.StringSet {
-	ret := kutil.StringSet{}
+func ExpandResources(rawResources sets.String) sets.String {
+	ret := sets.String{}
 	toVisit := rawResources.List()
-	visited := kutil.StringSet{}
+	visited := sets.String{}
 
 	for i := 0; i < len(toVisit); i++ {
 		currResource := toVisit[i]
@@ -39,7 +39,7 @@ func ExpandResources(rawResources kutil.StringSet) kutil.StringSet {
 }
 
 func (r PolicyRule) String() string {
-	return fmt.Sprintf("PolicyRule{Verbs:%v, Resources:%v, ResourceNames:%v, Restrictions:%v}", r.Verbs.List(), r.Resources.List(), r.ResourceNames.List(), r.AttributeRestrictions)
+	return fmt.Sprintf("PolicyRule{Verbs:%v, APIGroups:%v, Resources:%v, ResourceNames:%v, Restrictions:%v}", r.Verbs.List(), r.APIGroups, r.Resources.List(), r.ResourceNames.List(), r.AttributeRestrictions)
 }
 
 func getRoleBindingValues(roleBindingMap map[string]*RoleBinding) []*RoleBinding {
@@ -124,8 +124,8 @@ func BuildSubjects(users, groups []string, userNameValidator, groupNameValidator
 // StringSubjectsFor returns users and groups for comparison against user.Info.  currentNamespace is used to
 // to create usernames for service accounts where namespace=="".
 func StringSubjectsFor(currentNamespace string, subjects []kapi.ObjectReference) ([]string, []string) {
-	users := []string{}
-	groups := []string{}
+	// these MUST be nil to indicate empty
+	var users, groups []string
 
 	for _, subject := range subjects {
 		switch subject.Kind {
@@ -134,7 +134,9 @@ func StringSubjectsFor(currentNamespace string, subjects []kapi.ObjectReference)
 			if len(subject.Namespace) > 0 {
 				namespace = subject.Namespace
 			}
-			users = append(users, serviceaccount.MakeUsername(namespace, subject.Name))
+			if len(namespace) > 0 {
+				users = append(users, serviceaccount.MakeUsername(namespace, subject.Name))
+			}
 
 		case UserKind, SystemUserKind:
 			users = append(users, subject.Name)

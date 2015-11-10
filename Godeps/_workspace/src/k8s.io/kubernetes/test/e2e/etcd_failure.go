@@ -31,7 +31,7 @@ import (
 var _ = Describe("Etcd failure", func() {
 
 	var skipped bool
-	framework := Framework{BaseName: "etcd-failure"}
+	framework := NewFramework("etcd-failure")
 
 	BeforeEach(func() {
 		// This test requires:
@@ -49,7 +49,7 @@ var _ = Describe("Etcd failure", func() {
 			Client:    framework.Client,
 			Name:      "baz",
 			Namespace: framework.Namespace.Name,
-			Image:     "gcr.io/google_containers/nginx",
+			Image:     "beta.gcr.io/google_containers/pause:2.0",
 			Replicas:  1,
 		})).NotTo(HaveOccurred())
 	})
@@ -79,12 +79,12 @@ var _ = Describe("Etcd failure", func() {
 	})
 })
 
-func etcdFailTest(framework Framework, failCommand, fixCommand string) {
+func etcdFailTest(framework *Framework, failCommand, fixCommand string) {
 	doEtcdFailure(failCommand, fixCommand)
 
 	checkExistingRCRecovers(framework)
 
-	ServeImageOrFail(&framework, "basic", "gcr.io/google_containers/serve_hostname:1.1")
+	ServeImageOrFail(framework, "basic", "gcr.io/google_containers/serve_hostname:1.1")
 }
 
 // For this duration, etcd will be failed by executing a failCommand on the master.
@@ -110,7 +110,7 @@ func masterExec(cmd string) {
 	}
 }
 
-func checkExistingRCRecovers(f Framework) {
+func checkExistingRCRecovers(f *Framework) {
 	By("assert that the pre-existing replication controller recovers")
 	podClient := f.Client.Pods(f.Namespace.Name)
 	rcSelector := labels.Set{"name": "baz"}.AsSelector()
@@ -138,7 +138,7 @@ func checkExistingRCRecovers(f Framework) {
 		pods, err := podClient.List(rcSelector, fields.Everything())
 		Expect(err).NotTo(HaveOccurred())
 		for _, pod := range pods.Items {
-			if api.IsPodReady(&pod) {
+			if pod.DeletionTimestamp == nil && api.IsPodReady(&pod) {
 				return true, nil
 			}
 		}

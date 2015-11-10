@@ -24,17 +24,19 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/record"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
+	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util"
 )
 
 // PodWorkers is an abstract interface for testability.
 type PodWorkers interface {
-	UpdatePod(pod *api.Pod, mirrorPod *api.Pod, updateComplete func())
+	UpdatePod(pod *api.Pod, mirrorPod *api.Pod, updateType kubetypes.SyncPodType, updateComplete func())
 	ForgetNonExistingPodWorkers(desiredPods map[types.UID]empty)
+	ForgetWorker(uid types.UID)
 }
 
-type syncPodFnType func(*api.Pod, *api.Pod, kubecontainer.Pod, SyncPodType) error
+type syncPodFnType func(*api.Pod, *api.Pod, kubecontainer.Pod, kubetypes.SyncPodType) error
 
 type podWorkers struct {
 	// Protects all per worker fields.
@@ -73,7 +75,7 @@ type workUpdate struct {
 	updateCompleteFn func()
 
 	// A string describing the type of this update, eg: create
-	updateType SyncPodType
+	updateType kubetypes.SyncPodType
 }
 
 func newPodWorkers(runtimeCache kubecontainer.RuntimeCache, syncPodFn syncPodFnType,
@@ -109,7 +111,7 @@ func (p *podWorkers) managePodLoop(podUpdates <-chan workUpdate) {
 				kubecontainer.Pods(pods).FindPodByID(newWork.pod.UID), newWork.updateType)
 			if err != nil {
 				glog.Errorf("Error syncing pod %s, skipping: %v", newWork.pod.UID, err)
-				p.recorder.Eventf(newWork.pod, "failedSync", "Error syncing pod, skipping: %v", err)
+				p.recorder.Eventf(newWork.pod, "FailedSync", "Error syncing pod, skipping: %v", err)
 				return
 			}
 			minRuntimeCacheTime = time.Now()
@@ -120,18 +122,10 @@ func (p *podWorkers) managePodLoop(podUpdates <-chan workUpdate) {
 }
 
 // Apply the new setting to the specified pod. updateComplete is called when the update is completed.
-func (p *podWorkers) UpdatePod(pod *api.Pod, mirrorPod *api.Pod, updateComplete func()) {
+func (p *podWorkers) UpdatePod(pod *api.Pod, mirrorPod *api.Pod, updateType kubetypes.SyncPodType, updateComplete func()) {
 	uid := pod.UID
 	var podUpdates chan workUpdate
 	var exists bool
-
-	// TODO: Pipe this through from the kubelet. Currently kubelets operating with
-	// snapshot updates (PodConfigNotificationSnapshot) will send updates, creates
-	// and deletes as SET operations, which makes updates indistinguishable from
-	// creates. The intent here is to communicate to the pod worker that it can take
-	// certain liberties, like skipping status generation, when it receives a create
-	// event for a pod.
-	updateType := SyncPodUpdate
 
 	p.podLock.Lock()
 	defer p.podLock.Unlock()
@@ -147,7 +141,6 @@ func (p *podWorkers) UpdatePod(pod *api.Pod, mirrorPod *api.Pod, updateComplete 
 		// kubelet just restarted. In either case the kubelet is willing to believe
 		// the status of the pod for the first pod worker sync. See corresponding
 		// comment in syncPod.
-		updateType = SyncPodCreate
 		go func() {
 			defer util.HandleCrash()
 			p.managePodLoop(podUpdates)
@@ -171,19 +164,30 @@ func (p *podWorkers) UpdatePod(pod *api.Pod, mirrorPod *api.Pod, updateComplete 
 	}
 }
 
+func (p *podWorkers) removeWorker(uid types.UID) {
+	if ch, ok := p.podUpdates[uid]; ok {
+		close(ch)
+		delete(p.podUpdates, uid)
+		// If there is an undelivered work update for this pod we need to remove it
+		// since per-pod goroutine won't be able to put it to the already closed
+		// channel when it finish processing the current work update.
+		if _, cached := p.lastUndeliveredWorkUpdate[uid]; cached {
+			delete(p.lastUndeliveredWorkUpdate, uid)
+		}
+	}
+}
+func (p *podWorkers) ForgetWorker(uid types.UID) {
+	p.podLock.Lock()
+	defer p.podLock.Unlock()
+	p.removeWorker(uid)
+}
+
 func (p *podWorkers) ForgetNonExistingPodWorkers(desiredPods map[types.UID]empty) {
 	p.podLock.Lock()
 	defer p.podLock.Unlock()
-	for key, channel := range p.podUpdates {
+	for key := range p.podUpdates {
 		if _, exists := desiredPods[key]; !exists {
-			close(channel)
-			delete(p.podUpdates, key)
-			// If there is an undelivered work update for this pod we need to remove it
-			// since per-pod goroutine won't be able to put it to the already closed
-			// channel when it finish processing the current work update.
-			if _, cached := p.lastUndeliveredWorkUpdate[key]; cached {
-				delete(p.lastUndeliveredWorkUpdate, key)
-			}
+			p.removeWorker(key)
 		}
 	}
 }

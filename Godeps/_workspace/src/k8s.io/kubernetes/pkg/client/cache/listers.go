@@ -21,6 +21,7 @@ import (
 
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/labels"
 )
 
@@ -157,19 +158,19 @@ func (s storeToNodeConditionLister) List() (nodes api.NodeList, err error) {
 
 // TODO Move this back to scheduler as a helper function that takes a Store,
 // rather than a method of StoreToNodeLister.
-// GetNodeInfo returns cached data for the minion 'id'.
+// GetNodeInfo returns cached data for the node 'id'.
 func (s *StoreToNodeLister) GetNodeInfo(id string) (*api.Node, error) {
-	minion, exists, err := s.Get(&api.Node{ObjectMeta: api.ObjectMeta{Name: id}})
+	node, exists, err := s.Get(&api.Node{ObjectMeta: api.ObjectMeta{Name: id}})
 
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving minion '%v' from cache: %v", id, err)
+		return nil, fmt.Errorf("error retrieving node '%v' from cache: %v", id, err)
 	}
 
 	if !exists {
-		return nil, fmt.Errorf("minion '%v' is not in cache", id)
+		return nil, fmt.Errorf("node '%v' is not in cache", id)
 	}
 
-	return minion.(*api.Node), nil
+	return node.(*api.Node), nil
 }
 
 // StoreToReplicationControllerLister gives a store List and Exists methods. The store must contain only ReplicationControllers.
@@ -220,7 +221,60 @@ func (s *StoreToReplicationControllerLister) GetPodControllers(pod *api.Pod) (co
 		controllers = append(controllers, rc)
 	}
 	if len(controllers) == 0 {
-		err = fmt.Errorf("Could not find controllers for pod %s in namespace %s with labels: %v", pod.Name, pod.Namespace, pod.Labels)
+		err = fmt.Errorf("Could not find daemon set for pod %s in namespace %s with labels: %v", pod.Name, pod.Namespace, pod.Labels)
+	}
+	return
+}
+
+// StoreToDaemonSetLister gives a store List and Exists methods. The store must contain only DaemonSets.
+type StoreToDaemonSetLister struct {
+	Store
+}
+
+// Exists checks if the given daemon set exists in the store.
+func (s *StoreToDaemonSetLister) Exists(ds *extensions.DaemonSet) (bool, error) {
+	_, exists, err := s.Store.Get(ds)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+// List lists all daemon sets in the store.
+// TODO: converge on the interface in pkg/client
+func (s *StoreToDaemonSetLister) List() (dss []extensions.DaemonSet, err error) {
+	for _, c := range s.Store.List() {
+		dss = append(dss, *(c.(*extensions.DaemonSet)))
+	}
+	return dss, nil
+}
+
+// GetPodDaemonSets returns a list of daemon sets managing a pod.
+// Returns an error if and only if no matching daemon sets are found.
+func (s *StoreToDaemonSetLister) GetPodDaemonSets(pod *api.Pod) (daemonSets []extensions.DaemonSet, err error) {
+	var selector labels.Selector
+	var daemonSet extensions.DaemonSet
+
+	if len(pod.Labels) == 0 {
+		err = fmt.Errorf("No daemon sets found for pod %v because it has no labels", pod.Name)
+		return
+	}
+
+	for _, m := range s.Store.List() {
+		daemonSet = *m.(*extensions.DaemonSet)
+		if daemonSet.Namespace != pod.Namespace {
+			continue
+		}
+		selector = labels.Set(daemonSet.Spec.Selector).AsSelector()
+
+		// If a daemonSet with a nil or empty selector creeps in, it should match nothing, not everything.
+		if selector.Empty() || !selector.Matches(labels.Set(pod.Labels)) {
+			continue
+		}
+		daemonSets = append(daemonSets, daemonSet)
+	}
+	if len(daemonSets) == 0 {
+		err = fmt.Errorf("Could not find daemon set for pod %s in namespace %s with labels: %v", pod.Name, pod.Namespace, pod.Labels)
 	}
 	return
 }
@@ -288,5 +342,55 @@ func (s *StoreToEndpointsLister) GetServiceEndpoints(svc *api.Service) (ep api.E
 		}
 	}
 	err = fmt.Errorf("Could not find endpoints for service: %v", svc.Name)
+	return
+}
+
+// StoreToJobLister gives a store List and Exists methods. The store must contain only Jobs.
+type StoreToJobLister struct {
+	Store
+}
+
+// Exists checks if the given job exists in the store.
+func (s *StoreToJobLister) Exists(job *extensions.Job) (bool, error) {
+	_, exists, err := s.Store.Get(job)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+// StoreToJobLister lists all jobs in the store.
+func (s *StoreToJobLister) List() (jobs []extensions.Job, err error) {
+	for _, c := range s.Store.List() {
+		jobs = append(jobs, *(c.(*extensions.Job)))
+	}
+	return jobs, nil
+}
+
+// GetPodControllers returns a list of jobs managing a pod. Returns an error only if no matching jobs are found.
+func (s *StoreToJobLister) GetPodJobs(pod *api.Pod) (jobs []extensions.Job, err error) {
+	var selector labels.Selector
+	var job extensions.Job
+
+	if len(pod.Labels) == 0 {
+		err = fmt.Errorf("No jobs found for pod %v because it has no labels", pod.Name)
+		return
+	}
+
+	for _, m := range s.Store.List() {
+		job = *m.(*extensions.Job)
+		if job.Namespace != pod.Namespace {
+			continue
+		}
+
+		selector, _ = extensions.PodSelectorAsSelector(job.Spec.Selector)
+		if !selector.Matches(labels.Set(pod.Labels)) {
+			continue
+		}
+		jobs = append(jobs, job)
+	}
+	if len(jobs) == 0 {
+		err = fmt.Errorf("Could not find jobs for pod %s in namespace %s with labels: %v", pod.Name, pod.Namespace, pod.Labels)
+	}
 	return
 }

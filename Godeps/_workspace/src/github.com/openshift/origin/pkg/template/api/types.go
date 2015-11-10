@@ -2,12 +2,13 @@ package api
 
 import (
 	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/runtime"
 )
 
 // Template contains the inputs needed to produce a Config.
 type Template struct {
-	kapi.TypeMeta
+	unversioned.TypeMeta
 	kapi.ObjectMeta
 
 	// Optional: Parameters is an array of Parameters used during the
@@ -24,8 +25,8 @@ type Template struct {
 
 // TemplateList is a list of Template objects.
 type TemplateList struct {
-	kapi.TypeMeta
-	kapi.ListMeta
+	unversioned.TypeMeta
+	unversioned.ListMeta
 	Items []Template
 }
 
@@ -35,6 +36,9 @@ type Parameter struct {
 	// Required: Parameter name must be set and it can be referenced in Template
 	// Items using ${PARAMETER_NAME}
 	Name string
+
+	// Optional: The name that will show in UI instead of parameter 'Name'
+	DisplayName string
 
 	// Optional: Parameter can have description
 	Description string

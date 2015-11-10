@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package routecontroller
+package route
 
 import (
 	"net"
@@ -23,7 +23,7 @@ import (
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/cloudprovider"
-	"k8s.io/kubernetes/pkg/cloudprovider/fake"
+	"k8s.io/kubernetes/pkg/cloudprovider/providers/fake"
 )
 
 func TestIsResponsibleForRoute(t *testing.T) {

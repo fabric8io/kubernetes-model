@@ -1,15 +1,15 @@
 package v1
 
 import (
+	"k8s.io/kubernetes/pkg/api/unversioned"
 	kapi "k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util"
 )
 
 // ImageList is a list of Image objects.
 type ImageList struct {
-	kapi.TypeMeta `json:",inline"`
-	kapi.ListMeta `json:"metadata,omitempty"`
+	unversioned.TypeMeta `json:",inline"`
+	unversioned.ListMeta `json:"metadata,omitempty"`
 
 	// Items is a list of images
 	Items []Image `json:"items" description:"list of image objects"`
@@ -17,8 +17,8 @@ type ImageList struct {
 
 // Image is an immutable representation of a Docker image and metadata at a point in time.
 type Image struct {
-	kapi.TypeMeta   `json:",inline"`
-	kapi.ObjectMeta `json:"metadata,omitempty"`
+	unversioned.TypeMeta `json:",inline"`
+	kapi.ObjectMeta      `json:"metadata,omitempty"`
 
 	// DockerImageReference is the string that can be used to pull this image.
 	DockerImageReference string `json:"dockerImageReference,omitempty" description:"string that can be used to pull this image"`
@@ -32,8 +32,8 @@ type Image struct {
 
 // ImageStreamList is a list of ImageStream objects.
 type ImageStreamList struct {
-	kapi.TypeMeta `json:",inline"`
-	kapi.ListMeta `json:"metadata,omitempty"`
+	unversioned.TypeMeta `json:",inline"`
+	unversioned.ListMeta `json:"metadata,omitempty"`
 
 	// Items is a list of imageStreams
 	Items []ImageStream `json:"items" description:"list of image stream objects"`
@@ -43,8 +43,8 @@ type ImageStreamList struct {
 // when images are tagged in a stream, and an optional reference to a Docker image
 // repository on a registry.
 type ImageStream struct {
-	kapi.TypeMeta   `json:",inline"`
-	kapi.ObjectMeta `json:"metadata,omitempty"`
+	unversioned.TypeMeta `json:",inline"`
+	kapi.ObjectMeta      `json:"metadata,omitempty"`
 
 	// Spec describes the desired state of this stream
 	Spec ImageStreamSpec `json:"spec" description:"desired state of the stream"`
@@ -68,6 +68,8 @@ type NamedTagReference struct {
 	Annotations map[string]string `json:"annotations,omitempty" description:"annotations associated with images using this tag"`
 	// From is a reference to an image stream tag or image stream this tag should track
 	From *kapi.ObjectReference `json:"from,omitempty" description:"a reference to an image stream tag or image stream this tag should track"`
+	// Reference states if the tag will be imported. Default value is false, which means the tag will be imported.
+	Reference bool `json:"reference,omitempty" description:"if true consider this tag a reference only and do not attempt to import metadata about the image"`
 }
 
 // ImageStreamStatus contains information about the state of this image stream.
@@ -89,7 +91,7 @@ type NamedTagEventList struct {
 // TagEvent is used by ImageStreamStatus to keep a historical record of images associated with a tag.
 type TagEvent struct {
 	// Created holds the time the TagEvent was created
-	Created util.Time `json:"created" description:"when the event was created"`
+	Created unversioned.Time `json:"created" description:"when the event was created"`
 	// DockerImageReference is the string that can be used to pull this image
 	DockerImageReference string `json:"dockerImageReference" description:"the string that can be used to pull this image"`
 	// Image is the image
@@ -99,8 +101,8 @@ type TagEvent struct {
 // ImageStreamMapping represents a mapping from a single tag to a Docker image as
 // well as the reference to the Docker image stream the image came from.
 type ImageStreamMapping struct {
-	kapi.TypeMeta   `json:",inline"`
-	kapi.ObjectMeta `json:"metadata,omitempty"`
+	unversioned.TypeMeta `json:",inline"`
+	kapi.ObjectMeta      `json:"metadata,omitempty"`
 
 	// Image is a Docker image.
 	Image Image `json:"image" description:"a Docker image"`
@@ -110,17 +112,25 @@ type ImageStreamMapping struct {
 
 // ImageStreamTag represents an Image that is retrieved by tag name from an ImageStream.
 type ImageStreamTag struct {
-	kapi.TypeMeta   `json:",inline"`
-	kapi.ObjectMeta `json:"metadata,omitempty"`
+	unversioned.TypeMeta `json:",inline"`
+	kapi.ObjectMeta      `json:"metadata,omitempty"`
 
 	// Image associated with the ImageStream and tag.
 	Image Image `json:"image" description:"the image associated with the ImageStream and tag"`
 }
 
+// ImageStreamTagList is a list of ImageStreamTag objects.
+type ImageStreamTagList struct {
+	unversioned.TypeMeta `json:",inline"`
+	unversioned.ListMeta `json:"metadata,omitempty"`
+
+	Items []ImageStreamTag `json:"items" description:"list of image stream tag objects"`
+}
+
 // ImageStreamImage represents an Image that is retrieved by image name from an ImageStream.
 type ImageStreamImage struct {
-	kapi.TypeMeta   `json:",inline"`
-	kapi.ObjectMeta `json:"metadata,omitempty"`
+	unversioned.TypeMeta `json:",inline"`
+	kapi.ObjectMeta      `json:"metadata,omitempty"`
 
 	// Image associated with the ImageStream and image name.
 	Image Image `json:"image" description:"the image associated with the ImageStream and image name"`

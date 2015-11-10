@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client"
+	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/util"
@@ -34,7 +34,7 @@ import (
 var _ = Describe("ServiceAccounts", func() {
 	f := NewFramework("svcaccounts")
 
-	It("should mount an API token into pods", func() {
+	It("should mount an API token into pods [Conformance]", func() {
 		var tokenName string
 		var tokenContent string
 		var rootCAContent string

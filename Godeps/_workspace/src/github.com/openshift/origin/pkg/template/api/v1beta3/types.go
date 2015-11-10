@@ -1,14 +1,15 @@
 package v1beta3
 
 import (
+	"k8s.io/kubernetes/pkg/api/unversioned"
 	kapi "k8s.io/kubernetes/pkg/api/v1beta3"
 	"k8s.io/kubernetes/pkg/runtime"
 )
 
 // Template contains the inputs needed to produce a Config.
 type Template struct {
-	kapi.TypeMeta   `json:",inline"`
-	kapi.ObjectMeta `json:"metadata,omitempty"`
+	unversioned.TypeMeta `json:",inline"`
+	kapi.ObjectMeta      `json:"metadata,omitempty"`
 
 	// Required: Objects is an array of objects to include in this template
 	Objects []runtime.RawExtension `json:"objects"`
@@ -24,9 +25,9 @@ type Template struct {
 
 // TemplateList is a list of Template objects.
 type TemplateList struct {
-	kapi.TypeMeta `json:",inline"`
-	kapi.ListMeta `json:"metadata,omitempty"`
-	Items         []Template `json:"items"`
+	unversioned.TypeMeta `json:",inline"`
+	unversioned.ListMeta `json:"metadata,omitempty"`
+	Items                []Template `json:"items"`
 }
 
 // Parameter defines a name/value variable that is to be processed during
@@ -35,6 +36,9 @@ type Parameter struct {
 	// Required: Parameter name must be set and it can be referenced in Template
 	// Items using ${PARAMETER_NAME}
 	Name string `json:"name"`
+
+	// Optional: The name that will show in UI instead of parameter 'Name'
+	DisplayName string `json:"displayName,omitempty" description:"optional: provides human readable name for the parameter"`
 
 	// Optional: Parameter can have description
 	Description string `json:"description,omitempty"`

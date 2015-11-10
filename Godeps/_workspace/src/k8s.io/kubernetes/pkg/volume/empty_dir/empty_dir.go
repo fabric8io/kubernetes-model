@@ -23,7 +23,6 @@ import (
 
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/securitycontext"
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/util/mount"
@@ -70,30 +69,29 @@ func (plugin *emptyDirPlugin) CanSupport(spec *volume.Spec) bool {
 	return false
 }
 
-func (plugin *emptyDirPlugin) NewBuilder(spec *volume.Spec, pod *api.Pod, opts volume.VolumeOptions, mounter mount.Interface) (volume.Builder, error) {
-	return plugin.newBuilderInternal(spec, pod, mounter, &realMountDetector{mounter}, opts, newChconRunner())
+func (plugin *emptyDirPlugin) NewBuilder(spec *volume.Spec, pod *api.Pod, opts volume.VolumeOptions) (volume.Builder, error) {
+	return plugin.newBuilderInternal(spec, pod, plugin.host.GetMounter(), &realMountDetector{plugin.host.GetMounter()}, opts)
 }
 
-func (plugin *emptyDirPlugin) newBuilderInternal(spec *volume.Spec, pod *api.Pod, mounter mount.Interface, mountDetector mountDetector, opts volume.VolumeOptions, chconRunner chconRunner) (volume.Builder, error) {
+func (plugin *emptyDirPlugin) newBuilderInternal(spec *volume.Spec, pod *api.Pod, mounter mount.Interface, mountDetector mountDetector, opts volume.VolumeOptions) (volume.Builder, error) {
 	medium := api.StorageMediumDefault
 	if spec.Volume.EmptyDir != nil { // Support a non-specified source as EmptyDir.
 		medium = spec.Volume.EmptyDir.Medium
 	}
 	return &emptyDir{
 		pod:           pod,
-		volName:       spec.Name,
+		volName:       spec.Name(),
 		medium:        medium,
 		mounter:       mounter,
 		mountDetector: mountDetector,
 		plugin:        plugin,
 		rootContext:   opts.RootContext,
-		chconRunner:   chconRunner,
 	}, nil
 }
 
-func (plugin *emptyDirPlugin) NewCleaner(volName string, podUID types.UID, mounter mount.Interface) (volume.Cleaner, error) {
+func (plugin *emptyDirPlugin) NewCleaner(volName string, podUID types.UID) (volume.Cleaner, error) {
 	// Inject real implementations here, test through the internal function.
-	return plugin.newCleanerInternal(volName, podUID, mounter, &realMountDetector{mounter})
+	return plugin.newCleanerInternal(volName, podUID, plugin.host.GetMounter(), &realMountDetector{plugin.host.GetMounter()})
 }
 
 func (plugin *emptyDirPlugin) newCleanerInternal(volName string, podUID types.UID, mounter mount.Interface, mountDetector mountDetector) (volume.Cleaner, error) {
@@ -135,7 +133,10 @@ type emptyDir struct {
 	mountDetector mountDetector
 	plugin        *emptyDirPlugin
 	rootContext   string
-	chconRunner   chconRunner
+}
+
+func (_ *emptyDir) SupportsOwnershipManagement() bool {
+	return true
 }
 
 // SetUp creates new directory.
@@ -145,7 +146,7 @@ func (ed *emptyDir) SetUp() error {
 
 // SetUpAt creates new directory.
 func (ed *emptyDir) SetUpAt(dir string) error {
-	isMnt, err := ed.mounter.IsMountPoint(dir)
+	notMnt, err := ed.mounter.IsLikelyNotMountPoint(dir)
 	// Getting an os.IsNotExist err from is a contingency; the directory
 	// may not exist yet, in which case, setup should run.
 	if err != nil && !os.IsNotExist(err) {
@@ -157,7 +158,7 @@ func (ed *emptyDir) SetUpAt(dir string) error {
 	// medium is memory, and a mountpoint is present, then the volume is
 	// ready.
 	if volumeutil.IsReady(ed.getMetaDir()) {
-		if ed.medium == api.StorageMediumMemory && isMnt {
+		if ed.medium == api.StorageMediumMemory && !notMnt {
 			return nil
 		} else if ed.medium == api.StorageMediumDefault {
 			return nil
@@ -167,15 +168,12 @@ func (ed *emptyDir) SetUpAt(dir string) error {
 	// Determine the effective SELinuxOptions to use for this volume.
 	securityContext := ""
 	if selinuxEnabled() {
-		securityContext, err = ed.determineEffectiveSELinuxOptions()
-		if err != nil {
-			return err
-		}
+		securityContext = ed.rootContext
 	}
 
 	switch ed.medium {
 	case api.StorageMediumDefault:
-		err = ed.setupDir(dir, securityContext)
+		err = ed.setupDir(dir)
 	case api.StorageMediumMemory:
 		err = ed.setupTmpfs(dir, securityContext)
 	default:
@@ -189,47 +187,12 @@ func (ed *emptyDir) SetUpAt(dir string) error {
 	return err
 }
 
-// determineEffectiveSELinuxOptions determines the effective SELinux options
-// that should be used for a particular plugin.
-func (ed *emptyDir) determineEffectiveSELinuxOptions() (string, error) {
-	glog.V(4).Infof("Determining effective SELinux context for pod %v/%v", ed.pod.Namespace, ed.pod.Name)
-	var opts *api.SELinuxOptions
-	if ed.pod != nil {
-		// Use the security context, if defined, of the first
-		// container in the pod to mount this volume
-		for _, container := range ed.pod.Spec.Containers {
-			if !volumeutil.ContainerHasVolumeMountForName(&container, ed.volName) {
-				continue
-			}
-
-			if container.SecurityContext != nil &&
-				container.SecurityContext.SELinuxOptions != nil {
-				opts = container.SecurityContext.SELinuxOptions
-				break
-			}
-		}
-	}
-
-	if opts == nil {
-		return ed.rootContext, nil
-	}
-
-	glog.V(4).Infof("Specified security context for pod %v/%v: %v", ed.pod.Namespace, ed.pod.Name, securitycontext.SELinuxOptionsString(opts))
-
-	rootContextOpts, err := securitycontext.ParseSELinuxOptions(ed.rootContext)
-	if err != nil {
-		return "", err
-	}
-
-	effectiveOpts := securitycontext.ProjectSELinuxOptions(opts, rootContextOpts)
-
-	glog.V(4).Infof("Effective SELinux context for pod %v/%v: %v", ed.pod.Namespace, ed.pod.Name, securitycontext.SELinuxOptionsString(effectiveOpts))
-
-	return securitycontext.SELinuxOptionsString(effectiveOpts), nil
-}
-
 func (ed *emptyDir) IsReadOnly() bool {
 	return false
+}
+
+func (ed *emptyDir) SupportsSELinux() bool {
+	return true
 }
 
 // setupTmpfs creates a tmpfs mount at the specified directory with the
@@ -238,7 +201,7 @@ func (ed *emptyDir) setupTmpfs(dir string, selinuxContext string) error {
 	if ed.mounter == nil {
 		return fmt.Errorf("memory storage requested, but mounter is nil")
 	}
-	if err := ed.setupDir(dir, selinuxContext); err != nil {
+	if err := ed.setupDir(dir); err != nil {
 		return err
 	}
 	// Make SetUp idempotent.
@@ -267,7 +230,7 @@ func (ed *emptyDir) setupTmpfs(dir string, selinuxContext string) error {
 
 // setupDir creates the directory with the specified SELinux context and
 // the default permissions specified by the perm constant.
-func (ed *emptyDir) setupDir(dir, selinuxContext string) error {
+func (ed *emptyDir) setupDir(dir string) error {
 	// Create the directory if it doesn't already exist.
 	if err := os.MkdirAll(dir, perm); err != nil {
 		return err
@@ -299,12 +262,6 @@ func (ed *emptyDir) setupDir(dir, selinuxContext string) error {
 		if fileinfo.Mode().Perm() != perm.Perm() {
 			glog.Errorf("Expected directory %q permissions to be: %s; got: %s", dir, perm.Perm(), fileinfo.Mode().Perm())
 		}
-	}
-
-	// Set the context on the directory, if appropriate
-	if selinuxContext != "" {
-		glog.V(3).Infof("Setting SELinux context for %v to %v", dir, selinuxContext)
-		return ed.chconRunner.SetContext(dir, selinuxContext)
 	}
 
 	return nil

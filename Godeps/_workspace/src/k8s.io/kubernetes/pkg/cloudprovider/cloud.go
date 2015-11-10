@@ -43,7 +43,7 @@ type Interface interface {
 
 // Clusters is an abstract, pluggable interface for clusters of containers.
 type Clusters interface {
-	// List lists the names of the available clusters.
+	// ListClusters lists the names of the available clusters.
 	ListClusters() ([]string, error)
 	// Master gets back the address (either DNS name or IP address) of the master node for the cluster.
 	Master(clusterName string) (string, error)
@@ -80,8 +80,8 @@ type TCPLoadBalancer interface {
 	// GetTCPLoadBalancer returns whether the specified load balancer exists, and
 	// if so, what its status is.
 	GetTCPLoadBalancer(name, region string) (status *api.LoadBalancerStatus, exists bool, err error)
-	// CreateTCPLoadBalancer creates a new tcp load balancer. Returns the status of the balancer
-	CreateTCPLoadBalancer(name, region string, externalIP net.IP, ports []*api.ServicePort, hosts []string, affinityType api.ServiceAffinity) (*api.LoadBalancerStatus, error)
+	// EnsureTCPLoadBalancer creates a new tcp load balancer, or updates an existing one. Returns the status of the balancer
+	EnsureTCPLoadBalancer(name, region string, loadBalancerIP net.IP, ports []*api.ServicePort, hosts []string, affinityType api.ServiceAffinity) (*api.LoadBalancerStatus, error)
 	// UpdateTCPLoadBalancer updates hosts under the specified load balancer.
 	UpdateTCPLoadBalancer(name, region string, hosts []string) error
 	// EnsureTCPLoadBalancerDeleted deletes the specified load balancer if it
@@ -107,12 +107,10 @@ type Instances interface {
 	InstanceID(name string) (string, error)
 	// List lists instances that match 'filter' which is a regular expression which must match the entire instance name (fqdn)
 	List(filter string) ([]string, error)
-	// GetNodeResources gets the resources for a particular node
-	GetNodeResources(name string) (*api.NodeResources, error)
 	// AddSSHKeyToAllInstances adds an SSH public key as a legal identity for all instances
 	// expected format for the key is standard ssh-keygen format: <protocol> <blob>
 	AddSSHKeyToAllInstances(user string, keyData []byte) error
-	// Returns the name of the node we are currently running on
+	// CurrentNodeName returns the name of the node we are currently running on
 	// On most clouds (e.g. GCE) this is the hostname, so we provide the hostname
 	CurrentNodeName(hostname string) (string, error)
 }
@@ -125,20 +123,20 @@ type Route struct {
 	// TargetInstance is the name of the instance as specified in routing rules
 	// for the cloud-provider (in gce: the Instance Name).
 	TargetInstance string
-	// Destination CIDR is the CIDR format IP range that this routing rule
+	// DestinationCIDR is the CIDR format IP range that this routing rule
 	// applies to.
 	DestinationCIDR string
 }
 
 // Routes is an abstract, pluggable interface for advanced routing rules.
 type Routes interface {
-	// List all managed routes that belong to the specified clusterName
+	// ListRoutes lists all managed routes that belong to the specified clusterName
 	ListRoutes(clusterName string) ([]*Route, error)
-	// Create the described managed route
+	// CreateRoute creates the described managed route
 	// route.Name will be ignored, although the cloud-provider may use nameHint
 	// to create a more user-meaningful name.
 	CreateRoute(clusterName string, nameHint string, route *Route) error
-	// Delete the specified managed route
+	// DeleteRoute deletes the specified managed route
 	// Route should be as returned by ListRoutes
 	DeleteRoute(clusterName string, route *Route) error
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/docker/distribution/registry/api/v2"
+	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/validation"
 	"k8s.io/kubernetes/pkg/util/fielderrors"
 
@@ -42,6 +43,15 @@ func ValidateImage(image *api.Image) fielderrors.ValidationErrorList {
 	return result
 }
 
+func ValidateImageUpdate(newImage, oldImage *api.Image) fielderrors.ValidationErrorList {
+	result := fielderrors.ValidationErrorList{}
+
+	result = append(result, validation.ValidateObjectMetaUpdate(&newImage.ObjectMeta, &oldImage.ObjectMeta).Prefix("metadata")...)
+	result = append(result, ValidateImage(newImage)...)
+
+	return result
+}
+
 // ValidateImageStream tests required fields for an ImageStream.
 func ValidateImageStream(stream *api.ImageStream) fielderrors.ValidationErrorList {
 	result := fielderrors.ValidationErrorList{}
@@ -60,8 +70,15 @@ func ValidateImageStream(stream *api.ImageStream) fielderrors.ValidationErrorLis
 	}
 
 	if len(stream.Spec.DockerImageRepository) != 0 {
-		if _, err := api.ParseDockerImageReference(stream.Spec.DockerImageRepository); err != nil {
+		if ref, err := api.ParseDockerImageReference(stream.Spec.DockerImageRepository); err != nil {
 			result = append(result, fielderrors.NewFieldInvalid("spec.dockerImageRepository", stream.Spec.DockerImageRepository, err.Error()))
+		} else {
+			if len(ref.Tag) > 0 {
+				result = append(result, fielderrors.NewFieldInvalid("spec.dockerImageRepository", stream.Spec.DockerImageRepository, "the repository name may not contain a tag"))
+			}
+			if len(ref.ID) > 0 {
+				result = append(result, fielderrors.NewFieldInvalid("spec.dockerImageRepository", stream.Spec.DockerImageRepository, "the repository name may not contain an ID"))
+			}
 		}
 	}
 	for tag, tagRef := range stream.Spec.Tags {
@@ -76,7 +93,7 @@ func ValidateImageStream(stream *api.ImageStream) fielderrors.ValidationErrorLis
 	for tag, history := range stream.Status.Tags {
 		for i, tagEvent := range history.Items {
 			if len(tagEvent.DockerImageReference) == 0 {
-				result = append(result, fielderrors.NewFieldRequired(fmt.Sprintf("status.tags[%s].Items[%d].dockerImageReference", tag, i)))
+				result = append(result, fielderrors.NewFieldRequired(fmt.Sprintf("status.tags[%s].items[%d].dockerImageReference", tag, i)))
 			}
 		}
 	}
@@ -129,5 +146,31 @@ func ValidateImageStreamMapping(mapping *api.ImageStreamMapping) fielderrors.Val
 	if errs := ValidateImage(&mapping.Image).Prefix("image"); len(errs) != 0 {
 		result = append(result, errs...)
 	}
+	return result
+}
+
+// ValidateImageStreamTag is essentially a no-op.  We don't allow direct creation of istags
+func ValidateImageStreamTag(ist *api.ImageStreamTag) fielderrors.ValidationErrorList {
+	result := fielderrors.ValidationErrorList{}
+	result = append(result, validation.ValidateObjectMeta(&ist.ObjectMeta, true, oapi.MinimalNameRequirements).Prefix("metadata")...)
+
+	return result
+}
+
+// ValidateImageStreamTagUpdate ensures that only the annotations of the IST have changed
+func ValidateImageStreamTagUpdate(newIST, oldIST *api.ImageStreamTag) fielderrors.ValidationErrorList {
+	result := fielderrors.ValidationErrorList{}
+
+	result = append(result, validation.ValidateObjectMetaUpdate(&newIST.ObjectMeta, &oldIST.ObjectMeta).Prefix("metadata")...)
+
+	// ensure that only annotations have changed
+	newISTCopy := *newIST
+	oldISTCopy := *oldIST
+	newISTCopy.Annotations = nil
+	oldISTCopy.Annotations = nil
+	if !kapi.Semantic.Equalities.DeepEqual(&newISTCopy, &oldISTCopy) {
+		result = append(result, fielderrors.NewFieldInvalid("metadata", "", "may not update fields other than metadata.annotations"))
+	}
+
 	return result
 }

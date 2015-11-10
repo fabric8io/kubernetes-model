@@ -24,19 +24,24 @@ import (
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/api"
 	apierrors "k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/client"
 	"k8s.io/kubernetes/pkg/client/cache"
+	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/controller/framework"
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/registry/secret"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/watch"
 )
 
-const NumServiceAccountRemoveReferenceRetries = 10
+var RemoveTokenBackoff = wait.Backoff{
+	Steps:    10,
+	Duration: 100 * time.Millisecond,
+	Jitter:   1.0,
+}
 
 // TokensControllerOptions contains options for the TokensController
 type TokensControllerOptions struct {
@@ -242,16 +247,10 @@ func (e *TokensController) secretDeleted(obj interface{}) {
 		return
 	}
 
-	for i := 1; i <= NumServiceAccountRemoveReferenceRetries; i++ {
-		if _, err := e.removeSecretReferenceIfNeeded(serviceAccount, secret.Name); err != nil {
-			if apierrors.IsConflict(err) && i < NumServiceAccountRemoveReferenceRetries {
-				time.Sleep(wait.Jitter(100*time.Millisecond, 0.0))
-				continue
-			}
-			glog.Error(err)
-			break
-		}
-		break
+	if err := client.RetryOnConflict(RemoveTokenBackoff, func() error {
+		return e.removeSecretReferenceIfNeeded(serviceAccount, secret.Name)
+	}); err != nil {
+		util.HandleError(err)
 	}
 }
 
@@ -398,10 +397,10 @@ func (e *TokensController) deleteSecret(secret *api.Secret) error {
 
 // removeSecretReferenceIfNeeded updates the given ServiceAccount to remove a reference to the given secretName if needed.
 // Returns whether an update was performed, and any error that occurred
-func (e *TokensController) removeSecretReferenceIfNeeded(serviceAccount *api.ServiceAccount, secretName string) (bool, error) {
+func (e *TokensController) removeSecretReferenceIfNeeded(serviceAccount *api.ServiceAccount, secretName string) error {
 	// See if the account even referenced the secret
 	if !getSecretReferences(serviceAccount).Has(secretName) {
-		return false, nil
+		return nil
 	}
 
 	// We don't want to update the cache's copy of the service account
@@ -409,12 +408,12 @@ func (e *TokensController) removeSecretReferenceIfNeeded(serviceAccount *api.Ser
 	serviceAccounts := e.client.ServiceAccounts(serviceAccount.Namespace)
 	serviceAccount, err := serviceAccounts.Get(serviceAccount.Name)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	// Double-check to see if the account still references the secret
 	if !getSecretReferences(serviceAccount).Has(secretName) {
-		return false, nil
+		return nil
 	}
 
 	secrets := []api.ObjectReference{}
@@ -427,16 +426,16 @@ func (e *TokensController) removeSecretReferenceIfNeeded(serviceAccount *api.Ser
 
 	_, err = serviceAccounts.Update(serviceAccount)
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	return true, nil
+	return nil
 }
 
 // getServiceAccount returns the ServiceAccount referenced by the given secret. If the secret is not
 // of type ServiceAccountToken, or if the referenced ServiceAccount does not exist, nil is returned
 func (e *TokensController) getServiceAccount(secret *api.Secret, fetchOnCacheMiss bool) (*api.ServiceAccount, error) {
-	name, uid := serviceAccountNameAndUID(secret)
+	name, _ := serviceAccountNameAndUID(secret)
 	if len(name) == 0 {
 		return nil, nil
 	}
@@ -449,15 +448,10 @@ func (e *TokensController) getServiceAccount(secret *api.Secret, fetchOnCacheMis
 
 	for _, obj := range namespaceAccounts {
 		serviceAccount := obj.(*api.ServiceAccount)
-		if name != serviceAccount.Name {
-			// Name must match
-			continue
+
+		if IsServiceAccountToken(secret, serviceAccount) {
+			return serviceAccount, nil
 		}
-		if len(uid) > 0 && uid != string(serviceAccount.UID) {
-			// If UID is specified, it must match
-			continue
-		}
-		return serviceAccount, nil
 	}
 
 	if fetchOnCacheMiss {
@@ -468,11 +462,10 @@ func (e *TokensController) getServiceAccount(secret *api.Secret, fetchOnCacheMis
 		if err != nil {
 			return nil, err
 		}
-		if len(uid) > 0 && uid != string(serviceAccount.UID) {
-			// If UID is specified, it must match
-			return nil, nil
+
+		if IsServiceAccountToken(secret, serviceAccount) {
+			return serviceAccount, nil
 		}
-		return serviceAccount, nil
 	}
 
 	return nil, nil
@@ -490,16 +483,10 @@ func (e *TokensController) listTokenSecrets(serviceAccount *api.ServiceAccount) 
 	items := []*api.Secret{}
 	for _, obj := range namespaceSecrets {
 		secret := obj.(*api.Secret)
-		name, uid := serviceAccountNameAndUID(secret)
-		if name != serviceAccount.Name {
-			// Name must match
-			continue
+
+		if IsServiceAccountToken(secret, serviceAccount) {
+			items = append(items, secret)
 		}
-		if len(uid) > 0 && uid != string(serviceAccount.UID) {
-			// If UID is specified, it must match
-			continue
-		}
-		items = append(items, secret)
 	}
 	return items, nil
 }
@@ -514,8 +501,8 @@ func serviceAccountNameAndUID(secret *api.Secret) (string, string) {
 	return secret.Annotations[api.ServiceAccountNameKey], secret.Annotations[api.ServiceAccountUIDKey]
 }
 
-func getSecretReferences(serviceAccount *api.ServiceAccount) util.StringSet {
-	references := util.NewStringSet()
+func getSecretReferences(serviceAccount *api.ServiceAccount) sets.String {
+	references := sets.NewString()
 	for _, secret := range serviceAccount.Secrets {
 		references.Insert(secret.Name)
 	}

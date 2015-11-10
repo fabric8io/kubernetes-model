@@ -5,8 +5,9 @@ import (
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/conversion"
-	"k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/util/sets"
 
+	oapi "github.com/openshift/origin/pkg/api"
 	newer "github.com/openshift/origin/pkg/authorization/api"
 	uservalidation "github.com/openshift/origin/pkg/user/api/validation"
 )
@@ -63,7 +64,7 @@ func convert_v1_SubjectAccessReview_To_api_SubjectAccessReview(in *SubjectAccess
 		return err
 	}
 
-	out.Groups = util.NewStringSet(in.GroupsSlice...)
+	out.Groups = sets.NewString(in.GroupsSlice...)
 
 	return nil
 }
@@ -89,7 +90,7 @@ func convert_v1_LocalSubjectAccessReview_To_api_LocalSubjectAccessReview(in *Loc
 		return err
 	}
 
-	out.Groups = util.NewStringSet(in.GroupsSlice...)
+	out.Groups = sets.NewString(in.GroupsSlice...)
 
 	return nil
 }
@@ -112,8 +113,8 @@ func convert_v1_ResourceAccessReviewResponse_To_api_ResourceAccessReviewResponse
 		return err
 	}
 
-	out.Users = util.NewStringSet(in.UsersSlice...)
-	out.Groups = util.NewStringSet(in.GroupsSlice...)
+	out.Users = sets.NewString(in.UsersSlice...)
+	out.Groups = sets.NewString(in.GroupsSlice...)
 
 	return nil
 }
@@ -134,15 +135,17 @@ func convert_v1_PolicyRule_To_api_PolicyRule(in *PolicyRule, out *newer.PolicyRu
 		return err
 	}
 
-	out.Resources = util.StringSet{}
+	out.APIGroups = in.APIGroups
+
+	out.Resources = sets.String{}
 	out.Resources.Insert(in.Resources...)
 
-	out.Verbs = util.StringSet{}
+	out.Verbs = sets.String{}
 	out.Verbs.Insert(in.Verbs...)
 
-	out.ResourceNames = util.NewStringSet(in.ResourceNames...)
+	out.ResourceNames = sets.NewString(in.ResourceNames...)
 
-	out.NonResourceURLs = util.NewStringSet(in.NonResourceURLsSlice...)
+	out.NonResourceURLs = sets.NewString(in.NonResourceURLsSlice...)
 
 	return nil
 }
@@ -151,6 +154,8 @@ func convert_api_PolicyRule_To_v1_PolicyRule(in *newer.PolicyRule, out *PolicyRu
 	if err := s.Convert(&in.AttributeRestrictions, &out.AttributeRestrictions, 0); err != nil {
 		return err
 	}
+
+	out.APIGroups = in.APIGroups
 
 	out.Resources = []string{}
 	out.Resources = append(out.Resources, in.Resources.List()...)
@@ -420,6 +425,42 @@ func init() {
 	)
 	if err != nil {
 		// If one of the conversion functions is malformed, detect it immediately.
+		panic(err)
+	}
+
+	if err := api.Scheme.AddFieldLabelConversionFunc("v1", "ClusterPolicy",
+		oapi.GetFieldLabelConversionFunc(newer.ClusterPolicyToSelectableFields(&newer.ClusterPolicy{}), nil),
+	); err != nil {
+		panic(err)
+	}
+
+	if err := api.Scheme.AddFieldLabelConversionFunc("v1", "ClusterPolicyBinding",
+		oapi.GetFieldLabelConversionFunc(newer.ClusterPolicyBindingToSelectableFields(&newer.ClusterPolicyBinding{}), nil),
+	); err != nil {
+		panic(err)
+	}
+
+	if err := api.Scheme.AddFieldLabelConversionFunc("v1", "Policy",
+		oapi.GetFieldLabelConversionFunc(newer.PolicyToSelectableFields(&newer.Policy{}), nil),
+	); err != nil {
+		panic(err)
+	}
+
+	if err := api.Scheme.AddFieldLabelConversionFunc("v1", "PolicyBinding",
+		oapi.GetFieldLabelConversionFunc(newer.PolicyBindingToSelectableFields(&newer.PolicyBinding{}), nil),
+	); err != nil {
+		panic(err)
+	}
+
+	if err := api.Scheme.AddFieldLabelConversionFunc("v1", "Role",
+		oapi.GetFieldLabelConversionFunc(newer.RoleToSelectableFields(&newer.Role{}), nil),
+	); err != nil {
+		panic(err)
+	}
+
+	if err := api.Scheme.AddFieldLabelConversionFunc("v1", "RoleBinding",
+		oapi.GetFieldLabelConversionFunc(newer.RoleBindingToSelectableFields(&newer.RoleBinding{}), nil),
+	); err != nil {
 		panic(err)
 	}
 }

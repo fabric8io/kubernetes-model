@@ -33,11 +33,10 @@ import (
 	routeapi "github.com/openshift/origin/pkg/route/api/v1"
 	templateapi "github.com/openshift/origin/pkg/template/api/v1"
 	userapi "github.com/openshift/origin/pkg/user/api/v1"
-	rapi "k8s.io/kubernetes/pkg/api"
 	resourceapi "k8s.io/kubernetes/pkg/api/resource"
+	rapi "k8s.io/kubernetes/pkg/api/unversioned"
 	kapi "k8s.io/kubernetes/pkg/api/v1"
-	configapi "k8s.io/kubernetes/pkg/client/clientcmd/api/v1"
-	kutil "k8s.io/kubernetes/pkg/util"
+	configapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api/v1"
 	watch "k8s.io/kubernetes/pkg/watch/json"
 
 	"github.com/fabric8io/kubernetes-model/pkg/schemagen"
@@ -70,7 +69,7 @@ type Schema struct {
 	SecurityContextConstraintsList kapi.SecurityContextConstraintsList
 	ServiceAccount                 kapi.ServiceAccount
 	ServiceAccountList             kapi.ServiceAccountList
-	Status                         kapi.Status
+	Status                         rapi.Status
 	Binding                        kapi.Binding
 	LimitRangeList                 kapi.LimitRangeList
 	DeleteOptions                  kapi.DeleteOptions
@@ -124,6 +123,7 @@ type Schema struct {
 	Project                        projectapi.Project
 	ProjectList                    projectapi.ProjectList
 	ProjectRequest                 projectapi.ProjectRequest
+	ListMeta                       rapi.ListMeta
 }
 
 func main() {
@@ -145,13 +145,14 @@ func main() {
 		{"github.com/openshift/origin/pkg/user/api/v1", "io.fabric8.openshift.api.model", "os_user_"},
 		{"github.com/openshift/origin/pkg/authorization/api/v1", "io.fabric8.openshift.api.model", "os_authorization_"},
 		{"github.com/openshift/origin/pkg/project/api/v1", "io.fabric8.openshift.api.model", "os_project_"},
-		{"k8s.io/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model", "api_"},
+		{"k8s.io/kubernetes/pkg/api/unversioned", "io.fabric8.kubernetes.api.model", "api_"},
+		{"k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api/v1", "io.fabric8.kubernetes.api.model", "clientcmd_api_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{
-		reflect.TypeOf(kutil.Time{}): reflect.TypeOf(""),
-		reflect.TypeOf(time.Time{}):  reflect.TypeOf(""),
-		reflect.TypeOf(struct{}{}):   reflect.TypeOf(""),
+		reflect.TypeOf(rapi.Time{}): reflect.TypeOf(""),
+		reflect.TypeOf(time.Time{}): reflect.TypeOf(""),
+		reflect.TypeOf(struct{}{}):  reflect.TypeOf(""),
 	}
 	schema, err := schemagen.GenerateSchema(reflect.TypeOf(Schema{}), packages, typeMap)
 	if err != nil {

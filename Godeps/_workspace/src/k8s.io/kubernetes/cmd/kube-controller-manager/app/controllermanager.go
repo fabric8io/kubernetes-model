@@ -25,29 +25,35 @@ package app
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/pprof"
 	"strconv"
 	"time"
 
-	"k8s.io/kubernetes/pkg/client"
-	"k8s.io/kubernetes/pkg/client/clientcmd"
-	clientcmdapi "k8s.io/kubernetes/pkg/client/clientcmd/api"
+	client "k8s.io/kubernetes/pkg/client/unversioned"
+	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
+	clientcmdapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api"
 	"k8s.io/kubernetes/pkg/cloudprovider"
-	"k8s.io/kubernetes/pkg/controller/endpoint"
-	"k8s.io/kubernetes/pkg/controller/namespace"
-	"k8s.io/kubernetes/pkg/controller/node"
-	"k8s.io/kubernetes/pkg/controller/persistentvolume"
-	replicationControllerPkg "k8s.io/kubernetes/pkg/controller/replication"
-	"k8s.io/kubernetes/pkg/controller/resourcequota"
-	"k8s.io/kubernetes/pkg/controller/route"
-	"k8s.io/kubernetes/pkg/controller/service"
+	"k8s.io/kubernetes/pkg/controller/daemon"
+	"k8s.io/kubernetes/pkg/controller/deployment"
+	endpointcontroller "k8s.io/kubernetes/pkg/controller/endpoint"
+	"k8s.io/kubernetes/pkg/controller/gc"
+	"k8s.io/kubernetes/pkg/controller/job"
+	namespacecontroller "k8s.io/kubernetes/pkg/controller/namespace"
+	nodecontroller "k8s.io/kubernetes/pkg/controller/node"
+	persistentvolumecontroller "k8s.io/kubernetes/pkg/controller/persistentvolume"
+	"k8s.io/kubernetes/pkg/controller/podautoscaler"
+	"k8s.io/kubernetes/pkg/controller/podautoscaler/metrics"
+	replicationcontroller "k8s.io/kubernetes/pkg/controller/replication"
+	resourcequotacontroller "k8s.io/kubernetes/pkg/controller/resourcequota"
+	routecontroller "k8s.io/kubernetes/pkg/controller/route"
+	servicecontroller "k8s.io/kubernetes/pkg/controller/service"
 	"k8s.io/kubernetes/pkg/controller/serviceaccount"
 	"k8s.io/kubernetes/pkg/healthz"
 	"k8s.io/kubernetes/pkg/master/ports"
 	"k8s.io/kubernetes/pkg/util"
-	"k8s.io/kubernetes/pkg/volume"
 
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
@@ -56,65 +62,91 @@ import (
 
 // CMServer is the main context object for the controller manager.
 type CMServer struct {
-	Port                    int
-	Address                 net.IP
-	CloudProvider           string
-	CloudConfigFile         string
-	ConcurrentEndpointSyncs int
-	ConcurrentRCSyncs       int
-	ServiceSyncPeriod       time.Duration
-	NodeSyncPeriod          time.Duration
-	ResourceQuotaSyncPeriod time.Duration
-	NamespaceSyncPeriod     time.Duration
-	PVClaimBinderSyncPeriod time.Duration
-	RegisterRetryCount      int
-	NodeMonitorGracePeriod  time.Duration
-	NodeStartupGracePeriod  time.Duration
-	NodeMonitorPeriod       time.Duration
-	NodeStatusUpdateRetry   int
-	PodEvictionTimeout      time.Duration
-	DeletingPodsQps         float32
-	DeletingPodsBurst       int
-	ServiceAccountKeyFile   string
-	RootCAFile              string
+	Port                              int
+	Address                           net.IP
+	CloudProvider                     string
+	CloudConfigFile                   string
+	ConcurrentEndpointSyncs           int
+	ConcurrentRCSyncs                 int
+	ConcurrentDSCSyncs                int
+	ConcurrentJobSyncs                int
+	ServiceSyncPeriod                 time.Duration
+	NodeSyncPeriod                    time.Duration
+	ResourceQuotaSyncPeriod           time.Duration
+	NamespaceSyncPeriod               time.Duration
+	PVClaimBinderSyncPeriod           time.Duration
+	VolumeConfigFlags                 VolumeConfigFlags
+	TerminatedPodGCThreshold          int
+	HorizontalPodAutoscalerSyncPeriod time.Duration
+	DeploymentControllerSyncPeriod    time.Duration
+	MinResyncPeriod                   time.Duration
+	RegisterRetryCount                int
+	NodeMonitorGracePeriod            time.Duration
+	NodeStartupGracePeriod            time.Duration
+	NodeMonitorPeriod                 time.Duration
+	NodeStatusUpdateRetry             int
+	PodEvictionTimeout                time.Duration
+	DeletingPodsQps                   float32
+	DeletingPodsBurst                 int
+	ServiceAccountKeyFile             string
+	RootCAFile                        string
 
-	// volumeConfig
-	PersistentVolumeRecyclerDefaultScrubPod          string
-	PersistentVolumeRecyclerMinTimeoutNfs            int
-	PersistentVolumeRecyclerTimeoutIncrementNfs      int
-	PersistentVolumeRecyclerMinTimeoutHostPath       int
-	PersistentVolumeRecyclerTimeoutIncrementHostPath int
+	ClusterName        string
+	ClusterCIDR        net.IPNet
+	AllocateNodeCIDRs  bool
+	EnableProfiling    bool
+	EnableExperimental bool
 
-	ClusterName       string
-	ClusterCIDR       net.IPNet
-	AllocateNodeCIDRs bool
-	EnableProfiling   bool
-
-	Master     string
-	Kubeconfig string
+	Master       string
+	Kubeconfig   string
+	KubeApiQps   float32
+	KubeApiBurst int
 }
 
 // NewCMServer creates a new CMServer with a default config.
 func NewCMServer() *CMServer {
 	s := CMServer{
-		Port:                             ports.ControllerManagerPort,
-		Address:                          net.ParseIP("127.0.0.1"),
-		ConcurrentEndpointSyncs:          5,
-		ConcurrentRCSyncs:                5,
-		ServiceSyncPeriod:                5 * time.Minute,
-		NodeSyncPeriod:                   10 * time.Second,
-		ResourceQuotaSyncPeriod:          10 * time.Second,
-		NamespaceSyncPeriod:              5 * time.Minute,
-		PVClaimBinderSyncPeriod:          10 * time.Second,
-		PersistentVolumeRecyclerMinTimeoutNfs:            300,
-		PersistentVolumeRecyclerTimeoutIncrementNfs:      30,
-		PersistentVolumeRecyclerMinTimeoutHostPath:       60,
-		PersistentVolumeRecyclerTimeoutIncrementHostPath: 30,
-		RegisterRetryCount:               10,
-		PodEvictionTimeout:               5 * time.Minute,
-		ClusterName:                      "kubernetes",
+		Port:                              ports.ControllerManagerPort,
+		Address:                           net.ParseIP("127.0.0.1"),
+		ConcurrentEndpointSyncs:           5,
+		ConcurrentRCSyncs:                 5,
+		ConcurrentDSCSyncs:                2,
+		ConcurrentJobSyncs:                5,
+		ServiceSyncPeriod:                 5 * time.Minute,
+		NodeSyncPeriod:                    10 * time.Second,
+		ResourceQuotaSyncPeriod:           10 * time.Second,
+		NamespaceSyncPeriod:               5 * time.Minute,
+		PVClaimBinderSyncPeriod:           10 * time.Second,
+		HorizontalPodAutoscalerSyncPeriod: 30 * time.Second,
+		DeploymentControllerSyncPeriod:    30 * time.Second,
+		MinResyncPeriod:                   12 * time.Hour,
+		RegisterRetryCount:                10,
+		PodEvictionTimeout:                5 * time.Minute,
+		ClusterName:                       "kubernetes",
+		VolumeConfigFlags: VolumeConfigFlags{
+			// default values here
+			PersistentVolumeRecyclerMinimumTimeoutNFS:        300,
+			PersistentVolumeRecyclerIncrementTimeoutNFS:      30,
+			PersistentVolumeRecyclerMinimumTimeoutHostPath:   60,
+			PersistentVolumeRecyclerIncrementTimeoutHostPath: 30,
+		},
+		KubeApiQps:   20.0,
+		KubeApiBurst: 30,
 	}
 	return &s
+}
+
+// VolumeConfigFlags is used to bind CLI flags to variables.  This top-level struct contains *all* enumerated
+// CLI flags meant to configure all volume plugins.  From this config, the binary will create many instances
+// of volume.VolumeConfig which are then passed to the appropriate plugin. The ControllerManager binary is the only
+// part of the code which knows what plugins are supported and which CLI flags correspond to each plugin.
+type VolumeConfigFlags struct {
+	PersistentVolumeRecyclerMinimumTimeoutNFS           int
+	PersistentVolumeRecyclerPodTemplateFilePathNFS      string
+	PersistentVolumeRecyclerIncrementTimeoutNFS         int
+	PersistentVolumeRecyclerPodTemplateFilePathHostPath string
+	PersistentVolumeRecyclerMinimumTimeoutHostPath      int
+	PersistentVolumeRecyclerIncrementTimeoutHostPath    int
 }
 
 // AddFlags adds flags for a specific CMServer to the specified FlagSet
@@ -132,11 +164,16 @@ func (s *CMServer) AddFlags(fs *pflag.FlagSet) {
 	fs.DurationVar(&s.ResourceQuotaSyncPeriod, "resource-quota-sync-period", s.ResourceQuotaSyncPeriod, "The period for syncing quota usage status in the system")
 	fs.DurationVar(&s.NamespaceSyncPeriod, "namespace-sync-period", s.NamespaceSyncPeriod, "The period for syncing namespace life-cycle updates")
 	fs.DurationVar(&s.PVClaimBinderSyncPeriod, "pvclaimbinder-sync-period", s.PVClaimBinderSyncPeriod, "The period for syncing persistent volumes and persistent volume claims")
-	fs.StringVar(&s.PersistentVolumeRecyclerDefaultScrubPod, "pv-recycler-default-scrub-pod", s.PersistentVolumeRecyclerDefaultScrubPod, "The file path to a pod definition used as a template for persistent volume recycling")
-	fs.IntVar(&s.PersistentVolumeRecyclerMinTimeoutNfs, "pv-recycler-min-timeout-nfs", s.PersistentVolumeRecyclerMinTimeoutNfs, "The minimum ActiveDeadlineSeconds to use for an NFS Recycler pod")
-	fs.IntVar(&s.PersistentVolumeRecyclerTimeoutIncrementNfs, "pv-recycler-timeout-increment-nfs", s.PersistentVolumeRecyclerTimeoutIncrementNfs, "the increment of time added per Gi to ActiveDeadlineSeconds for an NFS scrubber pod")
-	fs.IntVar(&s.PersistentVolumeRecyclerMinTimeoutHostPath, "pv-recycler-min-timeout-hostpath", s.PersistentVolumeRecyclerMinTimeoutHostPath, "The minimum ActiveDeadlineSeconds to use for a HostPath Recycler pod")
-	fs.IntVar(&s.PersistentVolumeRecyclerTimeoutIncrementHostPath, "pv-recycler-timeout-increment-hostpath", s.PersistentVolumeRecyclerTimeoutIncrementHostPath, "the increment of time added per Gi to ActiveDeadlineSeconds for a HostPath scrubber pod")
+	fs.DurationVar(&s.MinResyncPeriod, "min-resync-period", s.MinResyncPeriod, "The resync period in reflectors will be random between MinResyncPeriod and 2*MinResyncPeriod")
+	fs.StringVar(&s.VolumeConfigFlags.PersistentVolumeRecyclerPodTemplateFilePathNFS, "pv-recycler-pod-template-filepath-nfs", s.VolumeConfigFlags.PersistentVolumeRecyclerPodTemplateFilePathNFS, "The file path to a pod definition used as a template for NFS persistent volume recycling")
+	fs.IntVar(&s.VolumeConfigFlags.PersistentVolumeRecyclerMinimumTimeoutNFS, "pv-recycler-minimum-timeout-nfs", s.VolumeConfigFlags.PersistentVolumeRecyclerMinimumTimeoutNFS, "The minimum ActiveDeadlineSeconds to use for an NFS Recycler pod")
+	fs.IntVar(&s.VolumeConfigFlags.PersistentVolumeRecyclerIncrementTimeoutNFS, "pv-recycler-increment-timeout-nfs", s.VolumeConfigFlags.PersistentVolumeRecyclerIncrementTimeoutNFS, "the increment of time added per Gi to ActiveDeadlineSeconds for an NFS scrubber pod")
+	fs.StringVar(&s.VolumeConfigFlags.PersistentVolumeRecyclerPodTemplateFilePathHostPath, "pv-recycler-pod-template-filepath-hostpath", s.VolumeConfigFlags.PersistentVolumeRecyclerPodTemplateFilePathHostPath, "The file path to a pod definition used as a template for HostPath persistent volume recycling. This is for development and testing only and will not work in a multi-node cluster.")
+	fs.IntVar(&s.VolumeConfigFlags.PersistentVolumeRecyclerMinimumTimeoutHostPath, "pv-recycler-minimum-timeout-hostpath", s.VolumeConfigFlags.PersistentVolumeRecyclerMinimumTimeoutHostPath, "The minimum ActiveDeadlineSeconds to use for a HostPath Recycler pod.  This is for development and testing only and will not work in a multi-node cluster.")
+	fs.IntVar(&s.VolumeConfigFlags.PersistentVolumeRecyclerIncrementTimeoutHostPath, "pv-recycler-timeout-increment-hostpath", s.VolumeConfigFlags.PersistentVolumeRecyclerIncrementTimeoutHostPath, "the increment of time added per Gi to ActiveDeadlineSeconds for a HostPath scrubber pod.  This is for development and testing only and will not work in a multi-node cluster.")
+	fs.IntVar(&s.TerminatedPodGCThreshold, "terminated-pod-gc-threshold", s.TerminatedPodGCThreshold, "Number of terminated pods that can exist before the terminated pod garbage collector starts deleting terminated pods. If <= 0, the terminated pod garbage collector is disabled.")
+	fs.DurationVar(&s.HorizontalPodAutoscalerSyncPeriod, "horizontal-pod-autoscaler-sync-period", s.HorizontalPodAutoscalerSyncPeriod, "The period for syncing the number of pods in horizontal pod autoscaler.")
+	fs.DurationVar(&s.DeploymentControllerSyncPeriod, "deployment-controller-sync-period", s.DeploymentControllerSyncPeriod, "Period for syncing the deployments.")
 	fs.DurationVar(&s.PodEvictionTimeout, "pod-eviction-timeout", s.PodEvictionTimeout, "The grace period for deleting pods on failed nodes.")
 	fs.Float32Var(&s.DeletingPodsQps, "deleting-pods-qps", 0.1, "Number of nodes per second on which pods are deleted in case of node failure.")
 	fs.IntVar(&s.DeletingPodsBurst, "deleting-pods-burst", 10, "Number of nodes on which pods are bursty deleted in case of node failure. For more details look into RateLimiter.")
@@ -159,6 +196,14 @@ func (s *CMServer) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.Master, "master", s.Master, "The address of the Kubernetes API server (overrides any value in kubeconfig)")
 	fs.StringVar(&s.Kubeconfig, "kubeconfig", s.Kubeconfig, "Path to kubeconfig file with authorization and master location information.")
 	fs.StringVar(&s.RootCAFile, "root-ca-file", s.RootCAFile, "If set, this root certificate authority will be included in service account's token secret. This must be a valid PEM-encoded CA bundle.")
+	fs.BoolVar(&s.EnableExperimental, "enable-experimental", s.EnableExperimental, "Enables experimental controllers (requires enabling experimental API on apiserver).")
+	fs.Float32Var(&s.KubeApiQps, "kube-api-qps", s.KubeApiQps, "QPS to use while talking with kubernetes apiserver")
+	fs.IntVar(&s.KubeApiBurst, "kube-api-burst", s.KubeApiBurst, "Burst to use while talking with kubernetes apiserver")
+}
+
+func (s *CMServer) ResyncPeriod() time.Duration {
+	factor := rand.Float64() + 1
+	return time.Duration(float64(s.MinResyncPeriod.Nanoseconds()) * factor)
 }
 
 // Run runs the CMServer.  This should never exit.
@@ -176,8 +221,9 @@ func (s *CMServer) Run(_ []string) error {
 		return err
 	}
 
-	kubeconfig.QPS = 20.0
-	kubeconfig.Burst = 30
+	// Override kubeconfig qps/burst settings from flags
+	kubeconfig.QPS = s.KubeApiQps
+	kubeconfig.Burst = s.KubeApiBurst
 
 	kubeClient, err := client.New(kubeconfig)
 	if err != nil {
@@ -201,11 +247,16 @@ func (s *CMServer) Run(_ []string) error {
 		glog.Fatal(server.ListenAndServe())
 	}()
 
-	endpoints := endpointcontroller.NewEndpointController(kubeClient)
-	go endpoints.Run(s.ConcurrentEndpointSyncs, util.NeverStop)
+	go endpointcontroller.NewEndpointController(kubeClient, s.ResyncPeriod).
+		Run(s.ConcurrentEndpointSyncs, util.NeverStop)
 
-	controllerManager := replicationControllerPkg.NewReplicationManager(kubeClient, replicationControllerPkg.BurstReplicas)
-	go controllerManager.Run(s.ConcurrentRCSyncs, util.NeverStop)
+	go replicationcontroller.NewReplicationManager(kubeClient, s.ResyncPeriod, replicationcontroller.BurstReplicas).
+		Run(s.ConcurrentRCSyncs, util.NeverStop)
+
+	if s.TerminatedPodGCThreshold > 0 {
+		go gc.New(kubeClient, s.ResyncPeriod, s.TerminatedPodGCThreshold).
+			Run(util.NeverStop)
+	}
 
 	cloud, err := cloudprovider.InitCloudProvider(s.CloudProvider, s.CloudConfigFile)
 	if err != nil {
@@ -213,7 +264,8 @@ func (s *CMServer) Run(_ []string) error {
 	}
 
 	nodeController := nodecontroller.NewNodeController(cloud, kubeClient,
-		s.PodEvictionTimeout, nodecontroller.NewPodEvictor(util.NewTokenBucketRateLimiter(s.DeletingPodsQps, s.DeletingPodsBurst)),
+		s.PodEvictionTimeout, util.NewTokenBucketRateLimiter(s.DeletingPodsQps, s.DeletingPodsBurst),
+		util.NewTokenBucketRateLimiter(s.DeletingPodsQps, s.DeletingPodsBurst),
 		s.NodeMonitorGracePeriod, s.NodeStartupGracePeriod, s.NodeMonitorPeriod, &s.ClusterCIDR, s.AllocateNodeCIDRs)
 	nodeController.Run(s.NodeSyncPeriod)
 
@@ -233,29 +285,28 @@ func (s *CMServer) Run(_ []string) error {
 		}
 	}
 
-	resourceQuotaController := resourcequotacontroller.NewResourceQuotaController(kubeClient)
-	resourceQuotaController.Run(s.ResourceQuotaSyncPeriod)
+	resourcequotacontroller.NewResourceQuotaController(kubeClient).Run(s.ResourceQuotaSyncPeriod)
 
-	namespaceController := namespacecontroller.NewNamespaceController(kubeClient, s.NamespaceSyncPeriod)
-	namespaceController.Run()
+	namespacecontroller.NewNamespaceController(kubeClient, s.EnableExperimental, s.NamespaceSyncPeriod).Run()
 
-	pvclaimBinder := volumeclaimbinder.NewPersistentVolumeClaimBinder(kubeClient, s.PVClaimBinderSyncPeriod)
-	pvclaimBinder.Run()
+	if s.EnableExperimental {
+		go daemon.NewDaemonSetsController(kubeClient, s.ResyncPeriod).
+			Run(s.ConcurrentDSCSyncs, util.NeverStop)
 
-	volumeConfig := volume.NewVolumeConfig()
-	volumeConfig.PersistentVolumeRecyclerMinTimeoutHostPath = int64(s.PersistentVolumeRecyclerMinTimeoutHostPath)
-	volumeConfig.PersistentVolumeRecyclerTimeoutIncrementHostPath = int64(s.PersistentVolumeRecyclerTimeoutIncrementHostPath)
-	volumeConfig.PersistentVolumeRecyclerMinTimeoutNfs = int64(s.PersistentVolumeRecyclerMinTimeoutNfs)
-	volumeConfig.PersistentVolumeRecyclerTimeoutIncrementNfs = int64(s.PersistentVolumeRecyclerTimeoutIncrementNfs)
-	if s.PersistentVolumeRecyclerDefaultScrubPod != "" {
-		scrubPod, err := volume.InitScrubPod(s.PersistentVolumeRecyclerDefaultScrubPod)
-		if err != nil {
-			glog.Fatalf("Override of default PersistentVolume scrub pod failed: %+v", err)
-		}
-		volumeConfig.PersistentVolumeRecyclerDefaultScrubPod = scrubPod
+		go job.NewJobController(kubeClient, s.ResyncPeriod).
+			Run(s.ConcurrentJobSyncs, util.NeverStop)
+
+		podautoscaler.NewHorizontalController(kubeClient, kubeClient, kubeClient, metrics.NewHeapsterMetricsClient(kubeClient, "kube-system", "http", "heapster", "")).
+			Run(s.HorizontalPodAutoscalerSyncPeriod)
+
+		deployment.New(kubeClient).
+			Run(s.DeploymentControllerSyncPeriod)
 	}
 
-	pvRecycler, err := volumeclaimbinder.NewPersistentVolumeRecycler(kubeClient, s.PVClaimBinderSyncPeriod, ProbeRecyclableVolumePlugins(volumeConfig))
+	pvclaimBinder := persistentvolumecontroller.NewPersistentVolumeClaimBinder(kubeClient, s.PVClaimBinderSyncPeriod)
+	pvclaimBinder.Run()
+
+	pvRecycler, err := persistentvolumecontroller.NewPersistentVolumeRecycler(kubeClient, s.PVClaimBinderSyncPeriod, ProbeRecyclableVolumePlugins(s.VolumeConfigFlags))
 	if err != nil {
 		glog.Fatalf("Failed to start persistent volume recycler: %+v", err)
 	}
@@ -296,5 +347,4 @@ func (s *CMServer) Run(_ []string) error {
 	).Run()
 
 	select {}
-	return nil
 }
