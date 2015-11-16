@@ -23,8 +23,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"k8s.io/kubernetes/pkg/client/clientcmd"
-	clientcmdapi "k8s.io/kubernetes/pkg/client/clientcmd/api"
+	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
+	clientcmdapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api"
 	"k8s.io/kubernetes/pkg/util"
 )
 
@@ -39,7 +39,7 @@ type createContextOptions struct {
 const (
 	create_context_long = `Sets a context entry in kubeconfig
 Specifying a name that already exists will merge new fields on top of existing values for those fields.`
-	create_context_example = `// Set the user field on the gce context entry without touching other values
+	create_context_example = `# Set the user field on the gce context entry without touching other values
 $ kubectl config set-context gce --user=cluster-admin`
 )
 
@@ -58,7 +58,9 @@ func NewCmdConfigSetContext(out io.Writer, configAccess ConfigAccess) *cobra.Com
 
 			err := options.run()
 			if err != nil {
-				fmt.Printf("%v\n", err)
+				fmt.Fprintf(out, "%v\n", err)
+			} else {
+				fmt.Fprintf(out, "context %q set.\n", options.name)
 			}
 		},
 	}
@@ -124,7 +126,7 @@ func (o *createContextOptions) complete(cmd *cobra.Command) bool {
 
 func (o createContextOptions) validate() error {
 	if len(o.name) == 0 {
-		return errors.New("You must specify a non-empty context name")
+		return errors.New("you must specify a non-empty context name")
 	}
 
 	return nil

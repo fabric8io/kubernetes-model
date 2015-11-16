@@ -18,6 +18,7 @@ package v1beta3
 
 import (
 	"k8s.io/kubernetes/pkg/api/resource"
+	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util"
@@ -128,7 +129,7 @@ type ObjectMeta struct {
 	// CreationTimestamp is a timestamp representing the server time when this object was
 	// created. It is not guaranteed to be set in happens-before order across separate operations.
 	// Clients may not set this value. It is represented in RFC3339 form and is in UTC.
-	CreationTimestamp util.Time `json:"creationTimestamp,omitempty" description:"RFC 3339 date and time at which the object was created; populated by the system, read-only; null for lists"`
+	CreationTimestamp unversioned.Time `json:"creationTimestamp,omitempty" description:"RFC 3339 date and time at which the object was created; populated by the system, read-only; null for lists"`
 
 	// DeletionTimestamp is the time after which this resource will be deleted. This
 	// field is set by the server when a graceful deletion is requested by the user, and is not
@@ -139,7 +140,13 @@ type ObjectMeta struct {
 	// a pod is deleted in 30 seconds. The Kubelet will react by sending a graceful termination
 	// signal to the containers in the pod. Once the resource is deleted in the API, the Kubelet
 	// will send a hard termination signal to the container.
-	DeletionTimestamp *util.Time `json:"deletionTimestamp,omitempty" description:"RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested, read-only; if not set, graceful deletion of the object has not been requested"`
+	DeletionTimestamp *unversioned.Time `json:"deletionTimestamp,omitempty" description:"RFC 3339 date and time at which the object will be deleted; populated by the system when a graceful deletion is requested, read-only; if not set, graceful deletion of the object has not been requested"`
+
+	// Number of seconds allowed for this object to gracefully terminate before
+	// it will be removed from the system. Only set when deletionTimestamp is also set.
+	// May only be shortened.
+	// Read-only.
+	DeletionGracePeriodSeconds *int64 `json:"deletionGracePeriodSeconds,omitempty"`
 
 	// Labels are key value pairs that may be used to scope and select individual resources.
 	// TODO: replace map[string]string with labels.LabelSet type
@@ -202,9 +209,21 @@ type VolumeSource struct {
 	PersistentVolumeClaim *PersistentVolumeClaimVolumeSource `json:"persistentVolumeClaim,omitempty" description:"a reference to a PersistentVolumeClaim in the same namespace"`
 	// RBD represents a Rados Block Device mount on the host that shares a pod's lifetime
 	RBD *RBDVolumeSource `json:"rbd,omitempty" description:"rados block volume that will be mounted on the host machine"`
+	// Cinder represents a cinder volume attached and mounted on kubelets host machine
+	// More info: http://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md
+	Cinder *CinderVolumeSource `json:"cinder,omitempty"`
 	// CephFS represents a Ceph FS mount on the host that shares a pod's lifetime
 	CephFS *CephFSVolumeSource `json:"cephfs,omitempty" description:"Ceph filesystem that will be mounted on the host machine"`
+	// Flocker represents a Flocker volume attached to a kubelet's host machine. This depends on the Flocker control service being running
+	Flocker *FlockerVolumeSource `json:"flocker,omitempty"`
+
+	// DownwardAPI represents metadata about the pod that should populate this volume
+	DownwardAPI *DownwardAPIVolumeSource `json:"downwardAPI,omitempty" description: "Metadata volume containing information about the pod"`
+	// FC represents a Fibre Channel resource that is attached to a kubelet's host machine and then exposed to the pod.
+	FC *FCVolumeSource `json:"fc,omitempty"`
+
 	// Metadata represents metadata about the pod that should populate this volume
+	// NOTE: Deprecated in favor of DownwardAPI
 	Metadata *MetadataVolumeSource `json:"metadata,omitempty" description: "Metadata volume containing information about the pod"`
 }
 
@@ -240,6 +259,13 @@ type PersistentVolumeSource struct {
 	ISCSI *ISCSIVolumeSource `json:"iscsi,omitempty" description:"an iSCSI disk resource provisioned by an admin"`
 	// CephFS represents a Ceph FS mount on the host that shares a pod's lifetime
 	CephFS *CephFSVolumeSource `json:"cephfs,omitempty" description:"Ceph filesystem that will be mounted on the host machine"`
+	// Cinder represents a cinder volume attached and mounted on kubelets host machine
+	// More info: http://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md
+	Cinder *CinderVolumeSource `json:"cinder,omitempty"`
+	// FC represents a Fibre Channel resource that is attached to a kubelet's host machine and then exposed to the pod.
+	FC *FCVolumeSource `json:"fc,omitempty"`
+	// Flocker represents a Flocker volume attached to a kubelet's host machine and exposed to the pod for its usage. This depends on the Flocker control service being running
+	Flocker *FlockerVolumeSource `json:"flocker,omitempty"`
 }
 
 type PersistentVolume struct {
@@ -399,18 +425,18 @@ type GlusterfsVolumeSource struct {
 	ReadOnly bool `json:"readOnly,omitempty" description:"glusterfs volume to be mounted with read-only permissions"`
 }
 
-// MetadataVolumeSource represents a volume containing metadata about a pod.
-type MetadataVolumeSource struct {
-	// Items is a list of metadata file name
-	Items []MetadataFile `json:"items,omitempty" description:"list of metadata files"`
+// DownwardAPIVolumeSource represents a volume containing downward API info
+type DownwardAPIVolumeSource struct {
+	// Items is a list of DownwardAPIVolume file
+	Items []DownwardAPIVolumeFile `json:"items,omitempty"`
 }
 
-// MetadataFile expresses information about a file holding pod metadata.
-type MetadataFile struct {
-	// Required: Name is the name of the file
-	Name string `json:"name" description:"the name of the file to be created"`
-	// Required: Selects a field of the pod: only annotations, labels, name and namespace are supported.
-	FieldRef ObjectFieldSelector `json:"fieldRef" description:"selects a field of the pod. Supported fields: metadata.annotations, metadata.labels, metadata.name, metadata.namespace"`
+// DownwardAPIVolumeFile represents a single file containing information from the downward API
+type DownwardAPIVolumeFile struct {
+	// Required: Path is  the relative path name of the file to be created. Must not be absolute or contain the '..' path. Must be utf-8 encoded. The first item of the relative path must not start with '..'
+	Path string `json:"path"`
+	// Required: Selects a field of the pod: only annotations, labels, name and  namespace are supported.
+	FieldRef ObjectFieldSelector `json:"fieldRef"`
 }
 
 // StorageMedium defines ways that storage can be allocated to a volume.
@@ -440,6 +466,24 @@ type RBDVolumeSource struct {
 	ReadOnly bool `json:"readOnly,omitempty"  description:"rbd volume to be mounted with read-only permissions"`
 }
 
+// CinderVolumeSource represents a cinder volume resource in Openstack.
+// A Cinder volume must exist before mounting to a container.
+// The volume must also be in the same region as the kubelet.
+type CinderVolumeSource struct {
+	// volume id used to identify the volume in cinder
+	// More info: http://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md
+	VolumeID string `json:"volumeID"`
+	// Required: Filesystem type to mount.
+	// Must be a filesystem type supported by the host operating system.
+	// Only ext3 and ext4 are allowed
+	// More info: http://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md
+	FSType string `json:"fsType,omitempty"`
+	// Optional: Defaults to false (read/write). ReadOnly here will force
+	// the ReadOnly setting in VolumeMounts.
+	// More info: http://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md
+	ReadOnly bool `json:"readOnly,omitempty"`
+}
+
 // CephFSVolumeSource represents a Ceph Filesystem Mount that lasts the lifetime of a pod
 type CephFSVolumeSource struct {
 	// Required: Monitors is a collection of Ceph monitors
@@ -453,6 +497,12 @@ type CephFSVolumeSource struct {
 	// Optional: Defaults to false (read/write). ReadOnly here will force
 	// the ReadOnly setting in VolumeMounts.
 	ReadOnly bool `json:"readOnly,omitempty"  description:"Ceph fs to be mounted with read-only permissions"`
+}
+
+// FlockerVolumeSource represents a Flocker volume mounted by the Flocker agent.
+type FlockerVolumeSource struct {
+	// Required: the volume name. This is going to be store on metadata -> name on the payload for Flocker
+	DatasetName string `json:"datasetName"`
 }
 
 const (
@@ -560,6 +610,22 @@ type ISCSIVolumeSource struct {
 	// Optional: Defaults to false (read/write). ReadOnly here will force
 	// the ReadOnly setting in VolumeMounts.
 	ReadOnly bool `json:"readOnly,omitempty" description:"read-only if true, read-write otherwise (false or unspecified)"`
+}
+
+// A Fibre Channel Disk can only be mounted as read/write once.
+type FCVolumeSource struct {
+	// Required: FC target world wide names (WWNs)
+	TargetWWNs []string `json:"targetWWNs"`
+	// Required: FC target lun number
+	Lun *int `json:"lun"`
+	// Required: Filesystem type to mount.
+	// Must be a filesystem type supported by the host operating system.
+	// Ex. "ext4", "xfs", "ntfs"
+	// TODO: how do we prevent errors in the filesystem from compromising the machine
+	FSType string `json:"fsType"`
+	// Optional: Defaults to false (read/write). ReadOnly here will force
+	// the ReadOnly setting in VolumeMounts.
+	ReadOnly bool `json:"readOnly,omitempty"`
 }
 
 // ContainerPort represents a network port in a single container.
@@ -747,7 +813,15 @@ type Container struct {
 	// Variables for interactive containers, these have very specialized use-cases (e.g. debugging)
 	// and shouldn't be used for general purpose containers.
 	Stdin bool `json:"stdin,omitempty" description:"Whether this container should allocate a buffer for stdin in the container runtime; default is false"`
-	TTY   bool `json:"tty,omitempty" description:"Whether this container should allocate a TTY for itself, also requires 'stdin' to be true; default is false"`
+	// Whether the container runtime should close the stdin channel after it has been opened by
+	// a single attach. When stdin is true the stdin stream will remain open across multiple attach
+	// sessions. If stdinOnce is set to true, stdin is opened on container start, is empty until the
+	// first client attaches to stdin, and then remains open and accepts data until the client disconnects,
+	// at which time stdin is closed and remains closed until the container is restarted. If this
+	// flag is false, a container processes that reads from stdin will never receive an EOF.
+	// Default is false
+	StdinOnce bool `json:"stdinOnce,omitempty"`
+	TTY       bool `json:"tty,omitempty" description:"Whether this container should allocate a TTY for itself, also requires 'stdin' to be true; default is false"`
 }
 
 // Handler defines a specific action that should be taken
@@ -790,20 +864,22 @@ const (
 type ContainerStateWaiting struct {
 	// Reason could be pulling image,
 	Reason string `json:"reason,omitempty" description:"(brief) reason the container is not yet running, such as pulling its image"`
+	// Message regarding why the container is not yet running.
+	Message string `json:"message,omitempty"`
 }
 
 type ContainerStateRunning struct {
-	StartedAt util.Time `json:"startedAt,omitempty" description:"time at which the container was last (re-)started"`
+	StartedAt unversioned.Time `json:"startedAt,omitempty" description:"time at which the container was last (re-)started"`
 }
 
 type ContainerStateTerminated struct {
-	ExitCode    int       `json:"exitCode" description:"exit status from the last termination of the container"`
-	Signal      int       `json:"signal,omitempty" description:"signal from the last termination of the container"`
-	Reason      string    `json:"reason,omitempty" description:"(brief) reason from the last termination of the container"`
-	Message     string    `json:"message,omitempty" description:"message regarding the last termination of the container"`
-	StartedAt   util.Time `json:"startedAt,omitempty" description:"time at which previous execution of the container started"`
-	FinishedAt  util.Time `json:"finishedAt,omitempty" description:"time at which the container last terminated"`
-	ContainerID string    `json:"containerID,omitempty" description:"container's ID in the format 'docker://<container_id>'"`
+	ExitCode    int              `json:"exitCode" description:"exit status from the last termination of the container"`
+	Signal      int              `json:"signal,omitempty" description:"signal from the last termination of the container"`
+	Reason      string           `json:"reason,omitempty" description:"(brief) reason from the last termination of the container"`
+	Message     string           `json:"message,omitempty" description:"message regarding the last termination of the container"`
+	StartedAt   unversioned.Time `json:"startedAt,omitempty" description:"time at which previous execution of the container started"`
+	FinishedAt  unversioned.Time `json:"finishedAt,omitempty" description:"time at which the container last terminated"`
+	ContainerID string           `json:"containerID,omitempty" description:"container's ID in the format 'docker://<container_id>'"`
 }
 
 // ContainerState holds a possible state of container.
@@ -866,12 +942,19 @@ const (
 	PodReady PodConditionType = "Ready"
 )
 
-// TODO: add LastTransitionTime, Reason, Message to match NodeCondition api.
 type PodCondition struct {
 	// Type is the type of the condition
 	Type PodConditionType `json:"type" description:"kind of the condition, currently only Ready"`
 	// Status is the status of the condition
 	Status ConditionStatus `json:"status" description:"status of the condition, one of True, False, Unknown"`
+	// Last time we probed the condition.
+	LastProbeTime unversioned.Time `json:"lastProbeTime,omitempty"`
+	// Last time the condition transitioned from one status to another.
+	LastTransitionTime unversioned.Time `json:"lastTransitionTime,omitempty"`
+	// Unique, one-word, CamelCase reason for the condition's last transition.
+	Reason string `json:"reason,omitempty"`
+	// Human-readable message indicating details about last transition.
+	Message string `json:"message,omitempty"`
 }
 
 // RestartPolicy describes how the container should be restarted.
@@ -930,10 +1013,58 @@ type PodSpec struct {
 	// used must be specified.
 	// Optional: Default to false.
 	HostNetwork bool `json:"hostNetwork,omitempty" description:"host networking requested for this pod"`
+	// Use the host's pid namespace.
+	// Optional: Default to false.
+	HostPID bool `json:"hostPID,omitempty" description:"use the host's pid namespace"`
+	// Use the host's ipc namespace.
+	// Optional: Default to false.
+	HostIPC bool `json:"hostIPC,omitempty" description:"use the host's ipc namespace"`
+	// SecurityContext holds pod-level security attributes and common container settings.
+	// Optional: Defaults to empty.  See type description for default values of each field.
+	SecurityContext *PodSecurityContext `json:"securityContext,omitempty"`
 	// ImagePullSecrets is an optional list of references to secrets in the same namespace to use for pulling any of the images used by this PodSpec.
 	// If specified, these secrets will be passed to individual puller implementations for them to use.  For example,
 	// in the case of docker, only DockerConfig type secrets are honored.
 	ImagePullSecrets []LocalObjectReference `json:"imagePullSecrets,omitempty" description:"list of references to secrets in the same namespace available for pulling the container images"  patchStrategy:"merge" patchMergeKey:"name"`
+}
+
+// PodSecurityContext holds pod-level security attributes and common container settings.
+// Some fields are also present in container.securityContext.  Field values of
+// container.securityContext take precedence over field values of PodSecurityContext.
+type PodSecurityContext struct {
+	// The SELinux context to be applied to all containers.
+	// If unspecified, the container runtime will allocate a random SELinux context for each
+	// container.  May also be set in SecurityContext.  If set in
+	// both SecurityContext and PodSecurityContext, the value specified in SecurityContext
+	// takes precedence for that container.
+	SELinuxOptions *SELinuxOptions `json:"seLinuxOptions,omitempty"`
+	// The UID to run the entrypoint of the container process.
+	// Defaults to user specified in image metadata if unspecified.
+	// May also be set in SecurityContext.  If set in both SecurityContext and
+	// PodSecurityContext, the value specified in SecurityContext takes precedence
+	// for that container.
+	RunAsUser *int64 `json:"runAsUser,omitempty"`
+	// Indicates that the container must run as a non-root user.
+	// If true, the Kubelet will validate the image at runtime to ensure that it
+	// does not run as UID 0 (root) and fail to start the container if it does.
+	// If unset or false, no such validation will be performed.
+	// May also be set in SecurityContext.  If set in both SecurityContext and
+	// PodSecurityContext, the value specified in SecurityContext takes precedence.
+	RunAsNonRoot *bool `json:"runAsNonRoot,omitempty"`
+	// A list of groups applied to the first process run in each container, in addition
+	// to the container's primary GID.  If unspecified, no groups will be added to
+	// any container.
+	SupplementalGroups []int64 `json:"supplementalGroups,omitempty"`
+	// A special supplemental group that applies to all containers in a pod.
+	// Some volume types allow the Kubelet to change the ownership of that volume
+	// to be owned by the pod:
+	//
+	// 1. The owning GID will be the FSGroup
+	// 2. The setgid bit is set (new files created in the volume will be owned by FSGroup)
+	// 3. The permission bits are OR'd with rw-rw----
+	//
+	// If unset, the Kubelet will not modify the ownership and permissions of any volume.
+	FSGroup *int64 `json:"fsGroup,omitempty"`
 }
 
 // PodStatus represents information about the status of a pod. Status may trail the actual
@@ -949,7 +1080,7 @@ type PodStatus struct {
 	HostIP string `json:"hostIP,omitempty" description:"IP address of the host to which the pod is assigned; empty if not yet scheduled"`
 	PodIP  string `json:"podIP,omitempty" description:"IP address allocated to the pod; routable at least within the cluster; empty if not yet allocated"`
 
-	StartTime *util.Time `json:"startTime,omitempty" description:"RFC 3339 date and time at which the object was acknowledged by the Kubelet.  This is before the Kubelet pulled the container image(s) for the pod."`
+	StartTime *unversioned.Time `json:"startTime,omitempty" description:"RFC 3339 date and time at which the object was acknowledged by the Kubelet.  This is before the Kubelet pulled the container image(s) for the pod."`
 
 	// The list has one entry per container in the manifest. Each entry is currently the output
 	// of `docker inspect`.
@@ -1146,6 +1277,13 @@ type ServiceSpec struct {
 
 	// Optional: Supports "ClientIP" and "None".  Used to maintain session affinity.
 	SessionAffinity ServiceAffinity `json:"sessionAffinity,omitempty" description:"enable client IP based session affinity; must be ClientIP or None; defaults to None"`
+
+	// Only applies to Service Type: LoadBalancer
+	// LoadBalancer will get created with the IP specified in this field.
+	// This feature depends on whether the underlying cloud-provider supports specifying
+	// the loadBalancerIP when a load balancer is created.
+	// This field will be ignored if the cloud-provider does not support the feature.
+	LoadBalancerIP string `json:"loadBalancerIP,omitempty"`
 }
 
 type ServicePort struct {
@@ -1257,8 +1395,9 @@ type Endpoints struct {
 //     a: [ 10.10.1.1:8675, 10.10.2.2:8675 ],
 //     b: [ 10.10.1.1:309, 10.10.2.2:309 ]
 type EndpointSubset struct {
-	Addresses []EndpointAddress `json:"addresses,omitempty" description:"IP addresses which offer the related ports"`
-	Ports     []EndpointPort    `json:"ports,omitempty" description:"port numbers available on the related IP addresses"`
+	Addresses         []EndpointAddress `json:"addresses,omitempty" description:"IP addresses which offer the related ports"`
+	NotReadyAddresses []EndpointAddress `json:"notReadyAddresses,omitempty" description:"IP addresses which offer the related ports but are not currently marked as ready"`
+	Ports             []EndpointPort    `json:"ports,omitempty" description:"port numbers available on the related IP addresses"`
 }
 
 // EndpointAddress is a tuple that describes single IP address.
@@ -1304,6 +1443,18 @@ type NodeSpec struct {
 	Unschedulable bool `json:"unschedulable,omitempty" description:"disable pod scheduling on the node"`
 }
 
+// DaemonEndpoint contains information about a single Daemon endpoint.
+type DaemonEndpoint struct {
+	// Port number of the given endpoint.
+	Port int `json:port`
+}
+
+// NodeDaemonEndpoints lists ports opened by daemons running on the Node.
+type NodeDaemonEndpoints struct {
+	// Endpoint on which Kubelet is listening.
+	KubeletEndpoint DaemonEndpoint `json:"kubeletEndpoint,omitempty"`
+}
+
 // NodeSystemInfo is a set of ids/uuids to uniquely identify the node.
 type NodeSystemInfo struct {
 	// MachineID is the machine-id reported by the node
@@ -1335,6 +1486,8 @@ type NodeStatus struct {
 	Conditions []NodeCondition `json:"conditions,omitempty" description:"list of node conditions observed" patchStrategy:"merge" patchMergeKey:"type"`
 	// Queried from cloud provider, if available.
 	Addresses []NodeAddress `json:"addresses,omitempty" description:"list of addresses reachable to the node" patchStrategy:"merge" patchMergeKey:"type"`
+	// Endpoints of daemons running on the Node.
+	DaemonEndpoints NodeDaemonEndpoints `json:"daemonEndpoints,omitempty"`
 	// NodeSystemInfo is a set of ids/uuids to uniquely identify the node
 	NodeInfo NodeSystemInfo `json:"nodeInfo,omitempty" description:"set of ids/uuids to uniquely identify the node"`
 }
@@ -1364,8 +1517,8 @@ const (
 type NodeCondition struct {
 	Type               NodeConditionType `json:"type" description:"type of node condition, currently only Ready"`
 	Status             ConditionStatus   `json:"status" description:"status of the condition, one of True, False, Unknown"`
-	LastHeartbeatTime  util.Time         `json:"lastHeartbeatTime,omitempty" description:"last time we got an update on a given condition"`
-	LastTransitionTime util.Time         `json:"lastTransitionTime,omitempty" description:"last time the condition transit from one status to another"`
+	LastHeartbeatTime  unversioned.Time  `json:"lastHeartbeatTime,omitempty" description:"last time we got an update on a given condition"`
+	LastTransitionTime unversioned.Time  `json:"lastTransitionTime,omitempty" description:"last time the condition transit from one status to another"`
 	Reason             string            `json:"reason,omitempty" description:"(brief) reason for the condition's last transition"`
 	Message            string            `json:"message,omitempty" description:"human readable message indicating details about last transition"`
 }
@@ -1508,18 +1661,68 @@ type ListOptions struct {
 // PodLogOptions is the query options for a Pod's logs REST call
 type PodLogOptions struct {
 	TypeMeta `json:",inline"`
-
 	// Container for which to return logs
 	Container string `json:"container,omitempty" description:"the container for which to stream logs; defaults to only container if there is one container in the pod"`
-
 	// If true, follow the logs for the pod
 	Follow bool `json:"follow,omitempty" description:"follow the log stream of the pod; defaults to false"`
-
 	//  If true, return previous terminated container logs
 	Previous bool `json:"previous,omitempty" description:"return previous terminated container logs; defaults to false"`
+	// A relative time in seconds before the current time from which to show logs. If this value
+	// precedes the time a pod was started, only logs since the pod start will be returned.
+	// If this value is in the future, no logs will be returned.
+	// Only one of sinceSeconds or sinceTime may be specified.
+	SinceSeconds *int64 `json:"sinceSeconds,omitempty"`
+	// An RFC3339 timestamp from which to show logs. If this value
+	// preceeds the time a pod was started, only logs since the pod start will be returned.
+	// If this value is in the future, no logs will be returned.
+	// Only one of sinceSeconds or sinceTime may be specified.
+	SinceTime *unversioned.Time `json:"sinceTime,omitempty"`
+	// If true, add an RFC3339 or RFC3339Nano timestamp at the beginning of every line
+	// of log output. Defaults to false.
+	Timestamps bool `json:"timestamps,omitempty"`
+	// If set, the number of lines from the end of the logs to show. If not specified,
+	// logs are shown from the creation of the container or sinceSeconds or sinceTime
+	TailLines *int64 `json:"tailLines,omitempty"`
+	// If set, the number of bytes to read from the server before terminating the
+	// log output. This may not display a complete final line of logging, and may return
+	// slightly more or slightly less than the specified limit.
+	LimitBytes *int64 `json:"limitBytes,omitempty"`
+}
+
+// PodAttachOptions is the query options to a Pod's remote attach call.
+// ---
+// TODO: merge w/ PodExecOptions below for stdin, stdout, etc
+// and also when we cut V2, we should export a "StreamOptions" or somesuch that contains Stdin, Stdout, Stder and TTY
+type PodAttachOptions struct {
+	TypeMeta `json:",inline"`
+
+	// Stdin if true, redirects the standard input stream of the pod for this call.
+	// Defaults to false.
+	Stdin bool `json:"stdin,omitempty"`
+
+	// Stdout if true indicates that stdout is to be redirected for the attach call.
+	// Defaults to true.
+	Stdout bool `json:"stdout,omitempty"`
+
+	// Stderr if true indicates that stderr is to be redirected for the attach call.
+	// Defaults to true.
+	Stderr bool `json:"stderr,omitempty"`
+
+	// TTY if true indicates that a tty will be allocated for the attach call.
+	// This is passed through the container runtime so the tty
+	// is allocated on the worker node by the container runtime.
+	// Defaults to false.
+	TTY bool `json:"tty,omitempty"`
+
+	// The container in which to execute the command.
+	// Defaults to only container if there is only one container in the pod.
+	Container string `json:"container,omitempty"`
 }
 
 // PodExecOptions is the query options to a Pod's remote exec call
+// ---
+// TODO: This is largely identical to PodAttachOptions above, make sure they stay in sync and see about merging
+// and also when we cut V2, we should export a "StreamOptions" or somesuch that contains Stdin, Stdout, Stder and TTY
 type PodExecOptions struct {
 	TypeMeta `json:",inline"`
 
@@ -1549,160 +1752,6 @@ type PodProxyOptions struct {
 	// Path is the URL path to use for the current proxy request
 	Path string `json:"path,omitempty" description:"URL path to use in proxy request to pod"`
 }
-
-// Status is a return value for calls that don't return other objects.
-type Status struct {
-	TypeMeta `json:",inline"`
-	ListMeta `json:"metadata,omitempty" description:"standard list metadata; see http://releases.k8s.io/v1.0.0/docs/api-conventions.md#metadata"`
-
-	// One of: "Success" or "Failure"
-	Status string `json:"status,omitempty" description:"status of the operation; either Success, or Failure"`
-	// A human-readable description of the status of this operation.
-	Message string `json:"message,omitempty" description:"human-readable description of the status of this operation"`
-	// A machine-readable description of why this operation is in the
-	// "Failure" status. If this value is empty there
-	// is no information available. A Reason clarifies an HTTP status
-	// code but does not override it.
-	Reason StatusReason `json:"reason,omitempty" description:"machine-readable description of why this operation is in the 'Failure' status; if this value is empty there is no information available; a reason clarifies an HTTP status code but does not override it"`
-	// Extended data associated with the reason.  Each reason may define its
-	// own extended details. This field is optional and the data returned
-	// is not guaranteed to conform to any schema except that defined by
-	// the reason type.
-	Details *StatusDetails `json:"details,omitempty" description:"extended data associated with the reason; each reason may define its own extended details; this field is optional and the data returned is not guaranteed to conform to any schema except that defined by the reason type"`
-	// Suggested HTTP return code for this status, 0 if not set.
-	Code int `json:"code,omitempty" description:"suggested HTTP return code for this status; 0 if not set"`
-}
-
-// StatusDetails is a set of additional properties that MAY be set by the
-// server to provide additional information about a response. The Reason
-// field of a Status object defines what attributes will be set. Clients
-// must ignore fields that do not match the defined type of each attribute,
-// and should assume that any attribute may be empty, invalid, or under
-// defined.
-type StatusDetails struct {
-	// The ID attribute of the resource associated with the status StatusReason
-	// (when there is a single ID which can be described).
-	ID string `json:"id,omitempty" description:"the ID attribute of the resource associated with the status StatusReason (when there is a single ID which can be described)"`
-	// The kind attribute of the resource associated with the status StatusReason.
-	// On some operations may differ from the requested resource Kind.
-	Kind string `json:"kind,omitempty" description:"the kind attribute of the resource associated with the status StatusReason; on some operations may differ from the requested resource Kind"`
-	// The Causes array includes more details associated with the StatusReason
-	// failure. Not all StatusReasons may provide detailed causes.
-	Causes []StatusCause `json:"causes,omitempty" description:"the Causes array includes more details associated with the StatusReason failure; not all StatusReasons may provide detailed causes"`
-	// If specified, the time in seconds before the operation should be retried.
-	RetryAfterSeconds int `json:"retryAfterSeconds,omitempty" description:"the number of seconds before the client should attempt to retry this operation"`
-}
-
-// Values of Status.Status
-const (
-	StatusSuccess = "Success"
-	StatusFailure = "Failure"
-)
-
-// StatusReason is an enumeration of possible failure causes.  Each StatusReason
-// must map to a single HTTP status code, but multiple reasons may map
-// to the same HTTP status code.
-// TODO: move to apiserver
-type StatusReason string
-
-const (
-	// StatusReasonUnknown means the server has declined to indicate a specific reason.
-	// The details field may contain other information about this error.
-	// Status code 500.
-	StatusReasonUnknown StatusReason = ""
-
-	// StatusReasonNotFound means one or more resources required for this operation
-	// could not be found.
-	// Details (optional):
-	//   "kind" string - the kind attribute of the missing resource
-	//                   on some operations may differ from the requested
-	//                   resource.
-	//   "id"   string - the identifier of the missing resource
-	// Status code 404
-	StatusReasonNotFound StatusReason = "NotFound"
-
-	// StatusReasonAlreadyExists means the resource you are creating already exists.
-	// Details (optional):
-	//   "kind" string - the kind attribute of the conflicting resource
-	//   "id"   string - the identifier of the conflicting resource
-	// Status code 409
-	StatusReasonAlreadyExists StatusReason = "AlreadyExists"
-
-	// StatusReasonConflict means the requested update operation cannot be completed
-	// due to a conflict in the operation. The client may need to alter the request.
-	// Each resource may define custom details that indicate the nature of the
-	// conflict.
-	// Status code 409
-	StatusReasonConflict StatusReason = "Conflict"
-
-	// StatusReasonInvalid means the requested create or update operation cannot be
-	// completed due to invalid data provided as part of the request. The client may
-	// need to alter the request. When set, the client may use the StatusDetails
-	// message field as a summary of the issues encountered.
-	// Details (optional):
-	//   "kind" string - the kind attribute of the invalid resource
-	//   "id"   string - the identifier of the invalid resource
-	//   "causes"      - one or more StatusCause entries indicating the data in the
-	//                   provided resource that was invalid.  The code, message, and
-	//                   field attributes will be set.
-	// Status code 422
-	StatusReasonInvalid StatusReason = "Invalid"
-
-	// StatusReasonServerTimeout means the server can be reached and understood the request,
-	// but cannot complete the action in a reasonable time. The client should retry the request.
-	// This is may be due to temporary server load or a transient communication issue with
-	// another server. Status code 500 is used because the HTTP spec provides no suitable
-	// server-requested client retry and the 5xx class represents actionable errors.
-	// Details (optional):
-	//   "kind" string - the kind attribute of the resource being acted on.
-	//   "id"   string - the operation that is being attempted.
-	// Status code 500
-	StatusReasonServerTimeout StatusReason = "ServerTimeout"
-)
-
-// StatusCause provides more information about an api.Status failure, including
-// cases when multiple errors are encountered.
-type StatusCause struct {
-	// A machine-readable description of the cause of the error. If this value is
-	// empty there is no information available.
-	Type CauseType `json:"reason,omitempty" description:"machine-readable description of the cause of the error; if this value is empty there is no information available"`
-	// A human-readable description of the cause of the error.  This field may be
-	// presented as-is to a reader.
-	Message string `json:"message,omitempty" description:"human-readable description of the cause of the error; this field may be presented as-is to a reader"`
-	// The field of the resource that has caused this error, as named by its JSON
-	// serialization. May include dot and postfix notation for nested attributes.
-	// Arrays are zero-indexed.  Fields may appear more than once in an array of
-	// causes due to fields having multiple errors.
-	// Optional.
-	//
-	// Examples:
-	//   "name" - the field "name" on the current resource
-	//   "items[0].name" - the field "name" on the first array entry in "items"
-	Field string `json:"field,omitempty" description:"field of the resource that has caused this error, as named by its JSON serialization; may include dot and postfix notation for nested attributes; arrays are zero-indexed; fields may appear more than once in an array of causes due to fields having multiple errors"`
-}
-
-// CauseType is a machine readable value providing more detail about what
-// occured in a status response. An operation may have multiple causes for a
-// status (whether Failure or Success).
-type CauseType string
-
-const (
-	// CauseTypeFieldValueNotFound is used to report failure to find a requested value
-	// (e.g. looking up an ID).
-	CauseTypeFieldValueNotFound CauseType = "FieldValueNotFound"
-	// CauseTypeFieldValueRequired is used to report required values that are not
-	// provided (e.g. empty strings, null values, or empty arrays).
-	CauseTypeFieldValueRequired CauseType = "FieldValueRequired"
-	// CauseTypeFieldValueDuplicate is used to report collisions of values that must be
-	// unique (e.g. unique IDs).
-	CauseTypeFieldValueDuplicate CauseType = "FieldValueDuplicate"
-	// CauseTypeFieldValueInvalid is used to report malformed values (e.g. failed regex
-	// match).
-	CauseTypeFieldValueInvalid CauseType = "FieldValueInvalid"
-	// CauseTypeFieldValueNotSupported is used to report valid (as per formatting rules)
-	// values that can not be handled (e.g. an enumerated string).
-	CauseTypeFieldValueNotSupported CauseType = "FieldValueNotSupported"
-)
 
 // ObjectReference contains enough information to let you inspect or modify the referred object.
 type ObjectReference struct {
@@ -1764,10 +1813,10 @@ type Event struct {
 	Source EventSource `json:"source,omitempty" description:"component reporting this event"`
 
 	// The time at which the event was first recorded. (Time of server receipt is in TypeMeta.)
-	FirstTimestamp util.Time `json:"firstTimestamp,omitempty" description:"the time at which the event was first recorded"`
+	FirstTimestamp unversioned.Time `json:"firstTimestamp,omitempty" description:"the time at which the event was first recorded"`
 
 	// The time at which the most recent occurance of this event was recorded.
-	LastTimestamp util.Time `json:"lastTimestamp,omitempty" description:"the time at which the most recent occurance of this event was recorded"`
+	LastTimestamp unversioned.Time `json:"lastTimestamp,omitempty" description:"the time at which the most recent occurance of this event was recorded"`
 
 	// The number of times this event has occurred.
 	Count int `json:"count,omitempty" description:"the number of times this event has occurred"`
@@ -1809,6 +1858,10 @@ type LimitRangeItem struct {
 	Min ResourceList `json:"min,omitempty" description:"min usage constraints on this kind by resource name"`
 	// Default usage constraints on this kind by resource name
 	Default ResourceList `json:"default,omitempty" description:"default values on this kind by resource name if omitted"`
+	// DefaultRequest is the default resource requirement request value by resource name if resource request is omitted.
+	DefaultRequest ResourceList `json:"defaultRequest,omitempty"`
+	// MaxLimitRequestRatio if specified, the named resource must have a request and limit that are both non-zero where limit divided by request is less than or equal to the enumerated value; this represents the max burst for the named resource.
+	MaxLimitRequestRatio ResourceList `json:"maxLimitRequestRatio,omitempty"`
 }
 
 // LimitRangeSpec defines a min/max usage limit for resources that match on kind
@@ -1999,7 +2052,7 @@ type SecurityContext struct {
 	// RunAsNonRoot indicates that the container should be run as a non-root user.  If the RunAsUser
 	// field is not explicitly set then the kubelet may check the image for a specified user or
 	// perform defaulting to specify a user.
-	RunAsNonRoot bool `json:"runAsNonRoot,omitempty" description:"indicates the container be must run as a non-root user either by specifying the runAsUser or in the image specification"`
+	RunAsNonRoot *bool `json:"runAsNonRoot,omitempty" description:"indicates the container be must run as a non-root user either by specifying the runAsUser or in the image specification"`
 }
 
 // SELinuxOptions are the labels to be applied to the container.
@@ -2032,6 +2085,11 @@ type SecurityContextConstraints struct {
 	TypeMeta   `json:",inline"`
 	ObjectMeta `json:"metadata,omitempty"`
 
+	// Priority influences the sort order of SCCs when evaluating which SCCs to try first for
+	// a given pod request based on access in the Users and Groups fields.  The higher the int, the
+	// higher priority.  If scores for multiple SCCs are equal they will be sorted by name.
+	Priority *int `json:"priority" description:"determines which SCC is used when multiple SCCs allow a particular pod; higher priority SCCs are preferred"`
+
 	// AllowPrivilegedContainer determines if a container can request to be run as privileged.
 	AllowPrivilegedContainer bool `json:"allowPrivilegedContainer" description:"allow containers to run as privileged"`
 	// AllowedCapabilities is a list of capabilities that can be requested to add to the container.
@@ -2042,10 +2100,18 @@ type SecurityContextConstraints struct {
 	AllowHostNetwork bool `json:"allowHostNetwork" description:"allow the use of the hostNetwork in the pod spec"`
 	// AllowHostPorts determines if the policy allows host ports in the containers.
 	AllowHostPorts bool `json:"allowHostPorts" description:"allow the use of the host ports in the containers"`
+	// AllowHostPID determines if the policy allows host pid in the containers.
+	AllowHostPID bool `json:"allowHostPID" description:"allow the use of the host pid in the containers"`
+	// AllowHostIPC determines if the policy allows host ipc in the containers.
+	AllowHostIPC bool `json:"allowHostIPC" description:"allow the use of the host ipc in the containers"`
 	// SELinuxContext is the strategy that will dictate what labels will be set in the SecurityContext.
 	SELinuxContext SELinuxContextStrategyOptions `json:"seLinuxContext,omitempty" description:"strategy used to generate SELinuxOptions"`
 	// RunAsUser is the strategy that will dictate what RunAsUser is used in the SecurityContext.
 	RunAsUser RunAsUserStrategyOptions `json:"runAsUser,omitempty" description:"strategy used to generate RunAsUser"`
+	// SupplementalGroups is the strategy that will dictate what supplemental groups are used by the SecurityContext.
+	SupplementalGroups SupplementalGroupsStrategyOptions `json:"supplementalGroups,omitempty" description:"strategy used to generate supplemental groups"`
+	// FSGroup is the strategy that will dictate what fs group is used by the SecurityContext.
+	FSGroup FSGroupStrategyOptions `json:"fsGroup,omitempty" description:"strategy used to generate fsGroup"`
 
 	// The users who have permissions to use this security context constraints
 	Users []string `json:"users,omitempty" description:"users allowed to use this SecurityContextConstraints"`
@@ -2074,6 +2140,33 @@ type RunAsUserStrategyOptions struct {
 	UIDRangeMax *int64 `json:"uidRangeMax,omitempty" description:"max value for range based allocators"`
 }
 
+// FSGroupStrategyOptions defines the strategy type and options used to create the strategy.
+type FSGroupStrategyOptions struct {
+	// Type is the strategy that will dictate what FSGroup is used in the SecurityContext.
+	Type FSGroupStrategyType `json:"type,omitempty" description:"strategy used to generate fsGroup"`
+	// Ranges are the allowed ranges of fs groups.  If you would like to force a single
+	// fs group then supply a single range with the same start and end.
+	Ranges []IDRange `json:"ranges,omitempty" description:"ranges of allowable IDs for fsGroup"`
+}
+
+// SupplementalGroupsStrategyOptions defines the strategy type and options used to create the strategy.
+type SupplementalGroupsStrategyOptions struct {
+	// Type is the strategy that will dictate what supplemental groups is used in the SecurityContext.
+	Type SupplementalGroupsStrategyType `json:"type,omitempty" description:"strategy used to generate supplemental groups"`
+	// Ranges are the allowed ranges of supplemental groups.  If you would like to force a single
+	// supplemental group then supply a single range with the same start and end.
+	Ranges []IDRange `json:"ranges,omitempty" description:"ranges of allowable IDs for supplemental groups"`
+}
+
+// IDRange provides a min/max of an allowed range of IDs.
+// TODO: this could be reused for UIDs.
+type IDRange struct {
+	// Min is the start of the range, inclusive.
+	Min int64 `json:"min,omitempty" description:"min value for the range"`
+	// Max is the end of the range, inclusive.
+	Max int64 `json:"max,omitempty" description:"min value for the range"`
+}
+
 // SELinuxContextStrategyType denotes strategy types for generating SELinux options for a
 // SecurityContext
 type SELinuxContextStrategyType string
@@ -2081,6 +2174,14 @@ type SELinuxContextStrategyType string
 // RunAsUserStrategyType denotes strategy types for generating RunAsUser values for a
 // SecurityContext
 type RunAsUserStrategyType string
+
+// SupplementalGroupsStrategyType denotes strategy types for determining valid supplemental
+// groups for a SecurityContext.
+type SupplementalGroupsStrategyType string
+
+// FSGroupStrategyType denotes strategy types for generating FSGroup values for a
+// SecurityContext
+type FSGroupStrategyType string
 
 const (
 	// container must have SELinux labels of X applied.
@@ -2096,6 +2197,16 @@ const (
 	RunAsUserStrategyMustRunAsNonRoot RunAsUserStrategyType = "MustRunAsNonRoot"
 	// container may make requests for any uid.
 	RunAsUserStrategyRunAsAny RunAsUserStrategyType = "RunAsAny"
+
+	// container must have FSGroup of X applied.
+	FSGroupStrategyMustRunAs FSGroupStrategyType = "MustRunAs"
+	// container may make requests for any FSGroup labels.
+	FSGroupStrategyRunAsAny FSGroupStrategyType = "RunAsAny"
+
+	// container must run as a particular gid.
+	SupplementalGroupsStrategyMustRunAs SupplementalGroupsStrategyType = "MustRunAs"
+	// container may make requests for any gid.
+	SupplementalGroupsStrategyRunAsAny SupplementalGroupsStrategyType = "RunAsAny"
 )
 
 // SecurityContextConstraintsList is a list of SecurityContextConstraints objects
@@ -2104,4 +2215,20 @@ type SecurityContextConstraintsList struct {
 	ListMeta `json:"metadata,omitempty"`
 
 	Items []SecurityContextConstraints `json:"items"`
+}
+
+// MetadataVolumeSource represents a volume containing metadata about a pod.
+// NOTE: Deprecated in favor of DownwardAPIVolumeSource
+type MetadataVolumeSource struct {
+	// Items is a list of metadata file name
+	Items []MetadataFile `json:"items,omitempty" description:"list of metadata files"`
+}
+
+// MetadataFile expresses information about a file holding pod metadata.
+// NOTE: Deprecated in favor of DownwardAPIVolumeFile
+type MetadataFile struct {
+	// Required: Name is the name of the file
+	Name string `json:"name" description:"the name of the file to be created"`
+	// Required: Selects a field of the pod: only annotations, labels, name and namespace are supported.
+	FieldRef ObjectFieldSelector `json:"fieldRef" description:"selects a field of the pod. Supported fields: metadata.annotations, metadata.labels, metadata.name, metadata.namespace"`
 }

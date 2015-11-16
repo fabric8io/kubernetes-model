@@ -1,12 +1,12 @@
 package v1
 
 import (
-	"fmt"
 	"sort"
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/conversion"
 
+	oapi "github.com/openshift/origin/pkg/api"
 	newer "github.com/openshift/origin/pkg/image/api"
 )
 
@@ -71,6 +71,15 @@ func convert_v1_ImageStreamSpec_To_api_ImageStreamSpec(in *ImageStreamSpec, out 
 
 func convert_api_ImageStreamSpec_To_v1_ImageStreamSpec(in *newer.ImageStreamSpec, out *ImageStreamSpec, s conversion.Scope) error {
 	out.DockerImageRepository = in.DockerImageRepository
+	if len(in.DockerImageRepository) > 0 {
+		// ensure that stored image references have no tag or ID, which was possible from 1.0.0 until 1.0.7
+		if ref, err := newer.ParseDockerImageReference(in.DockerImageRepository); err == nil {
+			if len(ref.Tag) > 0 || len(ref.ID) > 0 {
+				ref.Tag, ref.ID = "", ""
+				out.DockerImageRepository = ref.Exact()
+			}
+		}
+	}
 	out.Tags = make([]NamedTagReference, 0, 0)
 	return s.Convert(&in.Tags, &out.Tags, 0)
 }
@@ -83,6 +92,15 @@ func convert_v1_ImageStreamStatus_To_api_ImageStreamStatus(in *ImageStreamStatus
 
 func convert_api_ImageStreamStatus_To_v1_ImageStreamStatus(in *newer.ImageStreamStatus, out *ImageStreamStatus, s conversion.Scope) error {
 	out.DockerImageRepository = in.DockerImageRepository
+	if len(in.DockerImageRepository) > 0 {
+		// ensure that stored image references have no tag or ID, which was possible from 1.0.0 until 1.0.7
+		if ref, err := newer.ParseDockerImageReference(in.DockerImageRepository); err == nil {
+			if len(ref.Tag) > 0 || len(ref.ID) > 0 {
+				ref.Tag, ref.ID = "", ""
+				out.DockerImageRepository = ref.Exact()
+			}
+		}
+	}
 	out.Tags = make([]NamedTagEventList, 0, 0)
 	return s.Convert(&in.Tags, &out.Tags, 0)
 }
@@ -131,6 +149,7 @@ func init() {
 			for _, curr := range *in {
 				r := newer.TagReference{
 					Annotations: curr.Annotations,
+					Reference:   curr.Reference,
 				}
 				if err := s.Convert(&curr.From, &r.From, 0); err != nil {
 					return err
@@ -151,6 +170,7 @@ func init() {
 				oldTagReference := NamedTagReference{
 					Name:        tag,
 					Annotations: newTagReference.Annotations,
+					Reference:   newTagReference.Reference,
 				}
 				if err := s.Convert(&newTagReference.From, &oldTagReference.From, 0); err != nil {
 					return err
@@ -174,19 +194,15 @@ func init() {
 		panic(err)
 	}
 
-	err = kapi.Scheme.AddFieldLabelConversionFunc("v1", "ImageStream",
-		func(label, value string) (string, string, error) {
-			switch label {
-			case "name":
-				return "metadata.name", value, nil
-			case "metadata.name", "spec.dockerImageRepository", "status.dockerImageRepository":
-				return label, value, nil
-			default:
-				return "", "", fmt.Errorf("field label not supported: %s", label)
-			}
-		})
-	if err != nil {
-		// If one of the conversion functions is malformed, detect it immediately.
+	if err := kapi.Scheme.AddFieldLabelConversionFunc("v1", "Image",
+		oapi.GetFieldLabelConversionFunc(newer.ImageToSelectableFields(&newer.Image{}), nil),
+	); err != nil {
+		panic(err)
+	}
+
+	if err := kapi.Scheme.AddFieldLabelConversionFunc("v1", "ImageStream",
+		oapi.GetFieldLabelConversionFunc(newer.ImageStreamToSelectableFields(&newer.ImageStream{}), map[string]string{"name": "metadata.name"}),
+	); err != nil {
 		panic(err)
 	}
 }

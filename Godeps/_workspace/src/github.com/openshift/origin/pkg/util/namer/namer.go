@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"hash/fnv"
 
-	"k8s.io/kubernetes/pkg/util"
+	kvalidation "k8s.io/kubernetes/pkg/util/validation"
 )
 
 // GetName returns a name given a base ("deployment-5") and a suffix ("deploy")
 // It will first attempt to join them with a dash. If the resulting name is longer
 // than maxLength: if the suffix is too long, it will truncate the base name and add
 // an 8-character hash of the [base]-[suffix] string.  If the suffix is not too long,
-// it wil truncate the base, add the hash of the base and return [base]-[hash]-[suffix]
+// it will truncate the base, add the hash of the base and return [base]-[hash]-[suffix]
 func GetName(base, suffix string, maxLength int) string {
 	name := fmt.Sprintf("%s-%s", base, suffix)
 	if len(name) > maxLength {
@@ -34,7 +34,7 @@ func GetName(base, suffix string, maxLength int) string {
 
 // GetPodName calls GetName with the length restriction for pods
 func GetPodName(base, suffix string) string {
-	return GetName(base, suffix, util.DNS1123SubdomainMaxLength)
+	return GetName(base, suffix, kvalidation.DNS1123SubdomainMaxLength)
 }
 
 // min returns the lesser of its 2 inputs

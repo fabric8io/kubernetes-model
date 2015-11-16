@@ -4,16 +4,17 @@ import (
 	"time"
 
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/api/unversioned"
+	"k8s.io/kubernetes/pkg/util/sets"
 )
 
 const (
 	// BuildAnnotation is an annotation that identifies a Pod as being for a Build
 	BuildAnnotation = "openshift.io/build.name"
-	// DeprecatedBuildLabel is old value of BuildLabel, it'll be removed in OpenShift 3.1.
-	DeprecatedBuildLabel = "build"
 	// BuildNumberAnnotation is an annotation whose value is the sequential number for this Build
 	BuildNumberAnnotation = "openshift.io/build.number"
+	// BuildCloneAnnotation is an annotation whose value is the name of the build this build was cloned from
+	BuildCloneAnnotation = "openshift.io/build.clone-of"
 	// BuildLabel is the key of a Pod label whose value is the Name of a Build which is run.
 	BuildLabel = "openshift.io/build.name"
 	// DefaultDockerLabelNamespace is the key of a Build label, whose values are build metadata.
@@ -23,7 +24,7 @@ const (
 // Build encapsulates the inputs needed to produce a new deployable image, as well as
 // the status of the execution and a reference to the Pod which executed the build.
 type Build struct {
-	kapi.TypeMeta
+	unversioned.TypeMeta
 	kapi.ObjectMeta
 
 	// Spec is all the inputs used to execute the build.
@@ -55,6 +56,11 @@ type BuildSpec struct {
 
 	// Compute resource requirements to execute the build
 	Resources kapi.ResourceRequirements
+
+	// Optional duration in seconds, counted from the time when a build pod gets
+	// scheduled in the system, that the build may be active on a node before the
+	// system actively tries to terminate the build; value must be positive integer
+	CompletionDeadlineSeconds *int64
 }
 
 // BuildStatus contains the status of a build
@@ -65,22 +71,31 @@ type BuildStatus struct {
 	// Cancelled describes if a cancelling event was triggered for the build.
 	Cancelled bool
 
-	// Message is a human-readable message indicating details about why the build has this status
+	// Reason is a brief CamelCase string that describes any failure and is meant for machine parsing and tidy display in the CLI.
+	Reason StatusReason
+
+	// Message is a human-readable message indicating details about why the build has this status.
 	Message string
 
 	// StartTimestamp is a timestamp representing the server time when this Build started
 	// running in a Pod.
 	// It is represented in RFC3339 form and is in UTC.
-	StartTimestamp *util.Time
+	StartTimestamp *unversioned.Time
 
 	// CompletionTimestamp is a timestamp representing the server time when this Build was
 	// finished, whether that build failed or succeeded.  It reflects the time at which
 	// the Pod running the Build terminated.
 	// It is represented in RFC3339 form and is in UTC.
-	CompletionTimestamp *util.Time
+	CompletionTimestamp *unversioned.Time
 
 	// Duration contains time.Duration object describing build time.
 	Duration time.Duration
+
+	// OutputDockerImageReference contains a reference to the Docker image that
+	// will be built by this build. It's value is computed from
+	// Build.Spec.Output.To, and should include the registry address, so that
+	// it can be used to push and pull the image.
+	OutputDockerImageReference string
 
 	// Config is an ObjectReference to the BuildConfig this Build is based on.
 	Config *kapi.ObjectReference
@@ -114,19 +129,75 @@ const (
 	BuildPhaseCancelled BuildPhase = "Cancelled"
 )
 
-// BuildSourceType is the type of SCM used
+// StatusReason is a brief CamelCase string that describes a temporary or
+// permanent build error condition, meant for machine parsing and tidy display
+// in the CLI.
+type StatusReason string
+
+// These are the valid reasons of build statuses.
+const (
+	// StatusReasonError is a generic reason for a build error condition.
+	StatusReasonError StatusReason = "Error"
+
+	// StatusReasonCannotCreateBuildPodSpec is an error condition when the build
+	// strategy cannot create a build pod spec.
+	StatusReasonCannotCreateBuildPodSpec = "CannotCreateBuildPodSpec"
+
+	// StatusReasonCannotCreateBuildPod is an error condition when a build pod
+	// cannot be created.
+	StatusReasonCannotCreateBuildPod = "CannotCreateBuildPod"
+
+	// StatusReasonInvalidOutputReference is an error condition when the build
+	// output is an invalid reference.
+	StatusReasonInvalidOutputReference = "InvalidOutputReference"
+
+	// StatusReasonCancelBuildFailed is an error condition when cancelling a build
+	// fails.
+	StatusReasonCancelBuildFailed = "CancelBuildFailed"
+
+	// StatusReasonBuildPodDeleted is an error condition when the build pod is
+	// deleted before build completion.
+	StatusReasonBuildPodDeleted = "BuildPodDeleted"
+
+	// StatusReasonExceededRetryTimeout is an error condition when the build has
+	// not completed and retrying the build times out.
+	StatusReasonExceededRetryTimeout = "ExceededRetryTimeout"
+)
+
+// BuildSourceType is the type of SCM used.
 type BuildSourceType string
 
 // Valid values for BuildSourceType.
 const (
-	//BuildSourceGit is a Git SCM
+	//BuildSourceGit instructs a build to use a Git source control repository as the build input.
 	BuildSourceGit BuildSourceType = "Git"
+	// BuildSourceDockerfile uses a Dockerfile as the start of a build
+	BuildSourceDockerfile BuildSourceType = "Dockerfile"
+	// BuildSourceBinary indicates the build will accept a Binary file as input.
+	BuildSourceBinary BuildSourceType = "Binary"
 )
 
-// BuildSource is the SCM used for the build
+// BuildSource is the input used for the build.
 type BuildSource struct {
-	// Type of source control management system
+	// Type of build input to accept
 	Type BuildSourceType
+
+	// Binary builds accept a binary as their input. The binary is generally assumed to be a tar,
+	// gzipped tar, or zip file depending on the strategy. For Docker builds, this is the build
+	// context and an optional Dockerfile may be specified to override any Dockerfile in the
+	// build context. For Source builds, this is assumed to be an archive as described above. For
+	// Source and Docker builds, if binary.asFile is set the build will receive a directory with
+	// a single file. contextDir may be used when an archive is provided. Custom builds will
+	// receive this binary as input on STDIN.
+	Binary *BinaryBuildSource
+
+	// Dockerfile is the raw contents of a Dockerfile which should be built. When this option is
+	// specified, the FROM may be modified based on your strategy base image and additional ENV
+	// stanzas from your strategy environment will be added after the FROM, but before the rest
+	// of your Dockerfile stanzas. The Dockerfile source type may be used with other options like
+	// git - in those cases the Git repo will have any innate Dockerfile replaced in the context
+	// dir.
+	Dockerfile *string
 
 	// Git contains optional information about git build source
 	Git *GitBuildSource
@@ -142,6 +213,16 @@ type BuildSource struct {
 	// data's key represent the authentication method to be used and value is
 	// the base64 encoded credentials. Supported auth methods are: ssh-privatekey.
 	SourceSecret *kapi.LocalObjectReference
+}
+
+type BinaryBuildSource struct {
+	// AsFile indicates that the provided binary input should be considered a single file
+	// within the build input. For example, specifying "webapp.war" would place the provided
+	// binary as `/webapp.war` for the builder. If left empty, the Docker and Source build
+	// strategies assume this file is a zip, tar, or tar.gz file and extract it as the source.
+	// The custom strategy receives this binary as standard input. This filename may not
+	// contain slashes or be '..' or '.'.
+	AsFile string
 }
 
 // SourceRevision is the revision or commit information from the source for the build
@@ -252,6 +333,9 @@ type CustomBuildStrategy struct {
 	// ForcePull describes if the controller should configure the build pod to always pull the images
 	// for the builder or only pull if it is not present locally
 	ForcePull bool
+
+	// Secrets is a list of additional secrets that will be included in the custom build pod
+	Secrets []SecretSpec
 }
 
 // DockerBuildStrategy defines input parameters specific to Docker build.
@@ -317,13 +401,18 @@ type BuildOutput struct {
 	PushSecret *kapi.LocalObjectReference
 }
 
-// BuildConfigLabel is the key of a Build label whose value is the ID of a BuildConfig
-// on which the Build is based.
-const BuildConfigLabel = "buildconfig"
+const (
+	// BuildConfigLabel is the key of a Build label whose value is the ID of a BuildConfig
+	// on which the Build is based.
+	BuildConfigLabel = "openshift.io/build-config.name"
+	// DeprecatedBuildConfigLabel was used as BuildConfigLabel before adding namespaces.
+	// We keep it for backward compatibility.
+	DeprecatedBuildConfigLabel = "buildconfig"
+)
 
 // BuildConfig is a template which can be used to create new builds.
 type BuildConfig struct {
-	kapi.TypeMeta
+	unversioned.TypeMeta
 	kapi.ObjectMeta
 
 	// Spec holds all the input necessary to produce a new build, and the conditions when
@@ -386,6 +475,14 @@ type BuildTriggerPolicy struct {
 // BuildTriggerType refers to a specific BuildTriggerPolicy implementation.
 type BuildTriggerType string
 
+//NOTE: Adding a new trigger type requires adding the type to KnownTriggerTypes
+var KnownTriggerTypes = sets.NewString(
+	string(GitHubWebHookBuildTriggerType),
+	string(GenericWebHookBuildTriggerType),
+	string(ImageChangeBuildTriggerType),
+	string(ConfigChangeBuildTriggerType),
+)
+
 const (
 	// GitHubWebHookBuildTriggerType represents a trigger that launches builds on
 	// GitHub webhook invocations
@@ -409,8 +506,8 @@ const (
 
 // BuildList is a collection of Builds.
 type BuildList struct {
-	kapi.TypeMeta
-	kapi.ListMeta
+	unversioned.TypeMeta
+	unversioned.ListMeta
 
 	// Items is a list of builds
 	Items []Build
@@ -418,8 +515,8 @@ type BuildList struct {
 
 // BuildConfigList is a collection of BuildConfigs.
 type BuildConfigList struct {
-	kapi.TypeMeta
-	kapi.ListMeta
+	unversioned.TypeMeta
+	unversioned.ListMeta
 
 	// Items is a list of build configs
 	Items []BuildConfig
@@ -453,13 +550,14 @@ type GitRefInfo struct {
 
 // BuildLog is the (unused) resource associated with the build log redirector
 type BuildLog struct {
-	kapi.TypeMeta
-	kapi.ListMeta
+	unversioned.TypeMeta
 }
 
 // BuildRequest is the resource used to pass parameters to build generator
 type BuildRequest struct {
-	kapi.TypeMeta
+	unversioned.TypeMeta
+	// TODO: build request should allow name generation via Name and GenerateName, build config
+	// name should be provided as a separate field
 	kapi.ObjectMeta
 
 	// Revision is the information from the source for a specific repo snapshot.
@@ -471,21 +569,87 @@ type BuildRequest struct {
 	// From is the reference to the ImageStreamTag that triggered the build.
 	From *kapi.ObjectReference
 
+	// Binary indicates a request to build from a binary provided to the builder
+	Binary *BinaryBuildSource
+
 	// LastVersion (optional) is the LastVersion of the BuildConfig that was used
 	// to generate the build. If the BuildConfig in the generator doesn't match, a build will
 	// not be generated.
 	LastVersion *int
 }
 
+type BinaryBuildRequestOptions struct {
+	unversioned.TypeMeta
+	kapi.ObjectMeta
+
+	AsFile string
+
+	// TODO: support structs in query arguments in the future (inline and nested fields)
+
+	// Commit is the value identifying a specific commit
+	Commit string
+
+	// Message is the description of a specific commit
+	Message string
+
+	// AuthorName of the source control user
+	AuthorName string
+
+	// AuthorEmail of the source control user
+	AuthorEmail string
+
+	// CommitterName of the source control user
+	CommitterName string
+
+	// CommitterEmail of the source control user
+	CommitterEmail string
+}
+
 // BuildLogOptions is the REST options for a build log
 type BuildLogOptions struct {
-	kapi.TypeMeta
+	unversioned.TypeMeta
 
+	// Container for which to return logs
+	Container string
 	// Follow if true indicates that the build log should be streamed until
 	// the build terminates.
 	Follow bool
+	// If true, return previous terminated container logs
+	Previous bool
+	// A relative time in seconds before the current time from which to show logs. If this value
+	// precedes the time a pod was started, only logs since the pod start will be returned.
+	// If this value is in the future, no logs will be returned.
+	// Only one of sinceSeconds or sinceTime may be specified.
+	SinceSeconds *int64
+	// An RFC3339 timestamp from which to show logs. If this value
+	// preceeds the time a pod was started, only logs since the pod start will be returned.
+	// If this value is in the future, no logs will be returned.
+	// Only one of sinceSeconds or sinceTime may be specified.
+	SinceTime *unversioned.Time
+	// If true, add an RFC3339 or RFC3339Nano timestamp at the beginning of every line
+	// of log output.
+	Timestamps bool
+	// If set, the number of lines from the end of the logs to show. If not specified,
+	// logs are shown from the creation of the container or sinceSeconds or sinceTime
+	TailLines *int64
+	// If set, the number of bytes to read from the server before terminating the
+	// log output. This may not display a complete final line of logging, and may return
+	// slightly more or slightly less than the specified limit.
+	LimitBytes *int64
 
 	// NoWait if true causes the call to return immediately even if the build
 	// is not available yet. Otherwise the server will wait until the build has started.
 	NoWait bool
+
+	// Version of the build for which to view logs.
+	Version *int64
+}
+
+// SecretSpec specifies a secret to be included in a build pod and its corresponding mount point
+type SecretSpec struct {
+	// SecretSource is a reference to the secret
+	SecretSource kapi.LocalObjectReference
+
+	// MountPath is the path at which to mount the secret
+	MountPath string
 }

@@ -26,8 +26,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"k8s.io/kubernetes/pkg/client/clientcmd"
-	clientcmdapi "k8s.io/kubernetes/pkg/client/clientcmd/api"
+	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
+	clientcmdapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api"
 	"k8s.io/kubernetes/pkg/util"
 )
 
@@ -58,14 +58,14 @@ Specifying a name that already exists will merge new fields on top of existing v
   Bearer token and basic auth are mutually exclusive.
 `, clientcmd.FlagCertFile, clientcmd.FlagKeyFile, clientcmd.FlagBearerToken, clientcmd.FlagUsername, clientcmd.FlagPassword)
 
-const create_authinfo_example = `// Set only the "client-key" field on the "cluster-admin"
-// entry, without touching other values:
+const create_authinfo_example = `# Set only the "client-key" field on the "cluster-admin"
+# entry, without touching other values:
 $ kubectl config set-credentials cluster-admin --client-key=~/.kube/admin.key
 
-// Set basic auth for the "cluster-admin" entry
+# Set basic auth for the "cluster-admin" entry
 $ kubectl config set-credentials cluster-admin --username=admin --password=uXFGweU9l35qcif
 
-// Embed client certificate data in the "cluster-admin" entry
+# Embed client certificate data in the "cluster-admin" entry
 $ kubectl config set-credentials cluster-admin --client-certificate=~/.kube/admin.crt --embed-certs=true`
 
 func NewCmdConfigSetAuthInfo(out io.Writer, configAccess ConfigAccess) *cobra.Command {
@@ -84,6 +84,8 @@ func NewCmdConfigSetAuthInfo(out io.Writer, configAccess ConfigAccess) *cobra.Co
 			err := options.run()
 			if err != nil {
 				fmt.Fprintf(out, "%v\n", err)
+			} else {
+				fmt.Fprintf(out, "user %q set.\n", options.name)
 			}
 		},
 	}
@@ -197,7 +199,7 @@ func (o *createAuthInfoOptions) complete(cmd *cobra.Command) bool {
 
 func (o createAuthInfoOptions) validate() error {
 	if len(o.name) == 0 {
-		return errors.New("You must specify a non-empty user name")
+		return errors.New("you must specify a non-empty user name")
 	}
 	methods := []string{}
 	if len(o.token.Value()) > 0 {
@@ -207,22 +209,22 @@ func (o createAuthInfoOptions) validate() error {
 		methods = append(methods, fmt.Sprintf("--%v/--%v", clientcmd.FlagUsername, clientcmd.FlagPassword))
 	}
 	if len(methods) > 1 {
-		return fmt.Errorf("You cannot specify more than one authentication method at the same time: %v", strings.Join(methods, ", "))
+		return fmt.Errorf("you cannot specify more than one authentication method at the same time: %v", strings.Join(methods, ", "))
 	}
 	if o.embedCertData.Value() {
 		certPath := o.clientCertificate.Value()
 		keyPath := o.clientKey.Value()
 		if certPath == "" && keyPath == "" {
-			return fmt.Errorf("You must specify a --%s or --%s to embed", clientcmd.FlagCertFile, clientcmd.FlagKeyFile)
+			return fmt.Errorf("you must specify a --%s or --%s to embed", clientcmd.FlagCertFile, clientcmd.FlagKeyFile)
 		}
 		if certPath != "" {
 			if _, err := ioutil.ReadFile(certPath); err != nil {
-				return fmt.Errorf("Error reading %s data from %s: %v", clientcmd.FlagCertFile, certPath, err)
+				return fmt.Errorf("error reading %s data from %s: %v", clientcmd.FlagCertFile, certPath, err)
 			}
 		}
 		if keyPath != "" {
 			if _, err := ioutil.ReadFile(keyPath); err != nil {
-				return fmt.Errorf("Error reading %s data from %s: %v", clientcmd.FlagKeyFile, keyPath, err)
+				return fmt.Errorf("error reading %s data from %s: %v", clientcmd.FlagKeyFile, keyPath, err)
 			}
 		}
 	}

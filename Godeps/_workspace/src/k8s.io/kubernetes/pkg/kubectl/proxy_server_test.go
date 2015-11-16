@@ -26,7 +26,7 @@ import (
 	"strings"
 	"testing"
 
-	"k8s.io/kubernetes/pkg/client"
+	client "k8s.io/kubernetes/pkg/client/unversioned"
 )
 
 func TestAccept(t *testing.T) {
@@ -63,6 +63,15 @@ func TestAccept(t *testing.T) {
 			rejectPaths:  DefaultPathRejectRE,
 			acceptHosts:  DefaultHostAcceptRE,
 			path:         "/api/v1/pods/foo/exec",
+			host:         "127.0.0.1",
+			method:       "GET",
+			expectAccept: false,
+		},
+		{
+			acceptPaths:  DefaultPathAcceptRE,
+			rejectPaths:  DefaultPathRejectRE,
+			acceptHosts:  DefaultHostAcceptRE,
+			path:         "/api/v1/pods/foo/attach",
 			host:         "127.0.0.1",
 			method:       "GET",
 			expectAccept: false,

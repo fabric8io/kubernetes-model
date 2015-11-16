@@ -7,7 +7,7 @@ import (
 
 	"github.com/docker/distribution/digest"
 	"github.com/golang/glog"
-	"k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/util/sets"
 )
 
 // DockerDefaultNamespace is the value for namespace when a single segment name is provided.
@@ -43,9 +43,7 @@ func isRegistryName(str string) bool {
 // ParseDockerImageReference parses a Docker pull spec string into a
 // DockerImageReference.
 func ParseDockerImageReference(spec string) (DockerImageReference, error) {
-	var (
-		ref DockerImageReference
-	)
+	var ref DockerImageReference
 	// TODO replace with docker version once docker/docker PR11109 is merged upstream
 	stream, tag, id := parseRepositoryTag(spec)
 
@@ -98,17 +96,6 @@ func ParseDockerImageReference(spec string) (DockerImageReference, error) {
 		return ref, fmt.Errorf("the docker pull spec %q must be two or three segments separated by slashes", spec)
 	}
 
-	// TODO: validate repository name here?
-	//
-	// repo := ref.Name
-	// if len(ref.Namespace) > 0 {
-	// 	repo = ref.Namespace + "/" + ref.Name
-	// }
-
-	// if err := v2.ValidateRepositoryName(repo); err != nil {
-	// 	return DockerImageReference{}, err
-	// }
-
 	return ref, nil
 }
 
@@ -134,11 +121,34 @@ func (r DockerImageReference) Minimal() DockerImageReference {
 	return r
 }
 
+// AsRepository returns the reference without tags or IDs.
+func (r DockerImageReference) AsRepository() DockerImageReference {
+	r.Tag = ""
+	r.ID = ""
+	return r
+}
+
+// DaemonMinimal clears defaults that Docker assumes.
+func (r DockerImageReference) DaemonMinimal() DockerImageReference {
+	if r.Namespace == "library" {
+		r.Namespace = ""
+	}
+	switch r.Registry {
+	case "index.docker.io", "docker.io":
+		r.Registry = "docker.io"
+	}
+	return r.Minimal()
+}
+
+// NameString returns the name of the reference with its tag or ID.
 func (r DockerImageReference) NameString() string {
-	var ref string
-	if len(r.Tag) > 0 {
-		ref = ":" + r.Tag
-	} else if len(r.ID) > 0 {
+	switch {
+	case len(r.Name) == 0:
+		return ""
+	case len(r.Tag) > 0:
+		return r.Name + ":" + r.Tag
+	case len(r.ID) > 0:
+		var ref string
 		if _, err := digest.ParseDigest(r.ID); err == nil {
 			// if it parses as a digest, it's v2 pull by id
 			ref = "@" + r.ID
@@ -146,23 +156,36 @@ func (r DockerImageReference) NameString() string {
 			// if it doesn't parse as a digest, it's presumably a v1 registry by-id tag
 			ref = ":" + r.ID
 		}
+		return r.Name + ref
+	default:
+		return r.Name
 	}
-	return r.Name + ref
 }
 
-// String converts a DockerImageReference to a Docker pull spec.
-func (r DockerImageReference) String() string {
-	registry := r.Registry
-	if len(registry) > 0 {
-		registry += "/"
+// Exact returns a string representation of the set fields on the DockerImageReference
+func (r DockerImageReference) Exact() string {
+	name := r.NameString()
+	if len(name) == 0 {
+		return name
+	}
+	s := r.Registry
+	if len(s) > 0 {
+		s += "/"
 	}
 
+	if len(r.Namespace) != 0 {
+		s += r.Namespace + "/"
+	}
+	return s + name
+}
+
+// String converts a DockerImageReference to a Docker pull spec (which implies a default namespace
+// according to V1 Docker registry rules). Use Exact() if you want no defaulting.
+func (r DockerImageReference) String() string {
 	if len(r.Namespace) == 0 {
 		r.Namespace = DockerDefaultNamespace
 	}
-	r.Namespace += "/"
-
-	return fmt.Sprintf("%s%s%s", registry, r.Namespace, r.NameString())
+	return r.Exact()
 }
 
 // SplitImageStreamTag turns the name of an ImageStreamTag into Name and Tag.
@@ -185,6 +208,16 @@ func JoinImageStreamTag(name, tag string) string {
 		tag = DefaultImageTag
 	}
 	return fmt.Sprintf("%s:%s", name, tag)
+}
+
+// NormalizeImageStreamTag normalizes an image stream tag by defaulting to 'latest'
+// if no tag has been specified.
+func NormalizeImageStreamTag(name string) string {
+	if !strings.Contains(name, ":") {
+		// Default to latest
+		return JoinImageStreamTag(name, DefaultImageTag)
+	}
+	return name
 }
 
 // ImageWithMetadata returns a copy of image with the DockerImageMetadata filled in
@@ -296,6 +329,38 @@ func AddTagEventToImageStream(stream *ImageStream, tag string, next TagEvent) bo
 	return true
 }
 
+// UpdateChangedTrackingTags identifies any tags in the status that have changed and
+// ensures any referenced tracking tags are also updated. It returns the number of
+// updates applied.
+func UpdateChangedTrackingTags(new, old *ImageStream) int {
+	changes := 0
+	for newTag, newImages := range new.Status.Tags {
+		if oldImages, ok := old.Status.Tags[newTag]; ok {
+			changed, deleted := tagsChanged(oldImages.Items, newImages.Items)
+			if !changed || deleted {
+				continue
+			}
+			changes += UpdateTrackingTags(new, newTag, newImages.Items[0])
+		}
+	}
+	return changes
+}
+
+// tagsChanged returns true if the two lists differ, and if the newer list is empty
+// then deleted is returned true as well.
+func tagsChanged(new, old []TagEvent) (changed bool, deleted bool) {
+	switch {
+	case len(old) == 0 && len(new) == 0:
+		return false, false
+	case len(new) == 0:
+		return true, true
+	case len(old) == 0:
+		return true, false
+	default:
+		return new[0] == old[0], false
+	}
+}
+
 // UpdateTrackingTags sets updatedImage as the most recent TagEvent for all tags
 // in stream.spec.tags that have from.kind = "ImageStreamTag" and the tag in from.name
 // = updatedTag. from.name may be either <tag> or <stream name>:<tag>. For now, only
@@ -304,7 +369,10 @@ func AddTagEventToImageStream(stream *ImageStream, tag string, next TagEvent) bo
 // For example, if stream.spec.tags[latest].from.name = 2.0, whenever an image is pushed
 // to this stream with the tag 2.0, status.tags[latest].items[0] will also be updated
 // to point at the same image that was just pushed for 2.0.
-func UpdateTrackingTags(stream *ImageStream, updatedTag string, updatedImage TagEvent) {
+//
+// Returns the number of tags changed.
+func UpdateTrackingTags(stream *ImageStream, updatedTag string, updatedImage TagEvent) int {
+	updated := 0
 	glog.V(5).Infof("UpdateTrackingTags: stream=%s/%s, updatedTag=%s, updatedImage.dockerImageReference=%s, updatedImage.image=%s", stream.Namespace, stream.Name, updatedTag, updatedImage.DockerImageReference, updatedImage.Image)
 	for specTag, tagRef := range stream.Spec.Tags {
 		glog.V(5).Infof("Examining spec tag %q, tagRef=%#v", specTag, tagRef)
@@ -360,23 +428,17 @@ func UpdateTrackingTags(stream *ImageStream, updatedTag string, updatedImage Tag
 			continue
 		}
 
-		updated := AddTagEventToImageStream(stream, specTag, updatedImage)
-		glog.V(5).Infof("stream updated? %t", updated)
+		if AddTagEventToImageStream(stream, specTag, updatedImage) {
+			glog.V(5).Infof("stream updated")
+			updated++
+		}
 	}
+	return updated
 }
 
-// NameAndTag returns an image name with a tag. If the tag is blank then
-// DefaultImageTag is used.
-func NameAndTag(name, tag string) string {
-	if len(tag) == 0 {
-		tag = DefaultImageTag
-	}
-	return fmt.Sprintf("%s:%s", name, tag)
-}
-
-// ResolveImageID returns a StringSet of all the image IDs in stream that start with imageID.
-func ResolveImageID(stream *ImageStream, imageID string) util.StringSet {
-	set := util.NewStringSet()
+// ResolveImageID returns a sets.String of all the image IDs in stream that start with imageID.
+func ResolveImageID(stream *ImageStream, imageID string) sets.String {
+	set := sets.NewString()
 	for _, history := range stream.Status.Tags {
 		for _, tagging := range history.Items {
 			if d, err := digest.ParseDigest(tagging.Image); err == nil {
@@ -391,4 +453,16 @@ func ResolveImageID(stream *ImageStream, imageID string) util.StringSet {
 		}
 	}
 	return set
+}
+
+// ShortDockerImageID returns a short form of the provided DockerImage ID for display
+func ShortDockerImageID(image *DockerImage, length int) string {
+	id := image.ID
+	if s, err := digest.ParseDigest(id); err == nil {
+		id = s.Hex()
+	}
+	if len(id) > length {
+		id = id[:length]
+	}
+	return id
 }

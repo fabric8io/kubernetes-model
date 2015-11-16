@@ -1,7 +1,9 @@
 package v1
 
 import (
+	"k8s.io/kubernetes/pkg/api/unversioned"
 	kapi "k8s.io/kubernetes/pkg/api/v1"
+	kutil "k8s.io/kubernetes/pkg/util"
 )
 
 // DeploymentPhase describes the possible states a deployment can be in.
@@ -101,6 +103,10 @@ type ExecNewPodHook struct {
 	// ContainerName is the name of a container in the deployment pod template
 	// whose Docker image will be used for the hook pod's container.
 	ContainerName string `json:"containerName" description:"the name of a container from the pod template whose image will be used for the hook container"`
+	// Volumes is a list of named volumes from the pod template which should be
+	// copied to the hook pod. Volumes names not found in pod spec are ignored.
+	// An empty list means no volumes will be copied.
+	Volumes []string `json:"volumes,omitempty" description:"the names of volumes from the pod template which should be included in the hook pod; an empty list means no volumes will be copied, and names not found in the pod spec will be ignored"`
 }
 
 // RollingDeploymentStrategyParams are the input to the Rolling deployment
@@ -115,9 +121,36 @@ type RollingDeploymentStrategyParams struct {
 	// TimeoutSeconds is the time to wait for updates before giving up. If the
 	// value is nil, a default will be used.
 	TimeoutSeconds *int64 `json:"timeoutSeconds,omitempty" description:"the time to wait for updates before giving up"`
+	// MaxUnavailable is the maximum number of pods that can be unavailable
+	// during the update. Value can be an absolute number (ex: 5) or a
+	// percentage of total pods at the start of update (ex: 10%). Absolute
+	// number is calculated from percentage by rounding up.
+	//
+	// This cannot be 0 if MaxSurge is 0. By default, 25% is used.
+	//
+	// Example: when this is set to 30%, the old RC can be scaled down by 30%
+	// immediately when the rolling update starts. Once new pods are ready, old
+	// RC can be scaled down further, followed by scaling up the new RC,
+	// ensuring that at least 70% of original number of pods are available at
+	// all times during the update.
+	MaxUnavailable *kutil.IntOrString `json:"maxUnavailable,omitempty" description:"max number of pods that can be unavailable during the update; value can be an absolute number or a percentage of total pods at start of update"`
+	// MaxSurge is the maximum number of pods that can be scheduled above the
+	// original number of pods. Value can be an absolute number (ex: 5) or a
+	// percentage of total pods at the start of the update (ex: 10%). Absolute
+	// number is calculated from percentage by rounding up.
+	//
+	// This cannot be 0 if MaxUnavailable is 0. By default, 25% is used.
+	//
+	// Example: when this is set to 30%, the new RC can be scaled up by 30%
+	// immediately when the rolling update starts. Once old pods have been
+	// killed, new RC can be scaled up further, ensuring that total number of
+	// pods running at any time during the update is atmost 130% of original
+	// pods.
+	MaxSurge *kutil.IntOrString `json:"maxSurge,omitempty" description:"max number of pods that can be scheduled above the original number of pods; value can be an absolute number or a percentage of total pods at start of update"`
 	// UpdatePercent is the percentage of replicas to scale up or down each
 	// interval. If nil, one replica will be scaled up and down each interval.
 	// If negative, the scale order will be down/up instead of up/down.
+	// DEPRECATED: Use MaxUnavailable/MaxSurge instead.
 	UpdatePercent *int `json:"updatePercent,omitempty" description:"the percentage of replicas to scale up or down each interval (negative value switches scale order to down/up instead of up/down)"`
 	// Pre is a lifecycle hook which is executed before the deployment process
 	// begins. All LifecycleHookFailurePolicy values are supported.
@@ -177,8 +210,8 @@ const (
 // state of the DeploymentConfig. Each change to the DeploymentConfig which should result in
 // a new deployment results in an increment of LatestVersion.
 type DeploymentConfig struct {
-	kapi.TypeMeta   `json:",inline"`
-	kapi.ObjectMeta `json:"metadata,omitempty"`
+	unversioned.TypeMeta `json:",inline"`
+	kapi.ObjectMeta      `json:"metadata,omitempty"`
 
 	// Spec represents a desired deployment state and how to deploy to it.
 	Spec DeploymentConfigSpec `json:"spec" description:"a desired deployment state and how to deploy it"`
@@ -191,12 +224,12 @@ type DeploymentConfig struct {
 // DeploymentStrategy.
 type DeploymentConfigSpec struct {
 	// Strategy describes how a deployment is executed.
-	Strategy DeploymentStrategy `json:"strategy,omitempty" description:"how a deployment is executed"`
+	Strategy DeploymentStrategy `json:"strategy" description:"how a deployment is executed"`
 
 	// Triggers determine how updates to a DeploymentConfig result in new deployments. If no triggers
 	// are defined, a new deployment can only occur as a result of an explicit client update to the
 	// DeploymentConfig with a new LatestVersion.
-	Triggers []DeploymentTriggerPolicy `json:"triggers,omitempty" description:"how new deployments are triggered"`
+	Triggers []DeploymentTriggerPolicy `json:"triggers" description:"how new deployments are triggered"`
 
 	// Replicas is the number of desired replicas.
 	Replicas int `json:"replicas" description:"the desired number of replicas"`
@@ -288,8 +321,8 @@ type DeploymentCauseImageTrigger struct {
 
 // DeploymentConfigList is a collection of deployment configs.
 type DeploymentConfigList struct {
-	kapi.TypeMeta `json:",inline"`
-	kapi.ListMeta `json:"metadata,omitempty"`
+	unversioned.TypeMeta `json:",inline"`
+	unversioned.ListMeta `json:"metadata,omitempty"`
 
 	// Items is a list of deployment configs
 	Items []DeploymentConfig `json:"items" description:"a list of deployment configs"`
@@ -297,7 +330,7 @@ type DeploymentConfigList struct {
 
 // DeploymentConfigRollback provides the input to rollback generation.
 type DeploymentConfigRollback struct {
-	kapi.TypeMeta `json:",inline"`
+	unversioned.TypeMeta `json:",inline"`
 	// Spec defines the options to rollback generation.
 	Spec DeploymentConfigRollbackSpec `json:"spec" description:"options for rollback generation"`
 }
@@ -314,4 +347,50 @@ type DeploymentConfigRollbackSpec struct {
 	IncludeReplicationMeta bool `json:"includeReplicationMeta" description:"whether to include the replica count and replica selector in the rollback"`
 	// IncludeStrategy specifies whether to include the deployment Strategy.
 	IncludeStrategy bool `json:"includeStrategy" description:"whether to include the deployment strategy in the rollback"`
+}
+
+// DeploymentLog represents the logs for a deployment
+type DeploymentLog struct {
+	unversioned.TypeMeta `json:",inline"`
+}
+
+// DeploymentLogOptions is the REST options for a deployment log
+type DeploymentLogOptions struct {
+	unversioned.TypeMeta `json:",inline"`
+
+	// The container for which to stream logs. Defaults to only container if there is one container in the pod.
+	Container string `json:"container,omitempty" description:"the container for which to stream logs; defaults to only container if there is one container in the pod"`
+	// Follow if true indicates that the build log should be streamed until
+	// the build terminates.
+	Follow bool `json:"follow,omitempty" description:"if true indicates that the log should be streamed; defaults to false"`
+	// Return previous terminated container logs. Defaults to false.
+	Previous bool `json:"previous,omitempty" description:"return previous terminated container logs; defaults to false."`
+	// A relative time in seconds before the current time from which to show logs. If this value
+	// precedes the time a pod was started, only logs since the pod start will be returned.
+	// If this value is in the future, no logs will be returned.
+	// Only one of sinceSeconds or sinceTime may be specified.
+	SinceSeconds *int64 `json:"sinceSeconds,omitempty" description:"relative time in seconds before the current time from which to show logs"`
+	// An RFC3339 timestamp from which to show logs. If this value
+	// preceeds the time a pod was started, only logs since the pod start will be returned.
+	// If this value is in the future, no logs will be returned.
+	// Only one of sinceSeconds or sinceTime may be specified.
+	SinceTime *unversioned.Time `json:"sinceTime,omitempty" description:"relative time in seconds before the current time from which to show logs"`
+	// If true, add an RFC3339 or RFC3339Nano timestamp at the beginning of every line
+	// of log output. Defaults to false.
+	Timestamps bool `json:"timestamps,omitempty" description:"add an RFC3339 or RFC3339Nano timestamp at the beginning of every line of log output"`
+	// If set, the number of lines from the end of the logs to show. If not specified,
+	// logs are shown from the creation of the container or sinceSeconds or sinceTime
+	TailLines *int64 `json:"tailLines,omitempty" description:"the number of lines from the end of the logs to show"`
+	// If set, the number of bytes to read from the server before terminating the
+	// log output. This may not display a complete final line of logging, and may return
+	// slightly more or slightly less than the specified limit.
+	LimitBytes *int64 `json:"limitBytes,omitempty" description:"the number of bytes to read from the server before terminating the log output"`
+
+	// NoWait if true causes the call to return immediately even if the deployment
+	// is not available yet. Otherwise the server will wait until the deployment has started.
+	// TODO: Fix the tag to 'noWait' in v2
+	NoWait bool `json:"nowait,omitempty" description:"if true indicates that the server should not wait for a log to be available before returning; defaults to false"`
+
+	// Version of the deployment for which to view logs.
+	Version *int64 `json:"version,omitempty" description:"the version of the deployment for which to view logs"`
 }

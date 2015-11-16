@@ -18,10 +18,10 @@ package etcd
 
 import (
 	"fmt"
-	"path"
 
 	"k8s.io/kubernetes/pkg/api"
 	apierrors "k8s.io/kubernetes/pkg/api/errors"
+	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/registry/generic"
@@ -29,7 +29,6 @@ import (
 	"k8s.io/kubernetes/pkg/registry/namespace"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/storage"
-	"k8s.io/kubernetes/pkg/util"
 )
 
 // rest implements a RESTStorage for namespaces against etcd
@@ -48,8 +47,8 @@ type FinalizeREST struct {
 	store *etcdgeneric.Etcd
 }
 
-// NewStorage returns a RESTStorage object that will work against namespaces
-func NewStorage(s storage.Interface) (*REST, *StatusREST, *FinalizeREST) {
+// NewREST returns a RESTStorage object that will work against namespaces.
+func NewREST(s storage.Interface) (*REST, *StatusREST, *FinalizeREST) {
 	prefix := "/namespaces"
 	store := &etcdgeneric.Etcd{
 		NewFunc:     func() runtime.Object { return &api.Namespace{} },
@@ -58,7 +57,7 @@ func NewStorage(s storage.Interface) (*REST, *StatusREST, *FinalizeREST) {
 			return prefix
 		},
 		KeyFunc: func(ctx api.Context, name string) (string, error) {
-			return path.Join(prefix, name), nil
+			return etcdgeneric.NoNamespaceKeyFunc(ctx, prefix, name)
 		},
 		ObjectNameFunc: func(obj runtime.Object) (string, error) {
 			return obj.(*api.Namespace).Name, nil
@@ -67,11 +66,13 @@ func NewStorage(s storage.Interface) (*REST, *StatusREST, *FinalizeREST) {
 			return namespace.MatchNamespace(label, field)
 		},
 		EndpointName: "namespaces",
-		Storage:      s,
+
+		CreateStrategy:      namespace.Strategy,
+		UpdateStrategy:      namespace.Strategy,
+		ReturnDeletedObject: true,
+
+		Storage: s,
 	}
-	store.CreateStrategy = namespace.Strategy
-	store.UpdateStrategy = namespace.Strategy
-	store.ReturnDeletedObject = true
 
 	statusStore := *store
 	statusStore.UpdateStrategy = namespace.StatusStrategy
@@ -93,7 +94,7 @@ func (r *REST) Delete(ctx api.Context, name string, options *api.DeleteOptions) 
 
 	// upon first request to delete, we switch the phase to start namespace termination
 	if namespace.DeletionTimestamp.IsZero() {
-		now := util.Now()
+		now := unversioned.Now()
 		namespace.DeletionTimestamp = &now
 		namespace.Status.Phase = api.NamespaceTerminating
 		result, _, err := r.status.Update(ctx, namespace)

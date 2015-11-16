@@ -33,11 +33,11 @@ import (
 	routeapi "github.com/openshift/origin/pkg/route/api/v1"
 	templateapi "github.com/openshift/origin/pkg/template/api/v1"
 	userapi "github.com/openshift/origin/pkg/user/api/v1"
-	rapi "k8s.io/kubernetes/pkg/api"
 	resourceapi "k8s.io/kubernetes/pkg/api/resource"
+	rapi "k8s.io/kubernetes/pkg/api/unversioned"
 	kapi "k8s.io/kubernetes/pkg/api/v1"
-	configapi "k8s.io/kubernetes/pkg/client/clientcmd/api/v1"
-	kutil "k8s.io/kubernetes/pkg/util"
+	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
+	configapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api/v1"
 	watch "k8s.io/kubernetes/pkg/watch/json"
 
 	"github.com/fabric8io/kubernetes-model/pkg/schemagen"
@@ -47,6 +47,7 @@ type Schema struct {
 	BaseKubernetesList             kapi.List
 	ObjectMeta                     kapi.ObjectMeta
 	PodList                        kapi.PodList
+	PodTemplateList                kapi.PodTemplateList
 	ReplicationControllerList      kapi.ReplicationControllerList
 	ServiceList                    kapi.ServiceList
 	Endpoints                      kapi.Endpoints
@@ -69,7 +70,10 @@ type Schema struct {
 	SecurityContextConstraintsList kapi.SecurityContextConstraintsList
 	ServiceAccount                 kapi.ServiceAccount
 	ServiceAccountList             kapi.ServiceAccountList
-	Status                         kapi.Status
+	Status                         rapi.Status
+	Binding                        kapi.Binding
+	LimitRangeList                 kapi.LimitRangeList
+	DeleteOptions                  kapi.DeleteOptions
 	Quantity                       resourceapi.Quantity
 	BuildRequest                   buildapi.BuildRequest
 	BuildList                      buildapi.BuildList
@@ -78,6 +82,7 @@ type Schema struct {
 	ImageStreamList                imageapi.ImageStreamList
 	DeploymentConfigList           deployapi.DeploymentConfigList
 	RouteList                      routeapi.RouteList
+	ComponentStatusList            kapi.ComponentStatusList
 	ContainerStatus                kapi.ContainerStatus
 	Template                       templateapi.Template
 	TemplateList                   templateapi.TemplateList
@@ -119,6 +124,20 @@ type Schema struct {
 	Project                        projectapi.Project
 	ProjectList                    projectapi.ProjectList
 	ProjectRequest                 projectapi.ProjectRequest
+	ListMeta                       rapi.ListMeta
+	Job                            extensions.Job
+	JobList                        extensions.JobList
+	Scale                          extensions.Scale
+	HorizontalPodAutoscaler        extensions.HorizontalPodAutoscaler
+	HorizontalPodAutoscalerList    extensions.HorizontalPodAutoscalerList
+	ThirdPartyResource             extensions.ThirdPartyResource
+	ThirdPartyResourceList         extensions.ThirdPartyResourceList
+	Deployment                     extensions.Deployment
+	DeploymentList                 extensions.DeploymentList
+	DaemonSet                      extensions.DaemonSet
+	DaemonSetList                  extensions.DaemonSetList
+	Ingress                        extensions.Ingress
+	IngressList                    extensions.IngressList
 }
 
 func main() {
@@ -140,13 +159,15 @@ func main() {
 		{"github.com/openshift/origin/pkg/user/api/v1", "io.fabric8.openshift.api.model", "os_user_"},
 		{"github.com/openshift/origin/pkg/authorization/api/v1", "io.fabric8.openshift.api.model", "os_authorization_"},
 		{"github.com/openshift/origin/pkg/project/api/v1", "io.fabric8.openshift.api.model", "os_project_"},
-		{"k8s.io/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model", "api_"},
+		{"k8s.io/kubernetes/pkg/api/unversioned", "io.fabric8.kubernetes.api.model", "api_"},
+		{"k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api/v1", "io.fabric8.kubernetes.api.model", "clientcmd_api_"},
+		{"k8s.io/kubernetes/pkg/apis/extensions/v1beta1", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_extensions_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{
-		reflect.TypeOf(kutil.Time{}): reflect.TypeOf(""),
-		reflect.TypeOf(time.Time{}):  reflect.TypeOf(""),
-		reflect.TypeOf(struct{}{}):   reflect.TypeOf(""),
+		reflect.TypeOf(rapi.Time{}): reflect.TypeOf(""),
+		reflect.TypeOf(time.Time{}): reflect.TypeOf(""),
+		reflect.TypeOf(struct{}{}):  reflect.TypeOf(""),
 	}
 	schema, err := schemagen.GenerateSchema(reflect.TypeOf(Schema{}), packages, typeMap)
 	if err != nil {

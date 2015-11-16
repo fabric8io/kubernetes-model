@@ -17,9 +17,12 @@ limitations under the License.
 package prober
 
 import (
+	"errors"
 	"testing"
 
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/client/record"
+	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/probe"
 	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/util/exec"
@@ -48,12 +51,12 @@ func TestFindPortByName(t *testing.T) {
 	container := api.Container{
 		Ports: []api.ContainerPort{
 			{
-				Name:     "foo",
-				HostPort: 8080,
+				Name:          "foo",
+				ContainerPort: 8080,
 			},
 			{
-				Name:     "bar",
-				HostPort: 9000,
+				Name:          "bar",
+				ContainerPort: 9000,
 			},
 		},
 	}
@@ -85,7 +88,7 @@ func TestGetURLParts(t *testing.T) {
 	for _, test := range testCases {
 		state := api.PodStatus{PodIP: "127.0.0.1"}
 		container := api.Container{
-			Ports: []api.ContainerPort{{Name: "found", HostPort: 93}},
+			Ports: []api.ContainerPort{{Name: "found", ContainerPort: 93}},
 			LivenessProbe: &api.Probe{
 				Handler: api.Handler{
 					HTTPGet: test.probe,
@@ -138,7 +141,7 @@ func TestGetTCPAddrParts(t *testing.T) {
 	for _, test := range testCases {
 		host := "1.2.3.4"
 		container := api.Container{
-			Ports: []api.ContainerPort{{Name: "found", HostPort: 93}},
+			Ports: []api.ContainerPort{{Name: "found", ContainerPort: 93}},
 			LivenessProbe: &api.Probe{
 				Handler: api.Handler{
 					TCPSocket: test.probe,
@@ -160,11 +163,219 @@ func TestGetTCPAddrParts(t *testing.T) {
 	}
 }
 
-type FakeExecProber struct {
+// TestProbeContainer tests the functionality of probeContainer.
+// Test cases are:
+//
+// No probe.
+// Only LivenessProbe.
+// Only ReadinessProbe.
+// Both probes.
+//
+// Also, for each probe, there will be several cases covering whether the initial
+// delay has passed, whether the probe handler will return Success, Failure,
+// Unknown or error.
+//
+// PLEASE READ THE PROBE DOCS BEFORE CHANGING THIS TEST IF YOU ARE UNSURE HOW PROBES ARE SUPPOSED TO WORK:
+// (See https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/user-guide/pod-states.md#pod-conditions)
+func TestProbeContainer(t *testing.T) {
+	prober := &prober{
+		refManager: kubecontainer.NewRefManager(),
+		recorder:   &record.FakeRecorder{},
+	}
+	containerID := kubecontainer.ContainerID{"test", "foobar"}
+
+	tests := []struct {
+		testContainer     api.Container
+		expectError       bool
+		expectedLiveness  probe.Result
+		expectedReadiness probe.Result
+	}{
+		// No probes.
+		{
+			testContainer:     api.Container{},
+			expectedLiveness:  probe.Success,
+			expectedReadiness: probe.Success,
+		},
+		// Only LivenessProbe. expectedReadiness should always be true here.
+		{
+			testContainer: api.Container{
+				LivenessProbe: &api.Probe{},
+			},
+			expectedLiveness:  probe.Unknown,
+			expectedReadiness: probe.Success,
+		},
+		{
+			testContainer: api.Container{
+				LivenessProbe: &api.Probe{
+					Handler: api.Handler{
+						Exec: &api.ExecAction{},
+					},
+				},
+			},
+			expectedLiveness:  probe.Failure,
+			expectedReadiness: probe.Success,
+		},
+		{
+			testContainer: api.Container{
+				LivenessProbe: &api.Probe{
+					Handler: api.Handler{
+						Exec: &api.ExecAction{},
+					},
+				},
+			},
+			expectedLiveness:  probe.Success,
+			expectedReadiness: probe.Success,
+		},
+		{
+			testContainer: api.Container{
+				LivenessProbe: &api.Probe{
+					Handler: api.Handler{
+						Exec: &api.ExecAction{},
+					},
+				},
+			},
+			expectedLiveness:  probe.Unknown,
+			expectedReadiness: probe.Success,
+		},
+		{
+			testContainer: api.Container{
+				LivenessProbe: &api.Probe{
+					Handler: api.Handler{
+						Exec: &api.ExecAction{},
+					},
+				},
+			},
+			expectError:       true,
+			expectedLiveness:  probe.Unknown,
+			expectedReadiness: probe.Success,
+		},
+		// // Only ReadinessProbe. expectedLiveness should always be probe.Success here.
+		{
+			testContainer: api.Container{
+				ReadinessProbe: &api.Probe{},
+			},
+			expectedLiveness:  probe.Success,
+			expectedReadiness: probe.Unknown,
+		},
+		{
+			testContainer: api.Container{
+				ReadinessProbe: &api.Probe{
+					Handler: api.Handler{
+						Exec: &api.ExecAction{},
+					},
+				},
+			},
+			expectedLiveness:  probe.Success,
+			expectedReadiness: probe.Success,
+		},
+		{
+			testContainer: api.Container{
+				ReadinessProbe: &api.Probe{
+					Handler: api.Handler{
+						Exec: &api.ExecAction{},
+					},
+				},
+			},
+			expectedLiveness:  probe.Success,
+			expectedReadiness: probe.Success,
+		},
+		{
+			testContainer: api.Container{
+				ReadinessProbe: &api.Probe{
+					Handler: api.Handler{
+						Exec: &api.ExecAction{},
+					},
+				},
+			},
+			expectedLiveness:  probe.Success,
+			expectedReadiness: probe.Success,
+		},
+		{
+			testContainer: api.Container{
+				ReadinessProbe: &api.Probe{
+					Handler: api.Handler{
+						Exec: &api.ExecAction{},
+					},
+				},
+			},
+			expectError:       false,
+			expectedLiveness:  probe.Success,
+			expectedReadiness: probe.Success,
+		},
+		// Both LivenessProbe and ReadinessProbe.
+		{
+			testContainer: api.Container{
+				LivenessProbe:  &api.Probe{},
+				ReadinessProbe: &api.Probe{},
+			},
+			expectedLiveness:  probe.Unknown,
+			expectedReadiness: probe.Unknown,
+		},
+		{
+			testContainer: api.Container{
+				LivenessProbe: &api.Probe{
+					Handler: api.Handler{
+						Exec: &api.ExecAction{},
+					},
+				},
+				ReadinessProbe: &api.Probe{},
+			},
+			expectedLiveness:  probe.Failure,
+			expectedReadiness: probe.Unknown,
+		},
+		{
+			testContainer: api.Container{
+				LivenessProbe: &api.Probe{
+					Handler: api.Handler{
+						Exec: &api.ExecAction{},
+					},
+				},
+				ReadinessProbe: &api.Probe{
+					Handler: api.Handler{
+						Exec: &api.ExecAction{},
+					},
+				},
+			},
+			expectedLiveness:  probe.Success,
+			expectedReadiness: probe.Success,
+		},
+	}
+
+	for i, test := range tests {
+		if test.expectError {
+			prober.exec = fakeExecProber{test.expectedLiveness, errors.New("exec error")}
+		} else {
+			prober.exec = fakeExecProber{test.expectedLiveness, nil}
+		}
+
+		liveness, err := prober.probeLiveness(&api.Pod{}, api.PodStatus{}, test.testContainer, containerID)
+		if test.expectError && err == nil {
+			t.Errorf("[%d] Expected liveness probe error but no error was returned.", i)
+		}
+		if !test.expectError && err != nil {
+			t.Errorf("[%d] Didn't expect liveness probe error but got: %v", i, err)
+		}
+		if test.expectedLiveness != liveness {
+			t.Errorf("[%d] Expected liveness result to be %v but was %v", i, test.expectedLiveness, liveness)
+		}
+
+		// TODO: Test readiness errors
+		prober.exec = fakeExecProber{test.expectedReadiness, nil}
+		readiness, err := prober.probeReadiness(&api.Pod{}, api.PodStatus{}, test.testContainer, containerID)
+		if err != nil {
+			t.Errorf("[%d] Unexpected readiness probe error: %v", i, err)
+		}
+		if test.expectedReadiness != readiness {
+			t.Errorf("[%d] Expected readiness result to be %v but was %v", i, test.expectedReadiness, readiness)
+		}
+	}
+}
+
+type fakeExecProber struct {
 	result probe.Result
 	err    error
 }
 
-func (p FakeExecProber) Probe(_ exec.Cmd) (probe.Result, error) {
-	return p.result, p.err
+func (p fakeExecProber) Probe(_ exec.Cmd) (probe.Result, string, error) {
+	return p.result, "", p.err
 }

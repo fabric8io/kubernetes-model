@@ -23,7 +23,6 @@ import (
 	"k8s.io/kubernetes/pkg/util/errors"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/golang/glog"
 )
 
 // ValidationErrorType is a machine readable value providing more detail about why
@@ -74,7 +73,7 @@ func (t ValidationErrorType) String() string {
 	case ValidationErrorTypeTooLong:
 		return "too long"
 	default:
-		glog.Errorf("unrecognized validation type: %#v", t)
+		panic(fmt.Sprintf("unrecognized validation type: %#v", t))
 		return ""
 	}
 }
@@ -148,7 +147,6 @@ func NewFieldTooLong(field string, value interface{}, maxLength int) *Validation
 type ValidationErrorList []error
 
 // Prefix adds a prefix to the Field of every ValidationError in the list.
-// Also adds prefixes to multiple fields if you send an or separator.
 // Returns the list for convenience.
 func (list ValidationErrorList) Prefix(prefix string) ValidationErrorList {
 	for i := range list {
@@ -156,17 +154,13 @@ func (list ValidationErrorList) Prefix(prefix string) ValidationErrorList {
 			if strings.HasPrefix(err.Field, "[") {
 				err.Field = prefix + err.Field
 			} else if len(err.Field) != 0 {
-				fields := strings.SplitAfter(err.Field, " or ")
-				err.Field = ""
-				for j := range fields {
-					err.Field += prefix + "." + fields[j]
-				}
+				err.Field = prefix + "." + err.Field
 			} else {
 				err.Field = prefix
 			}
 			list[i] = err
 		} else {
-			glog.Warningf("Programmer error: ValidationErrorList holds non-ValidationError: %#v", list[i])
+			panic(fmt.Sprintf("Programmer error: ValidationErrorList holds non-ValidationError: %#v", list[i]))
 		}
 	}
 	return list

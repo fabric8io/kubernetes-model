@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/resource"
 	versioned "k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/util"
@@ -150,64 +151,6 @@ func TestSetDefaultReplicationController(t *testing.T) {
 				t.Errorf("expected: %v, got: %v", rc2.Spec.Template.Labels, rc2.Labels)
 			} else {
 				t.Errorf("unexpected equality: %v", rc.Labels)
-			}
-		}
-	}
-}
-
-func TestSetDefaultDaemon(t *testing.T) {
-	tests := []struct {
-		dc                 *versioned.Daemon
-		expectLabelsChange bool
-	}{
-		{
-			dc: &versioned.Daemon{
-				Spec: versioned.DaemonSpec{
-					Template: &versioned.PodTemplateSpec{
-						ObjectMeta: versioned.ObjectMeta{
-							Labels: map[string]string{
-								"foo": "bar",
-							},
-						},
-					},
-				},
-			},
-			expectLabelsChange: true,
-		},
-		{
-			dc: &versioned.Daemon{
-				ObjectMeta: versioned.ObjectMeta{
-					Labels: map[string]string{
-						"bar": "foo",
-					},
-				},
-				Spec: versioned.DaemonSpec{
-					Template: &versioned.PodTemplateSpec{
-						ObjectMeta: versioned.ObjectMeta{
-							Labels: map[string]string{
-								"foo": "bar",
-							},
-						},
-					},
-				},
-			},
-			expectLabelsChange: false,
-		},
-	}
-
-	for _, test := range tests {
-		dc := test.dc
-		obj2 := roundTrip(t, runtime.Object(dc))
-		dc2, ok := obj2.(*versioned.Daemon)
-		if !ok {
-			t.Errorf("unexpected object: %v", dc2)
-			t.FailNow()
-		}
-		if test.expectLabelsChange != reflect.DeepEqual(dc2.Labels, dc2.Spec.Template.Labels) {
-			if test.expectLabelsChange {
-				t.Errorf("expected: %v, got: %v", dc2.Spec.Template.Labels, dc2.Labels)
-			} else {
-				t.Errorf("unexpected equality: %v", dc.Labels)
 			}
 		}
 	}
@@ -358,14 +301,14 @@ func TestSetDefaulServiceTargetPort(t *testing.T) {
 	obj := roundTrip(t, runtime.Object(in))
 	out := obj.(*versioned.Service)
 	if out.Spec.Ports[0].TargetPort != util.NewIntOrStringFromInt(1234) {
-		t.Errorf("Expected TargetPort to be defaulted, got %s", out.Spec.Ports[0].TargetPort)
+		t.Errorf("Expected TargetPort to be defaulted, got %v", out.Spec.Ports[0].TargetPort)
 	}
 
 	in = &versioned.Service{Spec: versioned.ServiceSpec{Ports: []versioned.ServicePort{{Port: 1234, TargetPort: util.NewIntOrStringFromInt(5678)}}}}
 	obj = roundTrip(t, runtime.Object(in))
 	out = obj.(*versioned.Service)
 	if out.Spec.Ports[0].TargetPort != util.NewIntOrStringFromInt(5678) {
-		t.Errorf("Expected TargetPort to be unchanged, got %s", out.Spec.Ports[0].TargetPort)
+		t.Errorf("Expected TargetPort to be unchanged, got %v", out.Spec.Ports[0].TargetPort)
 	}
 }
 
@@ -382,13 +325,13 @@ func TestSetDefaultServicePort(t *testing.T) {
 		t.Errorf("Expected protocol %s, got %s", versioned.ProtocolUDP, out.Spec.Ports[0].Protocol)
 	}
 	if out.Spec.Ports[0].TargetPort != util.NewIntOrStringFromString("p") {
-		t.Errorf("Expected port %d, got %s", in.Spec.Ports[0].Port, out.Spec.Ports[0].TargetPort)
+		t.Errorf("Expected port %v, got %v", in.Spec.Ports[0].Port, out.Spec.Ports[0].TargetPort)
 	}
 	if out.Spec.Ports[1].Protocol != versioned.ProtocolUDP {
 		t.Errorf("Expected protocol %s, got %s", versioned.ProtocolUDP, out.Spec.Ports[1].Protocol)
 	}
 	if out.Spec.Ports[1].TargetPort != util.NewIntOrStringFromInt(309) {
-		t.Errorf("Expected port %d, got %s", in.Spec.Ports[1].Port, out.Spec.Ports[1].TargetPort)
+		t.Errorf("Expected port %v, got %v", in.Spec.Ports[1].Port, out.Spec.Ports[1].TargetPort)
 	}
 
 	// Defaulted.
@@ -403,13 +346,13 @@ func TestSetDefaultServicePort(t *testing.T) {
 		t.Errorf("Expected protocol %s, got %s", versioned.ProtocolTCP, out.Spec.Ports[0].Protocol)
 	}
 	if out.Spec.Ports[0].TargetPort != util.NewIntOrStringFromInt(in.Spec.Ports[0].Port) {
-		t.Errorf("Expected port %d, got %d", in.Spec.Ports[0].Port, out.Spec.Ports[0].TargetPort)
+		t.Errorf("Expected port %v, got %v", in.Spec.Ports[0].Port, out.Spec.Ports[0].TargetPort)
 	}
 	if out.Spec.Ports[1].Protocol != versioned.ProtocolTCP {
 		t.Errorf("Expected protocol %s, got %s", versioned.ProtocolTCP, out.Spec.Ports[1].Protocol)
 	}
 	if out.Spec.Ports[1].TargetPort != util.NewIntOrStringFromInt(in.Spec.Ports[1].Port) {
-		t.Errorf("Expected port %d, got %d", in.Spec.Ports[1].Port, out.Spec.Ports[1].TargetPort)
+		t.Errorf("Expected port %v, got %v", in.Spec.Ports[1].Port, out.Spec.Ports[1].TargetPort)
 	}
 }
 
@@ -487,5 +430,198 @@ func TestSetDefaultObjectFieldSelectorAPIVersion(t *testing.T) {
 	apiVersion := s2.Containers[0].Env[0].ValueFrom.FieldRef.APIVersion
 	if apiVersion != "v1" {
 		t.Errorf("Expected default APIVersion v1, got: %v", apiVersion)
+	}
+}
+
+func TestSetDefaultRequestsPod(t *testing.T) {
+	// verify we default if limits are specified
+	s := versioned.PodSpec{}
+	s.Containers = []versioned.Container{
+		{
+			Resources: versioned.ResourceRequirements{
+				Limits: versioned.ResourceList{
+					versioned.ResourceCPU: resource.MustParse("100m"),
+				},
+			},
+		},
+	}
+	pod := &versioned.Pod{
+		Spec: s,
+	}
+	output := roundTrip(t, runtime.Object(pod))
+	pod2 := output.(*versioned.Pod)
+	defaultRequest := pod2.Spec.Containers[0].Resources.Requests
+	requestValue := defaultRequest[versioned.ResourceCPU]
+	if requestValue.String() != "100m" {
+		t.Errorf("Expected request cpu: %s, got: %s", "100m", requestValue.String())
+	}
+
+	// verify we do nothing if no limits are specified
+	s = versioned.PodSpec{}
+	s.Containers = []versioned.Container{{}}
+	pod = &versioned.Pod{
+		Spec: s,
+	}
+	output = roundTrip(t, runtime.Object(pod))
+	pod2 = output.(*versioned.Pod)
+	defaultRequest = pod2.Spec.Containers[0].Resources.Requests
+	requestValue = defaultRequest[versioned.ResourceCPU]
+	if requestValue.String() != "0" {
+		t.Errorf("Expected 0 request value, got: %s", requestValue.String())
+	}
+}
+
+func TestDefaultRequestIsNotSetForReplicationController(t *testing.T) {
+	s := versioned.PodSpec{}
+	s.Containers = []versioned.Container{
+		{
+			Resources: versioned.ResourceRequirements{
+				Limits: versioned.ResourceList{
+					versioned.ResourceCPU: resource.MustParse("100m"),
+				},
+			},
+		},
+	}
+	rc := &versioned.ReplicationController{
+		Spec: versioned.ReplicationControllerSpec{
+			Replicas: newInt(3),
+			Template: &versioned.PodTemplateSpec{
+				ObjectMeta: versioned.ObjectMeta{
+					Labels: map[string]string{
+						"foo": "bar",
+					},
+				},
+				Spec: s,
+			},
+		},
+	}
+	output := roundTrip(t, runtime.Object(rc))
+	rc2 := output.(*versioned.ReplicationController)
+	defaultRequest := rc2.Spec.Template.Spec.Containers[0].Resources.Requests
+	requestValue := defaultRequest[versioned.ResourceCPU]
+	if requestValue.String() != "0" {
+		t.Errorf("Expected 0 request value, got: %s", requestValue.String())
+	}
+}
+
+func TestSetDefaultLimitRangeItem(t *testing.T) {
+	limitRange := &versioned.LimitRange{
+		ObjectMeta: versioned.ObjectMeta{
+			Name: "test-defaults",
+		},
+		Spec: versioned.LimitRangeSpec{
+			Limits: []versioned.LimitRangeItem{{
+				Type: versioned.LimitTypeContainer,
+				Max: versioned.ResourceList{
+					versioned.ResourceCPU: resource.MustParse("100m"),
+				},
+				Min: versioned.ResourceList{
+					versioned.ResourceMemory: resource.MustParse("100Mi"),
+				},
+				Default:        versioned.ResourceList{},
+				DefaultRequest: versioned.ResourceList{},
+			}},
+		},
+	}
+
+	output := roundTrip(t, runtime.Object(limitRange))
+	limitRange2 := output.(*versioned.LimitRange)
+	defaultLimit := limitRange2.Spec.Limits[0].Default
+	defaultRequest := limitRange2.Spec.Limits[0].DefaultRequest
+
+	// verify that default cpu was set to the max
+	defaultValue := defaultLimit[versioned.ResourceCPU]
+	if defaultValue.String() != "100m" {
+		t.Errorf("Expected default cpu: %s, got: %s", "100m", defaultValue.String())
+	}
+	// verify that default request was set to the limit
+	requestValue := defaultRequest[versioned.ResourceCPU]
+	if requestValue.String() != "100m" {
+		t.Errorf("Expected request cpu: %s, got: %s", "100m", requestValue.String())
+	}
+	// verify that if a min is provided, it will be the default if no limit is specified
+	requestMinValue := defaultRequest[versioned.ResourceMemory]
+	if requestMinValue.String() != "100Mi" {
+		t.Errorf("Expected request memory: %s, got: %s", "100Mi", requestMinValue.String())
+	}
+}
+
+func TestDefaultSecurityContextConstraints(t *testing.T) {
+	tests := map[string]struct {
+		scc              *versioned.SecurityContextConstraints
+		expectedFSGroup  versioned.FSGroupStrategyType
+		expectedSupGroup versioned.SupplementalGroupsStrategyType
+	}{
+		"shouldn't default": {
+			scc: &versioned.SecurityContextConstraints{
+				FSGroup: versioned.FSGroupStrategyOptions{
+					Type: versioned.FSGroupStrategyMustRunAs,
+				},
+				SupplementalGroups: versioned.SupplementalGroupsStrategyOptions{
+					Type: versioned.SupplementalGroupsStrategyMustRunAs,
+				},
+			},
+			expectedFSGroup:  versioned.FSGroupStrategyMustRunAs,
+			expectedSupGroup: versioned.SupplementalGroupsStrategyMustRunAs,
+		},
+		"default fsgroup runAsAny": {
+			scc: &versioned.SecurityContextConstraints{
+				RunAsUser: versioned.RunAsUserStrategyOptions{
+					Type: versioned.RunAsUserStrategyRunAsAny,
+				},
+				SupplementalGroups: versioned.SupplementalGroupsStrategyOptions{
+					Type: versioned.SupplementalGroupsStrategyMustRunAs,
+				},
+			},
+			expectedFSGroup:  versioned.FSGroupStrategyRunAsAny,
+			expectedSupGroup: versioned.SupplementalGroupsStrategyMustRunAs,
+		},
+		"default sup group runAsAny": {
+			scc: &versioned.SecurityContextConstraints{
+				RunAsUser: versioned.RunAsUserStrategyOptions{
+					Type: versioned.RunAsUserStrategyRunAsAny,
+				},
+				FSGroup: versioned.FSGroupStrategyOptions{
+					Type: versioned.FSGroupStrategyMustRunAs,
+				},
+			},
+			expectedFSGroup:  versioned.FSGroupStrategyMustRunAs,
+			expectedSupGroup: versioned.SupplementalGroupsStrategyRunAsAny,
+		},
+		"default fsgroup mustRunAs": {
+			scc: &versioned.SecurityContextConstraints{
+				RunAsUser: versioned.RunAsUserStrategyOptions{
+					Type: versioned.RunAsUserStrategyMustRunAsRange,
+				},
+				SupplementalGroups: versioned.SupplementalGroupsStrategyOptions{
+					Type: versioned.SupplementalGroupsStrategyMustRunAs,
+				},
+			},
+			expectedFSGroup:  versioned.FSGroupStrategyMustRunAs,
+			expectedSupGroup: versioned.SupplementalGroupsStrategyMustRunAs,
+		},
+		"default sup group mustRunAs": {
+			scc: &versioned.SecurityContextConstraints{
+				RunAsUser: versioned.RunAsUserStrategyOptions{
+					Type: versioned.RunAsUserStrategyMustRunAsRange,
+				},
+				FSGroup: versioned.FSGroupStrategyOptions{
+					Type: versioned.FSGroupStrategyMustRunAs,
+				},
+			},
+			expectedFSGroup:  versioned.FSGroupStrategyMustRunAs,
+			expectedSupGroup: versioned.SupplementalGroupsStrategyMustRunAs,
+		},
+	}
+	for k, v := range tests {
+		output := roundTrip(t, runtime.Object(v.scc))
+		scc := output.(*versioned.SecurityContextConstraints)
+
+		if scc.FSGroup.Type != v.expectedFSGroup {
+			t.Errorf("%s has invalid fsgroup.  Expected: %v got: %v", k, v.expectedFSGroup, scc.FSGroup.Type)
+		}
+		if scc.SupplementalGroups.Type != v.expectedSupGroup {
+			t.Errorf("%s has invalid supplemental group.  Expected: %v got: %v", k, v.expectedSupGroup, scc.SupplementalGroups.Type)
+		}
 	}
 }

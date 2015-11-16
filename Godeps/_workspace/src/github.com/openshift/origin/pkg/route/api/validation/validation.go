@@ -8,6 +8,7 @@ import (
 	kval "k8s.io/kubernetes/pkg/api/validation"
 	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/util/fielderrors"
+	kvalidation "k8s.io/kubernetes/pkg/util/validation"
 
 	oapi "github.com/openshift/origin/pkg/api"
 	routeapi "github.com/openshift/origin/pkg/route/api"
@@ -21,18 +22,26 @@ func ValidateRoute(route *routeapi.Route) fielderrors.ValidationErrorList {
 	result = append(result, kval.ValidateObjectMeta(&route.ObjectMeta, true, oapi.GetNameValidationFunc(kval.ValidatePodName)).Prefix("metadata")...)
 
 	//host is not required but if it is set ensure it meets DNS requirements
-	if len(route.Host) > 0 {
-		if !util.IsDNS1123Subdomain(route.Host) {
-			result = append(result, fielderrors.NewFieldInvalid("host", route.Host, "host must conform to DNS 952 subdomain conventions"))
+	if len(route.Spec.Host) > 0 {
+		if !kvalidation.IsDNS1123Subdomain(route.Spec.Host) {
+			result = append(result, fielderrors.NewFieldInvalid("host", route.Spec.Host, "host must conform to DNS 952 subdomain conventions"))
 		}
 	}
 
-	if len(route.Path) > 0 && !strings.HasPrefix(route.Path, "/") {
-		result = append(result, fielderrors.NewFieldInvalid("path", route.Path, "path must begin with /"))
+	if len(route.Spec.Path) > 0 && !strings.HasPrefix(route.Spec.Path, "/") {
+		result = append(result, fielderrors.NewFieldInvalid("path", route.Spec.Path, "path must begin with /"))
 	}
 
-	if len(route.ServiceName) == 0 {
+	if len(route.Spec.To.Name) == 0 {
 		result = append(result, fielderrors.NewFieldRequired("serviceName"))
+	}
+
+	if route.Spec.Port != nil {
+		switch target := route.Spec.Port.TargetPort; {
+		case target.Kind == util.IntstrInt && target.IntVal == 0,
+			target.Kind == util.IntstrString && len(target.StrVal) == 0:
+			result = append(result, fielderrors.NewFieldRequired("targetPort"))
+		}
 	}
 
 	if errs := validateTLS(route); len(errs) != 0 {
@@ -50,11 +59,19 @@ func ValidateRouteUpdate(route *routeapi.Route, older *routeapi.Route) fielderro
 	return allErrs
 }
 
+func ValidateRouteStatusUpdate(route *routeapi.Route, older *routeapi.Route) fielderrors.ValidationErrorList {
+	allErrs := fielderrors.ValidationErrorList{}
+	allErrs = append(allErrs, validation.ValidateObjectMetaUpdate(&route.ObjectMeta, &older.ObjectMeta).Prefix("metadata")...)
+
+	// TODO: validate route status
+	return allErrs
+}
+
 // ValidateTLS tests fields for different types of TLS combinations are set.  Called
 // by ValidateRoute.
 func validateTLS(route *routeapi.Route) fielderrors.ValidationErrorList {
 	result := fielderrors.ValidationErrorList{}
-	tls := route.TLS
+	tls := route.Spec.TLS
 
 	//no termination, ignore other settings
 	if tls == nil || tls.Termination == "" {
@@ -92,9 +109,14 @@ func validateTLS(route *routeapi.Route) fielderrors.ValidationErrorList {
 			result = append(result, fielderrors.NewFieldInvalid("destinationCACertificate", tls.DestinationCACertificate, "edge termination does not support destination certificates"))
 		}
 	default:
-		msg := fmt.Sprintf("invalid value for termination, acceptable values are %s, %s, %s, or emtpy (no tls specified)", routeapi.TLSTerminationEdge, routeapi.TLSTerminationPassthrough, routeapi.TLSTerminationReencrypt)
+		msg := fmt.Sprintf("invalid value for termination, acceptable values are %s, %s, %s, or empty (no tls specified)", routeapi.TLSTerminationEdge, routeapi.TLSTerminationPassthrough, routeapi.TLSTerminationReencrypt)
 		result = append(result, fielderrors.NewFieldInvalid("termination", tls.Termination, msg))
 	}
+
+	if err := validateInsecureEdgeTerminationPolicy(tls); err != nil {
+		result = append(result, err)
+	}
+
 	result = append(result, validateNoDoubleEscapes(tls)...)
 	return result
 }
@@ -117,4 +139,34 @@ func validateNoDoubleEscapes(tls *routeapi.TLSConfig) fielderrors.ValidationErro
 		allErrs = append(allErrs, fielderrors.NewFieldInvalid("destinationCACertificate", tls.DestinationCACertificate, `double escaped new lines (\\n) are invalid`))
 	}
 	return allErrs
+}
+
+// validateInsecureEdgeTerminationPolicy tests fields for different types of
+// insecure options. Called by validateTLS.
+func validateInsecureEdgeTerminationPolicy(tls *routeapi.TLSConfig) *fielderrors.ValidationError {
+	// Check insecure option value if specified (empty is ok).
+	if len(tls.InsecureEdgeTerminationPolicy) == 0 {
+		return nil
+	}
+
+	// Ensure insecure is set only for edge terminated routes.
+	if routeapi.TLSTerminationEdge != tls.Termination {
+		// tls.InsecureEdgeTerminationPolicy option is not supported for a non edge-terminated routes.
+		return fielderrors.NewFieldInvalid("InsecureEdgeTerminationPolicy", tls.InsecureEdgeTerminationPolicy, "InsecureEdgeTerminationPolicy is only allowed for edge-terminated routes")
+	}
+
+	// It is an edge-terminated route, check insecure option value is
+	// one of None(for disable), Allow or Redirect.
+	allowedValues := map[routeapi.InsecureEdgeTerminationPolicyType]bool{
+		routeapi.InsecureEdgeTerminationPolicyNone:     true,
+		routeapi.InsecureEdgeTerminationPolicyAllow:    true,
+		routeapi.InsecureEdgeTerminationPolicyRedirect: true,
+	}
+
+	if _, ok := allowedValues[tls.InsecureEdgeTerminationPolicy]; !ok {
+		msg := fmt.Sprintf("invalid value for InsecureEdgeTerminationPolicy option, acceptable values are %s, %s, %s, or empty", routeapi.InsecureEdgeTerminationPolicyNone, routeapi.InsecureEdgeTerminationPolicyAllow, routeapi.InsecureEdgeTerminationPolicyRedirect)
+		return fielderrors.NewFieldInvalid("InsecureEdgeTerminationPolicy", tls.InsecureEdgeTerminationPolicy, msg)
+	}
+
+	return nil
 }

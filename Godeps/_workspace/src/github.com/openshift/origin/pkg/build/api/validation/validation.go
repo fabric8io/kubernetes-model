@@ -3,11 +3,13 @@ package validation
 import (
 	"fmt"
 	"net/url"
+	"path"
+	"strings"
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/validation"
-	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/util/fielderrors"
+	kvalidation "k8s.io/kubernetes/pkg/util/validation"
 
 	oapi "github.com/openshift/origin/pkg/api"
 	buildapi "github.com/openshift/origin/pkg/build/api"
@@ -19,7 +21,6 @@ import (
 func ValidateBuild(build *buildapi.Build) fielderrors.ValidationErrorList {
 	allErrs := fielderrors.ValidationErrorList{}
 	allErrs = append(allErrs, validation.ValidateObjectMeta(&build.ObjectMeta, true, validation.NameIsDNSSubdomain).Prefix("metadata")...)
-
 	allErrs = append(allErrs, validateBuildSpec(&build.Spec).Prefix("spec")...)
 	return allErrs
 }
@@ -31,7 +32,7 @@ func ValidateBuildUpdate(build *buildapi.Build, older *buildapi.Build) fielderro
 	allErrs = append(allErrs, ValidateBuild(build)...)
 
 	if !kapi.Semantic.DeepEqual(build.Spec, older.Spec) {
-		allErrs = append(allErrs, fielderrors.NewFieldInvalid("spec", build.Spec, "spec is immutable"))
+		allErrs = append(allErrs, fielderrors.NewFieldInvalid("spec", "content of spec is not printed out, please refer to the \"details\"", "spec is immutable"))
 	}
 
 	return allErrs
@@ -75,6 +76,17 @@ func ValidateBuildConfig(config *buildapi.BuildConfig) fielderrors.ValidationErr
 	}
 
 	allErrs = append(allErrs, validateBuildSpec(&config.Spec.BuildSpec).Prefix("spec")...)
+
+	// validate ImageChangeTriggers of DockerStrategy builds
+	strategy := config.Spec.BuildSpec.Strategy
+	if strategy.Type == buildapi.DockerBuildStrategyType && strategy.DockerStrategy.From == nil {
+		for _, trigger := range config.Spec.Triggers {
+			if trigger.Type == buildapi.ImageChangeBuildTriggerType && (trigger.ImageChange == nil || trigger.ImageChange.From == nil) {
+				allErrs = append(allErrs, fielderrors.NewFieldRequired("imageChange.from"))
+			}
+		}
+	}
+
 	return allErrs
 }
 
@@ -99,14 +111,25 @@ func ValidateBuildRequest(request *buildapi.BuildRequest) fielderrors.Validation
 
 func validateBuildSpec(spec *buildapi.BuildSpec) fielderrors.ValidationErrorList {
 	allErrs := fielderrors.ValidationErrorList{}
-	isCustomBuild := spec.Strategy.Type == buildapi.CustomBuildStrategyType
-	// Validate 'source' and 'output' for all build types except Custom build
-	// where they are optional and validated only if present.
-	if !isCustomBuild || (isCustomBuild && len(spec.Source.Type) != 0) {
+	hasSourceType := len(spec.Source.Type) != 0
+	switch t := spec.Strategy.Type; {
+	// 'source' is optional for Custom builds
+	case t == buildapi.CustomBuildStrategyType && hasSourceType:
 		allErrs = append(allErrs, validateSource(&spec.Source).Prefix("source")...)
-
-		if spec.Revision != nil {
-			allErrs = append(allErrs, validateRevision(spec.Revision).Prefix("revision")...)
+	case t == buildapi.SourceBuildStrategyType:
+		allErrs = append(allErrs, validateSource(&spec.Source).Prefix("source")...)
+		if spec.Source.Type == buildapi.BuildSourceDockerfile {
+			allErrs = append(allErrs, fielderrors.NewFieldInvalid("source.type", nil, "may not be type Dockerfile for source builds"))
+		}
+	case t == buildapi.DockerBuildStrategyType:
+		allErrs = append(allErrs, validateSource(&spec.Source).Prefix("source")...)
+	}
+	if spec.Revision != nil {
+		allErrs = append(allErrs, validateRevision(spec.Revision).Prefix("revision")...)
+	}
+	if spec.CompletionDeadlineSeconds != nil {
+		if *spec.CompletionDeadlineSeconds <= 0 {
+			allErrs = append(allErrs, fielderrors.NewFieldInvalid("completionDeadlineSeconds", spec.CompletionDeadlineSeconds, "completionDeadlineSeconds must be a positive integer greater than 0"))
 		}
 	}
 
@@ -117,17 +140,75 @@ func validateBuildSpec(spec *buildapi.BuildSpec) fielderrors.ValidationErrorList
 	return allErrs
 }
 
+const maxDockerfileLengthBytes = 60 * 1000
+
 func validateSource(input *buildapi.BuildSource) fielderrors.ValidationErrorList {
 	allErrs := fielderrors.ValidationErrorList{}
-	if input.Type != buildapi.BuildSourceGit {
+	switch input.Type {
+	case buildapi.BuildSourceGit:
+		if input.Git == nil {
+			allErrs = append(allErrs, fielderrors.NewFieldRequired("git"))
+		} else {
+			allErrs = append(allErrs, validateGitSource(input.Git).Prefix("git")...)
+		}
+		if input.Dockerfile != nil {
+			allErrs = append(allErrs, validateDockerfile(*input.Dockerfile)...)
+		}
+		if input.Binary != nil {
+			allErrs = append(allErrs, fielderrors.NewFieldInvalid("binary", "", "may not be set when type is Git"))
+		}
+	case buildapi.BuildSourceBinary:
+		if input.Binary == nil {
+			allErrs = append(allErrs, fielderrors.NewFieldRequired("binary"))
+		} else {
+			allErrs = append(allErrs, validateBinarySource(input.Binary).Prefix("binary")...)
+		}
+		if input.Dockerfile != nil {
+			allErrs = append(allErrs, validateDockerfile(*input.Dockerfile)...)
+		}
+		if input.Git != nil {
+			allErrs = append(allErrs, fielderrors.NewFieldInvalid("git", "", "may not be set when type is Binary"))
+		}
+	case buildapi.BuildSourceDockerfile:
+		if input.Dockerfile == nil {
+			allErrs = append(allErrs, fielderrors.NewFieldRequired("dockerfile"))
+		} else {
+			allErrs = append(allErrs, validateDockerfile(*input.Dockerfile)...)
+		}
+		switch {
+		case input.Git != nil && input.Binary != nil:
+			allErrs = append(allErrs, fielderrors.NewFieldInvalid("git", "", "may not be set when binary is also set"))
+			allErrs = append(allErrs, fielderrors.NewFieldInvalid("binary", "", "may not be set when git is also set"))
+		case input.Git != nil:
+			allErrs = append(allErrs, validateGitSource(input.Git).Prefix("git")...)
+		case input.Binary != nil:
+			allErrs = append(allErrs, validateBinarySource(input.Binary).Prefix("binary")...)
+		}
+	case "":
 		allErrs = append(allErrs, fielderrors.NewFieldRequired("type"))
 	}
-	if input.Git == nil {
-		allErrs = append(allErrs, fielderrors.NewFieldRequired("git"))
-	} else {
-		allErrs = append(allErrs, validateGitSource(input.Git).Prefix("git")...)
-	}
 	allErrs = append(allErrs, validateSecretRef(input.SourceSecret).Prefix("sourceSecret")...)
+
+	if len(input.ContextDir) != 0 {
+		cleaned := path.Clean(input.ContextDir)
+		if strings.HasPrefix(cleaned, "..") {
+			allErrs = append(allErrs, fielderrors.NewFieldInvalid("contextDir", input.ContextDir, "context dir must not be a relative path"))
+		} else {
+			if cleaned == "." {
+				cleaned = ""
+			}
+			input.ContextDir = cleaned
+		}
+	}
+
+	return allErrs
+}
+
+func validateDockerfile(dockerfile string) fielderrors.ValidationErrorList {
+	allErrs := fielderrors.ValidationErrorList{}
+	if len(dockerfile) > maxDockerfileLengthBytes {
+		allErrs = append(allErrs, fielderrors.NewFieldInvalid("dockerfile", "", fmt.Sprintf("must be smaller than %d bytes", maxDockerfileLengthBytes)))
+	}
 	return allErrs
 }
 
@@ -158,6 +239,19 @@ func validateGitSource(git *buildapi.GitBuildSource) fielderrors.ValidationError
 	return allErrs
 }
 
+func validateBinarySource(source *buildapi.BinaryBuildSource) fielderrors.ValidationErrorList {
+	allErrs := fielderrors.ValidationErrorList{}
+	if len(source.AsFile) != 0 {
+		cleaned := strings.TrimPrefix(path.Clean(source.AsFile), "/")
+		if len(cleaned) == 0 || cleaned == "." || strings.HasPrefix(cleaned, "..") || strings.Contains(cleaned, "/") || strings.Contains(cleaned, "\\") {
+			allErrs = append(allErrs, fielderrors.NewFieldInvalid("asFile", source.AsFile, "file name may not contain slashes or relative path segments and must be a valid POSIX filename"))
+		} else {
+			source.AsFile = cleaned
+		}
+	}
+	return allErrs
+}
+
 func validateRevision(revision *buildapi.SourceRevision) fielderrors.ValidationErrorList {
 	allErrs := fielderrors.ValidationErrorList{}
 	if len(revision.Type) == 0 {
@@ -177,7 +271,7 @@ func validateToImageReference(reference *kapi.ObjectReference) fielderrors.Valid
 		} else if _, _, ok := imageapi.SplitImageStreamTag(name); !ok {
 			allErrs = append(allErrs, fielderrors.NewFieldInvalid("name", name, "ImageStreamTag object references must be in the form <name>:<tag>"))
 		}
-		if len(namespace) != 0 && !util.IsDNS1123Subdomain(namespace) {
+		if len(namespace) != 0 && !kvalidation.IsDNS1123Subdomain(namespace) {
 			allErrs = append(allErrs, fielderrors.NewFieldInvalid("namespace", namespace, "namespace must be a valid subdomain"))
 		}
 
@@ -208,7 +302,7 @@ func validateFromImageReference(reference *kapi.ObjectReference) fielderrors.Val
 			allErrs = append(allErrs, fielderrors.NewFieldInvalid("name", name, "ImageStreamTag object references must be in the form <name>:<tag>"))
 		}
 
-		if len(namespace) != 0 && !util.IsDNS1123Subdomain(namespace) {
+		if len(namespace) != 0 && !kvalidation.IsDNS1123Subdomain(namespace) {
 			allErrs = append(allErrs, fielderrors.NewFieldInvalid("namespace", namespace, "namespace must be a valid subdomain"))
 		}
 
@@ -225,7 +319,7 @@ func validateFromImageReference(reference *kapi.ObjectReference) fielderrors.Val
 		if len(name) == 0 {
 			allErrs = append(allErrs, fielderrors.NewFieldRequired("name"))
 		}
-		if len(namespace) != 0 && !util.IsDNS1123Subdomain(namespace) {
+		if len(namespace) != 0 && !kvalidation.IsDNS1123Subdomain(namespace) {
 			allErrs = append(allErrs, fielderrors.NewFieldInvalid("namespace", namespace, "namespace must be a valid subdomain"))
 		}
 	case "":
@@ -348,7 +442,7 @@ func validateTrigger(trigger *buildapi.BuildTriggerPolicy) fielderrors.Validatio
 		}
 		allErrs = append(allErrs, validateFromImageReference(trigger.ImageChange.From).Prefix("from")...)
 	case buildapi.ConfigChangeBuildTriggerType:
-		// doesn't reuqire additional validation
+		// doesn't require additional validation
 	default:
 		allErrs = append(allErrs, fielderrors.NewFieldInvalid("type", trigger.Type, "invalid trigger type"))
 	}
@@ -366,4 +460,20 @@ func validateWebHook(webHook *buildapi.WebHookTrigger) fielderrors.ValidationErr
 func isValidURL(uri string) bool {
 	_, err := url.Parse(uri)
 	return err == nil
+}
+
+func ValidateBuildLogOptions(opts *buildapi.BuildLogOptions) fielderrors.ValidationErrorList {
+	allErrs := fielderrors.ValidationErrorList{}
+
+	// TODO: Replace by validating PodLogOptions via BuildLogOptions once it's bundled in
+	popts := buildapi.BuildToPodLogOptions(opts)
+	if errs := validation.ValidatePodLogOptions(popts); len(errs) > 0 {
+		allErrs = append(allErrs, errs...)
+	}
+
+	if opts.Version != nil && *opts.Version <= 0 {
+		allErrs = append(allErrs, fielderrors.NewFieldInvalid("version", *opts.Version, "build version must be greater than 0"))
+	}
+
+	return allErrs
 }

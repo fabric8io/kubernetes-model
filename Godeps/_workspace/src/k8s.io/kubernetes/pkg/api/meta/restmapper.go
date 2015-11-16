@@ -76,6 +76,7 @@ type DefaultRESTMapper struct {
 	mapping        map[string]typeMeta
 	reverse        map[typeMeta]string
 	scopes         map[typeMeta]RESTScope
+	group          string
 	versions       []string
 	plurals        map[string]string
 	singulars      map[string]string
@@ -88,10 +89,10 @@ type VersionInterfacesFunc func(apiVersion string) (*VersionInterfaces, error)
 
 // NewDefaultRESTMapper initializes a mapping between Kind and APIVersion
 // to a resource name and back based on the objects in a runtime.Scheme
-// and the Kubernetes API conventions. Takes a priority list of the versions to
-// search when an object has no default version (set empty to return an error)
+// and the Kubernetes API conventions. Takes a group name, a priority list of the versions
+// to search when an object has no default version (set empty to return an error),
 // and a function that retrieves the correct codec and metadata for a given version.
-func NewDefaultRESTMapper(versions []string, f VersionInterfacesFunc) *DefaultRESTMapper {
+func NewDefaultRESTMapper(group string, versions []string, f VersionInterfacesFunc) *DefaultRESTMapper {
 	mapping := make(map[string]typeMeta)
 	reverse := make(map[typeMeta]string)
 	scopes := make(map[typeMeta]RESTScope)
@@ -103,6 +104,7 @@ func NewDefaultRESTMapper(versions []string, f VersionInterfacesFunc) *DefaultRE
 		mapping:        mapping,
 		reverse:        reverse,
 		scopes:         scopes,
+		group:          group,
 		versions:       versions,
 		plurals:        plurals,
 		singulars:      singulars,
@@ -111,7 +113,7 @@ func NewDefaultRESTMapper(versions []string, f VersionInterfacesFunc) *DefaultRE
 }
 
 func (m *DefaultRESTMapper) Add(scope RESTScope, kind string, version string, mixedCase bool) {
-	plural, singular := kindToResource(kind, mixedCase)
+	plural, singular := KindToResource(kind, mixedCase)
 	m.plurals[singular] = plural
 	m.singulars[plural] = singular
 	meta := typeMeta{APIVersion: version, Kind: kind}
@@ -129,8 +131,8 @@ func (m *DefaultRESTMapper) Add(scope RESTScope, kind string, version string, mi
 	m.scopes[meta] = scope
 }
 
-// kindToResource converts Kind to a resource name.
-func kindToResource(kind string, mixedCase bool) (plural, singular string) {
+// KindToResource converts Kind to a resource name.
+func KindToResource(kind string, mixedCase bool) (plural, singular string) {
 	if len(kind) == 0 {
 		return
 	}
@@ -167,11 +169,27 @@ func (m *DefaultRESTMapper) ResourceSingularizer(resource string) (singular stri
 
 // VersionAndKindForResource implements RESTMapper
 func (m *DefaultRESTMapper) VersionAndKindForResource(resource string) (defaultVersion, kind string, err error) {
+	if parts := strings.Split(resource, "/"); len(parts) > 1 {
+		if len(parts) > 2 {
+			return "", "", fmt.Errorf("resource %q has an invalid name", resource)
+		}
+		resource = parts[1]
+		if m.group != parts[0] {
+			return "", "", fmt.Errorf("no resource %q is defined for group %q", resource, m.group)
+		}
+	}
 	meta, ok := m.mapping[strings.ToLower(resource)]
 	if !ok {
 		return "", "", fmt.Errorf("no resource %q has been defined", resource)
 	}
 	return meta.APIVersion, meta.Kind, nil
+}
+
+func (m *DefaultRESTMapper) GroupForResource(resource string) (string, error) {
+	if _, ok := m.mapping[strings.ToLower(resource)]; !ok {
+		return "", fmt.Errorf("no resource %q has been defined", resource)
+	}
+	return m.group, nil
 }
 
 // RESTMapping returns a struct representing the resource path and conversion interfaces a
@@ -264,6 +282,12 @@ func (m *DefaultRESTMapper) AliasesForResource(alias string) ([]string, bool) {
 	return nil, false
 }
 
+// ResourceIsValid takes a string (kind) and checks if it's a valid resource
+func (m *DefaultRESTMapper) ResourceIsValid(resource string) bool {
+	_, _, err := m.VersionAndKindForResource(resource)
+	return err == nil
+}
+
 // MultiRESTMapper is a wrapper for multiple RESTMappers.
 type MultiRESTMapper []RESTMapper
 
@@ -292,6 +316,18 @@ func (m MultiRESTMapper) VersionAndKindForResource(resource string) (defaultVers
 	return
 }
 
+// GroupForResource provides the Group mappings for the REST resources. This
+// implementation supports multiple REST schemas and returns the first match.
+func (m MultiRESTMapper) GroupForResource(resource string) (group string, err error) {
+	for _, t := range m {
+		group, err = t.GroupForResource(resource)
+		if err == nil {
+			return
+		}
+	}
+	return
+}
+
 // RESTMapping provides the REST mapping for the resource based on the resource
 // kind and version. This implementation supports multiple REST schemas and
 // return the first match.
@@ -313,4 +349,14 @@ func (m MultiRESTMapper) AliasesForResource(alias string) (aliases []string, ok 
 		}
 	}
 	return nil, false
+}
+
+// ResourceIsValid takes a string (either group/kind or kind) and checks if it's a valid resource
+func (m MultiRESTMapper) ResourceIsValid(resource string) bool {
+	for _, t := range m {
+		if t.ResourceIsValid(resource) {
+			return true
+		}
+	}
+	return false
 }

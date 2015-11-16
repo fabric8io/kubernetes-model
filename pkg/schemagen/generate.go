@@ -17,6 +17,7 @@ package schemagen
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"strings"
 )
@@ -341,14 +342,20 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 						},
 					}
 				case "apiVersion":
-					apiVersion := "v1"
+					apiVersion := filepath.Base(t.PkgPath())
+					apiGroup := filepath.Base(strings.TrimSuffix(t.PkgPath(), apiVersion))
+					if apiGroup != "api" {
+						apiVersion = apiGroup + "/" + apiVersion
+					}
 					v = JSONPropertyDescriptor{
 						JSONDescriptor: &JSONDescriptor{
 							Type:     "string",
-							Default:  apiVersion,
 							Required: true,
-							Enum:     []interface{}{"v1"},
 						},
+					}
+					if apiVersion != "unversioned" {
+						v.Default = apiVersion
+						v.Enum = []interface{}{apiVersion}
 					}
 				default:
 					g.addConstraints(t.Name(), k, &v)

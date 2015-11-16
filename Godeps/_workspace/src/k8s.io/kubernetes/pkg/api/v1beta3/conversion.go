@@ -33,16 +33,16 @@ func addConversionFuncs() {
 		convert_api_ServiceSpec_To_v1beta3_ServiceSpec,
 		convert_v1beta3_PodSpec_To_api_PodSpec,
 		convert_api_PodSpec_To_v1beta3_PodSpec,
+		convert_v1beta3_PodSecurityContext_To_api_PodSecurityContext,
+		convert_api_PodSecurityContext_To_v1beta3_PodSecurityContext,
 		convert_v1beta3_ContainerState_To_api_ContainerState,
 		convert_api_ContainerState_To_v1beta3_ContainerState,
 		convert_api_ContainerStateTerminated_To_v1beta3_ContainerStateTerminated,
 		convert_v1beta3_ContainerStateTerminated_To_api_ContainerStateTerminated,
-		convert_v1beta3_StatusDetails_To_api_StatusDetails,
-		convert_api_StatusDetails_To_v1beta3_StatusDetails,
-		convert_v1beta3_StatusCause_To_api_StatusCause,
-		convert_api_StatusCause_To_v1beta3_StatusCause,
 		convert_api_ReplicationControllerSpec_To_v1beta3_ReplicationControllerSpec,
 		convert_v1beta3_ReplicationControllerSpec_To_api_ReplicationControllerSpec,
+		convert_v1beta3_VolumeSource_To_api_VolumeSource,
+		convert_api_VolumeSource_To_v1beta3_VolumeSource,
 	)
 	if err != nil {
 		// If one of the conversion functions is malformed, detect it immediately.
@@ -269,6 +269,7 @@ func convert_v1beta3_Container_To_api_Container(in *Container, out *api.Containe
 	}
 
 	out.Stdin = in.Stdin
+	out.StdinOnce = in.StdinOnce
 	out.TTY = in.TTY
 	return nil
 }
@@ -363,6 +364,7 @@ func convert_api_Container_To_v1beta3_Container(in *api.Container, out *Containe
 	}
 
 	out.Stdin = in.Stdin
+	out.StdinOnce = in.StdinOnce
 	out.TTY = in.TTY
 	return nil
 }
@@ -404,14 +406,15 @@ func convert_v1beta3_ServiceSpec_To_api_ServiceSpec(in *ServiceSpec, out *api.Se
 	}
 
 	if in.PublicIPs != nil {
-		out.DeprecatedPublicIPs = make([]string, len(in.PublicIPs))
+		out.ExternalIPs = make([]string, len(in.PublicIPs))
 		for i := range in.PublicIPs {
-			out.DeprecatedPublicIPs[i] = in.PublicIPs[i]
+			out.ExternalIPs[i] = in.PublicIPs[i]
 		}
 	} else {
-		out.DeprecatedPublicIPs = nil
+		out.ExternalIPs = nil
 	}
 	out.SessionAffinity = api.ServiceAffinity(in.SessionAffinity)
+	out.LoadBalancerIP = in.LoadBalancerIP
 	return nil
 }
 
@@ -444,15 +447,16 @@ func convert_api_ServiceSpec_To_v1beta3_ServiceSpec(in *api.ServiceSpec, out *Se
 	}
 	out.CreateExternalLoadBalancer = in.Type == api.ServiceTypeLoadBalancer
 
-	if in.DeprecatedPublicIPs != nil {
-		out.PublicIPs = make([]string, len(in.DeprecatedPublicIPs))
-		for i := range in.DeprecatedPublicIPs {
-			out.PublicIPs[i] = in.DeprecatedPublicIPs[i]
+	if in.ExternalIPs != nil {
+		out.PublicIPs = make([]string, len(in.ExternalIPs))
+		for i := range in.ExternalIPs {
+			out.PublicIPs[i] = in.ExternalIPs[i]
 		}
 	} else {
 		out.PublicIPs = nil
 	}
 	out.SessionAffinity = ServiceAffinity(in.SessionAffinity)
+	out.LoadBalancerIP = in.LoadBalancerIP
 	return nil
 }
 
@@ -504,7 +508,18 @@ func convert_v1beta3_PodSpec_To_api_PodSpec(in *PodSpec, out *api.PodSpec, s con
 	}
 	out.ServiceAccountName = in.ServiceAccount
 	out.NodeName = in.Host
-	out.HostNetwork = in.HostNetwork
+	if in.SecurityContext != nil {
+		out.SecurityContext = new(api.PodSecurityContext)
+		if err := convert_v1beta3_PodSecurityContext_To_api_PodSecurityContext(in.SecurityContext, out.SecurityContext, s); err != nil {
+			return err
+		}
+	}
+	if out.SecurityContext == nil {
+		out.SecurityContext = &api.PodSecurityContext{}
+	}
+	out.SecurityContext.HostNetwork = in.HostNetwork
+	out.SecurityContext.HostPID = in.HostPID
+	out.SecurityContext.HostIPC = in.HostIPC
 	if in.ImagePullSecrets != nil {
 		out.ImagePullSecrets = make([]api.LocalObjectReference, len(in.ImagePullSecrets))
 		for i := range in.ImagePullSecrets {
@@ -566,7 +581,18 @@ func convert_api_PodSpec_To_v1beta3_PodSpec(in *api.PodSpec, out *PodSpec, s con
 	}
 	out.ServiceAccount = in.ServiceAccountName
 	out.Host = in.NodeName
-	out.HostNetwork = in.HostNetwork
+	if in.SecurityContext != nil {
+		out.SecurityContext = new(PodSecurityContext)
+		if err := convert_api_PodSecurityContext_To_v1beta3_PodSecurityContext(in.SecurityContext, out.SecurityContext, s); err != nil {
+			return err
+		}
+		if out.SecurityContext == nil {
+			out.SecurityContext = &PodSecurityContext{}
+		}
+		out.HostNetwork = in.SecurityContext.HostNetwork
+		out.HostPID = in.SecurityContext.HostPID
+		out.HostIPC = in.SecurityContext.HostIPC
+	}
 	if in.ImagePullSecrets != nil {
 		out.ImagePullSecrets = make([]LocalObjectReference, len(in.ImagePullSecrets))
 		for i := range in.ImagePullSecrets {
@@ -576,6 +602,76 @@ func convert_api_PodSpec_To_v1beta3_PodSpec(in *api.PodSpec, out *PodSpec, s con
 		}
 	} else {
 		out.ImagePullSecrets = nil
+	}
+	return nil
+}
+
+func convert_v1beta3_PodSecurityContext_To_api_PodSecurityContext(in *PodSecurityContext, out *api.PodSecurityContext, s conversion.Scope) error {
+	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
+		defaulting.(func(*PodSecurityContext))(in)
+	}
+
+	out.SupplementalGroups = in.SupplementalGroups
+	if in.SELinuxOptions != nil {
+		out.SELinuxOptions = new(api.SELinuxOptions)
+		if err := convert_v1beta3_SELinuxOptions_To_api_SELinuxOptions(in.SELinuxOptions, out.SELinuxOptions, s); err != nil {
+			return err
+		}
+	} else {
+		out.SELinuxOptions = nil
+	}
+	if in.RunAsUser != nil {
+		out.RunAsUser = new(int64)
+		*out.RunAsUser = *in.RunAsUser
+	} else {
+		out.RunAsUser = nil
+	}
+	if in.RunAsNonRoot != nil {
+		out.RunAsNonRoot = new(bool)
+		*out.RunAsNonRoot = *in.RunAsNonRoot
+	} else {
+		out.RunAsNonRoot = nil
+	}
+	if in.FSGroup != nil {
+		out.FSGroup = new(int64)
+		*out.FSGroup = *in.FSGroup
+	} else {
+		out.FSGroup = nil
+	}
+	return nil
+}
+
+func convert_api_PodSecurityContext_To_v1beta3_PodSecurityContext(in *api.PodSecurityContext, out *PodSecurityContext, s conversion.Scope) error {
+	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
+		defaulting.(func(*api.PodSecurityContext))(in)
+	}
+
+	out.SupplementalGroups = in.SupplementalGroups
+	if in.SELinuxOptions != nil {
+		out.SELinuxOptions = new(SELinuxOptions)
+		if err := convert_api_SELinuxOptions_To_v1beta3_SELinuxOptions(in.SELinuxOptions, out.SELinuxOptions, s); err != nil {
+			return err
+		}
+	} else {
+		out.SELinuxOptions = nil
+	}
+	if in.RunAsUser != nil {
+		out.RunAsUser = new(int64)
+		*out.RunAsUser = *in.RunAsUser
+	} else {
+		out.RunAsUser = nil
+	}
+	if in.RunAsNonRoot != nil {
+		out.RunAsNonRoot = new(bool)
+		*out.RunAsNonRoot = *in.RunAsNonRoot
+	} else {
+		out.RunAsNonRoot = nil
+	}
+	if in.FSGroup != nil {
+		out.FSGroup = new(int64)
+		*out.FSGroup = *in.FSGroup
+	} else {
+		out.FSGroup = nil
 	}
 	return nil
 }
@@ -678,66 +774,6 @@ func convert_v1beta3_ContainerStateTerminated_To_api_ContainerStateTerminated(in
 	return nil
 }
 
-func convert_v1beta3_StatusDetails_To_api_StatusDetails(in *StatusDetails, out *api.StatusDetails, s conversion.Scope) error {
-	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
-		defaulting.(func(*StatusDetails))(in)
-	}
-	out.Name = in.ID
-	out.Kind = in.Kind
-	if in.Causes != nil {
-		out.Causes = make([]api.StatusCause, len(in.Causes))
-		for i := range in.Causes {
-			if err := convert_v1beta3_StatusCause_To_api_StatusCause(&in.Causes[i], &out.Causes[i], s); err != nil {
-				return err
-			}
-		}
-	} else {
-		out.Causes = nil
-	}
-	out.RetryAfterSeconds = in.RetryAfterSeconds
-	return nil
-}
-
-func convert_api_StatusDetails_To_v1beta3_StatusDetails(in *api.StatusDetails, out *StatusDetails, s conversion.Scope) error {
-	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
-		defaulting.(func(*api.StatusDetails))(in)
-	}
-	out.ID = in.Name
-	out.Kind = in.Kind
-	if in.Causes != nil {
-		out.Causes = make([]StatusCause, len(in.Causes))
-		for i := range in.Causes {
-			if err := convert_api_StatusCause_To_v1beta3_StatusCause(&in.Causes[i], &out.Causes[i], s); err != nil {
-				return err
-			}
-		}
-	} else {
-		out.Causes = nil
-	}
-	out.RetryAfterSeconds = in.RetryAfterSeconds
-	return nil
-}
-
-func convert_v1beta3_StatusCause_To_api_StatusCause(in *StatusCause, out *api.StatusCause, s conversion.Scope) error {
-	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
-		defaulting.(func(*StatusCause))(in)
-	}
-	out.Type = api.CauseType(in.Type)
-	out.Message = in.Message
-	out.Field = in.Field
-	return nil
-}
-
-func convert_api_StatusCause_To_v1beta3_StatusCause(in *api.StatusCause, out *StatusCause, s conversion.Scope) error {
-	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
-		defaulting.(func(*api.StatusCause))(in)
-	}
-	out.Type = CauseType(in.Type)
-	out.Message = in.Message
-	out.Field = in.Field
-	return nil
-}
-
 func convert_api_ReplicationControllerSpec_To_v1beta3_ReplicationControllerSpec(in *api.ReplicationControllerSpec, out *ReplicationControllerSpec, s conversion.Scope) error {
 	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
 		defaulting.(func(*api.ReplicationControllerSpec))(in)
@@ -782,6 +818,101 @@ func convert_v1beta3_ReplicationControllerSpec_To_api_ReplicationControllerSpec(
 		}
 	} else {
 		out.Template = nil
+	}
+	return nil
+}
+
+// This will convert our internal represantation of VolumeSource to its v1beta3 representation
+// Used for keeping backwards compatibility for the Metadata field
+func convert_api_VolumeSource_To_v1beta3_VolumeSource(in *api.VolumeSource, out *VolumeSource, s conversion.Scope) error {
+	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
+		defaulting.(func(*api.VolumeSource))(in)
+	}
+
+	if err := s.DefaultConvert(in, out, conversion.IgnoreMissingFields); err != nil {
+		return err
+	}
+
+	if in.DownwardAPI != nil {
+		out.Metadata = new(MetadataVolumeSource)
+		if err := convert_api_DownwardAPIVolumeSource_To_v1beta3_MetadataVolumeSource(in.DownwardAPI, out.Metadata, s); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// downward -> metadata (api -> v1beta3)
+func convert_api_DownwardAPIVolumeSource_To_v1beta3_MetadataVolumeSource(in *api.DownwardAPIVolumeSource, out *MetadataVolumeSource, s conversion.Scope) error {
+	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
+		defaulting.(func(*api.DownwardAPIVolumeSource))(in)
+	}
+	if in.Items != nil {
+		out.Items = make([]MetadataFile, len(in.Items))
+		for i := range in.Items {
+			if err := convert_api_DownwardAPIVolumeFile_To_v1beta3_MetadataFile(&in.Items[i], &out.Items[i], s); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func convert_api_DownwardAPIVolumeFile_To_v1beta3_MetadataFile(in *api.DownwardAPIVolumeFile, out *MetadataFile, s conversion.Scope) error {
+	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
+		defaulting.(func(*api.DownwardAPIVolumeFile))(in)
+	}
+	out.Name = in.Path
+	if err := convert_api_ObjectFieldSelector_To_v1beta3_ObjectFieldSelector(&in.FieldRef, &out.FieldRef, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// This will convert the v1beta3 representation of VolumeSource to our internal representation
+// Used for keeping backwards compatibility for the Metadata field
+func convert_v1beta3_VolumeSource_To_api_VolumeSource(in *VolumeSource, out *api.VolumeSource, s conversion.Scope) error {
+	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
+		defaulting.(func(*VolumeSource))(in)
+	}
+
+	if err := s.DefaultConvert(in, out, conversion.IgnoreMissingFields); err != nil {
+		return err
+	}
+
+	// if specified Metadata will stomp DownwardAPI
+	if in.Metadata != nil {
+		out.DownwardAPI = new(api.DownwardAPIVolumeSource)
+		if err := convert_v1beta3_MetadataVolumeSource_To_api_DownwardAPIVolumeSource(in.Metadata, out.DownwardAPI, s); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// metadata -> downward (v1beta3 -> api)
+func convert_v1beta3_MetadataVolumeSource_To_api_DownwardAPIVolumeSource(in *MetadataVolumeSource, out *api.DownwardAPIVolumeSource, s conversion.Scope) error {
+	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
+		defaulting.(func(*MetadataVolumeSource))(in)
+	}
+	if in.Items != nil {
+		out.Items = make([]api.DownwardAPIVolumeFile, len(in.Items))
+		for i := range in.Items {
+			if err := convert_v1beta3_MetadataFile_To_api_DownwardAPIVolumeFile(&in.Items[i], &out.Items[i], s); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func convert_v1beta3_MetadataFile_To_api_DownwardAPIVolumeFile(in *MetadataFile, out *api.DownwardAPIVolumeFile, s conversion.Scope) error {
+	if defaulting, found := s.DefaultingInterface(reflect.TypeOf(*in)); found {
+		defaulting.(func(*MetadataFile))(in)
+	}
+	out.Path = in.Name
+	if err := convert_v1beta3_ObjectFieldSelector_To_api_ObjectFieldSelector(&in.FieldRef, &out.FieldRef, s); err != nil {
+		return err
 	}
 	return nil
 }

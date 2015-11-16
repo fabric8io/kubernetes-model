@@ -29,11 +29,12 @@ import (
 	"time"
 
 	"github.com/evanphx/json-patch"
-	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/errors"
 	"k8s.io/kubernetes/pkg/api/latest"
-	"k8s.io/kubernetes/pkg/client"
-	"k8s.io/kubernetes/pkg/client/clientcmd"
+	"k8s.io/kubernetes/pkg/api/unversioned"
+	client "k8s.io/kubernetes/pkg/client/unversioned"
+	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
+	"k8s.io/kubernetes/pkg/kubectl"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 	"k8s.io/kubernetes/pkg/runtime"
 	utilerrors "k8s.io/kubernetes/pkg/util/errors"
@@ -55,11 +56,35 @@ func AddSourceToErr(verb string, source string, err error) error {
 		if statusError, ok := err.(*errors.StatusError); ok {
 			status := statusError.Status()
 			status.Message = fmt.Sprintf("error when %s %q: %v", verb, source, status.Message)
-			return &errors.StatusError{status}
+			return &errors.StatusError{ErrStatus: status}
 		}
 		return fmt.Errorf("error when %s %q: %v", verb, source, err)
 	}
 	return err
+}
+
+var fatalErrHandler = fatal
+
+// BehaviorOnFatal allows you to override the default behavior when a fatal
+// error occurs, which is call os.Exit(1). You can pass 'panic' as a function
+// here if you prefer the panic() over os.Exit(1).
+func BehaviorOnFatal(f func(string)) {
+	fatalErrHandler = f
+}
+
+// fatal prints the message and then exits. If V(2) or greater, glog.Fatal
+// is invoked for extended information.
+func fatal(msg string) {
+	// add newline if needed
+	if !strings.HasSuffix(msg, "\n") {
+		msg += "\n"
+	}
+
+	if glog.V(2) {
+		glog.FatalDepth(2, msg)
+	}
+	fmt.Fprint(os.Stderr, msg)
+	os.Exit(1)
 }
 
 // CheckErr prints a user friendly error to STDERR and exits with a non-zero
@@ -68,7 +93,7 @@ func AddSourceToErr(verb string, source string, err error) error {
 // This method is generic to the command in use and may be used by non-Kubectl
 // commands.
 func CheckErr(err error) {
-	checkErr(err, fatal)
+	checkErr(err, fatalErrHandler)
 }
 
 func checkErr(err error, handleErr func(string)) {
@@ -98,7 +123,7 @@ func checkErr(err error, handleErr func(string)) {
 	handleErr(msg)
 }
 
-func statusCausesToAggrError(scs []api.StatusCause) utilerrors.Aggregate {
+func statusCausesToAggrError(scs []unversioned.StatusCause) utilerrors.Aggregate {
 	errs := make([]error, len(scs))
 	for i, sc := range scs {
 		errs[i] = fmt.Errorf("%s: %s", sc.Field, sc.Message)
@@ -180,24 +205,9 @@ func messageForError(err error) string {
 	return msg
 }
 
-// fatal prints the message and then exits. If V(2) or greater, glog.Fatal
-// is invoked for extended information.
-func fatal(msg string) {
-	// add newline if needed
-	if !strings.HasSuffix(msg, "\n") {
-		msg += "\n"
-	}
-
-	if glog.V(2) {
-		glog.FatalDepth(2, msg)
-	}
-	fmt.Fprint(os.Stderr, msg)
-	os.Exit(1)
-}
-
 func UsageError(cmd *cobra.Command, format string, args ...interface{}) error {
 	msg := fmt.Sprintf(format, args...)
-	return fmt.Errorf("%s\nsee '%s -h' for help.", msg, cmd.CommandPath())
+	return fmt.Errorf("%s\nSee '%s -h' for help and examples.", msg, cmd.CommandPath())
 }
 
 func getFlag(cmd *cobra.Command, flag string) *pflag.Flag {
@@ -211,7 +221,7 @@ func getFlag(cmd *cobra.Command, flag string) *pflag.Flag {
 func GetFlagString(cmd *cobra.Command, flag string) string {
 	s, err := cmd.Flags().GetString(flag)
 	if err != nil {
-		glog.Fatalf("err %v accessing flag %s for command %s: %s", err, flag, cmd.Name())
+		glog.Fatalf("err accessing flag %s for command %s: %v", flag, cmd.Name(), err)
 	}
 	return s
 }
@@ -220,7 +230,7 @@ func GetFlagString(cmd *cobra.Command, flag string) string {
 func GetFlagStringSlice(cmd *cobra.Command, flag string) []string {
 	s, err := cmd.Flags().GetStringSlice(flag)
 	if err != nil {
-		glog.Fatalf("err %v accessing flag %s for command %s: %s", err, flag, cmd.Name())
+		glog.Fatalf("err accessing flag %s for command %s: %v", flag, cmd.Name(), err)
 	}
 	return s
 }
@@ -237,7 +247,7 @@ func GetWideFlag(cmd *cobra.Command) bool {
 func GetFlagBool(cmd *cobra.Command, flag string) bool {
 	b, err := cmd.Flags().GetBool(flag)
 	if err != nil {
-		glog.Fatalf("err %v accessing flag %s for command %s: %s", err, flag, cmd.Name())
+		glog.Fatalf("err accessing flag %s for command %s: %v", flag, cmd.Name(), err)
 	}
 	return b
 }
@@ -246,7 +256,16 @@ func GetFlagBool(cmd *cobra.Command, flag string) bool {
 func GetFlagInt(cmd *cobra.Command, flag string) int {
 	i, err := cmd.Flags().GetInt(flag)
 	if err != nil {
-		glog.Fatalf("err: %v accessing flag %s for command %s: %s", err, flag, cmd.Name())
+		glog.Fatalf("err accessing flag %s for command %s: %v", flag, cmd.Name(), err)
+	}
+	return i
+}
+
+// Assumes the flag has a default value.
+func GetFlagInt64(cmd *cobra.Command, flag string) int64 {
+	i, err := cmd.Flags().GetInt64(flag)
+	if err != nil {
+		glog.Fatalf("err accessing flag %s for command %s: %v", flag, cmd.Name(), err)
 	}
 	return i
 }
@@ -254,9 +273,14 @@ func GetFlagInt(cmd *cobra.Command, flag string) int {
 func GetFlagDuration(cmd *cobra.Command, flag string) time.Duration {
 	d, err := cmd.Flags().GetDuration(flag)
 	if err != nil {
-		glog.Fatalf("err: %v accessing flag %s for command %s: %s", err, flag, cmd.Name())
+		glog.Fatalf("err accessing flag %s for command %s: %v", flag, cmd.Name(), err)
 	}
 	return d
+}
+
+func AddValidateFlags(cmd *cobra.Command) {
+	cmd.Flags().Bool("validate", false, "If true, use a schema to validate the input before sending it")
+	cmd.Flags().String("schema-cache-dir", fmt.Sprintf("~/%s/%s", clientcmd.RecommendedHomeDir, clientcmd.RecommendedSchemaName), fmt.Sprintf("If non-empty, load/store cached API schemas in this directory, default is '$HOME/%s/%s'", clientcmd.RecommendedHomeDir, clientcmd.RecommendedSchemaName))
 }
 
 func ReadConfigDataFromReader(reader io.Reader, source string) ([]byte, error) {
@@ -331,7 +355,7 @@ func Merge(dst runtime.Object, fragment, kind string) (runtime.Object, error) {
 	if !ok {
 		return nil, fmt.Errorf("apiVersion must be a string")
 	}
-	i, err := latest.InterfacesFor(versionString)
+	i, err := latest.GroupOrDie("").InterfacesFor(versionString)
 	if err != nil {
 		return nil, err
 	}
@@ -381,18 +405,18 @@ func DumpReaderToFile(reader io.Reader, filename string) error {
 func UpdateObject(info *resource.Info, updateFn func(runtime.Object) error) (runtime.Object, error) {
 	helper := resource.NewHelper(info.Client, info.Mapping)
 
-	err := updateFn(info.Object)
-	if err != nil {
-		return nil, err
-	}
-	data, err := helper.Codec.Encode(info.Object)
-	if err != nil {
+	if err := updateFn(info.Object); err != nil {
 		return nil, err
 	}
 
-	_, err = helper.Replace(info.Namespace, info.Name, true, data)
-	if err != nil {
+	// Update the annotation used by kubectl apply
+	if err := kubectl.UpdateApplyAnnotation(info); err != nil {
 		return nil, err
 	}
+
+	if _, err := helper.Replace(info.Namespace, info.Name, true, info.Object); err != nil {
+		return nil, err
+	}
+
 	return info.Object, nil
 }

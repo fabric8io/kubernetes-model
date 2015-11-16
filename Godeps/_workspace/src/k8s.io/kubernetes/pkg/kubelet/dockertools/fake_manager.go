@@ -21,8 +21,9 @@ import (
 	"k8s.io/kubernetes/pkg/client/record"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/network"
-	"k8s.io/kubernetes/pkg/kubelet/prober"
-	kubeletTypes "k8s.io/kubernetes/pkg/kubelet/types"
+	proberesults "k8s.io/kubernetes/pkg/kubelet/prober/results"
+	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
+	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/util/oom"
 	"k8s.io/kubernetes/pkg/util/procfs"
 )
@@ -30,7 +31,7 @@ import (
 func NewFakeDockerManager(
 	client DockerInterface,
 	recorder record.EventRecorder,
-	readinessManager *kubecontainer.ReadinessManager,
+	livenessManager proberesults.Manager,
 	containerRefManager *kubecontainer.RefManager,
 	machineInfo *cadvisorApi.MachineInfo,
 	podInfraContainerImage string,
@@ -40,15 +41,13 @@ func NewFakeDockerManager(
 	osInterface kubecontainer.OSInterface,
 	networkPlugin network.NetworkPlugin,
 	generator kubecontainer.RunContainerOptionsGenerator,
-	httpClient kubeletTypes.HttpGetter,
-	runtimeHooks kubecontainer.RuntimeHooks) *DockerManager {
+	httpClient kubetypes.HttpGetter, imageBackOff *util.Backoff) *DockerManager {
 
-	fakeOomAdjuster := oom.NewFakeOomAdjuster()
+	fakeOOMAdjuster := oom.NewFakeOOMAdjuster()
 	fakeProcFs := procfs.NewFakeProcFs()
-	dm := NewDockerManager(client, recorder, readinessManager, containerRefManager, machineInfo, podInfraContainerImage, qps,
-		burst, containerLogsDir, osInterface, networkPlugin, generator, httpClient, runtimeHooks, &NativeExecHandler{},
-		fakeOomAdjuster, fakeProcFs)
-	dm.puller = &FakeDockerPuller{}
-	dm.prober = prober.New(nil, readinessManager, containerRefManager, recorder)
+	dm := NewDockerManager(client, recorder, livenessManager, containerRefManager, machineInfo, podInfraContainerImage, qps,
+		burst, containerLogsDir, osInterface, networkPlugin, generator, httpClient, &NativeExecHandler{},
+		fakeOOMAdjuster, fakeProcFs, false, imageBackOff, true)
+	dm.dockerPuller = &FakeDockerPuller{}
 	return dm
 }

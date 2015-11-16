@@ -19,6 +19,7 @@ package rest
 import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/errors"
+	"k8s.io/kubernetes/pkg/api/validation"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/util/fielderrors"
 )
@@ -59,6 +60,8 @@ func BeforeCreate(strategy RESTCreateStrategy, ctx api.Context, obj runtime.Obje
 	} else {
 		objectMeta.Namespace = api.NamespaceNone
 	}
+	objectMeta.DeletionTimestamp = nil
+	objectMeta.DeletionGracePeriodSeconds = nil
 	strategy.PrepareForCreate(obj)
 	api.FillObjectMetaSystemFields(ctx, objectMeta)
 	api.GenerateName(strategy, objectMeta)
@@ -66,6 +69,14 @@ func BeforeCreate(strategy RESTCreateStrategy, ctx api.Context, obj runtime.Obje
 	if errs := strategy.Validate(ctx, obj); len(errs) > 0 {
 		return errors.NewInvalid(kind, objectMeta.Name, errs)
 	}
+
+	// Custom validation (including name validation) passed
+	// Now run common validation on object meta
+	// Do this *after* custom validation so that specific error messages are shown whenever possible
+	if errs := validation.ValidateObjectMeta(objectMeta, strategy.NamespaceScoped(), validation.ValidatePathSegmentName); len(errs) > 0 {
+		return errors.NewInvalid(kind, objectMeta.Name, errs)
+	}
+
 	return nil
 }
 

@@ -28,8 +28,8 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
-	"k8s.io/kubernetes/pkg/client/clientcmd"
-	clientcmdapi "k8s.io/kubernetes/pkg/client/clientcmd/api"
+	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
+	clientcmdapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api"
 )
 
 type PathOptions struct {
@@ -100,7 +100,7 @@ func NewDefaultPathOptions() *PathOptions {
 		EnvVar:           clientcmd.RecommendedConfigPathEnvVar,
 		ExplicitFileFlag: clientcmd.RecommendedConfigPathFlag,
 
-		GlobalFileSubpath: clientcmd.RecommendedHomeFileName,
+		GlobalFileSubpath: path.Join(clientcmd.RecommendedHomeDir, clientcmd.RecommendedFileName),
 
 		LoadingRules: clientcmd.NewDefaultClientConfigLoadingRules(),
 	}

@@ -22,7 +22,7 @@
   <parent>
     <groupId>io.fabric8</groupId>
     <artifactId>kubernetes-model-generator</artifactId>
-    <version>1.0.34-SNAPSHOT</version>
+    <version>1.0.36-SNAPSHOT</version>
   </parent>
 
   <artifactId>kubernetes-model</artifactId>
@@ -123,8 +123,8 @@
             <Export-Package>
               io.fabric8.kubernetes.api.builder,
               io.fabric8.kubernetes.api.model,
-              io.fabric8.openshift.api.model,
-              io.fabric8.openshift.api.root
+              io.fabric8.kubernetes.api.model.extensions,
+              io.fabric8.openshift.api.model
             </Export-Package>
           </instructions>
         </configuration>

@@ -24,7 +24,6 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/errors"
 	"k8s.io/kubernetes/pkg/api/rest"
-	"k8s.io/kubernetes/pkg/api/rest/resttest"
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/registry/registrytest"
@@ -32,6 +31,10 @@ import (
 	"k8s.io/kubernetes/pkg/registry/service/portallocator"
 	"k8s.io/kubernetes/pkg/util"
 )
+
+// TODO(wojtek-t): Cleanup this file.
+// It is now testing mostly the same things as other resources but
+// in a completely different way. We should unify it.
 
 func NewTestREST(t *testing.T, endpoints *api.EndpointsList) (*REST, *registrytest.ServiceRegistry) {
 	registry := registrytest.NewServiceRegistry()
@@ -43,7 +46,7 @@ func NewTestREST(t *testing.T, endpoints *api.EndpointsList) (*REST, *registryte
 	portRange := util.PortRange{Base: 30000, Size: 1000}
 	portAllocator := portallocator.NewPortAllocator(portRange)
 
-	storage := NewStorage(registry, endpointRegistry, r, portAllocator)
+	storage := NewStorage(registry, endpointRegistry, r, portAllocator, nil)
 
 	return storage, registry
 }
@@ -437,6 +440,22 @@ func TestServiceRegistryResourceLocation(t *testing.T) {
 					Ports:     []api.EndpointPort{{Name: "", Port: 80}, {Name: "p", Port: 93}},
 				}},
 			},
+			{
+				ObjectMeta: api.ObjectMeta{
+					Name:      "foo",
+					Namespace: api.NamespaceDefault,
+				},
+				Subsets: []api.EndpointSubset{{
+					Addresses: []api.EndpointAddress{},
+					Ports:     []api.EndpointPort{{Name: "", Port: 80}, {Name: "p", Port: 93}},
+				}, {
+					Addresses: []api.EndpointAddress{{IP: "1.2.3.4"}},
+					Ports:     []api.EndpointPort{{Name: "", Port: 80}, {Name: "p", Port: 93}},
+				}, {
+					Addresses: []api.EndpointAddress{{IP: "1.2.3.5"}},
+					Ports:     []api.EndpointPort{},
+				}},
+			},
 		},
 	}
 	storage, registry := NewTestREST(t, endpoints)
@@ -469,6 +488,30 @@ func TestServiceRegistryResourceLocation(t *testing.T) {
 		t.Errorf("Unexpected nil: %v", location)
 	}
 	if e, a := "//1.2.3.4:93", location.String(); e != a {
+		t.Errorf("Expected %v, but got %v", e, a)
+	}
+
+	// Test a name + port number.
+	location, _, err = redirector.ResourceLocation(ctx, "foo:93")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if location == nil {
+		t.Errorf("Unexpected nil: %v", location)
+	}
+	if e, a := "//1.2.3.4:93", location.String(); e != a {
+		t.Errorf("Expected %v, but got %v", e, a)
+	}
+
+	// Test a scheme + name + port.
+	location, _, err = redirector.ResourceLocation(ctx, "https:foo:p")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if location == nil {
+		t.Errorf("Unexpected nil: %v", location)
+	}
+	if e, a := "https://1.2.3.4:93", location.String(); e != a {
 		t.Errorf("Expected %v, but got %v", e, a)
 	}
 
@@ -569,6 +612,7 @@ func TestServiceRegistryIPAllocation(t *testing.T) {
 	for _, ip := range testIPs {
 		if !rest.serviceIPs.(*ipallocator.Range).Has(net.ParseIP(ip)) {
 			testIP = ip
+			break
 		}
 	}
 
@@ -687,9 +731,18 @@ func TestServiceRegistryIPUpdate(t *testing.T) {
 		t.Errorf("Expected port 6503, but got %v", updated_service.Spec.Ports[0].Port)
 	}
 
+	testIPs := []string{"1.2.3.93", "1.2.3.94", "1.2.3.95", "1.2.3.96"}
+	testIP := ""
+	for _, ip := range testIPs {
+		if !rest.serviceIPs.(*ipallocator.Range).Has(net.ParseIP(ip)) {
+			testIP = ip
+			break
+		}
+	}
+
 	update = deepCloneService(created_service)
 	update.Spec.Ports[0].Port = 6503
-	update.Spec.ClusterIP = "1.2.3.76" // error
+	update.Spec.ClusterIP = testIP // Error: Cluster IP is immutable
 
 	_, _, err := rest.Update(ctx, update)
 	if err == nil || !errors.IsInvalid(err) {
@@ -731,25 +784,6 @@ func TestServiceRegistryIPLoadBalancer(t *testing.T) {
 	}
 }
 
-// TODO: remove, covered by TestCreate
-func TestCreateServiceWithConflictingNamespace(t *testing.T) {
-	storage := REST{}
-	service := &api.Service{
-		ObjectMeta: api.ObjectMeta{Name: "test", Namespace: "not-default"},
-	}
-
-	ctx := api.NewDefaultContext()
-	obj, err := storage.Create(ctx, service)
-	if obj != nil {
-		t.Error("Expected a nil object, but we got a value")
-	}
-	if err == nil {
-		t.Errorf("Expected an error, but we didn't get one")
-	} else if strings.Contains(err.Error(), "Service.Namespace does not match the provided context") {
-		t.Errorf("Expected 'Service.Namespace does not match the provided context' error, got '%s'", err.Error())
-	}
-}
-
 func TestUpdateServiceWithConflictingNamespace(t *testing.T) {
 	storage := REST{}
 	service := &api.Service{
@@ -766,44 +800,4 @@ func TestUpdateServiceWithConflictingNamespace(t *testing.T) {
 	} else if strings.Index(err.Error(), "Service.Namespace does not match the provided context") == -1 {
 		t.Errorf("Expected 'Service.Namespace does not match the provided context' error, got '%s'", err.Error())
 	}
-}
-
-func TestCreate(t *testing.T) {
-	rest, registry := NewTestREST(t, nil)
-
-	test := resttest.New(t, rest, registry.SetError)
-	test.TestCreate(
-		// valid
-		&api.Service{
-			Spec: api.ServiceSpec{
-				Selector:        map[string]string{"bar": "baz"},
-				ClusterIP:       "None",
-				SessionAffinity: "None",
-				Type:            api.ServiceTypeClusterIP,
-				Ports: []api.ServicePort{{
-					Port:       6502,
-					Protocol:   api.ProtocolTCP,
-					TargetPort: util.NewIntOrStringFromInt(6502),
-				}},
-			},
-		},
-		// invalid
-		&api.Service{
-			Spec: api.ServiceSpec{},
-		},
-		// invalid
-		&api.Service{
-			Spec: api.ServiceSpec{
-				Selector:        map[string]string{"bar": "baz"},
-				ClusterIP:       "invalid",
-				SessionAffinity: "None",
-				Type:            api.ServiceTypeClusterIP,
-				Ports: []api.ServicePort{{
-					Port:       6502,
-					Protocol:   api.ProtocolTCP,
-					TargetPort: util.NewIntOrStringFromInt(6502),
-				}},
-			},
-		},
-	)
 }

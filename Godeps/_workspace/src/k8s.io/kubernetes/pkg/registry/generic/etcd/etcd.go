@@ -25,6 +25,8 @@ import (
 	kubeerr "k8s.io/kubernetes/pkg/api/errors"
 	etcderr "k8s.io/kubernetes/pkg/api/errors/etcd"
 	"k8s.io/kubernetes/pkg/api/rest"
+	"k8s.io/kubernetes/pkg/api/unversioned"
+	"k8s.io/kubernetes/pkg/api/validation"
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/registry/generic"
@@ -127,7 +129,22 @@ func NamespaceKeyFunc(ctx api.Context, prefix string, name string) (string, erro
 	if len(name) == 0 {
 		return "", kubeerr.NewBadRequest("Name parameter required.")
 	}
+	if ok, msg := validation.IsValidPathSegmentName(name); !ok {
+		return "", kubeerr.NewBadRequest(fmt.Sprintf("Name parameter invalid: %v.", msg))
+	}
 	key = key + "/" + name
+	return key, nil
+}
+
+// NoNamespaceKeyFunc is the default function for constructing etcd paths to a resource relative to prefix without a namespace
+func NoNamespaceKeyFunc(ctx api.Context, prefix string, name string) (string, error) {
+	if len(name) == 0 {
+		return "", kubeerr.NewBadRequest("Name parameter required.")
+	}
+	if ok, msg := validation.IsValidPathSegmentName(name); !ok {
+		return "", kubeerr.NewBadRequest(fmt.Sprintf("Name parameter invalid: %v.", msg))
+	}
+	key := prefix + "/" + name
 	return key, nil
 }
 
@@ -150,52 +167,28 @@ func (e *Etcd) List(ctx api.Context, label labels.Selector, field fields.Selecto
 func (e *Etcd) ListPredicate(ctx api.Context, m generic.Matcher) (runtime.Object, error) {
 	list := e.NewListFunc()
 	trace := util.NewTrace("List " + reflect.TypeOf(list).String())
+	filterFunc := e.filterAndDecorateFunction(m)
 	defer trace.LogIfLong(600 * time.Millisecond)
 	if name, ok := m.MatchesSingle(); ok {
-		trace.Step("About to read single object")
-		key, err := e.KeyFunc(ctx, name)
-		if err != nil {
-			return nil, err
+		if key, err := e.KeyFunc(ctx, name); err == nil {
+			trace.Step("About to read single object")
+			err := e.Storage.GetToList(ctx, key, filterFunc, list)
+			trace.Step("Object extracted")
+			if err != nil {
+				return nil, err
+			}
+			return list, nil
 		}
-		err = e.Storage.GetToList(key, list)
-		trace.Step("Object extracted")
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		trace.Step("About to list directory")
-		err := e.Storage.List(e.KeyRootFunc(ctx), list)
-		trace.Step("List extracted")
-		if err != nil {
-			return nil, err
-		}
+		// if we cannot extract a key based on the current context, the optimization is skipped
 	}
-	defer trace.Step("List filtered")
-	return generic.FilterList(list, m, generic.DecoratorFunc(e.Decorator))
-}
 
-// CreateWithName inserts a new item with the provided name
-// DEPRECATED: use Create instead
-func (e *Etcd) CreateWithName(ctx api.Context, name string, obj runtime.Object) error {
-	key, err := e.KeyFunc(ctx, name)
+	trace.Step("About to list directory")
+	err := e.Storage.List(ctx, e.KeyRootFunc(ctx), filterFunc, list)
+	trace.Step("List extracted")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if e.CreateStrategy != nil {
-		if err := rest.BeforeCreate(e.CreateStrategy, ctx, obj); err != nil {
-			return err
-		}
-	}
-	ttl, err := e.calculateTTL(obj, 0, false)
-	if err != nil {
-		return err
-	}
-	err = e.Storage.Create(key, obj, nil, ttl)
-	err = etcderr.InterpretCreateError(err, e.EndpointName, name)
-	if err == nil && e.Decorator != nil {
-		err = e.Decorator(obj)
-	}
-	return err
+	return list, nil
 }
 
 // Create inserts a new item according to the unique key from the object.
@@ -219,7 +212,7 @@ func (e *Etcd) Create(ctx api.Context, obj runtime.Object) (runtime.Object, erro
 	}
 	trace.Step("About to create object")
 	out := e.NewFunc()
-	if err := e.Storage.Create(key, obj, out, ttl); err != nil {
+	if err := e.Storage.Create(ctx, key, obj, out, ttl); err != nil {
 		err = etcderr.InterpretCreateError(err, e.EndpointName, name)
 		err = rest.CheckGeneratedNameError(e.CreateStrategy, err, obj)
 		return nil, err
@@ -236,25 +229,6 @@ func (e *Etcd) Create(ctx api.Context, obj runtime.Object) (runtime.Object, erro
 		}
 	}
 	return out, nil
-}
-
-// UpdateWithName updates the item with the provided name
-// DEPRECATED: use Update instead
-func (e *Etcd) UpdateWithName(ctx api.Context, name string, obj runtime.Object) error {
-	key, err := e.KeyFunc(ctx, name)
-	if err != nil {
-		return err
-	}
-	ttl, err := e.calculateTTL(obj, 0, true)
-	if err != nil {
-		return err
-	}
-	err = e.Storage.Set(key, obj, nil, ttl)
-	err = etcderr.InterpretUpdateError(err, e.EndpointName, name)
-	if err == nil && e.Decorator != nil {
-		err = e.Decorator(obj)
-	}
-	return err
 }
 
 // Update performs an atomic update and set of the object. Returns the result of the update
@@ -282,7 +256,7 @@ func (e *Etcd) Update(ctx api.Context, obj runtime.Object) (runtime.Object, bool
 	// TODO: expose TTL
 	creating := false
 	out := e.NewFunc()
-	err = e.Storage.GuaranteedUpdate(key, out, true, func(existing runtime.Object, res storage.ResponseMeta) (runtime.Object, *uint64, error) {
+	err = e.Storage.GuaranteedUpdate(ctx, key, out, true, func(existing runtime.Object, res storage.ResponseMeta) (runtime.Object, *uint64, error) {
 		version, err := e.Storage.Versioner().ObjectResourceVersion(existing)
 		if err != nil {
 			return nil, nil, err
@@ -372,7 +346,7 @@ func (e *Etcd) Get(ctx api.Context, name string) (runtime.Object, error) {
 		return nil, err
 	}
 	trace.Step("About to read object")
-	if err := e.Storage.Get(key, obj, false); err != nil {
+	if err := e.Storage.Get(ctx, key, obj, false); err != nil {
 		return nil, etcderr.InterpretGetError(err, e.EndpointName, name)
 	}
 	trace.Step("Object read")
@@ -383,6 +357,11 @@ func (e *Etcd) Get(ctx api.Context, name string) (runtime.Object, error) {
 	}
 	return obj, nil
 }
+
+var (
+	errAlreadyDeleting = fmt.Errorf("abort delete")
+	errDeleteNow       = fmt.Errorf("delete now")
+)
 
 // Delete removes the item from etcd.
 func (e *Etcd) Delete(ctx api.Context, name string, options *api.DeleteOptions) (runtime.Object, error) {
@@ -395,7 +374,7 @@ func (e *Etcd) Delete(ctx api.Context, name string, options *api.DeleteOptions) 
 	trace := util.NewTrace("Delete " + reflect.TypeOf(obj).String())
 	defer trace.LogIfLong(time.Second)
 	trace.Step("About to read object")
-	if err := e.Storage.Get(key, obj, false); err != nil {
+	if err := e.Storage.Get(ctx, key, obj, false); err != nil {
 		return nil, etcderr.InterpretDeleteError(err, e.EndpointName, name)
 	}
 
@@ -410,19 +389,47 @@ func (e *Etcd) Delete(ctx api.Context, name string, options *api.DeleteOptions) 
 	if pendingGraceful {
 		return e.finalizeDelete(obj, false)
 	}
-	if graceful && *options.GracePeriodSeconds != 0 {
+	if graceful {
 		trace.Step("Graceful deletion")
 		out := e.NewFunc()
-		if err := e.Storage.Set(key, obj, out, uint64(*options.GracePeriodSeconds)); err != nil {
+		lastGraceful := int64(0)
+		err := e.Storage.GuaranteedUpdate(
+			ctx, key, out, false,
+			storage.SimpleUpdate(func(existing runtime.Object) (runtime.Object, error) {
+				graceful, pendingGraceful, err := rest.BeforeDelete(e.DeleteStrategy, ctx, existing, options)
+				if err != nil {
+					return nil, err
+				}
+				if pendingGraceful {
+					return nil, errAlreadyDeleting
+				}
+				if !graceful {
+					return nil, errDeleteNow
+				}
+				lastGraceful = *options.GracePeriodSeconds
+				return existing, nil
+			}),
+		)
+		switch err {
+		case nil:
+			if lastGraceful > 0 {
+				return out, nil
+			}
+			// fall through and delete immediately
+		case errDeleteNow:
+			// we've updated the object to have a zero grace period, or it's already at 0, so
+			// we should fall through and truly delete the object.
+		case errAlreadyDeleting:
+			return e.finalizeDelete(obj, true)
+		default:
 			return nil, etcderr.InterpretUpdateError(err, e.EndpointName, name)
 		}
-		return e.finalizeDelete(out, true)
 	}
 
 	// delete immediately, or no graceful deletion supported
 	out := e.NewFunc()
 	trace.Step("About to delete object")
-	if err := e.Storage.Delete(key, out); err != nil {
+	if err := e.Storage.Delete(ctx, key, out); err != nil {
 		return nil, etcderr.InterpretDeleteError(err, e.EndpointName, name)
 	}
 	return e.finalizeDelete(out, true)
@@ -442,7 +449,7 @@ func (e *Etcd) finalizeDelete(obj runtime.Object, runHooks bool) (runtime.Object
 		}
 		return obj, nil
 	}
-	return &api.Status{Status: api.StatusSuccess}, nil
+	return &unversioned.Status{Status: unversioned.StatusSuccess}, nil
 }
 
 // Watch makes a matcher for the given label and field, and calls
@@ -459,8 +466,23 @@ func (e *Etcd) WatchPredicate(ctx api.Context, m generic.Matcher, resourceVersio
 	if err != nil {
 		return nil, err
 	}
+	filterFunc := e.filterAndDecorateFunction(m)
 
-	filterFunc := func(obj runtime.Object) bool {
+	if name, ok := m.MatchesSingle(); ok {
+		if key, err := e.KeyFunc(ctx, name); err == nil {
+			if err != nil {
+				return nil, err
+			}
+			return e.Storage.Watch(ctx, key, version, filterFunc)
+		}
+		// if we cannot extract a key based on the current context, the optimization is skipped
+	}
+
+	return e.Storage.WatchList(ctx, e.KeyRootFunc(ctx), version, filterFunc)
+}
+
+func (e *Etcd) filterAndDecorateFunction(m generic.Matcher) func(runtime.Object) bool {
+	return func(obj runtime.Object) bool {
 		matches, err := m.Matches(obj)
 		if err != nil {
 			glog.Errorf("unable to match watch: %v", err)
@@ -474,16 +496,6 @@ func (e *Etcd) WatchPredicate(ctx api.Context, m generic.Matcher, resourceVersio
 		}
 		return matches
 	}
-
-	if name, ok := m.MatchesSingle(); ok {
-		key, err := e.KeyFunc(ctx, name)
-		if err != nil {
-			return nil, err
-		}
-		return e.Storage.Watch(key, version, filterFunc)
-	}
-
-	return e.Storage.WatchList(e.KeyRootFunc(ctx), version, filterFunc)
 }
 
 // calculateTTL is a helper for retrieving the updated TTL for an object or returning an error
