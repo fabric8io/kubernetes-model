@@ -349,11 +349,11 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 					}
 					v = JSONPropertyDescriptor{
 						JSONDescriptor: &JSONDescriptor{
-							Type:     "string",
-							Required: true,
+							Type: "string",
 						},
 					}
 					if apiVersion != "unversioned" {
+						v.Required = true
 						v.Default = apiVersion
 						v.Enum = []interface{}{apiVersion}
 					}
