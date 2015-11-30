@@ -40,8 +40,7 @@
       "properties": {
         "apiVersion": {
           "type": "string",
-          "description": "",
-          "required": true
+          "description": ""
         },
         "code": {
           "type": "integer",
