@@ -48,11 +48,16 @@ type FinalizeREST struct {
 }
 
 // NewREST returns a RESTStorage object that will work against namespaces.
-func NewREST(s storage.Interface) (*REST, *StatusREST, *FinalizeREST) {
+func NewREST(s storage.Interface, storageDecorator generic.StorageDecorator) (*REST, *StatusREST, *FinalizeREST) {
 	prefix := "/namespaces"
+
+	newListFunc := func() runtime.Object { return &api.NamespaceList{} }
+	storageInterface := storageDecorator(
+		s, 100, &api.Namespace{}, prefix, namespace.Strategy, newListFunc)
+
 	store := &etcdgeneric.Etcd{
 		NewFunc:     func() runtime.Object { return &api.Namespace{} },
-		NewListFunc: func() runtime.Object { return &api.NamespaceList{} },
+		NewListFunc: newListFunc,
 		KeyRootFunc: func(ctx api.Context) string {
 			return prefix
 		},
@@ -65,13 +70,13 @@ func NewREST(s storage.Interface) (*REST, *StatusREST, *FinalizeREST) {
 		PredicateFunc: func(label labels.Selector, field fields.Selector) generic.Matcher {
 			return namespace.MatchNamespace(label, field)
 		},
-		EndpointName: "namespaces",
+		QualifiedResource: api.Resource("namespaces"),
 
 		CreateStrategy:      namespace.Strategy,
 		UpdateStrategy:      namespace.Strategy,
 		ReturnDeletedObject: true,
 
-		Storage: s,
+		Storage: storageInterface,
 	}
 
 	statusStore := *store
@@ -103,7 +108,7 @@ func (r *REST) Delete(ctx api.Context, name string, options *api.DeleteOptions) 
 
 	// prior to final deletion, we must ensure that finalizers is empty
 	if len(namespace.Spec.Finalizers) != 0 {
-		err = apierrors.NewConflict("Namespace", namespace.Name, fmt.Errorf("The system is ensuring all content is removed from this namespace.  Upon completion, this namespace will automatically be purged by the system."))
+		err = apierrors.NewConflict(api.Resource("namespaces"), namespace.Name, fmt.Errorf("The system is ensuring all content is removed from this namespace.  Upon completion, this namespace will automatically be purged by the system."))
 		return nil, err
 	}
 	return r.Etcd.Delete(ctx, name, nil)

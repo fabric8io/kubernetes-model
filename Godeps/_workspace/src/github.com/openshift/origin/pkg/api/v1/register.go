@@ -1,8 +1,7 @@
 package v1
 
 import (
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/api/unversioned"
 
 	_ "github.com/openshift/origin/pkg/authorization/api/v1"
 	_ "github.com/openshift/origin/pkg/build/api/v1"
@@ -16,8 +15,5 @@ import (
 	_ "github.com/openshift/origin/pkg/user/api/v1"
 )
 
-// Codec encodes internal objects to the v1 scheme
-var Codec = runtime.CodecFor(api.Scheme, "v1")
-
-func init() {
-}
+// SchemeGroupVersion is group version used to register these objects
+var SchemeGroupVersion = unversioned.GroupVersion{Group: "", Version: "v1"}

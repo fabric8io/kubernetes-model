@@ -138,12 +138,15 @@ type Schema struct {
 	DaemonSetList                  extensions.DaemonSetList
 	Ingress                        extensions.Ingress
 	IngressList                    extensions.IngressList
+	ConfigMap                      extensions.ConfigMap
+	ConfigMapList                  extensions.ConfigMapList
 }
 
 func main() {
 	packages := []schemagen.PackageDescriptor{
 		{"k8s.io/kubernetes/pkg/api/v1", "io.fabric8.kubernetes.api.model", "kubernetes_"},
 		{"k8s.io/kubernetes/pkg/api/resource", "io.fabric8.kubernetes.api.model", "kubernetes_resource_"},
+		{"k8s.io/kubernetes/pkg/util/intstr", "io.fabric8.kubernetes.api.model", "kubernetes_intstr_"},
 		{"k8s.io/kubernetes/pkg/runtime", "io.fabric8.kubernetes.api.model.runtime", "kubernetes_runtime_"},
 		{"k8s.io/kubernetes/pkg/util", "io.fabric8.kubernetes.api.model", "kubernetes_util_"},
 		{"k8s.io/kubernetes/pkg/watch/json", "io.fabric8.kubernetes.api.model", "kubernetes_watch_"},

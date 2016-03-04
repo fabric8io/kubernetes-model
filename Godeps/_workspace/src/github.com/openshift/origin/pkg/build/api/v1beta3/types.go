@@ -43,6 +43,10 @@ type BuildSpec struct {
 	// Compute resource requirements to execute the build
 	Resources kapi.ResourceRequirements `json:"resources,omitempty" description:"the desired compute resources the build should have"`
 
+	// PostCommit is a build hook executed after the build output image is
+	// committed, before it is pushed to a registry.
+	PostCommit BuildPostCommitSpec `json:"postCommit,omitempty" description:"an action executed after the build output image is committed"`
+
 	// Optional duration in seconds, counted from the time when a build pod gets
 	// scheduled in the system, that the build may be active on a node before the
 	// system actively tries to terminate the build; value must be positive integer
@@ -54,7 +58,7 @@ type BuildStatus struct {
 	// Phase is the point in the build lifecycle.
 	Phase BuildPhase `json:"phase"`
 
-	// Cancelled describes if a cancelling event was triggered for the build.
+	// Cancelled describes if a cancel event was triggered for the build.
 	Cancelled bool `json:"cancelled,omitempty"`
 
 	// Reason is a brief CamelCase string that describes any failure and is meant for machine parsing and tidy display in the CLI.
@@ -131,6 +135,8 @@ const (
 	BuildSourceDockerfile BuildSourceType = "Dockerfile"
 	// BuildSourceBinary indicates the build will accept a Binary file as input.
 	BuildSourceBinary BuildSourceType = "Binary"
+	// BuildSourceImage indicates the build will accept an image as input
+	BuildSourceImage BuildSourceType = "Image"
 )
 
 // BuildSource is the SCM used for the build.
@@ -154,6 +160,9 @@ type BuildSource struct {
 	// Git contains optional information about git build source.
 	Git *GitBuildSource `json:"git,omitempty"`
 
+	// Images describes a set of images to be used to provide source for the build
+	Images []ImageSource `json:"images,omitempty" description:"optional images for build source."`
+
 	// Specify the sub-directory where the source code for the application exists.
 	// This allows to have buildable sources in directory other than root of
 	// repository.
@@ -165,6 +174,54 @@ type BuildSource struct {
 	// data's key represent the authentication method to be used and value is
 	// the base64 encoded credentials. Supported auth methods are: ssh-privatekey.
 	SourceSecret *kapi.LocalObjectReference `json:"sourceSecret,omitempty" description:"supported auth methods are: ssh-privatekey"`
+
+	// Secrets represents a list of secrets and their destinations that will
+	// be used only for the build.
+	Secrets []SecretBuildSource `json:"secrets" description:"list of build secrets and destination directories"`
+}
+
+// ImageSource describes an image that is used as source for the build
+type ImageSource struct {
+	// From is a reference to an ImageStreamTag, ImageStreamImage, or DockerImage to
+	// copy source from.
+	From kapi.ObjectReference `json:"from" description:"reference to ImageStreamTag, ImageStreamImage, or DockerImage"`
+
+	// Paths is a list of source and destination paths to copy from the image.
+	Paths []ImageSourcePath `json:"paths" description:"paths to copy from image"`
+
+	// PullSecret is a reference to a secret to be used to pull the image from a registry
+	// If the image is pulled from the OpenShift registry, this field does not need to be set.
+	PullSecret *kapi.LocalObjectReference `json:"pullSecret,omitempty" description:"overrides the default pull secret for the source image"`
+}
+
+// ImageSourcePath describes a path to be copied from a source image and its destination within the build directory.
+type ImageSourcePath struct {
+	// SourcePath is the absolute path of the file or directory inside the image to
+	// copy to the build directory.
+	SourcePath string `json:"sourcePath" description:"source path (directory or file) inside image"`
+
+	// DestinationDir is the relative directory within the build directory
+	// where files copied from the image are placed.
+	DestinationDir string `json:"destinationDir" description:"relative destination directory in build home"`
+}
+
+// SecretBuildSource describes a secret and its destination directory that will be
+// used only at the build time. The content of the secret referenced here will
+// be copied into the destination directory instead of mounting.
+type SecretBuildSource struct {
+	// Secret is a reference to an existing secret that you want to use in your
+	// build.
+	Secret kapi.LocalObjectReference `json:"secret" description:"name of a secret to be used as a source"`
+
+	// DestinationDir is the directory where the files from the secret should be
+	// available for the build time.
+	// For the Source build strategy, these will be injected into a container
+	// where the assemble script runs. Later, when the script finishes, all files
+	// injected will be truncated to zero length.
+	// For the Docker build strategy, these will be copied into the build
+	// directory, where the Dockerfile is located, so users can ADD or COPY them
+	// during docker build.
+	DestinationDir string `json:"destinationDir,omitempty" description:"destination directory for the secret files"`
 }
 
 type BinaryBuildSource struct {
@@ -208,10 +265,10 @@ type GitBuildSource struct {
 	Ref string `json:"ref,omitempty"`
 
 	// HTTPProxy is a proxy used to reach the git repository over http
-	HTTPProxy string `json:"httpProxy,omitempty" description:"specifies a http proxy to be used during git clone operations"`
+	HTTPProxy *string `json:"httpProxy,omitempty" description:"specifies a http proxy to be used during git clone operations"`
 
 	// HTTPSProxy is a proxy used to reach the git repository over https
-	HTTPSProxy string `json:"httpsProxy,omitempty" description:"specifies a https proxy to be used during git clone operations"`
+	HTTPSProxy *string `json:"httpsProxy,omitempty" description:"specifies a https proxy to be used during git clone operations"`
 }
 
 // SourceControlUser defines the identity of a user of source control
@@ -276,6 +333,9 @@ type CustomBuildStrategy struct {
 
 	// Secrets is a list of additional secrets that will be included in the build pod
 	Secrets []SecretSpec `json:"secrets,omitempty" description:"a list of secrets to include in the build pod in addition to pull, push and source secrets"`
+
+	// BuildAPIVersion is the requested API version for the Build object serialized and passed to the custom builder
+	BuildAPIVersion string `json:"buildAPIVersion,omitempty" description:"requested API version for the Build object serialized and passed to the custom builder"`
 }
 
 // DockerBuildStrategy defines input parameters specific to Docker build.
@@ -299,6 +359,10 @@ type DockerBuildStrategy struct {
 
 	// ForcePull describes if the builder should pull the images from registry prior to building.
 	ForcePull bool `json:"forcePull,omitempty" description:"forces the source build to pull the image if true"`
+
+	// DockerfilePath is the path of the Dockerfile that will be used to build the Docker image,
+	// relative to the root of the context (contextDir).
+	DockerfilePath string `json:"dockerfilePath,omitempty" description:"path of the Dockerfile to use for building the Docker image, relative to the contextDir, if set"`
 }
 
 // SourceBuildStrategy defines input parameters specific to an Source build.
@@ -323,6 +387,89 @@ type SourceBuildStrategy struct {
 
 	// ForcePull describes if the builder should pull the images from registry prior to building.
 	ForcePull bool `json:"forcePull,omitempty" description:"forces the source build to pull the image if true"`
+}
+
+// A BuildPostCommitSpec holds a build post commit hook specification. The hook
+// executes a command in a temporary container running the build output image,
+// immediately after the last layer of the image is committed and before the
+// image is pushed to a registry. The command is executed with the current
+// working directory ($PWD) set to the image's WORKDIR.
+//
+// The build will be marked as failed if the hook execution fails. It will fail
+// if the script or command return a non-zero exit code, or if there is any
+// other error related to starting the temporary container.
+//
+// There are five different ways to configure the hook. As an example, all forms
+// below are equivalent and will execute `rake test --verbose`.
+//
+// 1. Shell script:
+//
+// 	BuildPostCommitSpec{
+// 		Script: "rake test --verbose",
+// 	}
+//
+// The above is a convenient form which is equivalent to:
+//
+// 	BuildPostCommitSpec{
+// 		Command: []string{"/bin/sh", "-c"},
+// 		Args: []string{"rake test --verbose"},
+// 	}
+//
+// 2. Command as the image entrypoint:
+//
+// 	BuildPostCommitSpec{
+// 		Command: []string{"rake", "test", "--verbose"},
+// 	}
+//
+// Command overrides the image entrypoint in the exec form, as documented in
+// Docker: https://docs.docker.com/engine/reference/builder/#entrypoint.
+//
+// 3. Pass arguments to the default entrypoint:
+//
+// 	BuildPostCommitSpec{
+// 		Args: []string{"rake", "test", "--verbose"},
+// 	}
+//
+// This form is only useful if the image entrypoint can handle arguments.
+//
+// 4. Shell script with arguments:
+//
+// 	BuildPostCommitSpec{
+// 		Script: "rake test $1",
+// 		Args: []string{"--verbose"},
+// 	}
+//
+// This form is useful if you need to pass arguments that would otherwise be
+// hard to quote properly in the shell script. In the script, $0 will be
+// "/bin/sh" and $1, $2, etc, are the positional arguments from Args.
+//
+// 5. Command with arguments:
+//
+// 	BuildPostCommitSpec{
+// 		Command: []string{"rake", "test"},
+// 		Args: []string{"--verbose"},
+// 	}
+//
+// This form is equivalent to appending the arguments to the Command slice.
+//
+// It is invalid to provide both Script and Command simultaneously. If none of
+// the fields are specified, the hook is not executed.
+type BuildPostCommitSpec struct {
+	// Command is the command to run. It may not be specified with Script.
+	// This might be needed if the image doesn't have "/bin/sh", or if you
+	// do not want to use a shell. In all other cases, using Script might be
+	// more convenient.
+	Command []string `json:"command,omitempty" description:"command to be executed in a container running the build output image replacing the image's entrypoint"`
+	// Args is a list of arguments that are provided to either Command,
+	// Script or the Docker image's default entrypoint. The arguments are
+	// placed immediately after the command to be run.
+	Args []string `json:"args,omitempty" description:"arguments to command, script or the default image entrypoint"`
+	// Script is a shell script to be run with `/bin/sh -c`. It may not be
+	// specified with Command. Use Script when a shell script is appropriate
+	// to execute the post build hook, for example for running unit tests
+	// with "rake test". If you need control over the image entrypoint, or
+	// if the image does not have "/bin/sh", use Command and/or Args.
+	Script string `json:"script,omitempty" description:"shell script to be executed in a container running the build output image"`
 }
 
 // BuildOutput is input to a build strategy and describes the Docker image that the strategy
@@ -477,6 +624,9 @@ type BuildRequest struct {
 	// to generate the build. If the BuildConfig in the generator doesn't match, a build will
 	// not be generated.
 	LastVersion *int `json:"lastVersion,omitempty" description:"LastVersion of the BuildConfig that triggered this build"`
+
+	// Env contains additional environment variables you want to pass into a builder container
+	Env []kapi.EnvVar `json:"env,omitempty" description:"additional environment variables you want to pass into a builder container"`
 }
 
 type BinaryBuildRequestOptions struct {
@@ -513,8 +663,8 @@ type BuildLogOptions struct {
 	// Follow if true indicates that the build log should be streamed until
 	// the build terminates.
 	Follow bool `json:"follow,omitempty" description:"if true indicates that the log should be streamed; defaults to false"`
-	// Return previous terminated container logs. Defaults to false.
-	Previous bool `json:"previous,omitempty" description:"return previous terminated container logs; defaults to false."`
+	// Return previous build logs. Defaults to false.
+	Previous bool `json:"previous,omitempty" description:"return previous build logs; defaults to false."`
 	// A relative time in seconds before the current time from which to show logs. If this value
 	// precedes the time a pod was started, only logs since the pod start will be returned.
 	// If this value is in the future, no logs will be returned.

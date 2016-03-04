@@ -17,14 +17,24 @@ limitations under the License.
 package v1
 
 import (
+	"k8s.io/kubernetes/pkg/runtime"
 	"strings"
 
-	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/util/intstr"
+	"k8s.io/kubernetes/pkg/util/parsers"
 )
 
-func addDefaultingFuncs() {
-	api.Scheme.AddDefaultingFuncs(
+func addDefaultingFuncs(scheme *runtime.Scheme) {
+	scheme.AddDefaultingFuncs(
+		func(obj *PodExecOptions) {
+			obj.Stdout = true
+			obj.Stderr = true
+		},
+		func(obj *PodAttachOptions) {
+			obj.Stdout = true
+			obj.Stderr = true
+		},
 		func(obj *ReplicationController) {
 			var labels map[string]string
 			if obj.Spec.Template != nil {
@@ -40,7 +50,7 @@ func addDefaultingFuncs() {
 				}
 			}
 			if obj.Spec.Replicas == nil {
-				obj.Spec.Replicas = new(int)
+				obj.Spec.Replicas = new(int32)
 				*obj.Spec.Replicas = 1
 			}
 		},
@@ -66,10 +76,10 @@ func addDefaultingFuncs() {
 		},
 		func(obj *Container) {
 			if obj.ImagePullPolicy == "" {
-				// TODO(dchen1107): Move ParseImageName code to pkg/util
-				parts := strings.Split(obj.Image, ":")
+				_, tag := parsers.ParseImageName(obj.Image)
 				// Check image tag
-				if parts[len(parts)-1] == "latest" {
+
+				if tag == "latest" {
 					obj.ImagePullPolicy = PullAlways
 				} else {
 					obj.ImagePullPolicy = PullIfNotPresent
@@ -91,8 +101,8 @@ func addDefaultingFuncs() {
 				if sp.Protocol == "" {
 					sp.Protocol = ProtocolTCP
 				}
-				if sp.TargetPort == util.NewIntOrStringFromInt(0) || sp.TargetPort == util.NewIntOrStringFromString("") {
-					sp.TargetPort = util.NewIntOrStringFromInt(sp.Port)
+				if sp.TargetPort == intstr.FromInt(0) || sp.TargetPort == intstr.FromString("") {
+					sp.TargetPort = intstr.FromInt(int(sp.Port))
 				}
 			}
 
@@ -138,7 +148,6 @@ func addDefaultingFuncs() {
 			if obj.HostNetwork {
 				defaultHostNetworkPorts(&obj.Containers)
 			}
-
 			if obj.SecurityContext == nil {
 				obj.SecurityContext = &PodSecurityContext{}
 			}
@@ -161,6 +170,15 @@ func addDefaultingFuncs() {
 			if obj.TimeoutSeconds == 0 {
 				obj.TimeoutSeconds = 1
 			}
+			if obj.PeriodSeconds == 0 {
+				obj.PeriodSeconds = 10
+			}
+			if obj.SuccessThreshold == 0 {
+				obj.SuccessThreshold = 1
+			}
+			if obj.FailureThreshold == 0 {
+				obj.FailureThreshold = 3
+			}
 		},
 		func(obj *Secret) {
 			if obj.Type == "" {
@@ -178,6 +196,11 @@ func addDefaultingFuncs() {
 		func(obj *PersistentVolumeClaim) {
 			if obj.Status.Phase == "" {
 				obj.Status.Phase = ClaimPending
+			}
+		},
+		func(obj *ISCSIVolumeSource) {
+			if obj.ISCSIInterface == "" {
+				obj.ISCSIInterface = "default"
 			}
 		},
 		func(obj *Endpoints) {
@@ -216,6 +239,15 @@ func addDefaultingFuncs() {
 		func(obj *Node) {
 			if obj.Spec.ExternalID == "" {
 				obj.Spec.ExternalID = obj.Name
+			}
+		},
+		func(obj *NodeStatus) {
+			if obj.Allocatable == nil && obj.Capacity != nil {
+				obj.Allocatable = make(ResourceList, len(obj.Capacity))
+				for key, value := range obj.Capacity {
+					obj.Allocatable[key] = *(value.Copy())
+				}
+				obj.Allocatable = obj.Capacity
 			}
 		},
 		func(obj *ObjectFieldSelector) {
@@ -271,22 +303,19 @@ func defaultHostNetworkPorts(containers *[]Container) {
 	}
 }
 
-// Default SCCs for new fields.  Defaults are based on the RunAsUser type if not explicitly set.
-// If the SCC allows RunAsAny UID then the FSGroup/SupGroups will default to RunAsAny.  Otherwise
-// default to MustRunAs with namespace allocation.
+// Default SCCs for new fields.  FSGroup and SupplementalGroups are
+// set to the RunAsAny strategy if they are unset on the scc.
 func defaultSecurityContextConstraints(scc *SecurityContextConstraints) {
 	if len(scc.FSGroup.Type) == 0 {
-		if scc.RunAsUser.Type == RunAsUserStrategyRunAsAny {
-			scc.FSGroup.Type = FSGroupStrategyRunAsAny
-		} else {
-			scc.FSGroup.Type = FSGroupStrategyMustRunAs
-		}
+		scc.FSGroup.Type = FSGroupStrategyRunAsAny
 	}
 	if len(scc.SupplementalGroups.Type) == 0 {
-		if scc.RunAsUser.Type == RunAsUserStrategyRunAsAny {
-			scc.SupplementalGroups.Type = SupplementalGroupsStrategyRunAsAny
-		} else {
-			scc.SupplementalGroups.Type = SupplementalGroupsStrategyMustRunAs
-		}
+		scc.SupplementalGroups.Type = SupplementalGroupsStrategyRunAsAny
+	}
+
+	// EmptyDir volumes were implicitly allowed originally, always default this to true.
+	if scc.AllowEmptyDirVolumePlugin == nil {
+		scc.AllowEmptyDirVolumePlugin = new(bool)
+		*scc.AllowEmptyDirVolumePlugin = true
 	}
 }

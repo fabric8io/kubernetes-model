@@ -56,7 +56,11 @@ func getFieldName(f reflect.StructField) string {
 	json := f.Tag.Get("json")
 	if len(json) > 0 {
 		parts := strings.Split(json, ",")
-		return parts[0]
+		name := parts[0]
+		if name == "-" {
+			name = f.Name
+		}
+		return name
 	}
 	return f.Name
 }

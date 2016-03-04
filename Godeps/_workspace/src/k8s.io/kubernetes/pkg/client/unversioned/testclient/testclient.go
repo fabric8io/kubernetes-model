@@ -23,8 +23,8 @@ import (
 	"github.com/emicklei/go-restful/swagger"
 
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/registered"
 	"k8s.io/kubernetes/pkg/api/unversioned"
+	"k8s.io/kubernetes/pkg/api/v1"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/version"
@@ -33,7 +33,7 @@ import (
 
 // NewSimpleFake returns a client that will respond with the provided objects
 func NewSimpleFake(objects ...runtime.Object) *Fake {
-	o := NewObjects(api.Scheme, api.Scheme)
+	o := NewObjects(api.Scheme, api.Codecs.UniversalDecoder())
 	for _, obj := range objects {
 		if err := o.Add(obj); err != nil {
 			panic(err)
@@ -60,6 +60,8 @@ type Fake struct {
 	WatchReactionChain []WatchReactor
 	// ProxyReactionChain is the list of proxy reactors that will be attempted for every request in the order they are tried
 	ProxyReactionChain []ProxyReactor
+
+	Resources map[string]*unversioned.APIResourceList
 }
 
 // Reactor is an interface to allow the composition of reaction functions.
@@ -252,10 +254,6 @@ func (c *Fake) Pods(namespace string) client.PodInterface {
 	return &FakePods{Fake: c, Namespace: namespace}
 }
 
-func (c *Fake) PodLogs(namespace string) client.PodLogsInterface {
-	return &FakePodLogs{Fake: c, Namespace: namespace}
-}
-
 func (c *Fake) PodTemplates(namespace string) client.PodTemplateInterface {
 	return &FakePodTemplates{Fake: c, Namespace: namespace}
 }
@@ -280,23 +278,8 @@ func (c *Fake) Extensions() client.ExtensionsInterface {
 	return &FakeExperimental{c}
 }
 
-func (c *Fake) ServerVersion() (*version.Info, error) {
-	action := ActionImpl{}
-	action.Verb = "get"
-	action.Resource = "version"
-
-	c.Invokes(action, nil)
-	versionInfo := version.Get()
-	return &versionInfo, nil
-}
-
-func (c *Fake) ServerAPIVersions() (*unversioned.APIVersions, error) {
-	action := ActionImpl{}
-	action.Verb = "get"
-	action.Resource = "apiversions"
-
-	c.Invokes(action, nil)
-	return &unversioned.APIVersions{Versions: registered.RegisteredVersions}, nil
+func (c *Fake) Discovery() client.DiscoveryInterface {
+	return &FakeDiscovery{c}
 }
 
 func (c *Fake) ComponentStatuses() client.ComponentStatusInterface {
@@ -304,13 +287,22 @@ func (c *Fake) ComponentStatuses() client.ComponentStatusInterface {
 }
 
 // SwaggerSchema returns an empty swagger.ApiDeclaration for testing
-func (c *Fake) SwaggerSchema(version string) (*swagger.ApiDeclaration, error) {
+func (c *Fake) SwaggerSchema(version unversioned.GroupVersion) (*swagger.ApiDeclaration, error) {
 	action := ActionImpl{}
 	action.Verb = "get"
-	action.Resource = "/swaggerapi/api/" + version
+	if version == v1.SchemeGroupVersion {
+		action.Resource = "/swaggerapi/api/" + version.Version
+	} else {
+		action.Resource = "/swaggerapi/apis/" + version.Group + "/" + version.Version
+	}
 
 	c.Invokes(action, nil)
 	return &swagger.ApiDeclaration{}, nil
+}
+
+// NewSimpleFakeExp returns a client that will respond with the provided objects
+func NewSimpleFakeExp(objects ...runtime.Object) *FakeExperimental {
+	return &FakeExperimental{Fake: NewSimpleFake(objects...)}
 }
 
 type FakeExperimental struct {
@@ -339,4 +331,48 @@ func (c *FakeExperimental) Jobs(namespace string) client.JobInterface {
 
 func (c *FakeExperimental) Ingress(namespace string) client.IngressInterface {
 	return &FakeIngress{Fake: c, Namespace: namespace}
+}
+
+func (c *FakeExperimental) ConfigMaps(namespace string) client.ConfigMapsInterface {
+	return &FakeConfigMaps{Fake: c, Namespace: namespace}
+}
+
+func (c *FakeExperimental) ThirdPartyResources(namespace string) client.ThirdPartyResourceInterface {
+	return &FakeThirdPartyResources{Fake: c, Namespace: namespace}
+}
+
+type FakeDiscovery struct {
+	*Fake
+}
+
+func (c *FakeDiscovery) ServerResourcesForGroupVersion(groupVersion string) (*unversioned.APIResourceList, error) {
+	action := ActionImpl{
+		Verb:     "get",
+		Resource: "resource",
+	}
+	c.Invokes(action, nil)
+	return c.Resources[groupVersion], nil
+}
+
+func (c *FakeDiscovery) ServerResources() (map[string]*unversioned.APIResourceList, error) {
+	action := ActionImpl{
+		Verb:     "get",
+		Resource: "resource",
+	}
+	c.Invokes(action, nil)
+	return c.Resources, nil
+}
+
+func (c *FakeDiscovery) ServerGroups() (*unversioned.APIGroupList, error) {
+	return nil, nil
+}
+
+func (c *FakeDiscovery) ServerVersion() (*version.Info, error) {
+	action := ActionImpl{}
+	action.Verb = "get"
+	action.Resource = "version"
+
+	c.Invokes(action, nil)
+	versionInfo := version.Get()
+	return &versionInfo, nil
 }

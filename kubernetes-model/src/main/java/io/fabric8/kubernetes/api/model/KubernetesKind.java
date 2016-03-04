@@ -53,7 +53,6 @@ public enum KubernetesKind {
     ImageList(ImageList.class),
     ImageStream(ImageStream.class),
     ImageStreamList(ImageStreamList.class),
-    NameTagReference(NamedTagReference.class),
     NameTagEventList(NamedTagEventList.class),
     Route(Route.class),
     RouteList(RouteList.class),

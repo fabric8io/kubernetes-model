@@ -24,12 +24,18 @@ build:
 
 update-deps:
 	echo $(tag) > .openshift-version && \
+		pushd $(GOPATH)/src/k8s.io/kubernetes && \
+		(git add remote openshift git://github.com/openshift/kubernetes.git 2>/dev/null || true) && \
+		git fetch openshift && \
+		popd && \
 		pushd $(GOPATH)/src/github.com/openshift/origin && \
 		git fetch origin && \
 		git checkout -B $(tag) refs/tags/$(tag) && \
-		godep restore && \
+		(godep restore || true) && \
 		popd && \
-		godep save cmd/generate/generate.go && \
-		godep update ... && \
-		rm -rf Godeps/_workspace/src/k8s.io/kubernetes && \
-		cp -r $(GOPATH)/src/github.com/openshift/origin/Godeps/_workspace/src/k8s.io/kubernetes Godeps/_workspace/src/github.com/k8s.io/kubernetes
+		pushd $(GOPATH)/src/github.com/coreos/pkg && \
+		git fetch origin && \
+		git checkout fa94270d4bac0d8ae5dc6b71894e251aada93f74 && \
+		popd && \
+		godep save ./cmd/generate/generate.go && \
+		godep update ...

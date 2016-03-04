@@ -2,9 +2,13 @@ package v1
 
 import (
 	"sort"
+	"strings"
 
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/unversioned"
+	v1 "k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/conversion"
+	"k8s.io/kubernetes/pkg/runtime"
 
 	oapi "github.com/openshift/origin/pkg/api"
 	newer "github.com/openshift/origin/pkg/image/api"
@@ -19,16 +23,35 @@ func convert_api_Image_To_v1_Image(in *newer.Image, out *Image, s conversion.Sco
 	out.DockerImageReference = in.DockerImageReference
 	out.DockerImageManifest = in.DockerImageManifest
 
-	version := in.DockerImageMetadataVersion
-	if len(version) == 0 {
-		version = "1.0"
+	gvString := in.DockerImageMetadataVersion
+	if len(gvString) == 0 {
+		gvString = "1.0"
 	}
-	data, err := kapi.Scheme.EncodeToVersion(&in.DockerImageMetadata, version)
+	if !strings.Contains(gvString, "/") {
+		gvString = "/" + gvString
+	}
+
+	version, err := unversioned.ParseGroupVersion(gvString)
+	if err != nil {
+		return err
+	}
+	data, err := runtime.Encode(api.Codecs.LegacyCodec(version), &in.DockerImageMetadata, version)
 	if err != nil {
 		return err
 	}
 	out.DockerImageMetadata.RawJSON = data
-	out.DockerImageMetadataVersion = version
+	out.DockerImageMetadataVersion = version.Version
+
+	if in.DockerImageLayers != nil {
+		out.DockerImageLayers = make([]ImageLayer, len(in.DockerImageLayers))
+		for i := range in.DockerImageLayers {
+			if err := s.Convert(&in.DockerImageLayers[i], &out.DockerImageLayers[i], 0); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.DockerImageLayers = nil
+	}
 
 	return nil
 }
@@ -47,11 +70,11 @@ func convert_v1_Image_To_api_Image(in *Image, out *newer.Image, s conversion.Sco
 	}
 	if len(in.DockerImageMetadata.RawJSON) > 0 {
 		// TODO: add a way to default the expected kind and version of an object if not set
-		obj, err := kapi.Scheme.New(version, "DockerImage")
+		obj, err := api.Scheme.New(unversioned.GroupVersionKind{Version: version, Kind: "DockerImage"})
 		if err != nil {
 			return err
 		}
-		if err := kapi.Scheme.DecodeInto(in.DockerImageMetadata.RawJSON, obj); err != nil {
+		if err := runtime.DecodeInto(api.Codecs.UniversalDecoder(), in.DockerImageMetadata.RawJSON, obj); err != nil {
 			return err
 		}
 		if err := s.Convert(obj, &out.DockerImageMetadata, 0); err != nil {
@@ -59,6 +82,17 @@ func convert_v1_Image_To_api_Image(in *Image, out *newer.Image, s conversion.Sco
 		}
 	}
 	out.DockerImageMetadataVersion = version
+
+	if in.DockerImageLayers != nil {
+		out.DockerImageLayers = make([]newer.ImageLayer, len(in.DockerImageLayers))
+		for i := range in.DockerImageLayers {
+			if err := s.Convert(&in.DockerImageLayers[i], &out.DockerImageLayers[i], 0); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.DockerImageLayers = nil
+	}
 
 	return nil
 }
@@ -80,7 +114,7 @@ func convert_api_ImageStreamSpec_To_v1_ImageStreamSpec(in *newer.ImageStreamSpec
 			}
 		}
 	}
-	out.Tags = make([]NamedTagReference, 0, 0)
+	out.Tags = make([]TagReference, 0, 0)
 	return s.Convert(&in.Tags, &out.Tags, 0)
 }
 
@@ -113,11 +147,28 @@ func convert_v1_ImageStreamMapping_To_api_ImageStreamMapping(in *ImageStreamMapp
 	return s.DefaultConvert(in, out, conversion.SourceToDest)
 }
 
-func init() {
-	err := kapi.Scheme.AddConversionFuncs(
+func addConversionFuncs(scheme *runtime.Scheme) {
+	err := scheme.AddDefaultingFuncs(
+		func(obj *ImageImportSpec) {
+			if obj.To == nil {
+				if ref, err := newer.ParseDockerImageReference(obj.From.Name); err == nil {
+					if len(ref.Tag) > 0 {
+						obj.To = &v1.LocalObjectReference{Name: ref.Tag}
+					}
+				}
+			}
+		})
+	if err != nil {
+		// If one of the default functions is malformed, detect it immediately.
+		panic(err)
+	}
+	err = scheme.AddConversionFuncs(
 		func(in *[]NamedTagEventList, out *map[string]newer.TagEventList, s conversion.Scope) error {
 			for _, curr := range *in {
 				newTagEventList := newer.TagEventList{}
+				if err := s.Convert(&curr.Conditions, &newTagEventList.Conditions, 0); err != nil {
+					return err
+				}
 				if err := s.Convert(&curr.Items, &newTagEventList.Items, 0); err != nil {
 					return err
 				}
@@ -136,6 +187,9 @@ func init() {
 			for _, key := range allKeys {
 				newTagEventList := (*in)[key]
 				oldTagEventList := &NamedTagEventList{Tag: key}
+				if err := s.Convert(&newTagEventList.Conditions, &oldTagEventList.Conditions, 0); err != nil {
+					return err
+				}
 				if err := s.Convert(&newTagEventList.Items, &oldTagEventList.Items, 0); err != nil {
 					return err
 				}
@@ -145,20 +199,17 @@ func init() {
 
 			return nil
 		},
-		func(in *[]NamedTagReference, out *map[string]newer.TagReference, s conversion.Scope) error {
+		func(in *[]TagReference, out *map[string]newer.TagReference, s conversion.Scope) error {
 			for _, curr := range *in {
-				r := newer.TagReference{
-					Annotations: curr.Annotations,
-					Reference:   curr.Reference,
-				}
-				if err := s.Convert(&curr.From, &r.From, 0); err != nil {
+				r := newer.TagReference{}
+				if err := s.Convert(&curr, &r, 0); err != nil {
 					return err
 				}
 				(*out)[curr.Name] = r
 			}
 			return nil
 		},
-		func(in *map[string]newer.TagReference, out *[]NamedTagReference, s conversion.Scope) error {
+		func(in *map[string]newer.TagReference, out *[]TagReference, s conversion.Scope) error {
 			allTags := make([]string, 0, len(*in))
 			for tag := range *in {
 				allTags = append(allTags, tag)
@@ -167,14 +218,11 @@ func init() {
 
 			for _, tag := range allTags {
 				newTagReference := (*in)[tag]
-				oldTagReference := NamedTagReference{
-					Name:        tag,
-					Annotations: newTagReference.Annotations,
-					Reference:   newTagReference.Reference,
-				}
-				if err := s.Convert(&newTagReference.From, &oldTagReference.From, 0); err != nil {
+				oldTagReference := TagReference{}
+				if err := s.Convert(&newTagReference, &oldTagReference, 0); err != nil {
 					return err
 				}
+				oldTagReference.Name = tag
 				*out = append(*out, oldTagReference)
 			}
 			return nil
@@ -194,13 +242,13 @@ func init() {
 		panic(err)
 	}
 
-	if err := kapi.Scheme.AddFieldLabelConversionFunc("v1", "Image",
+	if err := scheme.AddFieldLabelConversionFunc("v1", "Image",
 		oapi.GetFieldLabelConversionFunc(newer.ImageToSelectableFields(&newer.Image{}), nil),
 	); err != nil {
 		panic(err)
 	}
 
-	if err := kapi.Scheme.AddFieldLabelConversionFunc("v1", "ImageStream",
+	if err := scheme.AddFieldLabelConversionFunc("v1", "ImageStream",
 		oapi.GetFieldLabelConversionFunc(newer.ImageStreamToSelectableFields(&newer.ImageStream{}), map[string]string{"name": "metadata.name"}),
 	); err != nil {
 		panic(err)

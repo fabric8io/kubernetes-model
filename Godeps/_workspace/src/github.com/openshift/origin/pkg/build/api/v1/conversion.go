@@ -1,13 +1,47 @@
 package v1
 
 import (
-	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/conversion"
+	"k8s.io/kubernetes/pkg/runtime"
 
 	oapi "github.com/openshift/origin/pkg/api"
 	newer "github.com/openshift/origin/pkg/build/api"
+	buildutil "github.com/openshift/origin/pkg/build/util"
 	imageapi "github.com/openshift/origin/pkg/image/api"
 )
+
+func convert_v1_BuildConfig_To_api_BuildConfig(in *BuildConfig, out *newer.BuildConfig, s conversion.Scope) error {
+	if err := s.DefaultConvert(in, out, conversion.IgnoreMissingFields); err != nil {
+		return err
+	}
+
+	newTriggers := []newer.BuildTriggerPolicy{}
+	// strip off any default imagechange triggers where the buildconfig's
+	// "from" is not an ImageStreamTag, because those triggers
+	// will never be invoked.
+	imageRef := buildutil.GetImageStreamForStrategy(out.Spec.Strategy)
+	hasIST := imageRef != nil && imageRef.Kind == "ImageStreamTag"
+	for _, trigger := range out.Spec.Triggers {
+		if trigger.Type != newer.ImageChangeBuildTriggerType {
+			newTriggers = append(newTriggers, trigger)
+			continue
+		}
+		if (trigger.ImageChange == nil || trigger.ImageChange.From == nil) && !hasIST {
+			continue
+		}
+		newTriggers = append(newTriggers, trigger)
+	}
+	out.Spec.Triggers = newTriggers
+	return nil
+}
+
+// empty conversion needed because the conversion generator can't handle unidirectional custom conversions
+func convert_api_BuildConfig_To_v1_BuildConfig(in *newer.BuildConfig, out *BuildConfig, s conversion.Scope) error {
+	if err := s.DefaultConvert(in, out, conversion.IgnoreMissingFields); err != nil {
+		return err
+	}
+	return nil
+}
 
 func convert_v1_SourceBuildStrategy_To_api_SourceBuildStrategy(in *SourceBuildStrategy, out *newer.SourceBuildStrategy, s conversion.Scope) error {
 	if err := s.DefaultConvert(in, out, conversion.IgnoreMissingFields); err != nil {
@@ -113,8 +147,71 @@ func convert_v1_BuildTriggerPolicy_To_api_BuildTriggerPolicy(in *BuildTriggerPol
 	return nil
 }
 
-func init() {
-	err := kapi.Scheme.AddDefaultingFuncs(
+func convert_api_SourceRevision_To_v1_SourceRevision(in *newer.SourceRevision, out *SourceRevision, s conversion.Scope) error {
+	if err := s.DefaultConvert(in, out, conversion.IgnoreMissingFields); err != nil {
+		return err
+	}
+	out.Type = BuildSourceGit
+	return nil
+}
+
+func convert_v1_SourceRevision_To_api_SourceRevision(in *SourceRevision, out *newer.SourceRevision, s conversion.Scope) error {
+	if err := s.DefaultConvert(in, out, conversion.IgnoreMissingFields); err != nil {
+		return err
+	}
+	return nil
+}
+
+func convert_api_BuildSource_To_v1_BuildSource(in *newer.BuildSource, out *BuildSource, s conversion.Scope) error {
+	if err := s.DefaultConvert(in, out, conversion.IgnoreMissingFields); err != nil {
+		return err
+	}
+	switch {
+	// it is legal for a buildsource to have both a git+dockerfile source, but in v1 that was represented
+	// as type git.
+	case in.Git != nil:
+		out.Type = BuildSourceGit
+	// it is legal for a buildsource to have both a binary+dockerfile source, but in v1 that was represented
+	// as type binary.
+	case in.Binary != nil:
+		out.Type = BuildSourceBinary
+	case in.Dockerfile != nil:
+		out.Type = BuildSourceDockerfile
+	}
+	return nil
+}
+
+func convert_v1_BuildSource_To_api_BuildSource(in *BuildSource, out *newer.BuildSource, s conversion.Scope) error {
+	if err := s.DefaultConvert(in, out, conversion.IgnoreMissingFields); err != nil {
+		return err
+	}
+	return nil
+}
+
+func convert_api_BuildStrategy_To_v1_BuildStrategy(in *newer.BuildStrategy, out *BuildStrategy, s conversion.Scope) error {
+	if err := s.DefaultConvert(in, out, conversion.IgnoreMissingFields); err != nil {
+		return err
+	}
+	switch {
+	case in.SourceStrategy != nil:
+		out.Type = SourceBuildStrategyType
+	case in.DockerStrategy != nil:
+		out.Type = DockerBuildStrategyType
+	case in.CustomStrategy != nil:
+		out.Type = CustomBuildStrategyType
+	}
+	return nil
+}
+
+func convert_v1_BuildStrategy_To_api_BuildStrategy(in *BuildStrategy, out *newer.BuildStrategy, s conversion.Scope) error {
+	if err := s.DefaultConvert(in, out, conversion.IgnoreMissingFields); err != nil {
+		return err
+	}
+	return nil
+}
+
+func addConversionFuncs(scheme *runtime.Scheme) {
+	err := scheme.AddDefaultingFuncs(
 		func(strategy *BuildStrategy) {
 			if (strategy != nil) && (strategy.Type == DockerBuildStrategyType) {
 				//  initialize DockerStrategy to a default state if it's not set.
@@ -148,7 +245,9 @@ func init() {
 		panic(err)
 	}
 
-	kapi.Scheme.AddConversionFuncs(
+	scheme.AddConversionFuncs(
+		convert_v1_BuildConfig_To_api_BuildConfig,
+		convert_api_BuildConfig_To_v1_BuildConfig,
 		convert_v1_SourceBuildStrategy_To_api_SourceBuildStrategy,
 		convert_api_SourceBuildStrategy_To_v1_SourceBuildStrategy,
 		convert_v1_DockerBuildStrategy_To_api_DockerBuildStrategy,
@@ -159,15 +258,21 @@ func init() {
 		convert_api_BuildOutput_To_v1_BuildOutput,
 		convert_v1_BuildTriggerPolicy_To_api_BuildTriggerPolicy,
 		convert_api_BuildTriggerPolicy_To_v1_BuildTriggerPolicy,
+		convert_v1_SourceRevision_To_api_SourceRevision,
+		convert_api_SourceRevision_To_v1_SourceRevision,
+		convert_v1_BuildSource_To_api_BuildSource,
+		convert_api_BuildSource_To_v1_BuildSource,
+		convert_v1_BuildStrategy_To_api_BuildStrategy,
+		convert_api_BuildStrategy_To_v1_BuildStrategy,
 	)
 
-	if err := kapi.Scheme.AddFieldLabelConversionFunc("v1", "Build",
+	if err := scheme.AddFieldLabelConversionFunc("v1", "Build",
 		oapi.GetFieldLabelConversionFunc(newer.BuildToSelectableFields(&newer.Build{}), map[string]string{"name": "metadata.name"}),
 	); err != nil {
 		panic(err)
 	}
 
-	if err := kapi.Scheme.AddFieldLabelConversionFunc("v1", "BuildConfig",
+	if err := scheme.AddFieldLabelConversionFunc("v1", "BuildConfig",
 		oapi.GetFieldLabelConversionFunc(newer.BuildConfigToSelectableFields(&newer.BuildConfig{}), map[string]string{"name": "metadata.name"}),
 	); err != nil {
 		panic(err)

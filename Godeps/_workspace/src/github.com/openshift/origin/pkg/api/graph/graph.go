@@ -2,7 +2,7 @@ package graph
 
 import (
 	"fmt"
-	"io"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -30,10 +30,6 @@ func (n Node) DOTAttributes() []dot.Attribute {
 type ExistenceChecker interface {
 	// Found returns false if the node represents an object that we don't have the backing object for
 	Found() bool
-}
-
-type ResourceNode interface {
-	ResourceString() string
 }
 
 type UniqueName string
@@ -114,6 +110,23 @@ type Interface interface {
 	Edges() []graph.Edge
 }
 
+type Namer interface {
+	ResourceName(obj interface{}) string
+}
+
+type namer struct{}
+
+var DefaultNamer Namer = namer{}
+
+func (namer) ResourceName(obj interface{}) string {
+	switch t := obj.(type) {
+	case uniqueNamer:
+		return t.UniqueName()
+	default:
+		return reflect.TypeOf(obj).String()
+	}
+}
+
 type Graph struct {
 	// the standard graph
 	graph.Directed
@@ -142,7 +155,8 @@ func New() Graph {
 	}
 }
 
-// Edges returns all the edges of the graph
+// Edges returns all the edges of the graph. Note that the returned set
+// will have no specific ordering.
 func (g Graph) Edges() []graph.Edge {
 	return g.internal.Edges()
 }
@@ -642,15 +656,4 @@ func pathEqual(a, b []graph.Node) bool {
 		}
 	}
 	return true
-}
-
-func Fprint(out io.Writer, g Graph) {
-	for _, node := range g.Nodes() {
-		fmt.Fprintf(out, "node %d %s\n", node.ID(), node)
-	}
-	for _, edge := range g.Edges() {
-		for _, edgeKind := range g.EdgeKinds(edge).List() {
-			fmt.Fprintf(out, "edge %d -> %d : %s\n", edge.From().ID(), edge.From().ID(), edgeKind)
-		}
-	}
 }
