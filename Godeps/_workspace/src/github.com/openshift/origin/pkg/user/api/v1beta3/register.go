@@ -1,11 +1,22 @@
 package v1beta3
 
 import (
-	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/unversioned"
+	"k8s.io/kubernetes/pkg/runtime"
 )
 
-func init() {
-	api.Scheme.AddKnownTypes("v1beta3",
+const GroupName = ""
+
+// SchemeGroupVersion is group version used to register these objects
+var SchemeGroupVersion = unversioned.GroupVersion{Group: GroupName, Version: "v1beta3"}
+
+func AddToScheme(scheme *runtime.Scheme) {
+	addKnownTypes(scheme)
+}
+
+// Adds the list of known types to api.Scheme.
+func addKnownTypes(scheme *runtime.Scheme) {
+	scheme.AddKnownTypes(SchemeGroupVersion,
 		&User{},
 		&UserList{},
 		&Identity{},
@@ -15,3 +26,11 @@ func init() {
 		&GroupList{},
 	)
 }
+
+func (obj *GroupList) GetObjectKind() unversioned.ObjectKind           { return &obj.TypeMeta }
+func (obj *Group) GetObjectKind() unversioned.ObjectKind               { return &obj.TypeMeta }
+func (obj *User) GetObjectKind() unversioned.ObjectKind                { return &obj.TypeMeta }
+func (obj *UserList) GetObjectKind() unversioned.ObjectKind            { return &obj.TypeMeta }
+func (obj *Identity) GetObjectKind() unversioned.ObjectKind            { return &obj.TypeMeta }
+func (obj *IdentityList) GetObjectKind() unversioned.ObjectKind        { return &obj.TypeMeta }
+func (obj *UserIdentityMapping) GetObjectKind() unversioned.ObjectKind { return &obj.TypeMeta }

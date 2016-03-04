@@ -1,11 +1,22 @@
 package v1beta3
 
 import (
-	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/unversioned"
+	"k8s.io/kubernetes/pkg/runtime"
 )
 
-func init() {
-	api.Scheme.AddKnownTypes("v1beta3",
+const GroupName = ""
+
+// SchemeGroupVersion is group version used to register these objects
+var SchemeGroupVersion = unversioned.GroupVersion{Group: GroupName, Version: "v1beta3"}
+
+func AddToScheme(scheme *runtime.Scheme) {
+	addKnownTypes(scheme)
+}
+
+// Adds the list of known types to api.Scheme.
+func addKnownTypes(scheme *runtime.Scheme) {
+	scheme.AddKnownTypes(SchemeGroupVersion,
 		&ClusterNetwork{},
 		&ClusterNetworkList{},
 		&HostSubnet{},
@@ -15,9 +26,9 @@ func init() {
 	)
 }
 
-func (*ClusterNetwork) IsAnAPIObject()     {}
-func (*ClusterNetworkList) IsAnAPIObject() {}
-func (*HostSubnet) IsAnAPIObject()         {}
-func (*HostSubnetList) IsAnAPIObject()     {}
-func (*NetNamespace) IsAnAPIObject()       {}
-func (*NetNamespaceList) IsAnAPIObject()   {}
+func (obj *ClusterNetwork) GetObjectKind() unversioned.ObjectKind     { return &obj.TypeMeta }
+func (obj *ClusterNetworkList) GetObjectKind() unversioned.ObjectKind { return &obj.TypeMeta }
+func (obj *HostSubnet) GetObjectKind() unversioned.ObjectKind         { return &obj.TypeMeta }
+func (obj *HostSubnetList) GetObjectKind() unversioned.ObjectKind     { return &obj.TypeMeta }
+func (obj *NetNamespace) GetObjectKind() unversioned.ObjectKind       { return &obj.TypeMeta }
+func (obj *NetNamespaceList) GetObjectKind() unversioned.ObjectKind   { return &obj.TypeMeta }

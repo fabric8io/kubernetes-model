@@ -3,13 +3,14 @@ package v1
 import (
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	kapi "k8s.io/kubernetes/pkg/api/v1"
-	"k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/util/intstr"
 )
 
 // Route encapsulates the inputs needed to connect an alias to endpoints.
 type Route struct {
 	unversioned.TypeMeta `json:",inline"`
-	kapi.ObjectMeta      `json:"metadata,omitempty"`
+	// Standard object's metadata.
+	kapi.ObjectMeta `json:"metadata,omitempty"`
 
 	// Spec is the desired state of the route
 	Spec RouteSpec `json:"spec" description:"desired state of the route"`
@@ -20,6 +21,7 @@ type Route struct {
 // RouteList is a collection of Routes.
 type RouteList struct {
 	unversioned.TypeMeta `json:",inline"`
+	// Standard object's metadata.
 	unversioned.ListMeta `json:"metadata,omitempty"`
 
 	// Items is a list of routes
@@ -55,12 +57,54 @@ type RoutePort struct {
 	// The target port on pods selected by the service this route points to.
 	// If this is a string, it will be looked up as a named port in the target
 	// endpoints port list. Required
-	TargetPort util.IntOrString `json:"targetPort" description:"the target port on the endpoints for the service; if this is a string must match the named port, if an integer, must match the port number"`
+	TargetPort intstr.IntOrString `json:"targetPort" description:"the target port on the endpoints for the service; if this is a string must match the named port, if an integer, must match the port number"`
 }
 
 // RouteStatus provides relevant info about the status of a route, including which routers
 // acknowledge it.
 type RouteStatus struct {
+	// Ingress describes the places where the route may be exposed. The list of
+	// ingress points may contain duplicate Host or RouterName values. Routes
+	// are considered live once they are `Ready`
+	Ingress []RouteIngress `json:"ingress" description:"traffic reaches this route via these ingress paths"`
+}
+
+// RouteIngress holds information about the places where a route is exposed
+type RouteIngress struct {
+	// Host is the host string under which the route is exposed; this value is required
+	Host string `json:"host,omitempty" description:"the host name this route is exposed to by the specified router"`
+	// Name is a name chosen by the router to identify itself; this value is required
+	RouterName string `json:"routerName,omitempty" description:"the name of the router exposing this route"`
+	// Conditions is the state of the route, may be empty.
+	Conditions []RouteIngressCondition `json:"conditions,omitempty" description:"the conditions that apply to this router" patchStrategy:"merge" patchMergeKey:"type"`
+}
+
+// RouteIngressConditionType is a valid value for RouteCondition
+type RouteIngressConditionType string
+
+// These are valid conditions of pod.
+const (
+	// RouteAdmitted means the route is able to service requests for the provided Host
+	RouteAdmitted RouteIngressConditionType = "Admitted"
+	// TODO: add other route condition types
+)
+
+// RouteIngressCondition contains details for the current condition of this pod.
+// TODO: add LastTransitionTime, Reason, Message to match NodeCondition api.
+type RouteIngressCondition struct {
+	// Type is the type of the condition.
+	// Currently only Ready.
+	Type RouteIngressConditionType `json:"type" description:"the type of the condition"`
+	// Status is the status of the condition.
+	// Can be True, False, Unknown.
+	Status kapi.ConditionStatus `json:"status" description:"status is the status of the condition; True, False, or Unknown"`
+	// (brief) reason for the condition's last transition, and is usually a machine and human
+	// readable constant
+	Reason string `json:"reason,omitempty" description:"brief reason for the condition's last transition, machine readable constant"`
+	// Human readable message indicating details about last transition.
+	Message string `json:"message,omitempty" description:"human readable message indicating details about this condition"`
+	// RFC 3339 date and time when this condition last transitioned
+	LastTransitionTime *unversioned.Time `json:"lastTransitionTime,omitempty" description:"the last time at which this condition transitioned to the current status"`
 }
 
 // RouterShard has information of a routing shard and is used to
@@ -79,8 +123,8 @@ type RouterShard struct {
 
 // TLSConfig defines config used to secure a route and provide termination
 type TLSConfig struct {
-	// Termination indicates termination type.  If termination type is not set, any termination config will be ignored
-	Termination TLSTerminationType `json:"termination,omitempty" description:"indicates termination type.  if not set, any termination config will be ignored"`
+	// Termination indicates termination type.
+	Termination TLSTerminationType `json:"termination" description:"indicates termination type"`
 
 	// Certificate provides certificate contents
 	Certificate string `json:"certificate,omitempty" description:"provides certificate contents"`
@@ -102,6 +146,7 @@ type TLSConfig struct {
 }
 
 // TLSTerminationType dictates where the secure communication will stop
+// TODO: Reconsider this type in v2
 type TLSTerminationType string
 
 // InsecureEdgeTerminationPolicyType dictates the behavior of insecure

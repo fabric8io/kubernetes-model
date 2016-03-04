@@ -17,12 +17,11 @@ limitations under the License.
 package runtime
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/url"
 	"reflect"
 
+	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/conversion"
 )
 
@@ -51,186 +50,11 @@ func (self *Scheme) fromScope(s conversion.Scope) (inVersion, outVersion string,
 	return inVersion, outVersion, scheme
 }
 
-// emptyPlugin is used to copy the Kind field to and from plugin objects.
-type emptyPlugin struct {
-	PluginBase `json:",inline"`
-}
-
-// embeddedObjectToRawExtension does the conversion you would expect from the name, using the information
-// given in conversion.Scope. It's placed in the DefaultScheme as a ConversionFunc to enable plugins;
-// see the comment for RawExtension.
-func (self *Scheme) embeddedObjectToRawExtension(in *EmbeddedObject, out *RawExtension, s conversion.Scope) error {
-	if in.Object == nil {
-		out.RawJSON = []byte("null")
-		return nil
-	}
-
-	// Figure out the type and kind of the output object.
-	_, outVersion, scheme := self.fromScope(s)
-	_, kind, err := scheme.raw.ObjectVersionAndKind(in.Object)
-	if err != nil {
-		return err
-	}
-
-	// Manufacture an object of this type and kind.
-	outObj, err := scheme.New(outVersion, kind)
-	if err != nil {
-		return err
-	}
-
-	// Manually do the conversion.
-	err = s.Convert(in.Object, outObj, 0)
-	if err != nil {
-		return err
-	}
-
-	// Copy the kind field into the output object.
-	err = s.Convert(
-		&emptyPlugin{PluginBase: PluginBase{Kind: kind}},
-		outObj,
-		conversion.SourceToDest|conversion.IgnoreMissingFields|conversion.AllowDifferentFieldTypeNames,
-	)
-	if err != nil {
-		return err
-	}
-	// Because we provide the correct version, EncodeToVersion will not attempt a conversion.
-	raw, err := scheme.EncodeToVersion(outObj, outVersion)
-	if err != nil {
-		// TODO: if this fails, create an Unknown-- maybe some other
-		// component will understand it.
-		return err
-	}
-	out.RawJSON = raw
-	return nil
-}
-
-// rawExtensionToEmbeddedObject does the conversion you would expect from the name, using the information
-// given in conversion.Scope. It's placed in all schemes as a ConversionFunc to enable plugins;
-// see the comment for RawExtension.
-func (self *Scheme) rawExtensionToEmbeddedObject(in *RawExtension, out *EmbeddedObject, s conversion.Scope) error {
-	if len(in.RawJSON) == 0 || (len(in.RawJSON) == 4 && string(in.RawJSON) == "null") {
-		out.Object = nil
-		return nil
-	}
-	// Figure out the type and kind of the output object.
-	inVersion, outVersion, scheme := self.fromScope(s)
-	_, kind, err := scheme.raw.DataVersionAndKind(in.RawJSON)
-	if err != nil {
-		return err
-	}
-
-	// We have to make this object ourselves because we don't store the version field for
-	// plugin objects.
-	inObj, err := scheme.New(inVersion, kind)
-	if err != nil {
-		return err
-	}
-
-	err = scheme.DecodeInto(in.RawJSON, inObj)
-	if err != nil {
-		return err
-	}
-
-	// Make the desired internal version, and do the conversion.
-	outObj, err := scheme.New(outVersion, kind)
-	if err != nil {
-		return err
-	}
-	err = scheme.Convert(inObj, outObj)
-	if err != nil {
-		return err
-	}
-	// Last step, clear the Kind field; that should always be blank in memory.
-	err = s.Convert(
-		&emptyPlugin{PluginBase: PluginBase{Kind: ""}},
-		outObj,
-		conversion.SourceToDest|conversion.IgnoreMissingFields|conversion.AllowDifferentFieldTypeNames,
-	)
-	if err != nil {
-		return err
-	}
-	out.Object = outObj
-	return nil
-}
-
-// runtimeObjectToRawExtensionArray takes a list of objects and encodes them as RawExtension in the output version
-// defined by the conversion.Scope. If objects must be encoded to different schema versions than the default, you
-// should encode them yourself with runtime.Unknown, or convert the object prior to invoking conversion. Objects
-// outside of the current scheme must be added as runtime.Unknown.
-func (self *Scheme) runtimeObjectToRawExtensionArray(in *[]Object, out *[]RawExtension, s conversion.Scope) error {
-	src := *in
-	dest := make([]RawExtension, len(src))
-
-	_, outVersion, scheme := self.fromScope(s)
-
-	for i := range src {
-		switch t := src[i].(type) {
-		case *Unknown:
-			// TODO: this should be decoupled from the scheme (since it is JSON specific)
-			dest[i].RawJSON = t.RawJSON
-		case *Unstructured:
-			// TODO: this should be decoupled from the scheme (since it is JSON specific)
-			data, err := json.Marshal(t.Object)
-			if err != nil {
-				return err
-			}
-			dest[i].RawJSON = data
-		default:
-			version := outVersion
-			// if the object exists
-			if inVersion, _, err := scheme.ObjectVersionAndKind(src[i]); err == nil && len(inVersion) != 0 {
-				version = inVersion
-			}
-			data, err := scheme.EncodeToVersion(src[i], version)
-			if err != nil {
-				return err
-			}
-			dest[i].RawJSON = data
-		}
-	}
-	*out = dest
-	return nil
-}
-
-// rawExtensionToRuntimeObjectArray attempts to decode objects from the array - if they are unrecognized objects,
-// they are added as Unknown.
-func (self *Scheme) rawExtensionToRuntimeObjectArray(in *[]RawExtension, out *[]Object, s conversion.Scope) error {
-	src := *in
-	dest := make([]Object, len(src))
-
-	_, _, scheme := self.fromScope(s)
-
-	for i := range src {
-		data := src[i].RawJSON
-		version, kind, err := scheme.raw.DataVersionAndKind(data)
-		if err != nil {
-			return err
-		}
-		dest[i] = &Unknown{
-			TypeMeta: TypeMeta{
-				APIVersion: version,
-				Kind:       kind,
-			},
-			RawJSON: data,
-		}
-	}
-	*out = dest
-	return nil
-}
-
 // NewScheme creates a new Scheme. This scheme is pluggable by default.
 func NewScheme() *Scheme {
 	s := &Scheme{conversion.NewScheme(), map[string]map[string]FieldLabelConversionFunc{}}
-	s.raw.InternalVersion = ""
-	s.raw.MetaFactory = conversion.SimpleMetaFactory{BaseFields: []string{"TypeMeta"}, VersionField: "APIVersion", KindField: "Kind"}
-	if err := s.raw.AddConversionFuncs(
-		s.embeddedObjectToRawExtension,
-		s.rawExtensionToEmbeddedObject,
-		s.runtimeObjectToRawExtensionArray,
-		s.rawExtensionToRuntimeObjectArray,
-	); err != nil {
-		panic(err)
-	}
+	s.AddConversionFuncs(DefaultEmbeddedConversions()...)
+
 	// Enable map[string][]string conversions by default
 	if err := s.raw.AddConversionFuncs(DefaultStringConversions...); err != nil {
 		panic(err)
@@ -244,50 +68,73 @@ func NewScheme() *Scheme {
 	return s
 }
 
-// AddKnownTypes registers the types of the arguments to the marshaller of the package api.
-// Encode() refuses the object unless its type is registered with AddKnownTypes.
-func (s *Scheme) AddKnownTypes(version string, types ...Object) {
+// AddUnversionedTypes registers the provided types as "unversioned", which means that they follow special rules.
+// Whenever an object of this type is serialized, it is serialized with the provided group version and is not
+// converted. Thus unversioned objects are expected to remain backwards compatible forever, as if they were in an
+// API group and version that would never be updated.
+//
+// TODO: there is discussion about removing unversioned and replacing it with objects that are manifest into
+//   every version with particular schemas. Resolve tihs method at that point.
+func (s *Scheme) AddUnversionedTypes(gv unversioned.GroupVersion, types ...Object) {
 	interfaces := make([]interface{}, len(types))
 	for i := range types {
 		interfaces[i] = types[i]
 	}
-	s.raw.AddKnownTypes(version, interfaces...)
+	s.raw.AddUnversionedTypes(gv, interfaces...)
+}
+
+// AddKnownTypes registers the types of the arguments to the marshaller of the package api.
+func (s *Scheme) AddKnownTypes(gv unversioned.GroupVersion, types ...Object) {
+	interfaces := make([]interface{}, len(types))
+	for i := range types {
+		interfaces[i] = types[i]
+	}
+	s.raw.AddKnownTypes(gv, interfaces...)
+}
+
+// AddIgnoredConversionType declares a particular conversion that should be ignored - during conversion
+// this method is not invoked.
+func (s *Scheme) AddIgnoredConversionType(from, to interface{}) error {
+	return s.raw.AddIgnoredConversionType(from, to)
 }
 
 // AddKnownTypeWithName is like AddKnownTypes, but it lets you specify what this type should
 // be encoded as. Useful for testing when you don't want to make multiple packages to define
 // your structs.
-func (s *Scheme) AddKnownTypeWithName(version, kind string, obj Object) {
-	s.raw.AddKnownTypeWithName(version, kind, obj)
+func (s *Scheme) AddKnownTypeWithName(gvk unversioned.GroupVersionKind, obj Object) {
+	s.raw.AddKnownTypeWithName(gvk, obj)
 }
 
 // KnownTypes returns the types known for the given version.
 // Return value must be treated as read-only.
-func (s *Scheme) KnownTypes(version string) map[string]reflect.Type {
-	return s.raw.KnownTypes(version)
+func (s *Scheme) KnownTypes(gv unversioned.GroupVersion) map[string]reflect.Type {
+	return s.raw.KnownTypes(gv)
 }
 
-// DataVersionAndKind will return the APIVersion and Kind of the given wire-format
-// encoding of an API Object, or an error.
-func (s *Scheme) DataVersionAndKind(data []byte) (version, kind string, err error) {
-	return s.raw.DataVersionAndKind(data)
+// ObjectKind returns the default group,version,kind of the given Object.
+func (s *Scheme) ObjectKind(obj Object) (unversioned.GroupVersionKind, error) {
+	return s.raw.ObjectKind(obj)
 }
 
-// ObjectVersionAndKind returns the version and kind of the given Object.
-func (s *Scheme) ObjectVersionAndKind(obj Object) (version, kind string, err error) {
-	return s.raw.ObjectVersionAndKind(obj)
+// ObjectKinds returns the all possible group,version,kind of the given Object.
+func (s *Scheme) ObjectKinds(obj Object) ([]unversioned.GroupVersionKind, error) {
+	return s.raw.ObjectKinds(obj)
 }
 
-// Recognizes returns true if the scheme is able to handle the provided version and kind
+// Recognizes returns true if the scheme is able to handle the provided group,version,kind
 // of an object.
-func (s *Scheme) Recognizes(version, kind string) bool {
-	return s.raw.Recognizes(version, kind)
+func (s *Scheme) Recognizes(gvk unversioned.GroupVersionKind) bool {
+	return s.raw.Recognizes(gvk)
+}
+
+func (s *Scheme) IsUnversioned(obj Object) (bool, bool) {
+	return s.raw.IsUnversioned(obj)
 }
 
 // New returns a new API object of the given version ("" for internal
 // representation) and name, or an error if it hasn't been registered.
-func (s *Scheme) New(versionName, typeName string) (Object, error) {
-	obj, err := s.raw.NewObject(versionName, typeName)
+func (s *Scheme) New(kind unversioned.GroupVersionKind) (Object, error) {
+	obj, err := s.raw.NewObject(kind)
 	if err != nil {
 		return nil, err
 	}
@@ -361,9 +208,29 @@ func (s *Scheme) AddDefaultingFuncs(defaultingFuncs ...interface{}) error {
 	return s.raw.AddDefaultingFuncs(defaultingFuncs...)
 }
 
+// Copy does a deep copy of an API object.
+func (s *Scheme) Copy(src Object) (Object, error) {
+	dst, err := s.raw.DeepCopy(src)
+	if err != nil {
+		return nil, err
+	}
+	return dst.(Object), nil
+}
+
 // Performs a deep copy of the given object.
 func (s *Scheme) DeepCopy(src interface{}) (interface{}, error) {
 	return s.raw.DeepCopy(src)
+}
+
+// WithConversions returns an ObjectConvertor that has the additional conversion functions
+// defined in fns. The current scheme is not altered.
+func (s *Scheme) WithConversions(fns *conversion.ConversionFuncs) ObjectConvertor {
+	if fns == nil {
+		return s
+	}
+	copied := *s
+	copied.raw = s.raw.WithConversions(*fns)
+	return &copied
 }
 
 // Convert will attempt to convert in into out. Both must be pointers.
@@ -390,8 +257,19 @@ func (s *Scheme) ConvertFieldLabel(version, kind, label, value string) (string, 
 // version within this scheme. Will return an error if the provided version does not
 // contain the inKind (or a mapping by name defined with AddKnownTypeWithName). Will also
 // return an error if the conversion does not result in a valid Object being
-// returned.
+// returned. The serializer handles loading/serializing nested objects.
 func (s *Scheme) ConvertToVersion(in Object, outVersion string) (Object, error) {
+	gv, err := unversioned.ParseGroupVersion(outVersion)
+	if err != nil {
+		return nil, err
+	}
+	switch in.(type) {
+	case *Unknown, *Unstructured:
+		old := in.GetObjectKind().GroupVersionKind()
+		defer in.GetObjectKind().SetGroupVersionKind(old)
+		setTargetVersion(in, s.raw, gv)
+		return in, nil
+	}
 	unknown, err := s.raw.ConvertToVersion(in, outVersion)
 	if err != nil {
 		return nil, err
@@ -400,99 +278,16 @@ func (s *Scheme) ConvertToVersion(in Object, outVersion string) (Object, error) 
 	if !ok {
 		return nil, fmt.Errorf("the provided object cannot be converted to a runtime.Object: %#v", unknown)
 	}
+	setTargetVersion(obj, s.raw, gv)
 	return obj, nil
 }
 
-// EncodeToVersion turns the given api object into an appropriate JSON string.
-// Will return an error if the object doesn't have an embedded TypeMeta.
-// Obj may be a pointer to a struct, or a struct. If a struct, a copy
-// must be made. If a pointer, the object may be modified before encoding,
-// but will be put back into its original state before returning.
-//
-// Memory/wire format differences:
-//  * Having to keep track of the Kind and APIVersion fields makes tests
-//    very annoying, so the rule is that they are set only in wire format
-//    (json), not when in native (memory) format. This is possible because
-//    both pieces of information are implicit in the go typed object.
-//     * An exception: note that, if there are embedded API objects of known
-//       type, for example, PodList{... Items []Pod ...}, these embedded
-//       objects must be of the same version of the object they are embedded
-//       within, and their APIVersion and Kind must both be empty.
-//     * Note that the exception does not apply to the APIObject type, which
-//       recursively does Encode()/Decode(), and is capable of expressing any
-//       API object.
-//  * Only versioned objects should be encoded. This means that, if you pass
-//    a native object, Encode will convert it to a versioned object. For
-//    example, an api.Pod will get converted to a v1beta1.Pod. However, if
-//    you pass in an object that's already versioned (v1beta1.Pod), Encode
-//    will not modify it.
-//
-// The purpose of the above complex conversion behavior is to allow us to
-// change the memory format yet not break compatibility with any stored
-// objects, whether they be in our storage layer (e.g., etcd), or in user's
-// config files.
-func (s *Scheme) EncodeToVersion(obj Object, destVersion string) (data []byte, err error) {
-	return s.raw.EncodeToVersion(obj, destVersion)
-}
-
-func (s *Scheme) EncodeToVersionStream(obj Object, destVersion string, stream io.Writer) error {
-	return s.raw.EncodeToVersionStream(obj, destVersion, stream)
-}
-
-// Decode converts a YAML or JSON string back into a pointer to an api object.
-// Deduces the type based upon the APIVersion and Kind fields, which are set
-// by Encode. Only versioned objects (APIVersion != "") are accepted. The object
-// will be converted into the in-memory unversioned type before being returned.
-func (s *Scheme) Decode(data []byte) (Object, error) {
-	obj, err := s.raw.Decode(data)
-	if err != nil {
-		return nil, err
+func setTargetVersion(obj Object, raw *conversion.Scheme, gv unversioned.GroupVersion) {
+	if gv.Version == APIVersionInternal {
+		// internal is a special case
+		obj.GetObjectKind().SetGroupVersionKind(nil)
+	} else {
+		gvk, _ := raw.ObjectKind(obj)
+		obj.GetObjectKind().SetGroupVersionKind(&unversioned.GroupVersionKind{Group: gv.Group, Version: gv.Version, Kind: gvk.Kind})
 	}
-	return obj.(Object), nil
-}
-
-// DecodeToVersion converts a YAML or JSON string back into a pointer to an api
-// object.  Deduces the type based upon the APIVersion and Kind fields, which
-// are set by Encode. Only versioned objects (APIVersion != "") are
-// accepted. The object will be converted into the in-memory versioned type
-// requested before being returned.
-func (s *Scheme) DecodeToVersion(data []byte, version string) (Object, error) {
-	obj, err := s.raw.DecodeToVersion(data, version)
-	if err != nil {
-		return nil, err
-	}
-	return obj.(Object), nil
-}
-
-// DecodeInto parses a YAML or JSON string and stores it in obj. Returns an error
-// if data.Kind is set and doesn't match the type of obj. Obj should be a
-// pointer to an api type.
-// If obj's APIVersion doesn't match that in data, an attempt will be made to convert
-// data into obj's version.
-// TODO: allow Decode/DecodeInto to take a default apiVersion and a default kind, to
-// be applied if the provided object does not have either field (integrate external
-// apis into the decoding scheme).
-func (s *Scheme) DecodeInto(data []byte, obj Object) error {
-	return s.raw.DecodeInto(data, obj)
-}
-
-func (s *Scheme) DecodeIntoWithSpecifiedVersionKind(data []byte, obj Object, version, kind string) error {
-	return s.raw.DecodeIntoWithSpecifiedVersionKind(data, obj, version, kind)
-}
-
-// Copy does a deep copy of an API object.  Useful mostly for tests.
-func (s *Scheme) Copy(src Object) (Object, error) {
-	dst, err := s.raw.DeepCopy(src)
-	if err != nil {
-		return nil, err
-	}
-	return dst.(Object), nil
-}
-
-func (s *Scheme) CopyOrDie(obj Object) Object {
-	newObj, err := s.Copy(obj)
-	if err != nil {
-		panic(err)
-	}
-	return newObj
 }

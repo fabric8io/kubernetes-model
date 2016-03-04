@@ -19,13 +19,15 @@ package v1beta3
 import (
 	"strings"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/util"
 	"github.com/golang/glog"
+
+	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/util/intstr"
 )
 
-func addDefaultingFuncs() {
-	api.Scheme.AddDefaultingFuncs(
+func addDefaultingFuncs(scheme *runtime.Scheme) {
+	scheme.AddDefaultingFuncs(
 		func(obj *ReplicationController) {
 			var labels map[string]string
 			if obj.Spec.Template != nil {
@@ -91,8 +93,8 @@ func addDefaultingFuncs() {
 				if sp.Protocol == "" {
 					sp.Protocol = ProtocolTCP
 				}
-				if sp.TargetPort == util.NewIntOrStringFromInt(0) || sp.TargetPort == util.NewIntOrStringFromString("") {
-					sp.TargetPort = util.NewIntOrStringFromInt(sp.Port)
+				if sp.TargetPort == intstr.FromInt(0) || sp.TargetPort == intstr.FromString("") {
+					sp.TargetPort = intstr.FromInt(sp.Port)
 				}
 			}
 		},
@@ -220,22 +222,19 @@ func defaultSecurityContext(container *Container) {
 	}
 }
 
-// Default SCCs for new fields.  Defaults are based on the RunAsUser type if not explicitly set.
-// If the SCC allows RunAsAny UID then the FSGroup/SupGroups will default to RunAsAny.  Otherwise
-// default to MustRunAs with namespace allocation.
+// Default SCCs for new fields.  FSGroup and SupplementalGroups are
+// set to the RunAsAny strategy if they are unset on the scc.
 func defaultSecurityContextConstraints(scc *SecurityContextConstraints) {
 	if len(scc.FSGroup.Type) == 0 {
-		if scc.RunAsUser.Type == RunAsUserStrategyRunAsAny {
-			scc.FSGroup.Type = FSGroupStrategyRunAsAny
-		} else {
-			scc.FSGroup.Type = FSGroupStrategyMustRunAs
-		}
+		scc.FSGroup.Type = FSGroupStrategyRunAsAny
 	}
 	if len(scc.SupplementalGroups.Type) == 0 {
-		if scc.RunAsUser.Type == RunAsUserStrategyRunAsAny {
-			scc.SupplementalGroups.Type = SupplementalGroupsStrategyRunAsAny
-		} else {
-			scc.SupplementalGroups.Type = SupplementalGroupsStrategyMustRunAs
-		}
+		scc.SupplementalGroups.Type = SupplementalGroupsStrategyRunAsAny
+	}
+
+	// EmptyDir volumes were implicitly allowed originally, always default this to true.
+	if scc.AllowEmptyDirVolumePlugin == nil {
+		scc.AllowEmptyDirVolumePlugin = new(bool)
+		*scc.AllowEmptyDirVolumePlugin = true
 	}
 }

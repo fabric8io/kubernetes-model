@@ -15,8 +15,12 @@ type Marker struct {
 	Severity Severity
 	// Key is a short string to identify this message
 	Key string
+
 	// Message is a human-readable string that describes what is interesting
 	Message string
+	// Suggestion is a human-readable string that holds advice for resolving this
+	// marker.
+	Suggestion Suggestion
 }
 
 // Severity indicates how important this problem is.
@@ -34,7 +38,7 @@ const (
 type Markers []Marker
 
 // MarkerScanner is a function for analyzing a graph and finding interesting things in it
-type MarkerScanner func(g Graph) []Marker
+type MarkerScanner func(g Graph, f Namer) []Marker
 
 func (m Markers) BySeverity(severity Severity) []Marker {
 	ret := []Marker{}
@@ -96,4 +100,10 @@ func (m ByKey) Len() int      { return len(m) }
 func (m ByKey) Swap(i, j int) { m[i], m[j] = m[j], m[i] }
 func (m ByKey) Less(i, j int) bool {
 	return m[i].Key < m[j].Key
+}
+
+type Suggestion string
+
+func (s Suggestion) String() string {
+	return string(s)
 }

@@ -3,7 +3,7 @@ package v1
 import (
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	kapi "k8s.io/kubernetes/pkg/api/v1"
-	kutil "k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/util/intstr"
 )
 
 // DeploymentPhase describes the possible states a deployment can be in.
@@ -28,14 +28,20 @@ const (
 type DeploymentStrategy struct {
 	// Type is the name of a deployment strategy.
 	Type DeploymentStrategyType `json:"type,omitempty" description:"the name of a deployment strategy"`
+
 	// CustomParams are the input to the Custom deployment strategy.
 	CustomParams *CustomDeploymentStrategyParams `json:"customParams,omitempty" description:"input to the Custom deployment strategy"`
 	// RecreateParams are the input to the Recreate deployment strategy.
 	RecreateParams *RecreateDeploymentStrategyParams `json:"recreateParams,omitempty" description:"input to the Recreate deployment strategy"`
 	// RollingParams are the input to the Rolling deployment strategy.
 	RollingParams *RollingDeploymentStrategyParams `json:"rollingParams,omitempty" description:"input to the Rolling deployment strategy"`
-	// Resources contains resource requirements to execute the deployment
+
+	// Resources contains resource requirements to execute the deployment and any hooks
 	Resources kapi.ResourceRequirements `json:"resources,omitempty" description:"resource requirements to execute the deployment"`
+	// Labels is a set of key, value pairs added to custom deployer and lifecycle pre/post hook pods.
+	Labels map[string]string `json:"labels,omitempty" description:"labels for deployer and hook pods"`
+	// Annotations is a set of key, value pairs added to custom deployer and lifecycle pre/post hook pods.
+	Annotations map[string]string `json:"annotations,omitempty" description:"annotations for deployer and hook pods"`
 }
 
 // DeploymentStrategyType refers to a specific DeploymentStrategy implementation.
@@ -63,21 +69,30 @@ type CustomDeploymentStrategyParams struct {
 // RecreateDeploymentStrategyParams are the input to the Recreate deployment
 // strategy.
 type RecreateDeploymentStrategyParams struct {
+	// TimeoutSeconds is the time to wait for updates before giving up. If the
+	// value is nil, a default will be used.
+	TimeoutSeconds *int64 `json:"timeoutSeconds,omitempty" description:"the time to wait for updates before giving up"`
 	// Pre is a lifecycle hook which is executed before the strategy manipulates
 	// the deployment. All LifecycleHookFailurePolicy values are supported.
 	Pre *LifecycleHook `json:"pre,omitempty" description:"a hook executed before the strategy starts the deployment"`
+	// Mid is a lifecycle hook which is executed while the deployment is scaled down to zero before the first new
+	// pod is created. All LifecycleHookFailurePolicy values are supported.
+	Mid *LifecycleHook `json:"mid,omitempty" description:"a hook executed after the strategy scales down the deployment and before it scales up"`
 	// Post is a lifecycle hook which is executed after the strategy has
-	// finished all deployment logic. The LifecycleHookFailurePolicyAbort policy
-	// is NOT supported.
+	// finished all deployment logic. All LifecycleHookFailurePolicy values are supported.
 	Post *LifecycleHook `json:"post,omitempty" description:"a hook executed after the strategy finishes the deployment"`
 }
 
-// LifecycleHook defines a specific deployment lifecycle action.
+// LifecycleHook defines a specific deployment lifecycle action. Only one type of action may be specified at any time.
 type LifecycleHook struct {
 	// FailurePolicy specifies what action to take if the hook fails.
 	FailurePolicy LifecycleHookFailurePolicy `json:"failurePolicy" description:"what action to take if the hook fails"`
+
 	// ExecNewPod specifies the options for a lifecycle hook backed by a pod.
 	ExecNewPod *ExecNewPodHook `json:"execNewPod,omitempty" description:"options for an ExecNewPodHook"`
+
+	// TagImages instructs the deployer to tag the current image referenced under a container onto an image stream tag.
+	TagImages []TagImageHook `json:"tagImages,omitempty" description:"a list of image stream tags that should be updated to the latest value on this deployment if the deployment succeeds"`
 }
 
 // LifecycleHookFailurePolicy describes possibles actions to take if a hook fails.
@@ -109,6 +124,15 @@ type ExecNewPodHook struct {
 	Volumes []string `json:"volumes,omitempty" description:"the names of volumes from the pod template which should be included in the hook pod; an empty list means no volumes will be copied, and names not found in the pod spec will be ignored"`
 }
 
+// TagImageHook is a request to tag the image in a particular container onto an ImageStreamTag.
+type TagImageHook struct {
+	// ContainerName is the name of a container in the deployment config whose image value will be used as the source of the tag. If there is only a single
+	// container this value will be defaulted to the name of that container.
+	ContainerName string `json:"containerName" description:"the name of a container in this deployment config whose image will be used as the tag destination; if only one container is defined it will default to that value"`
+	// To is the target ImageStreamTag to set the container's image onto.
+	To kapi.ObjectReference `json:"to" description:"the name of an ImageStreamTag in the current namespace that will be updated with the image value"`
+}
+
 // RollingDeploymentStrategyParams are the input to the Rolling deployment
 // strategy.
 type RollingDeploymentStrategyParams struct {
@@ -133,7 +157,7 @@ type RollingDeploymentStrategyParams struct {
 	// RC can be scaled down further, followed by scaling up the new RC,
 	// ensuring that at least 70% of original number of pods are available at
 	// all times during the update.
-	MaxUnavailable *kutil.IntOrString `json:"maxUnavailable,omitempty" description:"max number of pods that can be unavailable during the update; value can be an absolute number or a percentage of total pods at start of update"`
+	MaxUnavailable *intstr.IntOrString `json:"maxUnavailable,omitempty" description:"max number of pods that can be unavailable during the update; value can be an absolute number or a percentage of total pods at start of update"`
 	// MaxSurge is the maximum number of pods that can be scheduled above the
 	// original number of pods. Value can be an absolute number (ex: 5) or a
 	// percentage of total pods at the start of the update (ex: 10%). Absolute
@@ -146,7 +170,7 @@ type RollingDeploymentStrategyParams struct {
 	// killed, new RC can be scaled up further, ensuring that total number of
 	// pods running at any time during the update is atmost 130% of original
 	// pods.
-	MaxSurge *kutil.IntOrString `json:"maxSurge,omitempty" description:"max number of pods that can be scheduled above the original number of pods; value can be an absolute number or a percentage of total pods at start of update"`
+	MaxSurge *intstr.IntOrString `json:"maxSurge,omitempty" description:"max number of pods that can be scheduled above the original number of pods; value can be an absolute number or a percentage of total pods at start of update"`
 	// UpdatePercent is the percentage of replicas to scale up or down each
 	// interval. If nil, one replica will be scaled up and down each interval.
 	// If negative, the scale order will be down/up instead of up/down.
@@ -211,7 +235,8 @@ const (
 // a new deployment results in an increment of LatestVersion.
 type DeploymentConfig struct {
 	unversioned.TypeMeta `json:",inline"`
-	kapi.ObjectMeta      `json:"metadata,omitempty"`
+	// Standard object's metadata.
+	kapi.ObjectMeta `json:"metadata,omitempty"`
 
 	// Spec represents a desired deployment state and how to deploy to it.
 	Spec DeploymentConfigSpec `json:"spec" description:"a desired deployment state and how to deploy it"`
@@ -220,8 +245,7 @@ type DeploymentConfig struct {
 	Status DeploymentConfigStatus `json:"status" description:"the current state of the latest deployment"`
 }
 
-// DeploymentTemplate contains all the necessary information to create a deployment from a
-// DeploymentStrategy.
+// DeploymentConfigSpec represents the desired state of the deployment.
 type DeploymentConfigSpec struct {
 	// Strategy describes how a deployment is executed.
 	Strategy DeploymentStrategy `json:"strategy" description:"how a deployment is executed"`
@@ -234,20 +258,17 @@ type DeploymentConfigSpec struct {
 	// Replicas is the number of desired replicas.
 	Replicas int `json:"replicas" description:"the desired number of replicas"`
 
-	// Selector is a label query over pods that should match the Replicas count.
-	Selector map[string]string `json:"selector" description:"a label query over pods that should match the replicas count"`
+	// Test ensures that this deployment config will have zero replicas except while a deployment is running. This allows the
+	// deployment config to be used as a continuous deployment test - triggering on images, running the deployment, and then succeeding
+	// or failing. Post strategy hooks and After actions can be used to integrate successful deployment with an action.
+	Test bool `json:"test" description:"if true, this deployment config will always be scaled to 0 except while a deployment is running"`
 
-	// TODO removed from RCSpec, so this shouldn't exist
-	// TemplateRef is a reference to an object that describes the pod that will be created if
-	// insufficient replicas are detected. This reference is ignored if a Template is set.
-	// Must be set before converting to a v1 API object
-	// TemplateRef *kapi.ObjectReference `json:"templateRef,omitempty" description:"a reference to an object that describes the pod that will be created if insufficient replicas are detected; ignored if template is set"`
+	// Selector is a label query over pods that should match the Replicas count.
+	Selector map[string]string `json:"selector,omitempty" description:"a label query over pods that should match the replicas count; if omitted, it will default to the podTemplate labels"`
 
 	// Template is the object that describes the pod that will be created if
-	// insufficient replicas are detected. Internally, this takes precedence over a
-	// TemplateRef.
-	// Must be set before converting to a v1beta1 or v1beta2 API object.
-	Template *kapi.PodTemplateSpec `json:"template,omitempty" description:"describes the pod that will be created if insufficient replicas are detected; takes precedence over a template reference"`
+	// insufficient replicas are detected.
+	Template *kapi.PodTemplateSpec `json:"template,omitempty" description:"describes the pod that will be created if insufficient replicas are detected"`
 }
 
 // DeploymentConfigStatus represents the current deployment state.
@@ -286,11 +307,10 @@ type DeploymentTriggerImageChangeParams struct {
 	Automatic bool `json:"automatic,omitempty" description:"whether detection of a new tag value should trigger a deployment"`
 	// ContainerNames is used to restrict tag updates to the specified set of container names in a pod.
 	ContainerNames []string `json:"containerNames,omitempty" description:"restricts tag updates to a set of container names in the pod"`
-	// From is a reference to a Docker image repository tag to watch for changes. The
-	// Kind may be left blank, in which case it defaults to "ImageStreamTag". The "Name" is
-	// the only required subfield - if Namespace is blank, the namespace of the current deployment
+	// From is a reference to an image stream tag to watch for changes. From.Name is the only
+	// required subfield - if From.Namespace is blank, the namespace of the current deployment
 	// trigger will be used.
-	From kapi.ObjectReference `json:"from" description:"a reference to an ImageRepository, ImageStream, or ImageStreamTag to watch for changes"`
+	From kapi.ObjectReference `json:"from" description:"a reference to an ImageStreamTag to watch for changes"`
 	// LastTriggeredImage is the last image to be triggered.
 	LastTriggeredImage string `json:"lastTriggeredImage,omitempty" description:"the last image to be triggered"`
 }
@@ -322,6 +342,7 @@ type DeploymentCauseImageTrigger struct {
 // DeploymentConfigList is a collection of deployment configs.
 type DeploymentConfigList struct {
 	unversioned.TypeMeta `json:",inline"`
+	// Standard object's metadata.
 	unversioned.ListMeta `json:"metadata,omitempty"`
 
 	// Items is a list of deployment configs
@@ -363,8 +384,8 @@ type DeploymentLogOptions struct {
 	// Follow if true indicates that the build log should be streamed until
 	// the build terminates.
 	Follow bool `json:"follow,omitempty" description:"if true indicates that the log should be streamed; defaults to false"`
-	// Return previous terminated container logs. Defaults to false.
-	Previous bool `json:"previous,omitempty" description:"return previous terminated container logs; defaults to false."`
+	// Return previous deployment logs. Defaults to false.
+	Previous bool `json:"previous,omitempty" description:"return previous deployment logs; defaults to false."`
 	// A relative time in seconds before the current time from which to show logs. If this value
 	// precedes the time a pod was started, only logs since the pod start will be returned.
 	// If this value is in the future, no logs will be returned.

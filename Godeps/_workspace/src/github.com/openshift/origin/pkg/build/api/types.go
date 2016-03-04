@@ -15,10 +15,15 @@ const (
 	BuildNumberAnnotation = "openshift.io/build.number"
 	// BuildCloneAnnotation is an annotation whose value is the name of the build this build was cloned from
 	BuildCloneAnnotation = "openshift.io/build.clone-of"
+	// BuildPodNameAnnotation is an annotation whose value is the name of the pod running this build
+	BuildPodNameAnnotation = "openshift.io/build.pod-name"
 	// BuildLabel is the key of a Pod label whose value is the Name of a Build which is run.
 	BuildLabel = "openshift.io/build.name"
 	// DefaultDockerLabelNamespace is the key of a Build label, whose values are build metadata.
 	DefaultDockerLabelNamespace = "io.openshift."
+	// OriginVersion is an environment variable key that indicates the version of origin that
+	// created this build definition.
+	OriginVersion = "ORIGIN_VERSION"
 )
 
 // Build encapsulates the inputs needed to produce a new deployable image, as well as
@@ -57,6 +62,10 @@ type BuildSpec struct {
 	// Compute resource requirements to execute the build
 	Resources kapi.ResourceRequirements
 
+	// PostCommit is a build hook executed after the build output image is
+	// committed, before it is pushed to a registry.
+	PostCommit BuildPostCommitSpec
+
 	// Optional duration in seconds, counted from the time when a build pod gets
 	// scheduled in the system, that the build may be active on a node before the
 	// system actively tries to terminate the build; value must be positive integer
@@ -68,7 +77,7 @@ type BuildStatus struct {
 	// Phase is the point in the build lifecycle.
 	Phase BuildPhase
 
-	// Cancelled describes if a cancelling event was triggered for the build.
+	// Cancelled describes if a cancel event was triggered for the build.
 	Cancelled bool
 
 	// Reason is a brief CamelCase string that describes any failure and is meant for machine parsing and tidy display in the CLI.
@@ -164,24 +173,8 @@ const (
 	StatusReasonExceededRetryTimeout = "ExceededRetryTimeout"
 )
 
-// BuildSourceType is the type of SCM used.
-type BuildSourceType string
-
-// Valid values for BuildSourceType.
-const (
-	//BuildSourceGit instructs a build to use a Git source control repository as the build input.
-	BuildSourceGit BuildSourceType = "Git"
-	// BuildSourceDockerfile uses a Dockerfile as the start of a build
-	BuildSourceDockerfile BuildSourceType = "Dockerfile"
-	// BuildSourceBinary indicates the build will accept a Binary file as input.
-	BuildSourceBinary BuildSourceType = "Binary"
-)
-
 // BuildSource is the input used for the build.
 type BuildSource struct {
-	// Type of build input to accept
-	Type BuildSourceType
-
 	// Binary builds accept a binary as their input. The binary is generally assumed to be a tar,
 	// gzipped tar, or zip file depending on the strategy. For Docker builds, this is the build
 	// context and an optional Dockerfile may be specified to override any Dockerfile in the
@@ -202,6 +195,9 @@ type BuildSource struct {
 	// Git contains optional information about git build source
 	Git *GitBuildSource
 
+	// Images describes a set of images to be used to provide source for the build
+	Images []ImageSource
+
 	// ContextDir specifies the sub-directory where the source code for the application exists.
 	// This allows to have buildable sources in directory other than root of
 	// repository.
@@ -212,7 +208,57 @@ type BuildSource struct {
 	// The secret contains valid credentials for remote repository, where the
 	// data's key represent the authentication method to be used and value is
 	// the base64 encoded credentials. Supported auth methods are: ssh-privatekey.
+	// TODO: This needs to move under the GitBuildSource struct since it's only
+	// used for git authentication
 	SourceSecret *kapi.LocalObjectReference
+
+	// Secrets represents a list of secrets and their destinations that will
+	// be used only for the build.
+	Secrets []SecretBuildSource
+}
+
+// ImageSource describes an image that is used as source for the build
+type ImageSource struct {
+	// From is a reference to an ImageStreamTag, ImageStreamImage, or DockerImage to
+	// copy source from.
+	From kapi.ObjectReference
+
+	// Paths is a list of source and destination paths to copy from the image.
+	Paths []ImageSourcePath
+
+	// PullSecret is a reference to a secret to be used to pull the image from a registry
+	// If the image is pulled from the OpenShift registry, this field does not need to be set.
+	PullSecret *kapi.LocalObjectReference
+}
+
+// ImageSourcePath describes a path to be copied from a source image and its destination within the build directory.
+type ImageSourcePath struct {
+	// SourcePath is the absolute path of the file or directory inside the image to
+	// copy to the build directory.
+	SourcePath string
+
+	// DestinationDir is the relative directory within the build directory
+	// where files copied from the image are placed.
+	DestinationDir string
+}
+
+// SecretBuildSource describes a secret and its destination directory that will be
+// used only at the build time. The content of the secret referenced here will
+// be copied into the destination directory instead of mounting.
+type SecretBuildSource struct {
+	// Secret is a reference to an existing secret that you want to use in your
+	// build.
+	Secret kapi.LocalObjectReference
+
+	// DestinationDir is the directory where the files from the secret should be
+	// available for the build time.
+	// For the Source build strategy, these will be injected into a container
+	// where the assemble script runs. Later, when the script finishes, all files
+	// injected will be truncated to zero length.
+	// For the Docker build strategy, these will be copied into the build
+	// directory, where the Dockerfile is located, so users can ADD or COPY them
+	// during docker build.
+	DestinationDir string
 }
 
 type BinaryBuildSource struct {
@@ -227,9 +273,6 @@ type BinaryBuildSource struct {
 
 // SourceRevision is the revision or commit information from the source for the build
 type SourceRevision struct {
-	// Type of the build source
-	Type BuildSourceType
-
 	// Git contains information about git-based build source
 	Git *GitSourceRevision
 }
@@ -259,10 +302,10 @@ type GitBuildSource struct {
 	Ref string
 
 	// HTTPProxy is a proxy used to reach the git repository over http
-	HTTPProxy string
+	HTTPProxy *string
 
 	// HTTPSProxy is a proxy used to reach the git repository over https
-	HTTPSProxy string
+	HTTPSProxy *string
 }
 
 // SourceControlUser defines the identity of a user of source control
@@ -276,9 +319,6 @@ type SourceControlUser struct {
 
 // BuildStrategy contains the details of how to perform a build.
 type BuildStrategy struct {
-	// Type is the kind of build strategy.
-	Type BuildStrategyType
-
 	// DockerStrategy holds the parameters to the Docker build strategy.
 	DockerStrategy *DockerBuildStrategy
 
@@ -291,19 +331,6 @@ type BuildStrategy struct {
 
 // BuildStrategyType describes a particular way of performing a build.
 type BuildStrategyType string
-
-// Valid values for BuildStrategyType.
-const (
-	// DockerBuildStrategyType performs builds using a Dockerfile.
-	DockerBuildStrategyType BuildStrategyType = "Docker"
-
-	// SourceBuildStrategyType performs builds build using Source To Images with a Git repository
-	// and a builder image.
-	SourceBuildStrategyType BuildStrategyType = "Source"
-
-	// CustomBuildStrategyType performs builds using custom builder Docker image.
-	CustomBuildStrategyType BuildStrategyType = "Custom"
-)
 
 const (
 	// CustomBuildStrategyBaseImageKey is the environment variable that indicates the base image to be used when
@@ -336,6 +363,9 @@ type CustomBuildStrategy struct {
 
 	// Secrets is a list of additional secrets that will be included in the custom build pod
 	Secrets []SecretSpec
+
+	// BuildAPIVersion is the requested API version for the Build object serialized and passed to the custom builder
+	BuildAPIVersion string
 }
 
 // DockerBuildStrategy defines input parameters specific to Docker build.
@@ -359,6 +389,10 @@ type DockerBuildStrategy struct {
 
 	// ForcePull describes if the builder should pull the images from registry prior to building.
 	ForcePull bool
+
+	// DockerfilePath is the path of the Dockerfile that will be used to build the Docker image,
+	// relative to the root of the context (contextDir).
+	DockerfilePath string
 }
 
 // SourceBuildStrategy defines input parameters specific to an Source build.
@@ -385,6 +419,89 @@ type SourceBuildStrategy struct {
 	ForcePull bool
 }
 
+// A BuildPostCommitSpec holds a build post commit hook specification. The hook
+// executes a command in a temporary container running the build output image,
+// immediately after the last layer of the image is committed and before the
+// image is pushed to a registry. The command is executed with the current
+// working directory ($PWD) set to the image's WORKDIR.
+//
+// The build will be marked as failed if the hook execution fails. It will fail
+// if the script or command return a non-zero exit code, or if there is any
+// other error related to starting the temporary container.
+//
+// There are five different ways to configure the hook. As an example, all forms
+// below are equivalent and will execute `rake test --verbose`.
+//
+// 1. Shell script:
+//
+// 	BuildPostCommitSpec{
+// 		Script: "rake test --verbose",
+// 	}
+//
+// The above is a convenient form which is equivalent to:
+//
+// 	BuildPostCommitSpec{
+// 		Command: []string{"/bin/sh", "-c"},
+// 		Args: []string{"rake test --verbose"},
+// 	}
+//
+// 2. Command as the image entrypoint:
+//
+// 	BuildPostCommitSpec{
+// 		Command: []string{"rake", "test", "--verbose"},
+// 	}
+//
+// Command overrides the image entrypoint in the exec form, as documented in
+// Docker: https://docs.docker.com/engine/reference/builder/#entrypoint.
+//
+// 3. Pass arguments to the default entrypoint:
+//
+// 	BuildPostCommitSpec{
+// 		Args: []string{"rake", "test", "--verbose"},
+// 	}
+//
+// This form is only useful if the image entrypoint can handle arguments.
+//
+// 4. Shell script with arguments:
+//
+// 	BuildPostCommitSpec{
+// 		Script: "rake test $1",
+// 		Args: []string{"--verbose"},
+// 	}
+//
+// This form is useful if you need to pass arguments that would otherwise be
+// hard to quote properly in the shell script. In the script, $0 will be
+// "/bin/sh" and $1, $2, etc, are the positional arguments from Args.
+//
+// 5. Command with arguments:
+//
+// 	BuildPostCommitSpec{
+// 		Command: []string{"rake", "test"},
+// 		Args: []string{"--verbose"},
+// 	}
+//
+// This form is equivalent to appending the arguments to the Command slice.
+//
+// It is invalid to provide both Script and Command simultaneously. If none of
+// the fields are specified, the hook is not executed.
+type BuildPostCommitSpec struct {
+	// Command is the command to run. It may not be specified with Script.
+	// This might be needed if the image doesn't have "/bin/sh", or if you
+	// do not want to use a shell. In all other cases, using Script might be
+	// more convenient.
+	Command []string
+	// Args is a list of arguments that are provided to either Command,
+	// Script or the Docker image's default entrypoint. The arguments are
+	// placed immediately after the command to be run.
+	Args []string
+	// Script is a shell script to be run with `/bin/sh -c`. It may not be
+	// specified with Command. Use Script when a shell script is appropriate
+	// to execute the post build hook, for example for running unit tests
+	// with "rake test". If you need control over the image entrypoint, or
+	// if the image does not have "/bin/sh", use Command and/or Args.
+	Script string
+}
+
 // BuildOutput is input to a build strategy and describes the Docker image that the strategy
 // should produce.
 type BuildOutput struct {
@@ -405,9 +522,12 @@ const (
 	// BuildConfigLabel is the key of a Build label whose value is the ID of a BuildConfig
 	// on which the Build is based.
 	BuildConfigLabel = "openshift.io/build-config.name"
-	// DeprecatedBuildConfigLabel was used as BuildConfigLabel before adding namespaces.
+	// BuildConfigLabelDeprecated was used as BuildConfigLabel before adding namespaces.
 	// We keep it for backward compatibility.
-	DeprecatedBuildConfigLabel = "buildconfig"
+	BuildConfigLabelDeprecated = "buildconfig"
+	// BuildConfigPausedAnnotation is an annotation that marks a BuildConfig as paused.
+	// New Builds cannot be instantiated from a paused BuildConfig.
+	BuildConfigPausedAnnotation = "openshift.io/build-config.paused"
 )
 
 // BuildConfig is a template which can be used to create new builds.
@@ -524,10 +644,7 @@ type BuildConfigList struct {
 
 // GenericWebHookEvent is the payload expected for a generic webhook post
 type GenericWebHookEvent struct {
-	// Type is the type of source repository
-	Type BuildSourceType
-
-	// Git is the git information if the Type is BuildSourceGit
+	// Git is the git information, if any.
 	Git *GitInfo
 }
 
@@ -576,6 +693,9 @@ type BuildRequest struct {
 	// to generate the build. If the BuildConfig in the generator doesn't match, a build will
 	// not be generated.
 	LastVersion *int
+
+	// Env contains additional environment variables you want to pass into a builder container
+	Env []kapi.EnvVar
 }
 
 type BinaryBuildRequestOptions struct {
@@ -614,7 +734,7 @@ type BuildLogOptions struct {
 	// Follow if true indicates that the build log should be streamed until
 	// the build terminates.
 	Follow bool
-	// If true, return previous terminated container logs
+	// If true, return previous build logs.
 	Previous bool
 	// A relative time in seconds before the current time from which to show logs. If this value
 	// precedes the time a pod was started, only logs since the pod start will be returned.
