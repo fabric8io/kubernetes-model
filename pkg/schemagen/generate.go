@@ -75,9 +75,9 @@ func getFieldDescription(f reflect.StructField) string {
 }
 
 func (g *schemaGenerator) qualifiedName(t reflect.Type) string {
-	pkgDesc, ok := g.packages[t.PkgPath()]
+	pkgDesc, ok := g.packages[pkgPath(t)]
 	if !ok {
-		prefix := strings.Replace(t.PkgPath(), "/", "_", -1)
+		prefix := strings.Replace(pkgPath(t), "/", "_", -1)
 		prefix = strings.Replace(prefix, ".", "_", -1)
 		prefix = strings.Replace(prefix, "-", "_", -1)
 		return prefix + "_" + t.Name()
@@ -126,7 +126,7 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	pkgDesc, ok := g.packages[t.PkgPath()]
+	pkgDesc, ok := g.packages[pkgPath(t)]
 	if ok {
 		switch t.Name() {
 		case "RawExtension":
@@ -346,8 +346,8 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 						},
 					}
 				case "apiVersion":
-					apiVersion := filepath.Base(t.PkgPath())
-					apiGroup := filepath.Base(strings.TrimSuffix(t.PkgPath(), apiVersion))
+					apiVersion := filepath.Base(pkgPath(t))
+					apiGroup := filepath.Base(strings.TrimSuffix(pkgPath(t), apiVersion))
 					if apiGroup != "api" {
 						apiVersion = apiGroup + "/" + apiVersion
 					}
@@ -403,4 +403,8 @@ func (g *schemaGenerator) addConstraints(objectName string, propName string, pro
 			prop.MaxLength = 63
 		}
 	}
+}
+
+func pkgPath(t reflect.Type) string {
+	return strings.TrimPrefix(t.PkgPath(), "github.com/fabric8io/kubernetes-model/vendor/")
 }

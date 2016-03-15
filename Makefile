@@ -18,24 +18,6 @@ SHELL := /bin/bash
 tag := $(shell cat .openshift-version)
 
 build:
-	CGO_ENABLED=0 godep go build -a ./cmd/generate/generate.go
+	CGO_ENABLED=0 GO15VENDOREXPERIMENT=1 go build -a ./cmd/generate/generate.go
 	./generate > kubernetes-model/src/main/resources/schema/kube-schema.json
 	mvn clean install
-
-update-deps:
-	echo $(tag) > .openshift-version && \
-		pushd $(GOPATH)/src/k8s.io/kubernetes && \
-		(git add remote openshift git://github.com/openshift/kubernetes.git 2>/dev/null || true) && \
-		git fetch openshift && \
-		popd && \
-		pushd $(GOPATH)/src/github.com/openshift/origin && \
-		git fetch origin && \
-		git checkout -B $(tag) refs/tags/$(tag) && \
-		(godep restore || true) && \
-		popd && \
-		pushd $(GOPATH)/src/github.com/coreos/pkg && \
-		git fetch origin && \
-		git checkout fa94270d4bac0d8ae5dc6b71894e251aada93f74 && \
-		popd && \
-		godep save ./cmd/generate/generate.go && \
-		godep update ...

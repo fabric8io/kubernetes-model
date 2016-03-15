@@ -138,8 +138,8 @@ type Schema struct {
 	DaemonSetList                  extensions.DaemonSetList
 	Ingress                        extensions.Ingress
 	IngressList                    extensions.IngressList
-	ConfigMap                      extensions.ConfigMap
-	ConfigMapList                  extensions.ConfigMapList
+	ConfigMap                      kapi.ConfigMap
+	ConfigMapList                  kapi.ConfigMapList
 }
 
 func main() {

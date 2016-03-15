@@ -292,10 +292,11 @@
           <excludes>
             <exclude>.editorconfig</exclude>
             <exclude>license.txt</exclude>
-            <exclude>Godeps/**/*</exclude>
+            <exclude>vendor/**/*</exclude>
             <exclude>generate</exclude>
             <exclude>.editorconfig</exclude>
             <exclude>.openshift-version</exclude>
+            <exclude>glide.*</exclude>
           </excludes>
           <mapping>
             <go>JAVADOC_STYLE</go>
