@@ -249,6 +249,8 @@ func describeBuildSpec(p buildapi.BuildSpec, out *tabwriter.Writer) {
 		describeSourceStrategy(p.Strategy.SourceStrategy, out)
 	case p.Strategy.CustomStrategy != nil:
 		describeCustomStrategy(p.Strategy.CustomStrategy, out)
+	case p.Strategy.ExternalStrategy != nil:
+		describeExternalStrategy(p.Strategy.ExternalStrategy, out)
 	}
 
 	if p.Output.To != nil {
@@ -359,6 +361,9 @@ func describeCustomStrategy(s *buildapi.CustomBuildStrategy, out *tabwriter.Writ
 			formatString(out, "", formatEnv(env))
 		}
 	}
+}
+
+func describeExternalStrategy(s *buildapi.ExternalBuildStrategy, out *tabwriter.Writer) {
 }
 
 // DescribeTriggers generates information about the triggers associated with a buildconfig

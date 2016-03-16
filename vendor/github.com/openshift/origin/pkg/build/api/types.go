@@ -333,6 +333,9 @@ type BuildStrategy struct {
 
 	// CustomStrategy holds the parameters to the Custom build strategy
 	CustomStrategy *CustomBuildStrategy
+
+	// ExternalStrategy holds the parameters to the External build strategy
+	ExternalStrategy *ExternalBuildStrategy
 }
 
 // BuildStrategyType describes a particular way of performing a build.
@@ -423,6 +426,29 @@ type SourceBuildStrategy struct {
 
 	// ForcePull describes if the builder should pull the images from registry prior to building.
 	ForcePull bool
+}
+
+type ExternalBuilderType string
+
+// ExternalBuildStrategy defines input parameters specific to an External build.
+type ExternalBuildStrategy struct {
+	Type ExternalBuilderType
+
+	// Env contains additional environment variables you want to pass to the external builder.
+	Env []kapi.EnvVar
+
+	// JenkinsPipeline holds the config for an external build that will use Jenkins Pipeline to build.
+	JenkinsPipeline *JenkinsPipelineStrategy
+}
+
+// JenkinsPipelineStrategy holds parameters specific to a Jenkins Pipeline build.
+type JenkinsPipelineStrategy struct {
+	// JenkinsfilePath is the path of the Jenkinsfile that will be used to configure the pipeline
+	// relative to the root of the source repository.
+	JenkinsfilePath *string `json:"jenkinsfilePath,omitempty"`
+
+	// Jenkinsfile is the raw contents of a Jenkinsfile containing the pipeline definition.
+	Jenkinsfile *string `json:"jenkinsfile,omitempty"`
 }
 
 // A BuildPostCommitSpec holds a build post commit hook specification. The hook

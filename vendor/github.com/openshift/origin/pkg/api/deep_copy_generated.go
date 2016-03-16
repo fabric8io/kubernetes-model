@@ -1124,6 +1124,14 @@ func deepCopy_api_BuildStrategy(in buildapi.BuildStrategy, out *buildapi.BuildSt
 	} else {
 		out.CustomStrategy = nil
 	}
+	if in.ExternalStrategy != nil {
+		out.ExternalStrategy = new(buildapi.ExternalBuildStrategy)
+		if err := deepCopy_api_ExternalBuildStrategy(*in.ExternalStrategy, out.ExternalStrategy, c); err != nil {
+			return err
+		}
+	} else {
+		out.ExternalStrategy = nil
+	}
 	return nil
 }
 
@@ -1236,6 +1244,31 @@ func deepCopy_api_DockerBuildStrategy(in buildapi.DockerBuildStrategy, out *buil
 	return nil
 }
 
+func deepCopy_api_ExternalBuildStrategy(in buildapi.ExternalBuildStrategy, out *buildapi.ExternalBuildStrategy, c *conversion.Cloner) error {
+	out.Type = in.Type
+	if in.Env != nil {
+		out.Env = make([]pkgapi.EnvVar, len(in.Env))
+		for i := range in.Env {
+			if newVal, err := c.DeepCopy(in.Env[i]); err != nil {
+				return err
+			} else {
+				out.Env[i] = newVal.(pkgapi.EnvVar)
+			}
+		}
+	} else {
+		out.Env = nil
+	}
+	if in.JenkinsPipeline != nil {
+		out.JenkinsPipeline = new(buildapi.JenkinsPipelineStrategy)
+		if err := deepCopy_api_JenkinsPipelineStrategy(*in.JenkinsPipeline, out.JenkinsPipeline, c); err != nil {
+			return err
+		}
+	} else {
+		out.JenkinsPipeline = nil
+	}
+	return nil
+}
+
 func deepCopy_api_GitBuildSource(in buildapi.GitBuildSource, out *buildapi.GitBuildSource, c *conversion.Cloner) error {
 	out.URI = in.URI
 	out.Ref = in.Ref
@@ -1311,6 +1344,22 @@ func deepCopy_api_ImageSource(in buildapi.ImageSource, out *buildapi.ImageSource
 func deepCopy_api_ImageSourcePath(in buildapi.ImageSourcePath, out *buildapi.ImageSourcePath, c *conversion.Cloner) error {
 	out.SourcePath = in.SourcePath
 	out.DestinationDir = in.DestinationDir
+	return nil
+}
+
+func deepCopy_api_JenkinsPipelineStrategy(in buildapi.JenkinsPipelineStrategy, out *buildapi.JenkinsPipelineStrategy, c *conversion.Cloner) error {
+	if in.JenkinsfilePath != nil {
+		out.JenkinsfilePath = new(string)
+		*out.JenkinsfilePath = *in.JenkinsfilePath
+	} else {
+		out.JenkinsfilePath = nil
+	}
+	if in.Jenkinsfile != nil {
+		out.Jenkinsfile = new(string)
+		*out.Jenkinsfile = *in.Jenkinsfile
+	} else {
+		out.Jenkinsfile = nil
+	}
 	return nil
 }
 
@@ -3327,11 +3376,13 @@ func init() {
 		deepCopy_api_BuildTriggerPolicy,
 		deepCopy_api_CustomBuildStrategy,
 		deepCopy_api_DockerBuildStrategy,
+		deepCopy_api_ExternalBuildStrategy,
 		deepCopy_api_GitBuildSource,
 		deepCopy_api_GitSourceRevision,
 		deepCopy_api_ImageChangeTrigger,
 		deepCopy_api_ImageSource,
 		deepCopy_api_ImageSourcePath,
+		deepCopy_api_JenkinsPipelineStrategy,
 		deepCopy_api_SecretBuildSource,
 		deepCopy_api_SecretSpec,
 		deepCopy_api_SourceBuildStrategy,
