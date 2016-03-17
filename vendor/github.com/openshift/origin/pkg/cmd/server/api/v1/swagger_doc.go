@@ -362,14 +362,13 @@ func (LDAPSyncConfig) SwaggerDoc() map[string]string {
 	return map_LDAPSyncConfig
 }
 
-var map_LegacyClientPolicyConfig = map[string]string{
-	"":                    "LegacyClientPolicyConfig holds configuration options for preventing *opt-in* clients using some HTTP verbs when talking to the API",
-	"legacyClientPolicy":  "LegacyClientPolicy controls how API calls from *voluntarily* identifying clients will be handled.  THIS DOES NOT DEFEND AGAINST MALICIOUS CLIENTS! The default is AllowAll",
-	"restrictedHTTPVerbs": "RestrictedHTTPVerbs specifies which HTTP verbs are restricted.  By default this is PUT and POST",
+var map_LocalQuota = map[string]string{
+	"":           "LocalQuota contains options for controlling local volume quota on the node.",
+	"perFSGroup": "FSGroup can be specified to enable a quota on local storage use per unique FSGroup ID. At present this is only implemented for emptyDir volumes, and if the underlying volumeDirectory is on an XFS filesystem.",
 }
 
-func (LegacyClientPolicyConfig) SwaggerDoc() map[string]string {
-	return map_LegacyClientPolicyConfig
+func (LocalQuota) SwaggerDoc() map[string]string {
+	return map_LocalQuota
 }
 
 var map_MasterClients = map[string]string{
@@ -416,11 +415,12 @@ func (MasterConfig) SwaggerDoc() map[string]string {
 }
 
 var map_MasterNetworkConfig = map[string]string{
-	"":                   "MasterNetworkConfig to be passed to the compiled in network plugin",
-	"networkPluginName":  "NetworkPluginName is the name of the network plugin to use",
-	"clusterNetworkCIDR": "ClusterNetworkCIDR is the CIDR string to specify the global overlay network's L3 space",
-	"hostSubnetLength":   "HostSubnetLength is the number of bits to allocate to each host's subnet e.g. 8 would mean a /24 network on the host",
-	"serviceNetworkCIDR": "ServiceNetwork is the CIDR string to specify the service networks",
+	"":                       "MasterNetworkConfig to be passed to the compiled in network plugin",
+	"networkPluginName":      "NetworkPluginName is the name of the network plugin to use",
+	"clusterNetworkCIDR":     "ClusterNetworkCIDR is the CIDR string to specify the global overlay network's L3 space",
+	"hostSubnetLength":       "HostSubnetLength is the number of bits to allocate to each host's subnet e.g. 8 would mean a /24 network on the host",
+	"serviceNetworkCIDR":     "ServiceNetwork is the CIDR string to specify the service networks",
+	"externalIPNetworkCIDRs": "ExternalIPNetworkCIDRs controls what values are acceptable for the service external IP field. If empty, no externalIP may be set. It may contain a list of CIDRs which are checked for access. If a CIDR is prefixed with !, IPs in that CIDR will be rejected. Rejections will be applied first, then the IP checked against one of the allowed CIDRs. You should ensure this range does not overlap with your nodes, pods, or service CIDRs for security reasons.",
 }
 
 func (MasterNetworkConfig) SwaggerDoc() map[string]string {
@@ -467,6 +467,7 @@ var map_NodeConfig = map[string]string{
 	"kubeletArguments":    "KubeletArguments are key value pairs that will be passed directly to the Kubelet that match the Kubelet's command line arguments.  These are not migrated or validated, so if you use them they may become invalid. These values override other settings in NodeConfig which may cause invalid configurations.",
 	"proxyArguments":      "ProxyArguments are key value pairs that will be passed directly to the Proxy that match the Proxy's command line arguments.  These are not migrated or validated, so if you use them they may become invalid. These values override other settings in NodeConfig which may cause invalid configurations.",
 	"iptablesSyncPeriod":  "IPTablesSyncPeriod is how often iptable rules are refreshed",
+	"volumeConfig":        "VolumeConfig contains options for configuring volumes on the node.",
 }
 
 func (NodeConfig) SwaggerDoc() map[string]string {
@@ -565,7 +566,7 @@ var map_PolicyConfig = map[string]string{
 	"bootstrapPolicyFile":               "BootstrapPolicyFile points to a template that contains roles and rolebindings that will be created if no policy object exists in the master namespace",
 	"openshiftSharedResourcesNamespace": "OpenShiftSharedResourcesNamespace is the namespace where shared OpenShift resources live (like shared templates)",
 	"openshiftInfrastructureNamespace":  "OpenShiftInfrastructureNamespace is the namespace where OpenShift infrastructure resources live (like controller service accounts)",
-	"legacyClientPolicyConfig":          "LegacyClientPolicyConfig controls how API calls from *voluntarily* identifying clients will be handled.  THIS DOES NOT DEFEND AGAINST MALICIOUS CLIENTS!",
+	"userAgentMatchingConfig":           "UserAgentMatchingConfig controls how API calls from *voluntarily* identifying clients will be handled.  THIS DOES NOT DEFEND AGAINST MALICIOUS CLIENTS!",
 }
 
 func (PolicyConfig) SwaggerDoc() map[string]string {
@@ -729,4 +730,43 @@ var map_TokenConfig = map[string]string{
 
 func (TokenConfig) SwaggerDoc() map[string]string {
 	return map_TokenConfig
+}
+
+var map_UserAgentDenyRule = map[string]string{
+	"":                 "UserAgentDenyRule adds a rejection message that can be used to help a user figure out how to get an approved client",
+	"rejectionMessage": "RejectionMessage is the message shown when rejecting a client.  If it is not a set, the default message is used.",
+}
+
+func (UserAgentDenyRule) SwaggerDoc() map[string]string {
+	return map_UserAgentDenyRule
+}
+
+var map_UserAgentMatchRule = map[string]string{
+	"":          "UserAgentMatchRule describes how to match a given request based on User-Agent and HTTPVerb",
+	"regex":     "UserAgentRegex is a regex that is checked against the User-Agent. Known variants of oc clients 1. oc accessing kube resources: oc/v1.2.0 (linux/amd64) kubernetes/bc4550d 2. oc accessing openshift resources: oc/v1.1.3 (linux/amd64) openshift/b348c2f 3. openshift kubectl accessing kube resources:  openshift/v1.2.0 (linux/amd64) kubernetes/bc4550d 4. openshit kubectl accessing openshift resources: openshift/v1.1.3 (linux/amd64) openshift/b348c2f 5. oadm accessing kube resources: oadm/v1.2.0 (linux/amd64) kubernetes/bc4550d 6. oadm accessing openshift resources: oadm/v1.1.3 (linux/amd64) openshift/b348c2f 7. openshift cli accessing kube resources: openshift/v1.2.0 (linux/amd64) kubernetes/bc4550d 8. openshift cli accessing openshift resources: openshift/v1.1.3 (linux/amd64) openshift/b348c2f",
+	"httpVerbs": "HTTPVerbs specifies which HTTP verbs should be matched.  An empty list means \"match all verbs\".",
+}
+
+func (UserAgentMatchRule) SwaggerDoc() map[string]string {
+	return map_UserAgentMatchRule
+}
+
+var map_UserAgentMatchingConfig = map[string]string{
+	"":                        "UserAgentMatchingConfig controls how API calls from *voluntarily* identifying clients will be handled.  THIS DOES NOT DEFEND AGAINST MALICIOUS CLIENTS!",
+	"requiredClients":         "If this list is non-empty, then a User-Agent must match one of the UserAgentRegexes to be allowed",
+	"deniedClients":           "If this list is non-empty, then a User-Agent must not match any of the UserAgentRegexes",
+	"defaultRejectionMessage": "DefaultRejectionMessage is the message shown when rejecting a client.  If it is not a set, a generic message is given.",
+}
+
+func (UserAgentMatchingConfig) SwaggerDoc() map[string]string {
+	return map_UserAgentMatchingConfig
+}
+
+var map_VolumeConfig = map[string]string{
+	"":           "VolumeConfig contains options for configuring volumes on the node.",
+	"localQuota": "LocalQuota contains options for controlling local volume quota on the node.",
+}
+
+func (VolumeConfig) SwaggerDoc() map[string]string {
+	return map_VolumeConfig
 }

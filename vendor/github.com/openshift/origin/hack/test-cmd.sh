@@ -15,6 +15,7 @@ source "${OS_ROOT}/hack/lib/log.sh"
 source "${OS_ROOT}/hack/lib/util/environment.sh"
 source "${OS_ROOT}/hack/cmd_util.sh"
 os::log::install_errexit
+os::util::environment::setup_time_vars
 
 function cleanup()
 {
@@ -77,8 +78,7 @@ os::log::start_system_logger
 unset KUBECONFIG
 
 # test wrapper functions
-${OS_ROOT}/hack/test-cmd_util.sh > ${LOG_DIR}/wrappers_test.log 2>&1
-
+${OS_ROOT}/hack/test-util.sh > ${LOG_DIR}/wrappers_test.log 2>&1
 
 # handle profiling defaults
 profile="${OPENSHIFT_PROFILE-}"

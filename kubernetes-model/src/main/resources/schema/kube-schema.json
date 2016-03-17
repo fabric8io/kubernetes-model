@@ -7073,9 +7073,9 @@
           "$ref": "#/definitions/os_build_DockerBuildStrategy",
           "javaType": "io.fabric8.openshift.api.model.DockerBuildStrategy"
         },
-        "externalStrategy": {
-          "$ref": "#/definitions/os_build_ExternalBuildStrategy",
-          "javaType": "io.fabric8.openshift.api.model.ExternalBuildStrategy"
+        "jenkinsPipelineStrategy": {
+          "$ref": "#/definitions/os_build_JenkinsPipelineBuildStrategy",
+          "javaType": "io.fabric8.openshift.api.model.JenkinsPipelineBuildStrategy"
         },
         "sourceStrategy": {
           "$ref": "#/definitions/os_build_SourceBuildStrategy",
@@ -7193,30 +7193,6 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.DockerBuildStrategy"
     },
-    "os_build_ExternalBuildStrategy": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "env": {
-          "type": "array",
-          "description": "additional environment variables you want to pass into an external build",
-          "items": {
-            "$ref": "#/definitions/kubernetes_EnvVar",
-            "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
-          }
-        },
-        "jenkinsPipelineStrategy": {
-          "$ref": "#/definitions/os_build_JenkinsPipelineStrategy",
-          "javaType": "io.fabric8.openshift.api.model.JenkinsPipelineStrategy"
-        },
-        "type": {
-          "type": "string",
-          "description": "identifies the type of external build"
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.openshift.api.model.ExternalBuildStrategy"
-    },
     "os_build_GitBuildSource": {
       "type": "object",
       "description": "",
@@ -7321,10 +7297,18 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.ImageSourcePath"
     },
-    "os_build_JenkinsPipelineStrategy": {
+    "os_build_JenkinsPipelineBuildStrategy": {
       "type": "object",
       "description": "",
       "properties": {
+        "env": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_EnvVar",
+            "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
+          }
+        },
         "jenkinsfile": {
           "type": "string",
           "description": ""
@@ -7335,7 +7319,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.openshift.api.model.JenkinsPipelineStrategy"
+      "javaType": "io.fabric8.openshift.api.model.JenkinsPipelineBuildStrategy"
     },
     "os_build_SecretBuildSource": {
       "type": "object",

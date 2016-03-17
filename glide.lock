@@ -1,5 +1,5 @@
 hash: 43eff8630db5df5852dc186aba7a4e9653ba1aeff992b6e2b4ba4bbaddf2ebb3
-updated: 2016-03-16T14:28:37.81157614Z
+updated: 2016-03-17T17:40:47.558702646Z
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c
@@ -108,24 +108,37 @@ imports:
   subpackages:
   - proto
 - name: github.com/google/cadvisor
-  version: 49a08d5139ae0111757a110ea3b55fe9a607873d
+  version: e39fb02c89f2b39808bc1723108cde5bb510e102
   subpackages:
   - api
   - cache/memory
   - collector
   - container
+  - container/docker
+  - container/libcontainer
+  - container/raw
   - events
   - fs
   - healthz
   - http
+  - http/mux
   - info/v1
+  - info/v1/test
   - info/v2
   - manager
   - metrics
   - pages
+  - pages/static
   - storage
   - summary
   - utils
+  - utils/cloudinfo
+  - utils/cpuload
+  - utils/cpuload/netlink
+  - utils/machine
+  - utils/oomparser
+  - utils/sysfs
+  - utils/sysinfo
   - validate
   - version
 - name: github.com/google/gofuzz
@@ -149,7 +162,7 @@ imports:
   - libcontainer/cgroups
   - libcontainer/system
 - name: github.com/openshift/origin
-  version: aa4d7162f35e2e074f8057a0f027ef905e6d897c
+  version: fcf491868cdb9baa1798b9f3df1896e796c9e6d7
   repo: git@github.com:jimmidyson/origin.git
   vcs: git
   subpackages:
@@ -197,12 +210,15 @@ imports:
   version: 490cc6eb5fa45bf8a8b7b73c8bc82a8160e8531d
 - name: github.com/Sirupsen/logrus
   version: aaf92c95712104318fc35409745f1533aa5ff327
+  subpackages:
+  - formatters/logstash
 - name: github.com/spf13/pflag
   version: 08b1a584251b5b62f458943640fc8ebd4d50aaa5
 - name: github.com/ugorji/go
-  version: 4a79e5b7b21e51ae8d61641bca20399b79735a32
+  version: f4485b318aadd133842532f841dc205a8e339d74
   subpackages:
   - codec
+  - codec/codecgen
 - name: golang.org/x/net
   version: c2528b2dd8352441850638a8bb678c2ad056fd3e
   subpackages:

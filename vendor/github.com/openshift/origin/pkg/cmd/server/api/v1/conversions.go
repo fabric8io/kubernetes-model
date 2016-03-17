@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/conversion"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/runtime/serializer"
@@ -63,14 +64,6 @@ func addDefaultingFuncs(scheme *runtime.Scheme) {
 			}
 			if len(obj.PodEvictionTimeout) == 0 {
 				obj.PodEvictionTimeout = "5m"
-			}
-		},
-		func(obj *LegacyClientPolicyConfig) {
-			if len(obj.LegacyClientPolicy) == 0 {
-				obj.LegacyClientPolicy = AllowAll
-			}
-			if obj.LegacyClientPolicy != AllowAll && len(obj.RestrictedHTTPVerbs) == 0 {
-				obj.RestrictedHTTPVerbs = []string{"PUT", "POST"}
 			}
 		},
 		func(obj *NodeConfig) {
@@ -314,6 +307,7 @@ func addConversionFuncs(scheme *runtime.Scheme) {
 			out.Location = in.Location
 			return nil
 		},
+		api.Convert_resource_Quantity_To_resource_Quantity,
 	)
 	if err != nil {
 		// If one of the conversion functions is malformed, detect it immediately.

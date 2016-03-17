@@ -1382,7 +1382,7 @@ func autoConvert_api_BuildStrategy_To_v1beta3_BuildStrategy(in *buildapi.BuildSt
 	} else {
 		out.CustomStrategy = nil
 	}
-	// in.ExternalStrategy has no peer in out
+	// in.JenkinsPipelineStrategy has no peer in out
 	return nil
 }
 
@@ -5821,6 +5821,7 @@ func autoConvert_api_VolumeSource_To_v1beta3_VolumeSource(in *api.VolumeSource, 
 		out.FC = nil
 	}
 	// in.AzureFile has no peer in out
+	// in.ConfigMap has no peer in out
 	return nil
 }
 
