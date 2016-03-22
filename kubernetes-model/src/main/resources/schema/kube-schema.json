@@ -6955,6 +6955,10 @@
             "javaType": "io.fabric8.openshift.api.model.ImageSource"
           }
         },
+        "jenkinsfile": {
+          "type": "string",
+          "description": ""
+        },
         "secrets": {
           "type": "array",
           "description": "",
@@ -7301,18 +7305,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "env": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "$ref": "#/definitions/kubernetes_EnvVar",
-            "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
-          }
-        },
-        "jenkinsfile": {
-          "type": "string",
-          "description": ""
-        },
         "jenkinsfilePath": {
           "type": "string",
           "description": ""

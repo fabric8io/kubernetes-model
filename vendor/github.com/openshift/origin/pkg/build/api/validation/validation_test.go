@@ -661,6 +661,7 @@ func TestValidateBuildRequest(t *testing.T) {
 
 func TestValidateSource(t *testing.T) {
 	dockerfile := "FROM something"
+	jenkinsfile := "pipeline"
 	invalidProxyAddress := "some!@#$%^&*()url"
 	errorCases := []struct {
 		t        field.ErrorType
@@ -967,6 +968,23 @@ func TestValidateSource(t *testing.T) {
 				},
 			},
 		},
+		// 22
+		{
+			source: &buildapi.BuildSource{
+				Git: &buildapi.GitBuildSource{
+					URI: "https://example.com/repo.git",
+				},
+				Jenkinsfile: &jenkinsfile,
+			},
+			ok: true,
+		},
+		// 23
+		{
+			source: &buildapi.BuildSource{
+				Jenkinsfile: &jenkinsfile,
+			},
+			ok: true,
+		},
 	}
 	for i, tc := range errorCases {
 		errors := validateSource(tc.source, false, false, false, nil)
@@ -1016,10 +1034,10 @@ func TestValidateStrategy(t *testing.T) {
 			t:    field.ErrorTypeInvalid,
 			path: "",
 			strategy: &buildapi.BuildStrategy{
-				SourceStrategy:   &buildapi.SourceBuildStrategy{},
-				DockerStrategy:   &buildapi.DockerBuildStrategy{},
-				CustomStrategy:   &buildapi.CustomBuildStrategy{},
-				ExternalStrategy: &buildapi.ExternalBuildStrategy{},
+				SourceStrategy:          &buildapi.SourceBuildStrategy{},
+				DockerStrategy:          &buildapi.DockerBuildStrategy{},
+				CustomStrategy:          &buildapi.CustomBuildStrategy{},
+				JenkinsPipelineStrategy: &buildapi.JenkinsPipelineBuildStrategy{},
 			},
 		},
 	}
@@ -1435,33 +1453,85 @@ func TestValidateBuildSpec(t *testing.T) {
 		},
 		// 18
 		{
-			string(field.ErrorTypeInvalid) + "strategy.jenkinsPipelineStrategy",
-			&buildapi.BuildSpec{
-				Strategy: buildapi.BuildStrategy{
-					JenkinsPipeline: &buildapi.JenkinsPipelineBuildStrategy{
-						Jenkinsfile:     "a",
-						JenkinsfilePath: "b",
-					},
-				},
-			},
-		},
-		// 19
-		{
-			string(field.ErrorTypeInvalid) + "source.git",
+			string(field.ErrorTypeInvalid) + "source",
 			&buildapi.BuildSpec{
 				Strategy: buildapi.BuildStrategy{
 					JenkinsPipelineStrategy: &buildapi.JenkinsPipelineBuildStrategy{},
 				},
 			},
 		},
-		// 20
+		// 19
 		{
-			string(field.ErrorTypeInvalid) + "source.git",
+			string(field.ErrorTypeInvalid) + "source",
 			&buildapi.BuildSpec{
 				Strategy: buildapi.BuildStrategy{
 					JenkinsPipelineStrategy: &buildapi.JenkinsPipelineBuildStrategy{
 						JenkinsfilePath: "b",
 					},
+				},
+			},
+		},
+		// 20
+		// jenkinsfilePath can't be an absolute path
+		{
+			string(field.ErrorTypeInvalid) + "strategy.jenkinsPipelineStrategy.jenkinsfilePath",
+			&buildapi.BuildSpec{
+				Source: buildapi.BuildSource{
+					Git: &buildapi.GitBuildSource{
+						URI: "http://github.com/my/repository",
+					},
+				},
+				Strategy: buildapi.BuildStrategy{
+					JenkinsPipelineStrategy: &buildapi.JenkinsPipelineBuildStrategy{
+						JenkinsfilePath: "/myJenkinsfile",
+					},
+				},
+			},
+		},
+		// 21
+		// jenkinsfilePath can't start with ..
+		{
+			string(field.ErrorTypeInvalid) + "strategy.jenkinsPipelineStrategy.jenkinsfilePath",
+			&buildapi.BuildSpec{
+				Source: buildapi.BuildSource{
+					Git: &buildapi.GitBuildSource{
+						URI: "http://github.com/my/repository",
+					},
+				},
+				Strategy: buildapi.BuildStrategy{
+					JenkinsPipelineStrategy: &buildapi.JenkinsPipelineBuildStrategy{
+						JenkinsfilePath: "../someJenkinsfile",
+					},
+				},
+			},
+		},
+		// 22
+		{
+			string(field.ErrorTypeInvalid) + "source.jenkinsfile",
+			&buildapi.BuildSpec{
+				Source: buildapi.BuildSource{
+					Git: &buildapi.GitBuildSource{
+						URI: "http://github.com/my/repository",
+					},
+					Jenkinsfile: &longString,
+				},
+				Strategy: buildapi.BuildStrategy{
+					JenkinsPipelineStrategy: &buildapi.JenkinsPipelineBuildStrategy{},
+				},
+			},
+		},
+		// 23
+		{
+			string(field.ErrorTypeInvalid) + "source.jenkinsfile",
+			&buildapi.BuildSpec{
+				Source: buildapi.BuildSource{
+					Jenkinsfile: &longString,
+					Git: &buildapi.GitBuildSource{
+						URI: "http://github.com/my/repository",
+					},
+				},
+				Strategy: buildapi.BuildStrategy{
+					JenkinsPipelineStrategy: &buildapi.JenkinsPipelineBuildStrategy{},
 				},
 			},
 		},

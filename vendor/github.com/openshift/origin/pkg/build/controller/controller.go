@@ -89,6 +89,12 @@ func (bc *BuildController) HandleBuild(build *buildapi.Build) error {
 		}
 	}
 
+	// these builds are processed/updated/etc by the jenkins sync plugin
+	if build.Spec.Strategy.JenkinsPipelineStrategy != nil {
+		glog.V(4).Infof("Ignoring build with jenkins pipeline strategy")
+		return nil
+	}
+
 	// Handle new builds
 	if build.Status.Phase != buildapi.BuildPhaseNew {
 		return nil
@@ -118,6 +124,12 @@ func (bc *BuildController) nextBuildPhase(build *buildapi.Build) error {
 		build.Status.Phase = buildapi.BuildPhaseCancelled
 		build.Status.Reason = ""
 		build.Status.Message = ""
+		return nil
+	}
+
+	// these builds are processed/updated/etc by the jenkins sync plugin
+	if build.Spec.Strategy.JenkinsPipelineStrategy != nil {
+		glog.V(4).Infof("Ignoring build with jenkins pipeline strategy")
 		return nil
 	}
 
