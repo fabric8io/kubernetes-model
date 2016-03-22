@@ -1,5 +1,5 @@
 hash: 43eff8630db5df5852dc186aba7a4e9653ba1aeff992b6e2b4ba4bbaddf2ebb3
-updated: 2016-03-22T11:21:21.202728798Z
+updated: 2016-03-22T13:03:06.747445898Z
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c
@@ -162,7 +162,7 @@ imports:
   - libcontainer/cgroups
   - libcontainer/system
 - name: github.com/openshift/origin
-  version: 30f7b07fe22805eb4b86e2e9688a1b85f65ecc2b
+  version: 8060e4478e6b7d5295cf99caf9b1b16f953bfd63
   repo: git@github.com:jimmidyson/origin.git
   vcs: git
   subpackages:
