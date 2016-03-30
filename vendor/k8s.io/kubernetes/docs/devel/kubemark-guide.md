@@ -1,29 +1,5 @@
 <!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
 
-<!-- BEGIN STRIP_FOR_RELEASE -->
-
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-
-<h2>PLEASE NOTE: This document applies to the HEAD of the source tree</h2>
-
-If you are using a released version of Kubernetes, you should
-refer to the docs that go with that version.
-
-Documentation for other releases can be found at
-[releases.k8s.io](http://releases.k8s.io).
-</strong>
---
-
-<!-- END STRIP_FOR_RELEASE -->
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 
@@ -89,7 +65,7 @@ to update docker image address if you’re not using GCR and default image name*
 - Waits until all HollowNodes are in the Running phase (*will work exactly the same everywhere*)
 
 <sub>\* Port 443 is a secured port on the master machine which is used for all external communication with the API server. In the last sentence *external* means all traffic
-comming from other machines, including all the Nodes, not only from outside of the cluster. Currently local components, i.e. ControllerManager and Scheduler talk with API server using insecure port 8080.</sub>
+coming from other machines, including all the Nodes, not only from outside of the cluster. Currently local components, i.e. ControllerManager and Scheduler talk with API server using insecure port 8080.</sub>
 
 ### Running e2e tests on Kubemark cluster
 
@@ -170,6 +146,13 @@ managers (e.g. VolumeManager), they are not supported in Kubemark (e.g. we can�
 
 As the time passes more fakes will probably be plugged into HollowNodes, but it’s crucial to make it as simple as possible to allow running a big number of Hollows on a single
 core.
+
+
+
+
+<!-- BEGIN MUNGE: IS_VERSIONED -->
+<!-- TAG IS_VERSIONED -->
+<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

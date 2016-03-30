@@ -600,11 +600,11 @@ func subgraphWithoutPrunableImages(g graph.Graph, prunableImageIDs graph.NodeSet
 		func(g graph.Interface, node gonum.Node) bool {
 			return !prunableImageIDs.Has(node.ID())
 		},
-		func(g graph.Interface, head, tail gonum.Node, edgeKinds sets.String) bool {
-			if prunableImageIDs.Has(head.ID()) {
+		func(g graph.Interface, from, to gonum.Node, edgeKinds sets.String) bool {
+			if prunableImageIDs.Has(from.ID()) {
 				return false
 			}
-			if prunableImageIDs.Has(tail.ID()) {
+			if prunableImageIDs.Has(to.ID()) {
 				return false
 			}
 			return true
@@ -916,6 +916,11 @@ func deleteFromRegistry(registryClient *http.Client, url string) error {
 		}
 		defer resp.Body.Close()
 
+		// non-2xx/3xx response doesn't cause an error, so we need to check for it
+		// manually and return it to caller
+		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusBadRequest {
+			return fmt.Errorf(resp.Status)
+		}
 		if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusAccepted {
 			glog.V(1).Infof("Unexpected status code in response: %d", resp.StatusCode)
 			decoder := json.NewDecoder(resp.Body)

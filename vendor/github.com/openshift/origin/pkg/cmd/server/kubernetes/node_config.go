@@ -14,17 +14,19 @@ import (
 	kubeletoptions "k8s.io/kubernetes/cmd/kubelet/app/options"
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/unversioned"
+	"k8s.io/kubernetes/pkg/apis/componentconfig"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/kubelet/dockertools"
 	kubeletserver "k8s.io/kubernetes/pkg/kubelet/server"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/util"
-	"k8s.io/kubernetes/pkg/util/errors"
+	kerrors "k8s.io/kubernetes/pkg/util/errors"
 	"k8s.io/kubernetes/pkg/util/oom"
 
 	osdnapi "github.com/openshift/openshift-sdn/plugins/osdn/api"
 	"github.com/openshift/openshift-sdn/plugins/osdn/factory"
+	"github.com/openshift/openshift-sdn/plugins/osdn/ovs"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
 	"github.com/openshift/origin/pkg/cmd/server/crypto"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
@@ -120,8 +122,9 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig) (*NodeConfig, error
 		return nil, fmt.Errorf("cannot parse node port: %v", err)
 	}
 
-	// declare the OpenShift defaults from config
+	// Defaults are tested in TestKubeletDefaults
 	server := kubeletoptions.NewKubeletServer()
+	// Adjust defaults
 	server.Config = path
 	server.RootDirectory = options.VolumeDirectory
 	server.NodeIP = options.NodeIP
@@ -130,9 +133,10 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig) (*NodeConfig, error
 	server.RegisterNode = true
 	server.Address = kubeAddressStr
 	server.Port = uint(kubePort)
-	server.ReadOnlyPort = 0 // no read only access
-	server.CAdvisorPort = 0 // no unsecured cadvisor access
-	server.HealthzPort = 0  // no unsecured healthz access
+	server.ReadOnlyPort = 0        // no read only access
+	server.CAdvisorPort = 0        // no unsecured cadvisor access
+	server.HealthzPort = 0         // no unsecured healthz access
+	server.HealthzBindAddress = "" // no unsecured healthz access
 	server.ClusterDNS = options.DNSIP
 	server.ClusterDomain = options.DNSDomain
 	server.NetworkPluginName = options.NetworkConfig.NetworkPluginName
@@ -145,6 +149,13 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig) (*NodeConfig, error
 	server.CPUCFSQuota = true // enable cpu cfs quota enforcement by default
 	server.MaxPods = 110
 
+	switch server.NetworkPluginName {
+	case ovs.SingleTenantPluginName(), ovs.MultiTenantPluginName():
+		// set defaults for openshift-sdn
+		server.HairpinMode = componentconfig.HairpinNone
+		server.ConfigureCBR0 = false
+	}
+
 	// prevents kube from generating certs
 	server.TLSCertFile = options.ServingInfo.ServerCert.CertFile
 	server.TLSPrivateKeyFile = options.ServingInfo.ServerCert.KeyFile
@@ -156,7 +167,7 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig) (*NodeConfig, error
 	// TODO: this should be done in config validation (along with the above) so we can provide
 	// proper errors
 	if err := cmdflags.Resolve(options.KubeletArguments, server.AddFlags); len(err) > 0 {
-		return nil, errors.NewAggregate(err)
+		return nil, kerrors.NewAggregate(err)
 	}
 
 	proxyconfig, err := buildKubeProxyConfig(options)
@@ -187,8 +198,6 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig) (*NodeConfig, error
 	if value := cmdutil.Env("OPENSHIFT_DIND", ""); value == "true" {
 		glog.Warningf("Using FakeOOMAdjuster for docker-in-docker compatibility")
 		cfg.OOMAdjuster = oom.NewFakeOOMAdjuster()
-		glog.Warningf("Disabling cgroup manipulation of nested docker daemon for docker-in-docker compatibility")
-		cfg.DockerDaemonContainer = ""
 	}
 
 	// Setup auth
@@ -354,7 +363,7 @@ func buildKubeProxyConfig(options configapi.NodeConfig) (*proxyoptions.ProxyServ
 
 	// Resolve cmd flags to add any user overrides
 	if err := cmdflags.Resolve(options.ProxyArguments, proxyconfig.AddFlags); len(err) > 0 {
-		return nil, errors.NewAggregate(err)
+		return nil, kerrors.NewAggregate(err)
 	}
 
 	return proxyconfig, nil

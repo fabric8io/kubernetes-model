@@ -18,7 +18,6 @@ import (
 	"k8s.io/kubernetes/pkg/admission"
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/apimachinery/registered"
 	"k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/apiserver"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
@@ -41,10 +40,11 @@ import (
 	cmdflags "github.com/openshift/origin/pkg/cmd/util/flags"
 	"github.com/openshift/origin/pkg/cmd/util/pluginconfig"
 	overrideapi "github.com/openshift/origin/pkg/quota/admission/clusterresourceoverride/api"
+	serviceadmit "github.com/openshift/origin/pkg/service/admission"
 )
 
 // AdmissionPlugins is the full list of admission control plugins to enable in the order they must run
-var AdmissionPlugins = []string{"NamespaceLifecycle", "PodNodeConstraints", "OriginPodNodeEnvironment", overrideapi.PluginName, "LimitRanger", "ServiceAccount", "SecurityContextConstraint", "BuildDefaults", "BuildOverrides", "ResourceQuota", "SCCExecRestrictions"}
+var AdmissionPlugins = []string{"RunOnceDuration", "NamespaceLifecycle", "PodNodeConstraints", "OriginPodNodeEnvironment", overrideapi.PluginName, serviceadmit.ExternalIPPluginName, "LimitRanger", "ServiceAccount", "SecurityContextConstraint", "BuildDefaults", "BuildOverrides", "ResourceQuota", "SCCExecRestrictions"}
 
 // MasterConfig defines the required values to start a Kubernetes master
 type MasterConfig struct {
@@ -95,11 +95,14 @@ func BuildKubernetesMasterConfig(options configapi.MasterConfig, requestContextM
 		return nil, fmt.Errorf("unable to parse PodEvictionTimeout: %v", err)
 	}
 
+	// Defaults are tested in TestAPIServerDefaults
 	server := apiserveroptions.NewAPIServer()
+	// Adjust defaults
 	server.EventTTL = 2 * time.Hour
 	server.ServiceClusterIPRange = net.IPNet(flagtypes.DefaultIPNet(options.KubernetesMasterConfig.ServicesSubnet))
 	server.ServiceNodePortRange = *portRange
 	server.AdmissionControl = strings.Join(AdmissionPlugins, ",")
+	server.EnableLogsSupport = false // don't expose server logs
 
 	// resolve extended arguments
 	// TODO: this should be done in config validation (along with the above) so we can provide
@@ -112,8 +115,13 @@ func BuildKubernetesMasterConfig(options configapi.MasterConfig, requestContextM
 		server.AdmissionControl = strings.Join(options.KubernetesMasterConfig.AdmissionConfig.PluginOrderOverride, ",")
 	}
 
+	// Defaults are tested in TestCMServerDefaults
 	cmserver := cmapp.NewCMServer()
-	cmserver.PodEvictionTimeout = podEvictionTimeout
+	// Adjust defaults
+	cmserver.Address = "" // no healthz endpoint
+	cmserver.Port = 0     // no healthz endpoint
+	cmserver.PodEvictionTimeout = unversioned.Duration{Duration: podEvictionTimeout}
+
 	// resolve extended arguments
 	// TODO: this should be done in config validation (along with the above) so we can provide
 	// proper errors
@@ -132,6 +140,14 @@ func BuildKubernetesMasterConfig(options configapi.MasterConfig, requestContextM
 	plugins := []admission.Interface{}
 	for _, pluginName := range strings.Split(server.AdmissionControl, ",") {
 		switch pluginName {
+		case serviceadmit.ExternalIPPluginName:
+			// this needs to be moved upstream to be part of core config
+			reject, admit, err := serviceadmit.ParseCIDRRules(options.NetworkConfig.ExternalIPNetworkCIDRs)
+			if err != nil {
+				// should have been caught with validation
+				return nil, err
+			}
+			plugins = append(plugins, serviceadmit.NewExternalIPRanger(reject, admit))
 		case saadmit.PluginName:
 			// we need to set some custom parameters on the service account admission controller, so create that one by hand
 			saAdmitter := saadmit.NewServiceAccount(internalclientset.FromUnversionedClient(kubeClient))
@@ -188,19 +204,20 @@ func BuildKubernetesMasterConfig(options configapi.MasterConfig, requestContextM
 		storageVersions[configapi.APIGroupKube] = options.EtcdStorageConfig.KubernetesStorageVersion
 	}
 
-	enabledExtensionsVersions := configapi.GetEnabledAPIVersionsForGroup(*options.KubernetesMasterConfig, configapi.APIGroupExtensions)
-	if len(enabledExtensionsVersions) > 0 {
-		groupMeta, err := registered.Group(configapi.APIGroupExtensions)
-		if err != nil {
-			return nil, fmt.Errorf("Error setting up Kubernetes extensions server storage: %v", err)
-		}
-		// TODO expose storage version options for api groups
-		databaseStorage, err := NewEtcdStorage(etcdClient, groupMeta.GroupVersion, options.EtcdStorageConfig.KubernetesStoragePrefix)
+	// enable this if extensions API is enabled (or batch or autoscaling, since they persist to extensions/v1beta1 for now)
+	// TODO: replace this with a loop over configured storage versions
+	extensionsEnabled := len(configapi.GetEnabledAPIVersionsForGroup(*options.KubernetesMasterConfig, configapi.APIGroupExtensions)) > 0
+	batchEnabled := len(configapi.GetEnabledAPIVersionsForGroup(*options.KubernetesMasterConfig, configapi.APIGroupBatch)) > 0
+	autoscalingEnabled := len(configapi.GetEnabledAPIVersionsForGroup(*options.KubernetesMasterConfig, configapi.APIGroupAutoscaling)) > 0
+	if extensionsEnabled || autoscalingEnabled || batchEnabled {
+		// TODO: replace this with a configured storage version for extensions once configuration exposes this
+		extensionsStorageVersion := unversioned.GroupVersion{Group: extensions.GroupName, Version: "v1beta1"}
+		databaseStorage, err := NewEtcdStorage(etcdClient, extensionsStorageVersion, options.EtcdStorageConfig.KubernetesStoragePrefix)
 		if err != nil {
 			return nil, fmt.Errorf("Error setting up Kubernetes extensions server storage: %v", err)
 		}
 		storageDestinations.AddAPIGroup(configapi.APIGroupExtensions, databaseStorage)
-		storageVersions[configapi.APIGroupExtensions] = unversioned.GroupVersion{Group: extensions.GroupName, Version: enabledExtensionsVersions[0]}.String()
+		storageVersions[configapi.APIGroupExtensions] = extensionsStorageVersion.String()
 	}
 
 	// Preserve previous behavior of using the first non-loopback address

@@ -1,29 +1,5 @@
 <!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
 
-<!-- BEGIN STRIP_FOR_RELEASE -->
-
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-
-<h2>PLEASE NOTE: This document applies to the HEAD of the source tree</h2>
-
-If you are using a released version of Kubernetes, you should
-refer to the docs that go with that version.
-
-Documentation for other releases can be found at
-[releases.k8s.io](http://releases.k8s.io).
-</strong>
---
-
-<!-- END STRIP_FOR_RELEASE -->
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 
@@ -79,13 +55,13 @@ type Workflow struct {
   unversioned.TypeMeta `json:",inline"`
 
   // Standard object's metadata.
-  // More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata.
+  // More info: http://releases.k8s.io/release-1.2/docs/devel/api-conventions.md#metadata.
   api.ObjectMeta `json:"metadata,omitempty"`
 
-  // Spec defines the expected behavior of a Workflow. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status.
+  // Spec defines the expected behavior of a Workflow. More info: http://releases.k8s.io/release-1.2/docs/devel/api-conventions.md#spec-and-status.
   Spec WorkflowSpec `json:"spec,omitempty"`
 
-  // Status represents the current status of the Workflow. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status.
+  // Status represents the current status of the Workflow. More info: http://releases.k8s.io/release-1.2/docs/devel/api-conventions.md#spec-and-status.
   Status WorkflowStatus `json:"status,omitempty"`
 }
 
@@ -94,7 +70,7 @@ type WorkflowList struct {
   unversioned.TypeMeta `json:",inline"`
 
   // Standard list metadata
-  // More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
+  // More info: http://releases.k8s.io/release-1.2/docs/devel/api-conventions.md#metadata
   unversioned.ListMeta `json:"metadata,omitempty"`
 
   // Items is the list of Workflow
@@ -104,7 +80,7 @@ type WorkflowList struct {
 // WorkflowSpec contains Workflow specification
 type WorkflowSpec struct {
   // Standard object's metadata.
-  // More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
+  // More info: http://releases.k8s.io/release-1.2/docs/devel/api-conventions.md#metadata
   api.ObjectMeta `json:"metadata,omitempty"`
 
   //ActiveDealineSeconds contains
@@ -192,17 +168,17 @@ type WorkflowStepStatus struct {
 ```
 
 `JobTemplateSpec` is already introduced by
-ScheduledJob controller proposal](https://github.com/kubernetes/kubernete2s/pull/11980).
+ScheduledJob controller proposal](https://github.com/kubernetes/kubernetes/pull/11980).
 Reported for readability:
 
 ```go
 type JobTemplateSpec struct {
   // Standard object's metadata.
-  // More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
+  // More info: http://releases.k8s.io/release-1.2/docs/devel/api-conventions.md#metadata
   api.ObjectMeta
 
   // Spec is a structure defining the expected behavior of a job.
-  // More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status
+  // More info: http://releases.k8s.io/release-1.2/docs/devel/api-conventions.md#spec-and-status
   Spec JobSpec
 }
 ```
@@ -258,7 +234,7 @@ The events associated to `Workflow`s will be:
 
 ## Kubectl
 
-Kubectl will be modified to display workflows. More particulary the `describe` command
+Kubectl will be modified to display workflows. More particularly the `describe` command
 will display all the steps with their status. Steps will be topologically sorted and
 each dependency will be decorated with its status (wether or not step is waitin for
 dependency).
@@ -288,6 +264,13 @@ another whole `Workflow`) we have chosen the more generic word `Step`.
 
 
 <sup>2</sup>A very common feature in industrial strength workflow tools.
+
+
+
+
+<!-- BEGIN MUNGE: IS_VERSIONED -->
+<!-- TAG IS_VERSIONED -->
+<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

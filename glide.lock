@@ -1,5 +1,5 @@
-hash: d93ee44fa527b9cf758316d48ad2d87c3af637fc94ae99915ce96e9f2b1fe64e
-updated: 2016-03-15T17:07:31.736159423Z
+hash: f33ca67818a746d3d3edd8e015ab2b28aa69fb60c703accea6c2c51af087a798
+updated: 2016-03-30T12:17:56.914136089+01:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c
@@ -107,27 +107,6 @@ imports:
   version: b982704f8bb716bb608144408cff30e15fbde841
   subpackages:
   - proto
-- name: github.com/google/cadvisor
-  version: 49a08d5139ae0111757a110ea3b55fe9a607873d
-  subpackages:
-  - api
-  - cache/memory
-  - collector
-  - container
-  - events
-  - fs
-  - healthz
-  - http
-  - info/v1
-  - info/v2
-  - manager
-  - metrics
-  - pages
-  - storage
-  - summary
-  - utils
-  - validate
-  - version
 - name: github.com/google/gofuzz
   version: bbcb9da2d746f8bdbd6a936686a0a6067ada0ec5
 - name: github.com/gorilla/context
@@ -149,7 +128,7 @@ imports:
   - libcontainer/cgroups
   - libcontainer/system
 - name: github.com/openshift/origin
-  version: 3941102b8a022b5f2d9ec2c94d1f13d519fa9c31
+  version: 847f33723fe799c202a6bb6c24dc60b89294f80d
   subpackages:
   - pkg/authorization/api/v1
   - pkg/build/api/v1
@@ -195,12 +174,15 @@ imports:
   version: 490cc6eb5fa45bf8a8b7b73c8bc82a8160e8531d
 - name: github.com/Sirupsen/logrus
   version: aaf92c95712104318fc35409745f1533aa5ff327
+  subpackages:
+  - formatters/logstash
 - name: github.com/spf13/pflag
   version: 08b1a584251b5b62f458943640fc8ebd4d50aaa5
 - name: github.com/ugorji/go
-  version: 4a79e5b7b21e51ae8d61641bca20399b79735a32
+  version: f4485b318aadd133842532f841dc205a8e339d74
   subpackages:
   - codec
+  - codec/codecgen
 - name: golang.org/x/net
   version: c2528b2dd8352441850638a8bb678c2ad056fd3e
   subpackages:
@@ -213,7 +195,7 @@ imports:
 - name: gopkg.in/yaml.v2
   version: d466437aa4adc35830964cffc5b5f262c63ddcb4
 - name: k8s.io/kubernetes
-  version: 91d3e753a4eca4e87462b7c9e5391ec94bb792d9
+  version: 4a3f9c5b19c7ff804cbc1bf37a15c044ca5d2353
   repo: git@github.com:openshift/kubernetes.git
   vcs: git
   subpackages:
@@ -252,9 +234,13 @@ imports:
   - pkg/api/rest
   - pkg/registry/generic
   - pkg/util/validation
+  - pkg/util/integer
   - pkg/util/wait
   - pkg/util/net
   - pkg/util/runtime
+  - pkg/api/endpoints
+  - pkg/api/pod
+  - pkg/api/service
   - pkg/api/util
   - pkg/apimachinery/registered
   - pkg/capabilities
@@ -264,27 +250,15 @@ imports:
   - pkg/runtime/serializer/recognizer
   - pkg/runtime/serializer/versioning
   - pkg/storage
+  - pkg/util/hash
+  - pkg/util/net/sets
   - pkg/apimachinery
   - pkg/client/cache
   - pkg/storage/etcd/util
-  - pkg/client/unversioned
-  - pkg/api/install
-  - pkg/api/v1beta3
-  - pkg/apis/authorization/install
-  - pkg/apis/componentconfig/install
-  - pkg/apis/extensions/install
-  - pkg/apis/metrics/install
+  - pkg/client/restclient
   - pkg/client/metrics
   - pkg/client/transport
   - pkg/version
-  - pkg/apis/authorization
-  - pkg/apis/authorization/v1beta1
-  - pkg/apis/componentconfig
-  - pkg/apis/componentconfig/v1alpha1
-  - pkg/apis/metrics
-  - pkg/apis/metrics/v1alpha1
-  - pkg/kubelet/qos
-  - pkg/master/ports
 - name: speter.net/go/exp/math/dec/inf
   version: 42ca6cd68aa922bc3f32f1e056e61b65945d9ad7
 devImports: []

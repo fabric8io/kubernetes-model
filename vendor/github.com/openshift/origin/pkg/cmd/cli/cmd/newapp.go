@@ -10,13 +10,14 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/MakeNowJust/heredoc/dot"
+	"github.com/MakeNowJust/heredoc"
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	kapierrors "k8s.io/kubernetes/pkg/api/errors"
+	"k8s.io/kubernetes/pkg/client/restclient"
 	kclient "k8s.io/kubernetes/pkg/client/unversioned"
 	ctl "k8s.io/kubernetes/pkg/kubectl"
 	kcmd "k8s.io/kubernetes/pkg/kubectl/cmd"
@@ -286,9 +287,9 @@ func RunNewApplication(fullName string, f *clientcmd.Factory, out io.Writer, c *
 				}
 			}
 			if triggered {
-				fmt.Fprintf(out, "%sBuild scheduled for %q, use 'oc logs' to track its progress.\n", indent, t.Name)
+				fmt.Fprintf(out, "%sBuild scheduled, use 'oc logs -f bc/%s' to track its progress.\n", indent, t.Name)
 			} else {
-				fmt.Fprintf(out, "%sBuild config %q does not include any automatic triggers, use 'oc start-build' to start a build.\n", indent, t.Name)
+				fmt.Fprintf(out, "%sUse 'oc start-build %s' to start a build.\n", indent, t.Name)
 			}
 		case *imageapi.ImageStream:
 			if len(t.Status.DockerImageRepository) == 0 {
@@ -612,7 +613,7 @@ func transformError(err error, c *cobra.Command, fullName string, groups errorGr
 		if t.Input.Token != nil && t.Input.Token.ServiceAccount {
 			groups.Add(
 				"explicit-access-installer",
-				D(`
+				heredoc.Doc(`
 					WARNING: This will allow the pod to create and manage resources within your namespace -
 					ensure you trust the image with those permissions before you continue.
 
@@ -624,7 +625,7 @@ func transformError(err error, c *cobra.Command, fullName string, groups errorGr
 		} else {
 			groups.Add(
 				"explicit-access-you",
-				D(`
+				heredoc.Doc(`
 					WARNING: This will allow the pod to act as you across the entire cluster - ensure you
 					trust the image with those permissions before you continue.
 
@@ -638,7 +639,7 @@ func transformError(err error, c *cobra.Command, fullName string, groups errorGr
 	case newapp.ErrNoMatch:
 		groups.Add(
 			"no-matches",
-			Df(`
+			heredoc.Docf(`
 				The '%[1]s' command will match arguments to the following types:
 
 				  1. Images tagged into image streams in the current project or the 'openshift' project
@@ -663,8 +664,8 @@ func transformError(err error, c *cobra.Command, fullName string, groups errorGr
 		}
 		groups.Add(
 			"multiple-matches",
-			Df(`
-					The argument %[1]q could apply to the following Docker images or OpenShift image streams:
+			heredoc.Docf(`
+					The argument %[1]q could apply to the following Docker images, OpenShift image streams, or templates:
 
 					%[2]s`, t.Value, buf.String(),
 			),
@@ -679,8 +680,8 @@ func transformError(err error, c *cobra.Command, fullName string, groups errorGr
 
 		groups.Add(
 			"partial-match",
-			Df(`
-					The argument %[1]q only partially matched the following Docker image or OpenShift image stream:
+			heredoc.Docf(`
+					The argument %[1]q only partially matched the following Docker image, OpenShift image stream, or template:
 
 					%[2]s`, t.Value, buf.String(),
 			),
@@ -693,7 +694,7 @@ func transformError(err error, c *cobra.Command, fullName string, groups errorGr
 		fmt.Fprintf(buf, "  Use --allow-missing-imagestream-tags to use this image stream\n\n")
 		groups.Add(
 			"no-tags",
-			Df(`
+			heredoc.Docf(`
 					The image stream %[1]q exists, but it has no tags.
 
 					%[2]s`, t.Match.Name, buf.String(),
@@ -810,10 +811,10 @@ func printHumanReadableQueryResult(r *newcmd.QueryResult, out io.Writer, fullNam
 }
 
 type configSecretRetriever struct {
-	config *kclient.Config
+	config *restclient.Config
 }
 
-func newConfigSecretRetriever(config *kclient.Config) newapp.SecretAccessor {
+func newConfigSecretRetriever(config *restclient.Config) newapp.SecretAccessor {
 	return &configSecretRetriever{config}
 }
 

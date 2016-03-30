@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -148,6 +149,11 @@ type Config struct {
 	// (default: false).
 	Quiet bool
 
+	// ForceCopy results in only the file SCM plugin being used (i.e. no `git clone`); allows for empty directories to be included
+	// in resulting image (since git does not support that).
+	// (default: false).
+	ForceCopy bool
+
 	// Specify a relative directory inside the application repository that should
 	// be used as a root directory for the application.
 	ContextDir string
@@ -178,6 +184,15 @@ type Config struct {
 
 	// DropCapabilities contains a list of capabilities to drop when executing containers
 	DropCapabilities []string
+
+	// ScriptDownloadProxyConfig optionally specifies the http and https proxy
+	// to use when downloading scripts
+	ScriptDownloadProxyConfig *ProxyConfig
+}
+
+type ProxyConfig struct {
+	HTTPProxy  *url.URL
+	HTTPSProxy *url.URL
 }
 
 type CGroupLimits struct {

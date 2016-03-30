@@ -15,6 +15,7 @@ source "${OS_ROOT}/hack/lib/log.sh"
 source "${OS_ROOT}/hack/lib/util/environment.sh"
 source "${OS_ROOT}/hack/cmd_util.sh"
 os::log::install_errexit
+os::util::environment::setup_time_vars
 
 function cleanup()
 {
@@ -22,6 +23,14 @@ function cleanup()
     pkill -P $$
     set +e
     kill_all_processes
+
+    echo "[INFO] Dumping etcd contents to ${ARTIFACT_DIR}/etcd_dump.json"
+    set_curl_args 0 1
+    curl -s ${clientcert_args} -L "${API_SCHEME}://${API_HOST}:${ETCD_PORT}/v2/keys/?recursive=true" > "${ARTIFACT_DIR}/etcd_dump.json"
+    echo
+
+    # we keep a JSON dump of etcd data so we do not need to keep the binary store
+    rm -rf "${ETCD_DATA_DIR}"
 
     if [ $out -ne 0 ]; then
         echo "[FAIL] !!!!! Test Failed !!!!"
@@ -77,8 +86,7 @@ os::log::start_system_logger
 unset KUBECONFIG
 
 # test wrapper functions
-${OS_ROOT}/hack/test-cmd_util.sh > ${LOG_DIR}/wrappers_test.log 2>&1
-
+${OS_ROOT}/hack/test-util.sh > ${LOG_DIR}/wrappers_test.log 2>&1
 
 # handle profiling defaults
 profile="${OPENSHIFT_PROFILE-}"

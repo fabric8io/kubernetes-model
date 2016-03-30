@@ -1,29 +1,5 @@
 <!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
 
-<!-- BEGIN STRIP_FOR_RELEASE -->
-
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-
-<h2>PLEASE NOTE: This document applies to the HEAD of the source tree</h2>
-
-If you are using a released version of Kubernetes, you should
-refer to the docs that go with that version.
-
-Documentation for other releases can be found at
-[releases.k8s.io](http://releases.k8s.io).
-</strong>
---
-
-<!-- END STRIP_FOR_RELEASE -->
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 
@@ -37,7 +13,7 @@ Full Ubernetes will offer sophisticated federation between multiple kuberentes
 clusters, offering true high-availability, multiple provider support &
 cloud-bursting, multiple region support etc.  However, many users have
 expressed a desire for a "reasonably" high-available cluster, that runs in
-multiple zones on GCE or availablity zones in AWS, and can tolerate the failure
+multiple zones on GCE or availability zones in AWS, and can tolerate the failure
 of a single zone without the complexity of running multiple clusters.
 
 Ubernetes-Lite aims to deliver exactly that functionality: to run a single
@@ -88,7 +64,7 @@ The implementation of this will be described in the implementation section.
 
 Note that zone spreading is 'best effort'; zones are just be one of the factors
 in making scheduling decisions, and thus it is not guaranteed that pods will
-spread evenly across zones.  However, this is likely desireable: if a zone is
+spread evenly across zones.  However, this is likely desirable: if a zone is
 overloaded or failing, we still want to schedule the requested number of pods.
 
 ### Volume affinity
@@ -223,6 +199,13 @@ Initially therefore, the GCE changes will be to:
 1. pass a flag enabling Ubernetes-Lite with kube-up
 1. change the kuberentes cloud provider to iterate through relevant zones when resolving items
 1. tag GCE PD volumes with the appropriate zone information
+
+
+
+
+<!-- BEGIN MUNGE: IS_VERSIONED -->
+<!-- TAG IS_VERSIONED -->
+<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

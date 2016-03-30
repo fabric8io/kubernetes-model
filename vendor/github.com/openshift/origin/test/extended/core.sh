@@ -51,6 +51,15 @@ if [[ -z ${TEST_ONLY+x} ]]; then
   os::util::environment::use_sudo
   reset_tmp_dir
 
+  # If the current system has the XFS volume dir mount point we configure
+  # in the test images, assume to use it which will allow the local storage
+  # quota tests to pass.
+  if [ -d "/mnt/openshift-xfs-vol-dir" ]; then
+    export VOLUME_DIR="/mnt/openshift-xfs-vol-dir"
+  else
+    echo "[WARN] /mnt/openshift-xfs-vol-dir does not exist, local storage quota tests may fail."
+  fi
+
   os::log::start_system_logger
 
   # when selinux is enforcing, the volume dir selinux label needs to be
@@ -62,6 +71,18 @@ if [[ -z ${TEST_ONLY+x} ]]; then
          sudo chcon -t svirt_sandbox_file_t ${VOLUME_DIR}
   fi
   configure_os_server
+
+  # Similar to above check, if the XFS volume dir mount point exists enable
+  # local storage quota in node-config.yaml so these tests can pass:
+  if [ -d "/mnt/openshift-xfs-vol-dir" ]; then
+    sed -i 's/perFSGroup: null/perFSGroup: 256Mi/' $NODE_CONFIG_DIR/node-config.yaml
+  fi
+  echo "[INFO] Using VOLUME_DIR=${VOLUME_DIR}"
+
+  # This is a bit hacky, but set the pod gc threshold appropriately for the garbage_collector test.
+  os::util::sed 's/\(controllerArguments:\ \)null/\1\n    terminated-pod-gc-threshold: ["100"]/' \
+    ${MASTER_CONFIG_DIR}/master-config.yaml
+
   start_os_server
 
   export KUBECONFIG="${ADMIN_KUBECONFIG}"
@@ -102,9 +123,11 @@ excluded_tests=(
   "Cluster level logging" # Not installed yet
   Kibana                  # Not installed
   DNS                     # Can't depend on kube-dns
+  Ubernetes               # Can't set zone labels today
   kube-ui                 # Not installed by default
   "^Kubernetes Dashboard"  # Not installed by default (also probbaly slow image pull)
-  "\[Feature:Deployment\]" # Not enabled yet
+  "Deployment deployment" # Not enabled yet
+  "Deployment paused deployment" # Not enabled yet
   "paused deployment should be ignored by the controller" # Not enabled yet
   "deployment should create new pods" # Not enabled yet
   Ingress                 # Not enabled yet
@@ -122,6 +145,7 @@ excluded_tests=(
   "should provide Internet connection for containers" # Needs recursive DNS
   PersistentVolume           # https://github.com/openshift/origin/pull/6884 for recycler
   "mount an API token into pods" # We add 6 secrets, not 1
+  "ServiceAccounts should ensure a single API token exists" # We create lots of secrets
   "Networking should function for intra-pod" # Needs two nodes, add equiv test for 1 node, then use networking suite
   "should test kube-proxy"   # needs 2 nodes
   "authentication: OpenLDAP" # needs separate setup and bucketing for openldap bootstrapping
