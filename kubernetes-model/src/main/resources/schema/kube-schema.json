@@ -745,6 +745,26 @@
         "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
+    "kubernetes_ConfigMapVolumeSource": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_KeyToPath",
+            "javaType": "io.fabric8.kubernetes.api.model.KeyToPath"
+          }
+        },
+        "name": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.ConfigMapVolumeSource"
+    },
     "kubernetes_Container": {
       "type": "object",
       "description": "",
@@ -851,7 +871,7 @@
       "type": "object",
       "description": "",
       "properties": {
-        "repoTags": {
+        "names": {
           "type": "array",
           "description": "",
           "items": {
@@ -859,7 +879,7 @@
             "description": ""
           }
         },
-        "size": {
+        "sizeBytes": {
           "type": "integer",
           "description": "",
           "javaType": "Long"
@@ -1714,6 +1734,22 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.ISCSIVolumeSource"
     },
+    "kubernetes_KeyToPath": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": ""
+        },
+        "path": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.KeyToPath"
+    },
     "kubernetes_Lifecycle": {
       "type": "object",
       "description": "",
@@ -1969,7 +2005,7 @@
         },
         "name": {
           "type": "string",
-          "description": "the name of the file to be created"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -1981,7 +2017,7 @@
       "properties": {
         "items": {
           "type": "array",
-          "description": "list of metadata files",
+          "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_MetadataFile",
             "javaType": "io.fabric8.kubernetes.api.model.MetadataFile"
@@ -3058,7 +3094,7 @@
         },
         "host": {
           "type": "string",
-          "description": "deprecated"
+          "description": ""
         },
         "hostIPC": {
           "type": "boolean",
@@ -3453,6 +3489,10 @@
       "type": "object",
       "description": "",
       "properties": {
+        "fullyLabeledReplicas": {
+          "type": "integer",
+          "description": ""
+        },
         "observedGeneration": {
           "type": "integer",
           "description": "",
@@ -3806,6 +3846,10 @@
           "javaType": "io.fabric8.kubernetes.api.model.Capabilities"
         },
         "privileged": {
+          "type": "boolean",
+          "description": ""
+        },
+        "readOnlyRootFilesystem": {
           "type": "boolean",
           "description": ""
         },
@@ -4201,7 +4245,7 @@
         },
         "portalIP": {
           "type": "string",
-          "description": "deprecated"
+          "description": ""
         },
         "ports": {
           "type": "array",
@@ -4295,6 +4339,10 @@
         "cinder": {
           "$ref": "#/definitions/kubernetes_CinderVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.CinderVolumeSource"
+        },
+        "configMap": {
+          "$ref": "#/definitions/kubernetes_ConfigMapVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.ConfigMapVolumeSource"
         },
         "downwardAPI": {
           "$ref": "#/definitions/kubernetes_DownwardAPIVolumeSource",
@@ -4405,6 +4453,10 @@
         "cinder": {
           "$ref": "#/definitions/kubernetes_CinderVolumeSource",
           "javaType": "io.fabric8.kubernetes.api.model.CinderVolumeSource"
+        },
+        "configMap": {
+          "$ref": "#/definitions/kubernetes_ConfigMapVolumeSource",
+          "javaType": "io.fabric8.kubernetes.api.model.ConfigMapVolumeSource"
         },
         "downwardAPI": {
           "$ref": "#/definitions/kubernetes_DownwardAPIVolumeSource",
@@ -4586,14 +4638,6 @@
         "template": {
           "$ref": "#/definitions/kubernetes_PodTemplateSpec",
           "javaType": "io.fabric8.kubernetes.api.model.PodTemplateSpec"
-        },
-        "uniqueLabelKey": {
-          "type": "string",
-          "description": ""
-        },
-        "updateStrategy": {
-          "$ref": "#/definitions/kubernetes_extensions_DaemonSetUpdateStrategy",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.DaemonSetUpdateStrategy"
         }
       },
       "additionalProperties": true,
@@ -4618,22 +4662,6 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.extensions.DaemonSetStatus"
-    },
-    "kubernetes_extensions_DaemonSetUpdateStrategy": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "rollingUpdate": {
-          "$ref": "#/definitions/kubernetes_extensions_RollingUpdateDaemonSet",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.RollingUpdateDaemonSet"
-        },
-        "type": {
-          "type": "string",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.DaemonSetUpdateStrategy"
     },
     "kubernetes_extensions_Deployment": {
       "type": "object",
@@ -4759,6 +4787,11 @@
         "availableReplicas": {
           "type": "integer",
           "description": ""
+        },
+        "observedGeneration": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
         },
         "replicas": {
           "type": "integer",
@@ -5253,6 +5286,10 @@
           "description": "",
           "javaType": "Long"
         },
+        "autoSelector": {
+          "type": "boolean",
+          "description": ""
+        },
         "completions": {
           "type": "integer",
           "description": ""
@@ -5371,22 +5408,6 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.extensions.RollbackConfig"
     },
-    "kubernetes_extensions_RollingUpdateDaemonSet": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "maxUnavailable": {
-          "$ref": "#/definitions/kubernetes_intstr_IntOrString",
-          "javaType": "io.fabric8.kubernetes.api.model.IntOrString"
-        },
-        "minReadySeconds": {
-          "type": "integer",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.RollingUpdateDaemonSet"
-    },
     "kubernetes_extensions_RollingUpdateDeployment": {
       "type": "object",
       "description": "",
@@ -5469,6 +5490,10 @@
             "description": ""
           },
           "javaType": "java.util.Map\u003cString,String\u003e"
+        },
+        "targetSelector": {
+          "type": "string",
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -5654,27 +5679,27 @@
         },
         "namespace": {
           "type": "string",
-          "description": "namespace of the action being requested"
+          "description": ""
         },
         "resource": {
           "type": "string",
-          "description": "one of the existing resource types"
+          "description": ""
         },
         "resourceAPIGroup": {
           "type": "string",
-          "description": "API group of the resource being requested"
+          "description": ""
         },
         "resourceAPIVersion": {
           "type": "string",
-          "description": "API version of the resource being requested"
+          "description": ""
         },
         "resourceName": {
           "type": "string",
-          "description": "name of the resource being requested for a get or delete"
+          "description": ""
         },
         "verb": {
           "type": "string",
-          "description": "one of get"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -5701,7 +5726,7 @@
         },
         "lastModified": {
           "type": "string",
-          "description": "last time any part of the object was created"
+          "description": ""
         },
         "metadata": {
           "$ref": "#/definitions/kubernetes_ObjectMeta",
@@ -5709,7 +5734,7 @@
         },
         "roles": {
           "type": "array",
-          "description": "all the roles held by this policy",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_authorization_NamedClusterRole",
             "javaType": "io.fabric8.openshift.api.model.NamedClusterRole"
@@ -5743,7 +5768,7 @@
         },
         "lastModified": {
           "type": "string",
-          "description": "last time any part of the object was created"
+          "description": ""
         },
         "metadata": {
           "$ref": "#/definitions/kubernetes_ObjectMeta",
@@ -5755,7 +5780,7 @@
         },
         "roleBindings": {
           "type": "array",
-          "description": "all the role bindings held by this policy",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_authorization_NamedClusterRoleBinding",
             "javaType": "io.fabric8.openshift.api.model.NamedClusterRoleBinding"
@@ -5783,7 +5808,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of cluster policy bindings",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_authorization_ClusterPolicyBinding",
             "javaType": "io.fabric8.openshift.api.model.ClusterPolicyBinding"
@@ -5822,7 +5847,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of cluster policies",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_authorization_ClusterPolicy",
             "javaType": "io.fabric8.openshift.api.model.ClusterPolicy"
@@ -5871,7 +5896,7 @@
         },
         "rules": {
           "type": "array",
-          "description": "list of policy rules",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_authorization_PolicyRule",
             "javaType": "io.fabric8.openshift.api.model.PolicyRule"
@@ -5899,10 +5924,10 @@
         },
         "groupNames": {
           "type": "array",
-          "description": "all the groups directly bound to the role",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "all the groups directly bound to the role"
+            "description": ""
           }
         },
         "kind": {
@@ -5921,7 +5946,7 @@
         },
         "subjects": {
           "type": "array",
-          "description": "references to subjects bound to the role.  Only User",
+          "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_ObjectReference",
             "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
@@ -5929,10 +5954,10 @@
         },
         "userNames": {
           "type": "array",
-          "description": "all user names directly bound to the role",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "all user names directly bound to the role"
+            "description": ""
           }
         }
       },
@@ -5957,7 +5982,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of cluster role bindings",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_authorization_ClusterRoleBinding",
             "javaType": "io.fabric8.openshift.api.model.ClusterRoleBinding"
@@ -6000,10 +6025,10 @@
         },
         "groups": {
           "type": "array",
-          "description": "optional",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "optional"
+            "description": ""
           }
         },
         "kind": {
@@ -6014,31 +6039,31 @@
         },
         "namespace": {
           "type": "string",
-          "description": "namespace of the action being requested"
+          "description": ""
         },
         "resource": {
           "type": "string",
-          "description": "one of the existing resource types"
+          "description": ""
         },
         "resourceAPIGroup": {
           "type": "string",
-          "description": "API group of the resource being requested"
+          "description": ""
         },
         "resourceAPIVersion": {
           "type": "string",
-          "description": "API version of the resource being requested"
+          "description": ""
         },
         "resourceName": {
           "type": "string",
-          "description": "name of the resource being requested for a get or delete"
+          "description": ""
         },
         "user": {
           "type": "string",
-          "description": "optional"
+          "description": ""
         },
         "verb": {
           "type": "string",
-          "description": "one of get"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -6050,7 +6075,7 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "name of the cluster role"
+          "description": ""
         },
         "role": {
           "$ref": "#/definitions/os_authorization_ClusterRole",
@@ -6066,7 +6091,7 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "name of the cluster role binding"
+          "description": ""
         },
         "roleBinding": {
           "$ref": "#/definitions/os_authorization_ClusterRoleBinding",
@@ -6082,7 +6107,7 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "name of the role"
+          "description": ""
         },
         "role": {
           "$ref": "#/definitions/os_authorization_Role",
@@ -6098,7 +6123,7 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "name of the roleBinding"
+          "description": ""
         },
         "roleBinding": {
           "$ref": "#/definitions/os_authorization_RoleBinding",
@@ -6129,7 +6154,7 @@
         },
         "lastModified": {
           "type": "string",
-          "description": "last time that any part of the policy was created"
+          "description": ""
         },
         "metadata": {
           "$ref": "#/definitions/kubernetes_ObjectMeta",
@@ -6137,7 +6162,7 @@
         },
         "roles": {
           "type": "array",
-          "description": "roles held by this policy",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_authorization_NamedRole",
             "javaType": "io.fabric8.openshift.api.model.NamedRole"
@@ -6171,7 +6196,7 @@
         },
         "lastModified": {
           "type": "string",
-          "description": "last time that any part of the object was created"
+          "description": ""
         },
         "metadata": {
           "$ref": "#/definitions/kubernetes_ObjectMeta",
@@ -6183,7 +6208,7 @@
         },
         "roleBindings": {
           "type": "array",
-          "description": "all roleBindings held by this policyBinding",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_authorization_NamedRoleBinding",
             "javaType": "io.fabric8.openshift.api.model.NamedRoleBinding"
@@ -6211,7 +6236,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of policy bindings",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_authorization_PolicyBinding",
             "javaType": "io.fabric8.openshift.api.model.PolicyBinding"
@@ -6250,7 +6275,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of policies",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_authorization_Policy",
             "javaType": "io.fabric8.openshift.api.model.Policy"
@@ -6280,10 +6305,10 @@
       "properties": {
         "apiGroups": {
           "type": "array",
-          "description": "list of API groups this rule applies to.  * represents all API groups.",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "list of API groups this rule applies to.  * represents all API groups."
+            "description": ""
           }
         },
         "attributeRestrictions": {
@@ -6292,34 +6317,34 @@
         },
         "nonResourceURLs": {
           "type": "array",
-          "description": "set of partial urls that a user should have access to. *s are allowed",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "set of partial urls that a user should have access to. *s are allowed"
+            "description": ""
           }
         },
         "resourceNames": {
           "type": "array",
-          "description": "optional white list of names that the rule applies to.  An empty set means that everything is allowed.",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "optional white list of names that the rule applies to.  An empty set means that everything is allowed."
+            "description": ""
           }
         },
         "resources": {
           "type": "array",
-          "description": "list of resources this rule applies to.  * represents all resources.",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "list of resources this rule applies to.  * represents all resources."
+            "description": ""
           }
         },
         "verbs": {
           "type": "array",
-          "description": "list of verbs that apply to ALL the resourceKinds and attributeRestrictions contained in this rule.  The verb * represents all kinds.",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "list of verbs that apply to ALL the resourceKinds and attributeRestrictions contained in this rule.  The verb * represents all kinds."
+            "description": ""
           }
         }
       },
@@ -6351,7 +6376,7 @@
         },
         "rules": {
           "type": "array",
-          "description": "all the rules for this role",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_authorization_PolicyRule",
             "javaType": "io.fabric8.openshift.api.model.PolicyRule"
@@ -6379,10 +6404,10 @@
         },
         "groupNames": {
           "type": "array",
-          "description": "all the groups directly bound to the role",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "all the groups directly bound to the role"
+            "description": ""
           }
         },
         "kind": {
@@ -6401,7 +6426,7 @@
         },
         "subjects": {
           "type": "array",
-          "description": "references to subjects bound to the role.  Only User",
+          "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_ObjectReference",
             "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
@@ -6409,10 +6434,10 @@
         },
         "userNames": {
           "type": "array",
-          "description": "all the usernames directly bound to the role",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "all the usernames directly bound to the role"
+            "description": ""
           }
         }
       },
@@ -6437,7 +6462,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of role bindings",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_authorization_RoleBinding",
             "javaType": "io.fabric8.openshift.api.model.RoleBinding"
@@ -6476,7 +6501,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of roles",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_authorization_Role",
             "javaType": "io.fabric8.openshift.api.model.Role"
@@ -6519,10 +6544,10 @@
         },
         "groups": {
           "type": "array",
-          "description": "optional",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "optional"
+            "description": ""
           }
         },
         "kind": {
@@ -6533,31 +6558,31 @@
         },
         "namespace": {
           "type": "string",
-          "description": "namespace of the action being requested"
+          "description": ""
         },
         "resource": {
           "type": "string",
-          "description": "one of the existing resource types"
+          "description": ""
         },
         "resourceAPIGroup": {
           "type": "string",
-          "description": "API group of the resource being requested"
+          "description": ""
         },
         "resourceAPIVersion": {
           "type": "string",
-          "description": "API version of the resource being requested"
+          "description": ""
         },
         "resourceName": {
           "type": "string",
-          "description": "name of the resource being requested for a get or delete"
+          "description": ""
         },
         "user": {
           "type": "string",
-          "description": "optional"
+          "description": ""
         },
         "verb": {
           "type": "string",
-          "description": "one of get"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -6569,7 +6594,7 @@
       "properties": {
         "allowed": {
           "type": "boolean",
-          "description": "true if the action would be allowed"
+          "description": ""
         },
         "apiVersion": {
           "type": "string",
@@ -6588,11 +6613,11 @@
         },
         "namespace": {
           "type": "string",
-          "description": "the namespace used for the access review"
+          "description": ""
         },
         "reason": {
           "type": "string",
-          "description": "reason is optional"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -6604,7 +6629,7 @@
       "properties": {
         "asFile": {
           "type": "string",
-          "description": "indicate the provided binary should be considered a single file placed within the root of the input; must be a valid filename with no path segments"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -6701,7 +6726,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of build configs",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_build_BuildConfig",
             "javaType": "io.fabric8.openshift.api.model.BuildConfig"
@@ -6731,7 +6756,7 @@
       "properties": {
         "completionDeadlineSeconds": {
           "type": "integer",
-          "description": "optional duration in seconds the build may be active on a node before the system will actively try to mark it failed and kill associated containers; value must be a positive integer",
+          "description": "",
           "javaType": "Long"
         },
         "output": {
@@ -6752,7 +6777,7 @@
         },
         "serviceAccount": {
           "type": "string",
-          "description": "the name of the service account to use to run pods created by the build"
+          "description": ""
         },
         "source": {
           "$ref": "#/definitions/os_build_BuildSource",
@@ -6764,7 +6789,7 @@
         },
         "triggers": {
           "type": "array",
-          "description": "determines how new builds can be launched from a build config.  if no triggers are defined",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_build_BuildTriggerPolicy",
             "javaType": "io.fabric8.openshift.api.model.BuildTriggerPolicy"
@@ -6780,7 +6805,7 @@
       "properties": {
         "lastVersion": {
           "type": "integer",
-          "description": "used to inform about number of last triggered build"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -6801,7 +6826,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of builds",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_build_Build",
             "javaType": "io.fabric8.openshift.api.model.Build"
@@ -6847,23 +6872,23 @@
       "properties": {
         "args": {
           "type": "array",
-          "description": "arguments to command",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "arguments to command"
+            "description": ""
           }
         },
         "command": {
           "type": "array",
-          "description": "command to be executed in a container running the build output image replacing the image's entrypoint",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "command to be executed in a container running the build output image replacing the image's entrypoint"
+            "description": ""
           }
         },
         "script": {
           "type": "string",
-          "description": "shell script to be executed in a container running the build output image"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -6888,7 +6913,7 @@
         },
         "env": {
           "type": "array",
-          "description": "additional environment variables you want to pass into a builder container",
+          "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -6906,7 +6931,7 @@
         },
         "lastVersion": {
           "type": "integer",
-          "description": "LastVersion of the BuildConfig that triggered this build"
+          "description": ""
         },
         "metadata": {
           "$ref": "#/definitions/kubernetes_ObjectMeta",
@@ -6937,11 +6962,11 @@
         },
         "contextDir": {
           "type": "string",
-          "description": "specifies sub-directory where the source code for the application exists"
+          "description": ""
         },
         "dockerfile": {
           "type": "string",
-          "description": "the contents of a Dockerfile to build; FROM may be overridden by your strategy source"
+          "description": ""
         },
         "git": {
           "$ref": "#/definitions/os_build_GitBuildSource",
@@ -6949,7 +6974,7 @@
         },
         "images": {
           "type": "array",
-          "description": "optional images for build source.",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_build_ImageSource",
             "javaType": "io.fabric8.openshift.api.model.ImageSource"
@@ -6957,7 +6982,7 @@
         },
         "secrets": {
           "type": "array",
-          "description": "list of build secrets and destination directories",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_build_SecretBuildSource",
             "javaType": "io.fabric8.openshift.api.model.SecretBuildSource"
@@ -6969,7 +6994,7 @@
         },
         "type": {
           "type": "string",
-          "description": "type of build input to accept"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -6981,7 +7006,7 @@
       "properties": {
         "completionDeadlineSeconds": {
           "type": "integer",
-          "description": "optional duration in seconds the build may be active on a node before the system will actively try to mark it failed and kill associated containers; value must be a positive integer",
+          "description": "",
           "javaType": "Long"
         },
         "output": {
@@ -7002,7 +7027,7 @@
         },
         "serviceAccount": {
           "type": "string",
-          "description": "the name of the service account to use to run pods created by the build"
+          "description": ""
         },
         "source": {
           "$ref": "#/definitions/os_build_BuildSource",
@@ -7022,11 +7047,11 @@
       "properties": {
         "cancelled": {
           "type": "boolean",
-          "description": "describes if a cancel event was triggered for the build"
+          "description": ""
         },
         "completionTimestamp": {
           "type": "string",
-          "description": "server time when the pod running this build stopped running"
+          "description": ""
         },
         "config": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
@@ -7034,28 +7059,28 @@
         },
         "duration": {
           "type": "integer",
-          "description": "amount of time the build has been running",
+          "description": "",
           "javaType": "Long"
         },
         "message": {
           "type": "string",
-          "description": "human-readable message indicating details about why the build has this status"
+          "description": ""
         },
         "outputDockerImageReference": {
           "type": "string",
-          "description": "reference to the Docker image built by this build"
+          "description": ""
         },
         "phase": {
           "type": "string",
-          "description": "observed point in the build lifecycle"
+          "description": ""
         },
         "reason": {
           "type": "string",
-          "description": "brief CamelCase string describing a failure"
+          "description": ""
         },
         "startTimestamp": {
           "type": "string",
-          "description": "server time when this build started running in a pod"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7079,7 +7104,7 @@
         },
         "type": {
           "type": "string",
-          "description": "identifies the type of build strategy"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7103,7 +7128,7 @@
         },
         "type": {
           "type": "string",
-          "description": "type of build trigger"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7115,11 +7140,11 @@
       "properties": {
         "buildAPIVersion": {
           "type": "string",
-          "description": "requested API version for the Build object serialized and passed to the custom builder"
+          "description": ""
         },
         "env": {
           "type": "array",
-          "description": "additional environment variables you want to pass into a builder container",
+          "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -7127,11 +7152,11 @@
         },
         "exposeDockerSocket": {
           "type": "boolean",
-          "description": "allow running Docker commands (and build Docker images) from inside the container"
+          "description": ""
         },
         "forcePull": {
           "type": "boolean",
-          "description": "forces pulling of builder image from remote registry if true"
+          "description": ""
         },
         "from": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
@@ -7143,7 +7168,7 @@
         },
         "secrets": {
           "type": "array",
-          "description": "a list of secrets to include in the build pod in addition to pull",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_build_SecretSpec",
             "javaType": "io.fabric8.openshift.api.model.SecretSpec"
@@ -7159,11 +7184,11 @@
       "properties": {
         "dockerfilePath": {
           "type": "string",
-          "description": "path of the Dockerfile to use for building the Docker image"
+          "description": ""
         },
         "env": {
           "type": "array",
-          "description": "additional environment variables you want to pass into a builder container",
+          "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -7171,7 +7196,7 @@
         },
         "forcePull": {
           "type": "boolean",
-          "description": "forces the source build to pull the image if true"
+          "description": ""
         },
         "from": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
@@ -7179,7 +7204,7 @@
         },
         "noCache": {
           "type": "boolean",
-          "description": "if true"
+          "description": ""
         },
         "pullSecret": {
           "$ref": "#/definitions/kubernetes_LocalObjectReference",
@@ -7195,19 +7220,19 @@
       "properties": {
         "httpProxy": {
           "type": "string",
-          "description": "specifies a http proxy to be used during git clone operations"
+          "description": ""
         },
         "httpsProxy": {
           "type": "string",
-          "description": "specifies a https proxy to be used during git clone operations"
+          "description": ""
         },
         "ref": {
           "type": "string",
-          "description": "identifies the branch/tag/ref to build"
+          "description": ""
         },
         "uri": {
           "type": "string",
-          "description": "points to the source that will be built"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7223,7 +7248,7 @@
         },
         "commit": {
           "type": "string",
-          "description": "hash identifying a specific commit"
+          "description": ""
         },
         "committer": {
           "$ref": "#/definitions/os_build_SourceControlUser",
@@ -7231,7 +7256,7 @@
         },
         "message": {
           "type": "string",
-          "description": "description of a specific commit"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7247,7 +7272,7 @@
         },
         "lastTriggeredImageID": {
           "type": "string",
-          "description": "used internally to save last used image ID for build"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7263,7 +7288,7 @@
         },
         "paths": {
           "type": "array",
-          "description": "paths to copy from image",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_build_ImageSourcePath",
             "javaType": "io.fabric8.openshift.api.model.ImageSourcePath"
@@ -7283,11 +7308,11 @@
       "properties": {
         "destinationDir": {
           "type": "string",
-          "description": "relative destination directory in build home"
+          "description": ""
         },
         "sourcePath": {
           "type": "string",
-          "description": "source path (directory or file) inside image"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7299,7 +7324,7 @@
       "properties": {
         "destinationDir": {
           "type": "string",
-          "description": "destination directory for the secret files"
+          "description": ""
         },
         "secret": {
           "$ref": "#/definitions/kubernetes_LocalObjectReference",
@@ -7315,7 +7340,7 @@
       "properties": {
         "mountPath": {
           "type": "string",
-          "description": "path within the container at which the secret should be mounted"
+          "description": ""
         },
         "secretSource": {
           "$ref": "#/definitions/kubernetes_LocalObjectReference",
@@ -7331,7 +7356,7 @@
       "properties": {
         "env": {
           "type": "array",
-          "description": "additional environment variables you want to pass into a builder container",
+          "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -7339,7 +7364,7 @@
         },
         "forcePull": {
           "type": "boolean",
-          "description": "forces the source build to pull the image if true"
+          "description": ""
         },
         "from": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
@@ -7347,7 +7372,7 @@
         },
         "incremental": {
           "type": "boolean",
-          "description": "forces the source build to do incremental builds if true"
+          "description": ""
         },
         "pullSecret": {
           "$ref": "#/definitions/kubernetes_LocalObjectReference",
@@ -7355,7 +7380,7 @@
         },
         "scripts": {
           "type": "string",
-          "description": "location of the source scripts"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7367,11 +7392,11 @@
       "properties": {
         "email": {
           "type": "string",
-          "description": "e-mail of the source control user"
+          "description": ""
         },
         "name": {
           "type": "string",
-          "description": "name of the source control user"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7387,7 +7412,7 @@
         },
         "type": {
           "type": "string",
-          "description": "type of the build source"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7399,7 +7424,7 @@
       "properties": {
         "secret": {
           "type": "string",
-          "description": "secret used to validate requests"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7411,15 +7436,15 @@
       "properties": {
         "command": {
           "type": "array",
-          "description": "optionally overrides the container command (default is specified by the image)",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "optionally overrides the container command (default is specified by the image)"
+            "description": ""
           }
         },
         "environment": {
           "type": "array",
-          "description": "environment variables provided to the deployment process container",
+          "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -7427,7 +7452,7 @@
         },
         "image": {
           "type": "string",
-          "description": "a Docker image which can carry out a deployment"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7443,7 +7468,7 @@
         },
         "type": {
           "type": "string",
-          "description": "the type of trigger that resulted in a new deployment"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7514,7 +7539,7 @@
         },
         "items": {
           "type": "array",
-          "description": "a list of deployment configs",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_deploy_DeploymentConfig",
             "javaType": "io.fabric8.openshift.api.model.DeploymentConfig"
@@ -7544,14 +7569,14 @@
       "properties": {
         "replicas": {
           "type": "integer",
-          "description": "the desired number of replicas"
+          "description": ""
         },
         "selector": {
           "type": "object",
-          "description": "a label query over pods that should match the replicas count; if omitted",
+          "description": "",
           "additionalProperties": {
             "type": "string",
-            "description": "a label query over pods that should match the replicas count; if omitted"
+            "description": ""
           },
           "javaType": "java.util.Map\u003cString,String\u003e"
         },
@@ -7565,11 +7590,11 @@
         },
         "test": {
           "type": "boolean",
-          "description": "if true"
+          "description": ""
         },
         "triggers": {
           "type": "array",
-          "description": "how new deployments are triggered",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_deploy_DeploymentTriggerPolicy",
             "javaType": "io.fabric8.openshift.api.model.DeploymentTriggerPolicy"
@@ -7589,7 +7614,7 @@
         },
         "latestVersion": {
           "type": "integer",
-          "description": "used to determine whether the current deployment is out of sync"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7601,7 +7626,7 @@
       "properties": {
         "causes": {
           "type": "array",
-          "description": "extended data associated with all the causes for creating a new deployment",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_deploy_DeploymentCause",
             "javaType": "io.fabric8.openshift.api.model.DeploymentCause"
@@ -7609,7 +7634,7 @@
         },
         "message": {
           "type": "string",
-          "description": "a user specified change message"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7621,10 +7646,10 @@
       "properties": {
         "annotations": {
           "type": "object",
-          "description": "annotations for deployer and hook pods",
+          "description": "",
           "additionalProperties": {
             "type": "string",
-            "description": "annotations for deployer and hook pods"
+            "description": ""
           },
           "javaType": "java.util.Map\u003cString,String\u003e"
         },
@@ -7634,10 +7659,10 @@
         },
         "labels": {
           "type": "object",
-          "description": "labels for deployer and hook pods",
+          "description": "",
           "additionalProperties": {
             "type": "string",
-            "description": "labels for deployer and hook pods"
+            "description": ""
           },
           "javaType": "java.util.Map\u003cString,String\u003e"
         },
@@ -7655,7 +7680,7 @@
         },
         "type": {
           "type": "string",
-          "description": "the name of a deployment strategy"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7667,14 +7692,14 @@
       "properties": {
         "automatic": {
           "type": "boolean",
-          "description": "whether detection of a new tag value should trigger a deployment"
+          "description": ""
         },
         "containerNames": {
           "type": "array",
-          "description": "restricts tag updates to a set of container names in the pod",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "restricts tag updates to a set of container names in the pod"
+            "description": ""
           }
         },
         "from": {
@@ -7683,7 +7708,7 @@
         },
         "lastTriggeredImage": {
           "type": "string",
-          "description": "the last image to be triggered"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7699,7 +7724,7 @@
         },
         "type": {
           "type": "string",
-          "description": "the type of the trigger"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -7711,19 +7736,19 @@
       "properties": {
         "command": {
           "type": "array",
-          "description": "the hook command and its arguments",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "the hook command and its arguments"
+            "description": ""
           }
         },
         "containerName": {
           "type": "string",
-          "description": "the name of a container from the pod template whose image will be used for the hook container"
+          "description": ""
         },
         "env": {
           "type": "array",
-          "description": "environment variables provided to the hook container",
+          "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -7731,10 +7756,10 @@
         },
         "volumes": {
           "type": "array",
-          "description": "the names of volumes from the pod template which should be included in the hook pod; an empty list means no volumes will be copied",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "the names of volumes from the pod template which should be included in the hook pod; an empty list means no volumes will be copied"
+            "description": ""
           }
         }
       },
@@ -7751,11 +7776,11 @@
         },
         "failurePolicy": {
           "type": "string",
-          "description": "what action to take if the hook fails"
+          "description": ""
         },
         "tagImages": {
           "type": "array",
-          "description": "a list of image stream tags that should be updated to the latest value on this deployment if the deployment succeeds",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_deploy_TagImageHook",
             "javaType": "io.fabric8.openshift.api.model.TagImageHook"
@@ -7783,7 +7808,7 @@
         },
         "timeoutSeconds": {
           "type": "integer",
-          "description": "the time to wait for updates before giving up",
+          "description": "",
           "javaType": "Long"
         }
       },
@@ -7796,7 +7821,7 @@
       "properties": {
         "intervalSeconds": {
           "type": "integer",
-          "description": "the time to wait between polling deployment status after update",
+          "description": "",
           "javaType": "Long"
         },
         "maxSurge": {
@@ -7817,16 +7842,16 @@
         },
         "timeoutSeconds": {
           "type": "integer",
-          "description": "the time to wait for updates before giving up",
+          "description": "",
           "javaType": "Long"
         },
         "updatePercent": {
           "type": "integer",
-          "description": "the percentage of replicas to scale up or down each interval (negative value switches scale order to down/up instead of up/down)"
+          "description": ""
         },
         "updatePeriodSeconds": {
           "type": "integer",
-          "description": "the time to wait between individual pod updates",
+          "description": "",
           "javaType": "Long"
         }
       },
@@ -7839,7 +7864,7 @@
       "properties": {
         "containerName": {
           "type": "string",
-          "description": "the name of a container in this deployment config whose image will be used as the tag destination; if only one container is defined it will default to that value"
+          "description": ""
         },
         "to": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
@@ -7864,7 +7889,7 @@
         },
         "dockerImageLayers": {
           "type": "array",
-          "description": "a list of the image layers from lowest to highest",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_image_ImageLayer",
             "javaType": "io.fabric8.openshift.api.model.ImageLayer"
@@ -7872,7 +7897,7 @@
         },
         "dockerImageManifest": {
           "type": "string",
-          "description": "raw JSON of the manifest"
+          "description": ""
         },
         "dockerImageMetadata": {
           "$ref": "#/definitions/kubernetes_runtime_RawExtension",
@@ -7880,11 +7905,11 @@
         },
         "dockerImageMetadataVersion": {
           "type": "string",
-          "description": "conveys version of the object"
+          "description": ""
         },
         "dockerImageReference": {
           "type": "string",
-          "description": "string that can be used to pull this image"
+          "description": ""
         },
         "kind": {
           "type": "string",
@@ -7909,11 +7934,11 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "the name of the layer (blob"
+          "description": ""
         },
         "size": {
           "type": "integer",
-          "description": "size of the layer in bytes",
+          "description": "",
           "javaType": "Long"
         }
       },
@@ -7935,7 +7960,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of image objects",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_image_Image",
             "javaType": "io.fabric8.openshift.api.model.Image"
@@ -8012,7 +8037,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of image stream objects",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_image_ImageStream",
             "javaType": "io.fabric8.openshift.api.model.ImageStream"
@@ -8042,11 +8067,11 @@
       "properties": {
         "dockerImageRepository": {
           "type": "string",
-          "description": "optional field if specified this stream is backed by a Docker repository on this server"
+          "description": ""
         },
         "tags": {
           "type": "array",
-          "description": "map arbitrary string values to specific image locators",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_image_TagReference",
             "javaType": "io.fabric8.openshift.api.model.TagReference"
@@ -8062,11 +8087,11 @@
       "properties": {
         "dockerImageRepository": {
           "type": "string",
-          "description": "represents the effective location this stream may be accessed at"
+          "description": ""
         },
         "tags": {
           "type": "array",
-          "description": "historical record of images associated with each tag",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_image_NamedTagEventList",
             "javaType": "io.fabric8.openshift.api.model.NamedTagEventList"
@@ -8082,7 +8107,7 @@
       "properties": {
         "conditions": {
           "type": "array",
-          "description": "the set of conditions that apply to this tag",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_image_TagEventCondition",
             "javaType": "io.fabric8.openshift.api.model.TagEventCondition"
@@ -8090,7 +8115,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of tag events related to the tag",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_image_TagEvent",
             "javaType": "io.fabric8.openshift.api.model.TagEvent"
@@ -8098,7 +8123,7 @@
         },
         "tag": {
           "type": "string",
-          "description": "the tag"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -8110,20 +8135,20 @@
       "properties": {
         "created": {
           "type": "string",
-          "description": "when the event was created"
+          "description": ""
         },
         "dockerImageReference": {
           "type": "string",
-          "description": "the string that can be used to pull this image"
+          "description": ""
         },
         "generation": {
           "type": "integer",
-          "description": "the generation of the image stream spec tag this tag event represents",
+          "description": "",
           "javaType": "Long"
         },
         "image": {
           "type": "string",
-          "description": "the image"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -8135,28 +8160,28 @@
       "properties": {
         "generation": {
           "type": "integer",
-          "description": "the generation of the image stream spec tag this condition represents",
+          "description": "",
           "javaType": "Long"
         },
         "lastTransitionTime": {
           "type": "string",
-          "description": "last time the condition transitioned from one status to another"
+          "description": ""
         },
         "message": {
           "type": "string",
-          "description": "human-readable message indicating details of the last transition"
+          "description": ""
         },
         "reason": {
           "type": "string",
-          "description": "machine-readable reason for the last condition transition"
+          "description": ""
         },
         "status": {
           "type": "string",
-          "description": "status of the condition"
+          "description": ""
         },
         "type": {
           "type": "string",
-          "description": "type of tag event condition"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -8168,11 +8193,11 @@
       "properties": {
         "insecure": {
           "type": "boolean",
-          "description": "if true"
+          "description": ""
         },
         "scheduled": {
           "type": "boolean",
-          "description": "if true"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -8184,10 +8209,10 @@
       "properties": {
         "annotations": {
           "type": "object",
-          "description": "annotations associated with images using this tag",
+          "description": "",
           "additionalProperties": {
             "type": "string",
-            "description": "annotations associated with images using this tag"
+            "description": ""
           },
           "javaType": "java.util.Map\u003cString,String\u003e"
         },
@@ -8197,7 +8222,7 @@
         },
         "generation": {
           "type": "integer",
-          "description": "the generation of the image stream this was updated to",
+          "description": "",
           "javaType": "Long"
         },
         "importPolicy": {
@@ -8206,11 +8231,11 @@
         },
         "name": {
           "type": "string",
-          "description": "name of tag"
+          "description": ""
         },
         "reference": {
           "type": "boolean",
-          "description": "if true consider this tag a reference only and do not attempt to import metadata about the image"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -8231,15 +8256,15 @@
         },
         "authorizeToken": {
           "type": "string",
-          "description": "contains the token that authorized this token"
+          "description": ""
         },
         "clientName": {
           "type": "string",
-          "description": "references the client that created this token"
+          "description": ""
         },
         "expiresIn": {
           "type": "integer",
-          "description": "is the seconds from creation time before this token expires",
+          "description": "",
           "javaType": "Long"
         },
         "kind": {
@@ -8254,27 +8279,27 @@
         },
         "redirectURI": {
           "type": "string",
-          "description": "redirection URI associated with the token"
+          "description": ""
         },
         "refreshToken": {
           "type": "string",
-          "description": "optional value by which this token can be renewed"
+          "description": ""
         },
         "scopes": {
           "type": "array",
-          "description": "list of requested scopes",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "list of requested scopes"
+            "description": ""
           }
         },
         "userName": {
           "type": "string",
-          "description": "user name associated with this token"
+          "description": ""
         },
         "userUID": {
           "type": "string",
-          "description": "unique UID associated with this token"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -8298,7 +8323,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of oauth access tokens",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_oauth_OAuthAccessToken",
             "javaType": "io.fabric8.openshift.api.model.OAuthAccessToken"
@@ -8337,11 +8362,11 @@
         },
         "clientName": {
           "type": "string",
-          "description": "references the client that created this token"
+          "description": ""
         },
         "expiresIn": {
           "type": "integer",
-          "description": "seconds from creation time before this token expires",
+          "description": "",
           "javaType": "Long"
         },
         "kind": {
@@ -8356,27 +8381,27 @@
         },
         "redirectURI": {
           "type": "string",
-          "description": "redirection URI associated with the token"
+          "description": ""
         },
         "scopes": {
           "type": "array",
-          "description": "list of requested scopes",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "list of requested scopes"
+            "description": ""
           }
         },
         "state": {
           "type": "string",
-          "description": "state data from request"
+          "description": ""
         },
         "userName": {
           "type": "string",
-          "description": "user name associated with this token"
+          "description": ""
         },
         "userUID": {
           "type": "string",
-          "description": "unique UID associated with this token.  userUID and userName must both match for this token to be valid"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -8400,7 +8425,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of oauth authorization tokens",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_oauth_OAuthAuthorizeToken",
             "javaType": "io.fabric8.openshift.api.model.OAuthAuthorizeToken"
@@ -8449,19 +8474,19 @@
         },
         "redirectURIs": {
           "type": "array",
-          "description": "valid redirection URIs associated with a client",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "valid redirection URIs associated with a client"
+            "description": ""
           }
         },
         "respondWithChallenges": {
           "type": "boolean",
-          "description": "indicates whether the client wants authentication needed responses made in the form of challenges instead of redirects"
+          "description": ""
         },
         "secret": {
           "type": "string",
-          "description": "unique secret associated with a client"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -8485,7 +8510,7 @@
         },
         "clientName": {
           "type": "string",
-          "description": "references the client that created this authorization"
+          "description": ""
         },
         "kind": {
           "type": "string",
@@ -8499,19 +8524,19 @@
         },
         "scopes": {
           "type": "array",
-          "description": "list of granted scopes",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "list of granted scopes"
+            "description": ""
           }
         },
         "userName": {
           "type": "string",
-          "description": "user name that authorized this client"
+          "description": ""
         },
         "userUID": {
           "type": "string",
-          "description": "unique UID associated with this authorization. userUID and userName must both match for this authorization to be valid"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -8535,7 +8560,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of oauth client authorizations",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_oauth_OAuthClientAuthorization",
             "javaType": "io.fabric8.openshift.api.model.OAuthClientAuthorization"
@@ -8574,7 +8599,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of oauth clients",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_oauth_OAuthClient",
             "javaType": "io.fabric8.openshift.api.model.OAuthClient"
@@ -8651,7 +8676,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of projects",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_project_Project",
             "javaType": "io.fabric8.openshift.api.model.Project"
@@ -8690,11 +8715,11 @@
         },
         "description": {
           "type": "string",
-          "description": "description to apply to a project"
+          "description": ""
         },
         "displayName": {
           "type": "string",
-          "description": "display name to apply to a project"
+          "description": ""
         },
         "kind": {
           "type": "string",
@@ -8719,10 +8744,10 @@
       "properties": {
         "finalizers": {
           "type": "array",
-          "description": "an opaque list of values that must be empty to permanently remove object from storage",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "an opaque list of values that must be empty to permanently remove object from storage"
+            "description": ""
           }
         }
       },
@@ -8735,7 +8760,7 @@
       "properties": {
         "phase": {
           "type": "string",
-          "description": "phase is the current lifecycle phase of the project"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -8785,7 +8810,7 @@
       "properties": {
         "conditions": {
           "type": "array",
-          "description": "the conditions that apply to this router",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_route_RouteIngressCondition",
             "javaType": "io.fabric8.openshift.api.model.RouteIngressCondition"
@@ -8793,11 +8818,11 @@
         },
         "host": {
           "type": "string",
-          "description": "the host name this route is exposed to by the specified router"
+          "description": ""
         },
         "routerName": {
           "type": "string",
-          "description": "the name of the router exposing this route"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -8809,23 +8834,23 @@
       "properties": {
         "lastTransitionTime": {
           "type": "string",
-          "description": "the last time at which this condition transitioned to the current status"
+          "description": ""
         },
         "message": {
           "type": "string",
-          "description": "human readable message indicating details about this condition"
+          "description": ""
         },
         "reason": {
           "type": "string",
-          "description": "brief reason for the condition's last transition"
+          "description": ""
         },
         "status": {
           "type": "string",
-          "description": "status is the status of the condition; True"
+          "description": ""
         },
         "type": {
           "type": "string",
-          "description": "the type of the condition"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -8846,7 +8871,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of routes",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_route_Route",
             "javaType": "io.fabric8.openshift.api.model.Route"
@@ -8888,11 +8913,11 @@
       "properties": {
         "host": {
           "type": "string",
-          "description": "optional: alias/dns that points to the service"
+          "description": ""
         },
         "path": {
           "type": "string",
-          "description": "optional: path that the router watches to route traffic to the service"
+          "description": ""
         },
         "port": {
           "$ref": "#/definitions/os_route_RoutePort",
@@ -8916,7 +8941,7 @@
       "properties": {
         "ingress": {
           "type": "array",
-          "description": "traffic reaches this route via these ingress paths",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_route_RouteIngress",
             "javaType": "io.fabric8.openshift.api.model.RouteIngress"
@@ -8932,27 +8957,27 @@
       "properties": {
         "caCertificate": {
           "type": "string",
-          "description": "provides the cert authority certificate contents"
+          "description": ""
         },
         "certificate": {
           "type": "string",
-          "description": "provides certificate contents"
+          "description": ""
         },
         "destinationCACertificate": {
           "type": "string",
-          "description": "provides the contents of the ca certificate of the final destination.  When using re-encrypt termination this file should be provided in order to have routers use it for health checks on the secure connection"
+          "description": ""
         },
         "insecureEdgeTerminationPolicy": {
           "type": "string",
-          "description": "indicates desired behavior for insecure connections to an edge-terminated route.  If not set"
+          "description": ""
         },
         "key": {
           "type": "string",
-          "description": "provides key file contents"
+          "description": ""
         },
         "termination": {
           "type": "string",
-          "description": "indicates termination type"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -8964,31 +8989,31 @@
       "properties": {
         "description": {
           "type": "string",
-          "description": "optional: describes the parameter"
+          "description": ""
         },
         "displayName": {
           "type": "string",
-          "description": "optional: provides human readable name for the parameter"
+          "description": ""
         },
         "from": {
           "type": "string",
-          "description": "input value for the generator"
+          "description": ""
         },
         "generate": {
           "type": "string",
-          "description": "optional: generate specifies the generator to be used to generate random string from an input value specified by the from field.  the result string is stored in the value field. if not specified"
+          "description": ""
         },
         "name": {
           "type": "string",
-          "description": "name of the parameter"
+          "description": ""
         },
         "required": {
           "type": "boolean",
-          "description": "indicates the parameter must have a non-empty value or be generated"
+          "description": ""
         },
         "value": {
           "type": "string",
-          "description": "optional: holds the parameter data.  if specified"
+          "description": ""
         }
       },
       "additionalProperties": true,
@@ -9015,10 +9040,10 @@
         },
         "labels": {
           "type": "object",
-          "description": "optional: list of lables that are applied to every object during the template to config transformation",
+          "description": "",
           "additionalProperties": {
             "type": "string",
-            "description": "optional: list of lables that are applied to every object during the template to config transformation"
+            "description": ""
           },
           "javaType": "java.util.Map\u003cString,String\u003e"
         },
@@ -9028,7 +9053,7 @@
         },
         "objects": {
           "type": "array",
-          "description": "list of objects to include in the template",
+          "description": "",
           "items": {
             "$ref": "#/definitions/kubernetes_runtime_RawExtension",
             "javaType": "io.fabric8.kubernetes.api.model.HasMetadata"
@@ -9036,7 +9061,7 @@
         },
         "parameters": {
           "type": "array",
-          "description": "optional: list of parameters used during template to config transformation",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_template_Parameter",
             "javaType": "io.fabric8.openshift.api.model.Parameter"
@@ -9064,7 +9089,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of templates",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_template_Template",
             "javaType": "io.fabric8.openshift.api.model.Template"
@@ -9113,10 +9138,10 @@
         },
         "users": {
           "type": "array",
-          "description": "list of users in this group",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "list of users in this group"
+            "description": ""
           }
         }
       },
@@ -9141,7 +9166,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of groups",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_user_Group",
             "javaType": "io.fabric8.openshift.api.model.Group"
@@ -9180,10 +9205,10 @@
         },
         "extra": {
           "type": "object",
-          "description": "extra information for this identity",
+          "description": "",
           "additionalProperties": {
             "type": "string",
-            "description": "extra information for this identity"
+            "description": ""
           },
           "javaType": "java.util.Map\u003cString,String\u003e"
         },
@@ -9199,11 +9224,11 @@
         },
         "providerName": {
           "type": "string",
-          "description": "source of identity information"
+          "description": ""
         },
         "providerUserName": {
           "type": "string",
-          "description": "uniquely represents this identity in the scope of the provider"
+          "description": ""
         },
         "user": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
@@ -9231,7 +9256,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of identities",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_user_Identity",
             "javaType": "io.fabric8.openshift.api.model.Identity"
@@ -9270,22 +9295,22 @@
         },
         "fullName": {
           "type": "string",
-          "description": "full name of user"
+          "description": ""
         },
         "groups": {
           "type": "array",
-          "description": "list of groups",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "list of groups"
+            "description": ""
           }
         },
         "identities": {
           "type": "array",
-          "description": "list of identities",
+          "description": "",
           "items": {
             "type": "string",
-            "description": "list of identities"
+            "description": ""
           }
         },
         "kind": {
@@ -9320,7 +9345,7 @@
         },
         "items": {
           "type": "array",
-          "description": "list of users",
+          "description": "",
           "items": {
             "$ref": "#/definitions/os_user_User",
             "javaType": "io.fabric8.openshift.api.model.User"

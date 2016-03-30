@@ -1,34 +1,5 @@
 <!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
 
-<!-- BEGIN STRIP_FOR_RELEASE -->
-
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-
-<h2>PLEASE NOTE: This document applies to the HEAD of the source tree</h2>
-
-If you are using a released version of Kubernetes, you should
-refer to the docs that go with that version.
-
-<!-- TAG RELEASE_LINK, added by the munger automatically -->
-<strong>
-The latest release of this document can be found
-[here](http://releases.k8s.io/release-1.1/docs/devel/kubectl-conventions.md).
-
-Documentation for other releases can be found at
-[releases.k8s.io](http://releases.k8s.io).
-</strong>
---
-
-<!-- END STRIP_FOR_RELEASE -->
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 
@@ -119,6 +90,7 @@ Updated: 8/27/2015
   * json, yaml, Go template, and jsonpath template formats should be supported and encouraged for subsequent processing
     * Users should use --api-version or --output-version to ensure the output uses the version they expect
 * `describe` commands may output on multiple lines and may include information from related resources, such as events. Describe should add additional information from related resources that a normal user may need to know - if a user would always run "describe resource1" and the immediately want to run a "get type2" or "describe resource2", consider including that info. Examples, persistent volume claims for pods that reference claims, events for most resources, nodes and the pods scheduled on them. When fetching related resources, a targeted field selector should be used in favor of client side filtering of related resources.
+* For fields that can be explicitly unset (booleans, integers, structs), the output should say `<unset>`.  Likewise, for arrays `<none>` should be used.  Lastly `<unknown>` should be used where unrecognized field type was specified.
 * Mutations should output TYPE/name verbed by default, where TYPE is singular; `-o name` may be used to just display TYPE/name, which may be used to specify resources in other commands
 
 ## Documentation conventions
@@ -185,7 +157,7 @@ func NewCmdMine(parent, name string, f *cmdutil.Factory, out io.Writer) *cobra.C
       }
     },
   }
-  
+
   cmd.Flags().BoolVar(&options.mineLatest, "latest", false, "Use latest stuff")
   return cmd
 }
@@ -251,6 +223,13 @@ func (g *NamespaceGeneratorV1) validate() error {
 
 The generator struct (`NamespaceGeneratorV1`) holds the necessary fields for namespace generation. It also satisfies the `kubectl.StructuredGenerator` interface by implementing the `StructuredGenerate() (runtime.Object, error)` method which configures the generated namespace that callers of the generator (`kubectl create namespace` in our case) need to create.
 * `--dry-run` should output the resource that would be created, without creating it.
+
+
+
+<!-- BEGIN MUNGE: IS_VERSIONED -->
+<!-- TAG IS_VERSIONED -->
+<!-- END MUNGE: IS_VERSIONED -->
+
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
 [![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/docs/devel/kubectl-conventions.md?pixel)]()

@@ -302,6 +302,10 @@
   }
 }
 
+.quota-chart {
+  margin: 0 20px;
+}
+
 
 // Create App
 // --------------------------------------------------
@@ -385,7 +389,6 @@ label.checkbox {
 
 .create-from-template,
 .create-from-image {
-  margin-bottom: 100px; // needed space for hover help text near bottom
   .template-name {
     text-align: right;
     span.fa {
@@ -643,6 +646,22 @@ abbr[data-original-title], abbr[title] {
   dd {
     &:extend(.clearfix all); // Including this here because it's not being set even though it's in /bootstrap/less/type.less dunno why?
   }
+  // FIXME: We should just set @dl-horizontal-breakpoint when we upgrade Bootstrap to 3.3.6.
+  // We want the definition list to display side-by-side after a smaller breakpoint than @screen-sm-min.
+  // Temporarily use the same styles as in
+  //   https://github.com/twbs/bootstrap/blob/5ea03fa259ccac4c7ea72f0a19b57f77957fe55d/less/type.less#L214-L225
+  @media (min-width: 415px) {
+    dt {
+      float: left;
+      width: (@dl-horizontal-offset - 20);
+      clear: left;
+      text-align: right;
+      .text-overflow();
+    }
+    dd {
+      margin-left: @dl-horizontal-offset;
+    }
+  }
 }
 
 .gutter-top-bottom {
@@ -701,16 +720,20 @@ select:invalid {
 }
 
 .attention-message {
-  background-color: lighten(@brand-primary, 20%);
+  background-color: lighten(@brand-primary, 50%);
   border: 1px solid darken(@brand-primary, 10%);
   position: absolute;
-  top: 20%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  margin-top: 100px;
+  transform: translateX(-50%);
   padding: 1em 1em 2em;
   min-width: 85%;
   h1,p {
     text-align: center;
+  }
+  p {
+    max-width: 70em;
+    margin: auto;
   }
 }
 
@@ -865,6 +888,8 @@ a.disabled-link {
 }
 pre.clipped {
   display: inline-block;
+  margin-top: 10px;
+  max-width: 100%;
 }
 
 .k8s-label {

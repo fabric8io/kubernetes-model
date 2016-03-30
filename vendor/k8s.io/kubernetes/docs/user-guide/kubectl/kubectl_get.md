@@ -1,34 +1,5 @@
 <!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
 
-<!-- BEGIN STRIP_FOR_RELEASE -->
-
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-
-<h2>PLEASE NOTE: This document applies to the HEAD of the source tree</h2>
-
-If you are using a released version of Kubernetes, you should
-refer to the docs that go with that version.
-
-<!-- TAG RELEASE_LINK, added by the munger automatically -->
-<strong>
-The latest release of this document can be found
-[here](http://releases.k8s.io/release-1.1/docs/user-guide/kubectl/kubectl_get.md).
-
-Documentation for other releases can be found at
-[releases.k8s.io](http://releases.k8s.io).
-</strong>
---
-
-<!-- END STRIP_FOR_RELEASE -->
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 
@@ -58,28 +29,28 @@ kubectl get [(-o|--output=)json|yaml|wide|go-template=...|go-template-file=...|j
 
 ```
 # List all pods in ps output format.
-$ kubectl get pods
+kubectl get pods
 
 # List all pods in ps output format with more information (such as node name).
-$ kubectl get pods -o wide
+kubectl get pods -o wide
 
 # List a single replication controller with specified NAME in ps output format.
-$ kubectl get replicationcontroller web
+kubectl get replicationcontroller web
 
 # List a single pod in JSON output format.
-$ kubectl get -o json pod web-pod-13je7
+kubectl get -o json pod web-pod-13je7
 
 # List a pod identified by type and name specified in "pod.yaml" in JSON output format.
-$ kubectl get -f pod.yaml -o json
+kubectl get -f pod.yaml -o json
 
 # Return only the phase value of the specified pod.
-$ kubectl get -o template pod/web-pod-13je7 --template={{.status.phase}} --api-version=v1
+kubectl get -o template pod/web-pod-13je7 --template={{.status.phase}}
 
 # List all replication controllers and services together in ps output format.
-$ kubectl get rc,services
+kubectl get rc,services
 
 # List one or more resources by their type and names.
-$ kubectl get rc/web service/frontend pods/web-pod-13je7
+kubectl get rc/web service/frontend pods/web-pod-13je7
 ```
 
 ### Options
@@ -90,12 +61,12 @@ $ kubectl get rc/web service/frontend pods/web-pod-13je7
   -f, --filename=[]: Filename, directory, or URL to a file identifying the resource to get from a server.
   -L, --label-columns=[]: Accepts a comma separated list of labels that are going to be presented as columns. Names are case-sensitive. You can also use multiple flag statements like -L label1 -L label2...
       --no-headers[=false]: When using the default output, don't print headers.
-  -o, --output="": Output format. One of: json|yaml|wide|name|go-template=...|go-template-file=...|jsonpath=...|jsonpath-file=... See golang template [http://golang.org/pkg/text/template/#pkg-overview] and jsonpath template [http://releases.k8s.io/HEAD/docs/user-guide/jsonpath.md].
-      --output-version="": Output the formatted object with the given version (default api-version).
+  -o, --output="": Output format. One of: json|yaml|wide|name|go-template=...|go-template-file=...|jsonpath=...|jsonpath-file=... See golang template [http://golang.org/pkg/text/template/#pkg-overview] and jsonpath template [http://releases.k8s.io/release-1.2/docs/user-guide/jsonpath.md].
+      --output-version="": Output the formatted object with the given group version (for ex: 'extensions/v1beta1').
   -l, --selector="": Selector (label query) to filter on
   -a, --show-all[=false]: When printing, show all resources (default hide terminated pods.)
       --show-labels[=false]: When printing, show all labels as the last column (default hide labels column)
-      --sort-by="": If non-empty, sort list types using this field specification.  The field specification is expressed as a JSONPath expression (e.g. 'ObjectMeta.Name'). The field in the API resource specified by this JSONPath expression must be an integer or a string.
+      --sort-by="": If non-empty, sort list types using this field specification.  The field specification is expressed as a JSONPath expression (e.g. '{.metadata.name}'). The field in the API resource specified by this JSONPath expression must be an integer or a string.
       --template="": Template string or path to template file to use when -o=go-template, -o=go-template-file. The template format is golang templates [http://golang.org/pkg/text/template/#pkg-overview].
   -w, --watch[=false]: After listing/getting the requested object, watch for changes.
       --watch-only[=false]: Watch for changes to the requested object(s), without listing/getting first.
@@ -105,7 +76,6 @@ $ kubectl get rc/web service/frontend pods/web-pod-13je7
 
 ```
       --alsologtostderr[=false]: log to standard error as well as files
-      --api-version="": The API version to use when talking to the server
       --certificate-authority="": Path to a cert. file for the certificate authority.
       --client-certificate="": Path to a client certificate file for TLS.
       --client-key="": Path to a client key file for TLS.
@@ -133,7 +103,14 @@ $ kubectl get rc/web service/frontend pods/web-pod-13je7
 
 * [kubectl](kubectl.md)	 - kubectl controls the Kubernetes cluster manager
 
-###### Auto generated by spf13/cobra on 20-Jan-2016
+###### Auto generated by spf13/cobra on 11-Mar-2016
+
+
+
+<!-- BEGIN MUNGE: IS_VERSIONED -->
+<!-- TAG IS_VERSIONED -->
+<!-- END MUNGE: IS_VERSIONED -->
+
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
 [![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/docs/user-guide/kubectl/kubectl_get.md?pixel)]()

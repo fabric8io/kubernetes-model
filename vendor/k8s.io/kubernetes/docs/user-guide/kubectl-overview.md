@@ -1,34 +1,5 @@
 <!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
 
-<!-- BEGIN STRIP_FOR_RELEASE -->
-
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-
-<h2>PLEASE NOTE: This document applies to the HEAD of the source tree</h2>
-
-If you are using a released version of Kubernetes, you should
-refer to the docs that go with that version.
-
-<!-- TAG RELEASE_LINK, added by the munger automatically -->
-<strong>
-The latest release of this document can be found
-[here](http://releases.k8s.io/release-1.1/docs/user-guide/kubectl-overview.md).
-
-Documentation for other releases can be found at
-[releases.k8s.io](http://releases.k8s.io).
-</strong>
---
-
-<!-- END STRIP_FOR_RELEASE -->
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 
@@ -82,12 +53,12 @@ where `command`, `TYPE`, `NAME`, and `flags` are:
 
    When performing an operation on multiple resources, you can specify each resource by type and name or specify one or more files:
    * To specify resources by type and name:
-	    * To group resources if they are all the same type: `TYPE1 name1 name2 name<#>`<br/>
+        * To group resources if they are all the same type: `TYPE1 name1 name2 name<#>`<br/>
         Example: `$ kubectl get pod example-pod1 example-pod2`
         * To specify multiple resource types individually: `TYPE1/name1 TYPE1/name2 TYPE2/name3 TYPE<#>/name<#>`<br/>
         Example: `$ kubectl get pod/example-pod1 replicationcontroller/example-rc1`
    * To specify resources with one or more files: `-f file1 -f file2 -f file<#>`
-	 [Use YAML rather than JSON](config-best-practices.md#general-config-tips) since YAML tends to be more user-friendly, especially for configuration files.<br/>
+     [Use YAML rather than JSON](config-best-practices.md#general-config-tips) since YAML tends to be more user-friendly, especially for configuration files.<br/>
      Example: `$ kubectl get pod -f ./pod.yaml`
 * `flags`: Specifies optional flags. For example, you can use the `-s` or `--server` flags to specify the address and port of the Kubernetes API server.<br/>
 **Important**: Flags that you specify from the command line override default values and any corresponding environment variables.
@@ -305,13 +276,20 @@ Use the following set of examples to help you familiarize yourself with running 
 		// Return a snapshot of the logs from pod <pod-name>.
 		$ kubectl logs <pod-name>
 
-		// Start streaming the logs from pod <pod-name>. This is similiar to the 'tail -f' Linux command.
+		// Start streaming the logs from pod <pod-name>. This is similar to the 'tail -f' Linux command.
 		$ kubectl logs -f <pod-name>
 
 
 ## Next steps
 
 Start using the [kubectl](kubectl/kubectl.md) commands.
+
+
+
+
+<!-- BEGIN MUNGE: IS_VERSIONED -->
+<!-- TAG IS_VERSIONED -->
+<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

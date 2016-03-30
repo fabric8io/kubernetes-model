@@ -48,23 +48,50 @@ MASTER_DISK_ID=
 # Well known tags
 TAG_KEY_MASTER_IP="kubernetes.io/master-ip"
 
-# Defaults: ubuntu -> vivid
-if [[ "${KUBE_OS_DISTRIBUTION}" == "ubuntu" ]]; then
-  KUBE_OS_DISTRIBUTION=vivid
-fi
-
-# For GCE script compatability
 OS_DISTRIBUTION=${KUBE_OS_DISTRIBUTION}
 
-case "${KUBE_OS_DISTRIBUTION}" in
-  trusty|wheezy|jessie|vivid|coreos)
-    source "${KUBE_ROOT}/cluster/aws/${KUBE_OS_DISTRIBUTION}/util.sh"
+# Defaults: ubuntu -> wily
+if [[ "${OS_DISTRIBUTION}" == "ubuntu" ]]; then
+  OS_DISTRIBUTION=wily
+fi
+
+# Loads the distro-specific utils script.
+# If the distro is not recommended, prints warnings or exits.
+function load_distro_utils () {
+case "${OS_DISTRIBUTION}" in
+  jessie)
+    ;;
+  wily)
+    ;;
+  vivid)
+    echo "vivid is currently end-of-life and does not get updates." >&2
+    echo "Please consider using wily or jessie instead" >&2
+    echo "(will continue in 10 seconds)" >&2
+    sleep 10
+    ;;
+  coreos)
+    echo "coreos is no longer supported by kube-up; please use jessie instead" >&2
+    exit 2
+    ;;
+  trusty)
+    echo "trusty is no longer supported by kube-up; please use jessie or wily instead" >&2
+    exit 2
+    ;;
+  wheezy)
+    echo "wheezy is no longer supported by kube-up; please use jessie instead" >&2
+    exit 2
     ;;
   *)
-    echo "Cannot start cluster using os distro: ${KUBE_OS_DISTRIBUTION}" >&2
+    echo "Cannot start cluster using os distro: ${OS_DISTRIBUTION}" >&2
+    echo "The current recommended distro is jessie" >&2
     exit 2
     ;;
 esac
+
+source "${KUBE_ROOT}/cluster/aws/${OS_DISTRIBUTION}/util.sh"
+}
+
+load_distro_utils
 
 # This removes the final character in bash (somehow)
 AWS_REGION=${ZONE%?}
@@ -93,8 +120,6 @@ NODE_SG_NAME="kubernetes-minion-${CLUSTER_ID}"
 # TODO: Actually mount the correct number (especially if we have more), though this is non-trivial, and
 #  only affects the big storage instance types, which aren't a typical use case right now.
 BLOCK_DEVICE_MAPPINGS_BASE="{\"DeviceName\": \"/dev/sdc\",\"VirtualName\":\"ephemeral0\"},{\"DeviceName\": \"/dev/sdd\",\"VirtualName\":\"ephemeral1\"},{\"DeviceName\": \"/dev/sde\",\"VirtualName\":\"ephemeral2\"},{\"DeviceName\": \"/dev/sdf\",\"VirtualName\":\"ephemeral3\"}"
-MASTER_BLOCK_DEVICE_MAPPINGS="[{\"DeviceName\":\"/dev/sda1\",\"Ebs\":{\"DeleteOnTermination\":true,\"VolumeSize\":${MASTER_ROOT_DISK_SIZE},\"VolumeType\":\"${MASTER_ROOT_DISK_TYPE}\"}}, ${BLOCK_DEVICE_MAPPINGS_BASE}]"
-NODE_BLOCK_DEVICE_MAPPINGS="[{\"DeviceName\":\"/dev/sda1\",\"Ebs\":{\"DeleteOnTermination\":true,\"VolumeSize\":${NODE_ROOT_DISK_SIZE},\"VolumeType\":\"${NODE_ROOT_DISK_TYPE}\"}}, ${BLOCK_DEVICE_MAPPINGS_BASE}]"
 
 # TODO (bburns) Parameterize this for multiple cluster per project
 
@@ -192,6 +217,16 @@ function detect-master() {
   echo "Using master: $KUBE_MASTER (external IP: $KUBE_MASTER_IP)"
 }
 
+# Reads kube-env metadata from master
+#
+# Assumed vars:
+#   KUBE_MASTER_IP
+#   AWS_SSH_KEY
+#   SSH_USER
+function get-master-env() {
+  ssh -oStrictHostKeyChecking=no -i "${AWS_SSH_KEY}" ${SSH_USER}@${KUBE_MASTER_IP} sudo cat /etc/kubernetes/kube_env.yaml
+}
+
 
 function query-running-minions () {
   local query=$1
@@ -267,12 +302,15 @@ function detect-security-groups {
 # Vars set:
 #   AWS_IMAGE
 function detect-image () {
-case "${KUBE_OS_DISTRIBUTION}" in
+case "${OS_DISTRIBUTION}" in
   trusty|coreos)
     detect-trusty-image
     ;;
   vivid)
     detect-vivid-image
+    ;;
+  wily)
+    detect-wily-image
     ;;
   wheezy)
     detect-wheezy-image
@@ -281,7 +319,7 @@ case "${KUBE_OS_DISTRIBUTION}" in
     detect-jessie-image
     ;;
   *)
-    echo "Please specify AWS_IMAGE directly (distro ${KUBE_OS_DISTRIBUTION} not recognized)"
+    echo "Please specify AWS_IMAGE directly (distro ${OS_DISTRIBUTION} not recognized)"
     exit 2
     ;;
 esac
@@ -347,6 +385,27 @@ function detect-trusty-image () {
         exit 1
     esac
   fi
+}
+
+# Detects the RootDevice to use in the Block Device Mapping (considering the AMI)
+#
+# Vars set:
+#   MASTER_BLOCK_DEVICE_MAPPINGS
+#   NODE_BLOCK_DEVICE_MAPPINGS
+#
+function detect-root-device {
+  local master_image=${AWS_IMAGE}
+  local node_image=${KUBE_NODE_IMAGE}
+
+  ROOT_DEVICE_MASTER=$($AWS_CMD describe-images --image-ids ${master_image} --query 'Images[].RootDeviceName')
+  if [[ "${master_image}" == "${node_image}" ]]; then
+      ROOT_DEVICE_NODE=${ROOT_DEVICE_MASTER}
+    else
+      ROOT_DEVICE_NODE=$($AWS_CMD describe-images --image-ids ${node_image} --query 'Images[].RootDeviceName')
+  fi
+
+  MASTER_BLOCK_DEVICE_MAPPINGS="[{\"DeviceName\":\"${ROOT_DEVICE_MASTER}\",\"Ebs\":{\"DeleteOnTermination\":true,\"VolumeSize\":${MASTER_ROOT_DISK_SIZE},\"VolumeType\":\"${MASTER_ROOT_DISK_TYPE}\"}}, ${BLOCK_DEVICE_MAPPINGS_BASE}]"
+  NODE_BLOCK_DEVICE_MAPPINGS="[{\"DeviceName\":\"${ROOT_DEVICE_NODE}\",\"Ebs\":{\"DeleteOnTermination\":true,\"VolumeSize\":${NODE_ROOT_DISK_SIZE},\"VolumeType\":\"${NODE_ROOT_DISK_TYPE}\"}}, ${BLOCK_DEVICE_MAPPINGS_BASE}]"
 }
 
 # Computes the AWS fingerprint for a public key file ($1)
@@ -431,8 +490,14 @@ function authorize-security-group-ingress {
 function find-master-pd {
   local name=${MASTER_NAME}-pd
   if [[ -z "${MASTER_DISK_ID}" ]]; then
+    local zone_filter="Name=availability-zone,Values=${ZONE}"
+    if [[ "${KUBE_USE_EXISTING_MASTER:-}" == "true" ]]; then
+      # If we're reusing an existing master, it is likely to be in another zone
+      # If running multizone, your cluster must be uniquely named across zones
+      zone_filter=""
+    fi
     MASTER_DISK_ID=`$AWS_CMD describe-volumes \
-                             --filters Name=availability-zone,Values=${ZONE} \
+                             --filters ${zone_filter} \
                                        Name=tag:Name,Values=${name} \
                                        Name=tag:KubernetesCluster,Values=${CLUSTER_ID} \
                              --query Volumes[].VolumeId`
@@ -758,6 +823,24 @@ function release-elastic-ip {
   fi
 }
 
+# Deletes a security group
+# usage: delete_security_group <sgid>
+function delete_security_group {
+  local -r sg_id=${1}
+
+  echo "Deleting security group: ${sg_id}"
+
+  # We retry in case there's a dependent resource - typically an ELB
+  n=0
+  until [ $n -ge 20 ]; do
+    $AWS_CMD delete-security-group --group-id ${sg_id} > $LOG && return
+    n=$[$n+1]
+    sleep 3
+  done
+  echo "Unable to delete security group: ${sg_id}"
+  exit 1
+}
+
 function ssh-key-setup {
   if [[ ! -f "$AWS_SSH_KEY" ]]; then
     ssh-keygen -f "$AWS_SSH_KEY" -N ''
@@ -811,12 +894,14 @@ function subnet-setup {
 }
 
 function kube-up {
-  echo "Starting cluster using os distro: ${KUBE_OS_DISTRIBUTION}" >&2
+  echo "Starting cluster using os distro: ${OS_DISTRIBUTION}" >&2
 
   get-tokens
 
   detect-image
   detect-minion-image
+
+  detect-root-device
 
   find-release-tars
 
@@ -903,8 +988,8 @@ function kube-up {
 
   # KUBE_USE_EXISTING_MASTER is used to add minions to an existing master
   if [[ "${KUBE_USE_EXISTING_MASTER:-}" == "true" ]]; then
-    # Detect existing master
     detect-master
+    parse-master-env
 
     # Start minions
     start-minions
@@ -913,15 +998,15 @@ function kube-up {
     # Create the master
     start-master
 
+    # Build ~/.kube/config
+    build-config
+
     # Start minions
     start-minions
     wait-minions
 
     # Wait for the master to be ready
     wait-master
-
-    # Build ~/.kube/config
-    build-config
   fi
 
   # Check the cluster is OK
@@ -975,6 +1060,7 @@ function start-master() {
 
     echo "cat > kube_env.yaml << __EOF_MASTER_KUBE_ENV_YAML"
     cat ${KUBE_TEMP}/master-kube-env.yaml
+    echo "AUTO_UPGRADE: 'true'"
     # TODO: get rid of these exceptions / harmonize with common or GCE
     echo "DOCKER_STORAGE: $(yaml-quote ${DOCKER_STORAGE:-})"
     echo "API_SERVERS: $(yaml-quote ${MASTER_INTERNAL_IP:-})"
@@ -982,7 +1068,16 @@ function start-master() {
     echo ""
     echo "wget -O bootstrap ${BOOTSTRAP_SCRIPT_URL}"
     echo "chmod +x bootstrap"
-    echo "./bootstrap"
+    echo "mkdir -p /etc/kubernetes"
+    echo "mv kube_env.yaml /etc/kubernetes"
+    echo "mv bootstrap /etc/kubernetes/"
+    echo "cat > /etc/rc.local << EOF_RC_LOCAL"
+    echo "#!/bin/sh -e"
+    # We want to be sure that we don't pass an argument to bootstrap
+    echo "/etc/kubernetes/bootstrap"
+    echo "exit 0"
+    echo "EOF_RC_LOCAL"
+    echo "/etc/kubernetes/bootstrap"
   ) > "${KUBE_TEMP}/master-user-data"
 
   # Compress the data to fit under the 16KB limit (cloud-init accepts compressed data)
@@ -1060,6 +1155,7 @@ function start-minions() {
     echo "cd /var/cache/kubernetes-install"
     echo "cat > kube_env.yaml << __EOF_KUBE_ENV_YAML"
     cat ${KUBE_TEMP}/node-kube-env.yaml
+    echo "AUTO_UPGRADE: 'true'"
     # TODO: get rid of these exceptions / harmonize with common or GCE
     echo "DOCKER_STORAGE: $(yaml-quote ${DOCKER_STORAGE:-})"
     echo "API_SERVERS: $(yaml-quote ${MASTER_INTERNAL_IP:-})"
@@ -1067,7 +1163,16 @@ function start-minions() {
     echo ""
     echo "wget -O bootstrap ${BOOTSTRAP_SCRIPT_URL}"
     echo "chmod +x bootstrap"
-    echo "./bootstrap"
+    echo "mkdir -p /etc/kubernetes"
+    echo "mv kube_env.yaml /etc/kubernetes"
+    echo "mv bootstrap /etc/kubernetes/"
+    echo "cat > /etc/rc.local << EOF_RC_LOCAL"
+    echo "#!/bin/sh -e"
+    # We want to be sure that we don't pass an argument to bootstrap
+    echo "/etc/kubernetes/bootstrap"
+    echo "exit 0"
+    echo "EOF_RC_LOCAL"
+    echo "/etc/kubernetes/bootstrap"
   ) > "${KUBE_TEMP}/node-user-data"
 
   # Compress the data to fit under the 16KB limit (cloud-init accepts compressed data)
@@ -1079,6 +1184,12 @@ function start-minions() {
   else
     public_ip_option="--no-associate-public-ip-address"
   fi
+  local spot_price_option
+  if [[ -n "${NODE_SPOT_PRICE:-}" ]]; then
+    spot_price_option="--spot-price ${NODE_SPOT_PRICE}"
+  else
+    spot_price_option=""
+  fi
   ${AWS_ASG_CMD} create-launch-configuration \
       --launch-configuration-name ${ASG_NAME} \
       --image-id $KUBE_NODE_IMAGE \
@@ -1087,6 +1198,7 @@ function start-minions() {
       --key-name ${AWS_SSH_KEY_NAME} \
       --security-groups ${NODE_SG_ID} \
       ${public_ip_option} \
+      ${spot_price_option} \
       --block-device-mappings "${NODE_BLOCK_DEVICE_MAPPINGS}" \
       --user-data "fileb://${KUBE_TEMP}/node-user-data.gz"
 
@@ -1105,7 +1217,12 @@ function start-minions() {
 function wait-minions {
   # Wait for the minions to be running
   # TODO(justinsb): This is really not needed any more
-  attempt=0
+  local attempt=0
+  local max_attempts=30
+  # Spot instances are slower to launch
+  if [[ -n "${NODE_SPOT_PRICE:-}" ]]; then
+    max_attempts=90
+  fi
   while true; do
     find-running-minions > $LOG
     if [[ ${#NODE_IDS[@]} == ${NUM_NODES} ]]; then
@@ -1113,7 +1230,7 @@ function wait-minions {
       break
     fi
 
-    if (( attempt > 30 )); then
+    if (( attempt > max_attempts )); then
       echo
       echo "Expected number of minions did not start in time"
       echo
@@ -1155,7 +1272,7 @@ function build-config() {
   export KUBE_CERT="${CERT_DIR}/pki/issued/kubecfg.crt"
   export KUBE_KEY="${CERT_DIR}/pki/private/kubecfg.key"
   export CA_CERT="${CERT_DIR}/pki/ca.crt"
-  export CONTEXT="${PROJECT}_${INSTANCE_PREFIX}"
+  export CONTEXT="aws_${INSTANCE_PREFIX}"
   (
    umask 077
    create-kubeconfig
@@ -1315,8 +1432,7 @@ function kube-down {
         continue
       fi
 
-      echo "Deleting security group: ${sg_id}"
-      $AWS_CMD delete-security-group --group-id ${sg_id} > $LOG
+      delete_security_group ${sg_id}
     done
 
     subnet_ids=$($AWS_CMD describe-subnets \
@@ -1392,7 +1508,7 @@ function kube-push {
 }
 
 # -----------------------------------------------------------------------------
-# Cluster specific test helpers used from hack/e2e-test.sh
+# Cluster specific test helpers used from hack/e2e.go
 
 # Execute prior to running tests to build a release if required for env.
 #
@@ -1404,11 +1520,13 @@ function test-build-release {
 }
 
 # Execute prior to running tests to initialize required structure. This is
-# called from hack/e2e.go only when running -up (it is run after kube-up).
+# called from hack/e2e.go only when running -up.
 #
 # Assumed vars:
 #   Variables from config.sh
 function test-setup {
+  "${KUBE_ROOT}/cluster/kube-up.sh"
+
   VPC_ID=$(get_vpc_id)
   detect-security-groups
 

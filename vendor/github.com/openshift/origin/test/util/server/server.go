@@ -13,6 +13,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
 	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/client/restclient"
 	kclient "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/util/wait"
 
@@ -36,11 +37,10 @@ import (
 // controllers to start up, and populate the service accounts in the test namespace
 const ServiceAccountWaitTimeout = 30 * time.Second
 
-// RequireServer verifies if the etcd, docker and the OpenShift server are
-// available and you can successfully connected to them.
+// RequireServer verifies if the etcd and the OpenShift server are
+// available and you can successfully connect to them.
 func RequireServer(t *testing.T) {
 	util.RequireEtcd(t)
-	util.RequireDocker()
 	if _, err := util.GetClusterAdminClient(util.KubeConfigPath()); err != nil {
 		os.Exit(1)
 	}
@@ -414,7 +414,7 @@ func WaitForServiceAccounts(client *kclient.Client, namespace string, accounts [
 
 // CreateNewProject creates a new project using the clusterAdminClient, then gets a token for the adminUser and returns
 // back a client for the admin user
-func CreateNewProject(clusterAdminClient *client.Client, clientConfig kclient.Config, projectName, adminUser string) (*client.Client, error) {
+func CreateNewProject(clusterAdminClient *client.Client, clientConfig restclient.Config, projectName, adminUser string) (*client.Client, error) {
 	newProjectOptions := &newproject.NewProjectOptions{
 		Client:      clusterAdminClient,
 		ProjectName: projectName,

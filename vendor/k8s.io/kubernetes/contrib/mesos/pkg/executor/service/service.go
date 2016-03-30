@@ -37,7 +37,6 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/cache"
 	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/kubelet"
 	"k8s.io/kubernetes/pkg/kubelet/cm"
@@ -180,7 +179,7 @@ func (s *KubeletExecutorServer) runKubelet(
 
 		return decorated, pc, nil
 	}
-	kcfg.DockerDaemonContainer = "" // don't move the docker daemon into a cgroup
+	kcfg.RuntimeCgroups = "" // don't move the docker daemon into a cgroup
 	kcfg.Hostname = kcfg.HostnameOverride
 	kcfg.KubeClient = apiclient
 
@@ -201,7 +200,7 @@ func (s *KubeletExecutorServer) runKubelet(
 	kcfg.NodeName = kcfg.HostnameOverride
 	kcfg.PodConfig = kconfig.NewPodConfig(kconfig.PodConfigNotificationIncremental, kcfg.Recorder) // override the default pod source
 	kcfg.StandaloneMode = false
-	kcfg.SystemContainer = "" // don't take control over other system processes.
+	kcfg.SystemCgroups = "" // don't take control over other system processes.
 	if kcfg.Cloud != nil {
 		// fail early and hard because having the cloud provider loaded would go unnoticed,
 		// but break bigger cluster because accessing the state.json from every slave kills the master.
@@ -216,7 +215,12 @@ func (s *KubeletExecutorServer) runKubelet(
 	}
 
 	kcfg.CAdvisorInterface = cAdvisorInterface
-	kcfg.ContainerManager, err = cm.NewContainerManager(kcfg.Mounter, cAdvisorInterface)
+	kcfg.ContainerManager, err = cm.NewContainerManager(kcfg.Mounter, cAdvisorInterface, cm.NodeConfig{
+		RuntimeCgroupsName: kcfg.RuntimeCgroups,
+		SystemCgroupsName:  kcfg.SystemCgroups,
+		KubeletCgroupsName: kcfg.KubeletCgroups,
+		ContainerRuntime:   kcfg.ContainerRuntime,
+	})
 	if err != nil {
 		return err
 	}
@@ -290,7 +294,7 @@ func (s *KubeletExecutorServer) Run(hks hyperkube.Interface, _ []string) error {
 
 	var (
 		pw = cache.NewListWatchFromClient(apiclient.CoreClient, "pods", api.NamespaceAll,
-			fields.OneTermEqualSelector(client.PodHost, s.HostnameOverride),
+			fields.OneTermEqualSelector(api.PodHostField, s.HostnameOverride),
 		)
 		reg = executor.NewRegistry(apiclient)
 	)

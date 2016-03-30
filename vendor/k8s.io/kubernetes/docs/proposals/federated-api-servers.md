@@ -1,29 +1,5 @@
 <!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
 
-<!-- BEGIN STRIP_FOR_RELEASE -->
-
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-
-<h2>PLEASE NOTE: This document applies to the HEAD of the source tree</h2>
-
-If you are using a released version of Kubernetes, you should
-refer to the docs that go with that version.
-
-Documentation for other releases can be found at
-[releases.k8s.io](http://releases.k8s.io).
-</strong>
---
-
-<!-- END STRIP_FOR_RELEASE -->
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 
@@ -47,7 +23,7 @@ federated servers.
   developers to expose their APIs as a separate server and enabling the cluster
   admin to use it without any change to the core kubernetes reporsitory, we
   unblock these APIs.
-* Place for staging experimental APIs: New APIs can remain in seperate
+* Place for staging experimental APIs: New APIs can remain in separate
   federated servers until they become stable, at which point, they can be moved
   to the core kubernetes master, if appropriate.
 * Ensure that new APIs follow kubernetes conventions: Without the mechanism
@@ -231,6 +207,13 @@ There were other alternatives that we had discussed.
   providing a centralised authentication and authorization service which all of
   the servers can use.
 
+
+
+
+
+<!-- BEGIN MUNGE: IS_VERSIONED -->
+<!-- TAG IS_VERSIONED -->
+<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

@@ -4,8 +4,12 @@ import (
 	"fmt"
 
 	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/apis/autoscaling"
+	"k8s.io/kubernetes/pkg/apis/batch"
+	"k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/util/sets"
 
+	"github.com/openshift/origin/pkg/api"
 	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
 )
 
@@ -49,9 +53,9 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 			},
 			Rules: []authorizationapi.PolicyRule{
 				{
+					APIGroups: []string{authorizationapi.APIGroupAll},
 					Verbs:     sets.NewString(authorizationapi.VerbAll),
 					Resources: sets.NewString(authorizationapi.ResourceAll),
-					APIGroups: []string{authorizationapi.APIGroupAll},
 				},
 				{
 					Verbs:           sets.NewString(authorizationapi.VerbAll),
@@ -69,9 +73,19 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 					Resources: sets.NewString(authorizationapi.NonEscalatingResourcesGroupName),
 				},
 				{
+					APIGroups: []string{autoscaling.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch"),
+					Resources: sets.NewString("horizontalpodautoscalers"),
+				},
+				{
+					APIGroups: []string{batch.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch"),
+					Resources: sets.NewString("jobs"),
+				},
+				{
+					APIGroups: []string{extensions.GroupName},
 					Verbs:     sets.NewString("get", "list", "watch"),
 					Resources: sets.NewString("daemonsets", "jobs", "horizontalpodautoscalers", "replicationcontrollers/scale"),
-					APIGroups: []string{authorizationapi.APIGroupExtensions},
 				},
 				{ // permissions to check access.  These creates are non-mutating
 					Verbs:     sets.NewString("create"),
@@ -100,13 +114,49 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 			},
 			Rules: []authorizationapi.PolicyRule{
 				{
+					APIGroups: []string{kapi.GroupName},
 					Verbs:     sets.NewString("get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"),
-					Resources: sets.NewString(authorizationapi.OpenshiftExposedGroupName, authorizationapi.PermissionGrantingGroupName, authorizationapi.KubeExposedGroupName, "projects", "secrets", "pods/attach", "pods/proxy", "pods/exec", "pods/portforward", authorizationapi.DockerBuildResource, authorizationapi.SourceBuildResource, authorizationapi.CustomBuildResource, "deploymentconfigs/scale", "imagestreams/secrets"),
+					Resources: sets.NewString(
+						authorizationapi.KubeExposedGroupName,
+						"secrets",
+						"pods/attach", "pods/proxy", "pods/exec", "pods/portforward",
+						"services/proxy",
+						"replicationcontrollers/scale",
+					),
 				},
 				{
-					APIGroups: []string{authorizationapi.APIGroupExtensions},
+					APIGroups: []string{api.GroupName},
 					Verbs:     sets.NewString("get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"),
-					Resources: sets.NewString("daemonsets", "jobs", "horizontalpodautoscalers", "replicationcontrollers/scale"),
+					Resources: sets.NewString(
+						authorizationapi.OpenshiftExposedGroupName,
+						authorizationapi.PermissionGrantingGroupName,
+						"projects",
+						authorizationapi.DockerBuildResource,
+						authorizationapi.SourceBuildResource,
+						authorizationapi.CustomBuildResource,
+						"deploymentconfigs/scale",
+						"imagestreams/secrets",
+					),
+				},
+				{
+					APIGroups: []string{autoscaling.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"),
+					Resources: sets.NewString("horizontalpodautoscalers"),
+				},
+				{
+					APIGroups: []string{batch.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"),
+					Resources: sets.NewString("jobs"),
+				},
+				{
+					APIGroups: []string{extensions.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"),
+					Resources: sets.NewString("jobs", "horizontalpodautoscalers", "replicationcontrollers/scale"),
+				},
+				{
+					APIGroups: []string{extensions.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch"),
+					Resources: sets.NewString("daemonsets"),
 				},
 				{
 					Verbs:     sets.NewString("get", "list", "watch"),
@@ -130,13 +180,47 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 			},
 			Rules: []authorizationapi.PolicyRule{
 				{
+					APIGroups: []string{kapi.GroupName},
 					Verbs:     sets.NewString("get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"),
-					Resources: sets.NewString(authorizationapi.OpenshiftExposedGroupName, authorizationapi.KubeExposedGroupName, "secrets", "pods/attach", "pods/proxy", "pods/exec", "pods/portforward", authorizationapi.DockerBuildResource, authorizationapi.SourceBuildResource, authorizationapi.CustomBuildResource, "deploymentconfigs/scale", "imagestreams/secrets"),
+					Resources: sets.NewString(
+						authorizationapi.KubeExposedGroupName,
+						"secrets",
+						"pods/attach", "pods/proxy", "pods/exec", "pods/portforward",
+						"services/proxy",
+						"replicationcontrollers/scale",
+					),
 				},
 				{
-					APIGroups: []string{authorizationapi.APIGroupExtensions},
+					APIGroups: []string{api.GroupName},
 					Verbs:     sets.NewString("get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"),
-					Resources: sets.NewString("daemonsets", "jobs", "horizontalpodautoscalers", "replicationcontrollers/scale"),
+					Resources: sets.NewString(
+						authorizationapi.OpenshiftExposedGroupName,
+						authorizationapi.DockerBuildResource,
+						authorizationapi.SourceBuildResource,
+						authorizationapi.CustomBuildResource,
+						"deploymentconfigs/scale",
+						"imagestreams/secrets",
+					),
+				},
+				{
+					APIGroups: []string{autoscaling.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"),
+					Resources: sets.NewString("horizontalpodautoscalers"),
+				},
+				{
+					APIGroups: []string{batch.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"),
+					Resources: sets.NewString("jobs"),
+				},
+				{
+					APIGroups: []string{extensions.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"),
+					Resources: sets.NewString("jobs", "horizontalpodautoscalers", "replicationcontrollers/scale"),
+				},
+				{
+					APIGroups: []string{extensions.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch"),
+					Resources: sets.NewString("daemonsets"),
 				},
 				{
 					Verbs:     sets.NewString("get", "list", "watch"),
@@ -159,7 +243,17 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 					Resources: sets.NewString(authorizationapi.OpenshiftExposedGroupName, authorizationapi.KubeAllGroupName, authorizationapi.OpenshiftStatusGroupName, authorizationapi.KubeStatusGroupName, "projects"),
 				},
 				{
-					APIGroups: []string{authorizationapi.APIGroupExtensions},
+					APIGroups: []string{autoscaling.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch"),
+					Resources: sets.NewString("horizontalpodautoscalers"),
+				},
+				{
+					APIGroups: []string{batch.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch"),
+					Resources: sets.NewString("jobs"),
+				},
+				{
+					APIGroups: []string{extensions.GroupName},
 					Verbs:     sets.NewString("get", "list", "watch"),
 					Resources: sets.NewString("daemonsets", "jobs", "horizontalpodautoscalers"),
 				},
@@ -193,12 +287,17 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				{
 					Verbs: sets.NewString("get"),
 					NonResourceURLs: sets.NewString(
+						// Health
 						"/healthz", "/healthz/*",
+
+						// Server version checking
 						"/version",
-						"/api", "/api/", "/api/v1", "/api/v1/",
-						"/apis", "/apis/", "/apis/extensions", "/apis/extensions/", "/apis/extensions/v1beta1", "/apis/extensions/v1beta1/",
+
+						// API discovery/negotiation
+						"/api", "/api/*",
+						"/apis", "/apis/*",
+						"/oapi", "/oapi/*",
 						"/osapi", "/osapi/", // these cannot be removed until we can drop support for pre 3.1 clients
-						"/oapi/", "/oapi", "/oapi/v1", "/oapi/v1/",
 					),
 				},
 			},
@@ -396,7 +495,7 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				},
 				{
 					Verbs:     sets.NewString(authorizationapi.VerbAll),
-					Resources: sets.NewString(authorizationapi.NodeMetricsResource, authorizationapi.NodeStatsResource, authorizationapi.NodeLogResource),
+					Resources: sets.NewString("nodes/proxy", authorizationapi.NodeMetricsResource, authorizationapi.NodeStatsResource, authorizationapi.NodeLogResource),
 				},
 			},
 		},
@@ -476,12 +575,12 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				},
 
 				{
-					// TODO: restrict to secrets used by pods scheduled on bound node once supported
-					// Needed for imagepullsecrets, rbd/ceph and secret volumes
+					// TODO: restrict to secrets and configmaps used by pods scheduled on bound node once supported
+					// Needed for imagepullsecrets, rbd/ceph and secret volumes, and secrets in envs
+					// Needed for configmap volume and envs
 					Verbs:     sets.NewString("get"),
-					Resources: sets.NewString("secrets"),
+					Resources: sets.NewString("secrets", "configmaps"),
 				},
-
 				{
 					// TODO: restrict to claims/volumes used by pods scheduled on bound node once supported
 					// Needed for persistent volumes
@@ -561,6 +660,28 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				},
 			},
 		},
+
+		{
+			ObjectMeta: kapi.ObjectMeta{
+				Name: DiscoveryRoleName,
+			},
+			Rules: []authorizationapi.PolicyRule{
+				{
+					Verbs: sets.NewString("get"),
+					NonResourceURLs: sets.NewString(
+						// Server version checking
+						"/version",
+
+						// API discovery/negotiation
+						"/api", "/api/*",
+						"/apis", "/apis/*",
+						"/oapi", "/oapi/*",
+						"/osapi", "/osapi/", // these cannot be removed until we can drop support for pre 3.1 clients
+					),
+				},
+			},
+		},
+
 		{
 			ObjectMeta: kapi.ObjectMeta{
 				Name: RegistryAdminRoleName,
@@ -795,6 +916,18 @@ func GetBootstrapClusterRoleBindings() []authorizationapi.ClusterRoleBinding {
 				Name: WebHooksRoleName,
 			},
 			Subjects: []kapi.ObjectReference{{Kind: authorizationapi.SystemGroupKind, Name: AuthenticatedGroup}, {Kind: authorizationapi.SystemGroupKind, Name: UnauthenticatedGroup}},
+		},
+		{
+			ObjectMeta: kapi.ObjectMeta{
+				Name: DiscoveryRoleBindingName,
+			},
+			RoleRef: kapi.ObjectReference{
+				Name: DiscoveryRoleName,
+			},
+			Subjects: []kapi.ObjectReference{
+				{Kind: authorizationapi.SystemGroupKind, Name: AuthenticatedGroup},
+				{Kind: authorizationapi.SystemGroupKind, Name: UnauthenticatedGroup},
+			},
 		},
 	}
 }

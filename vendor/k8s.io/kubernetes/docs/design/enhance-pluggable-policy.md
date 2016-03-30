@@ -1,29 +1,5 @@
 <!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
 
-<!-- BEGIN STRIP_FOR_RELEASE -->
-
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
-     width="25" height="25">
-
-<h2>PLEASE NOTE: This document applies to the HEAD of the source tree</h2>
-
-If you are using a released version of Kubernetes, you should
-refer to the docs that go with that version.
-
-Documentation for other releases can be found at
-[releases.k8s.io](http://releases.k8s.io).
-</strong>
---
-
-<!-- END STRIP_FOR_RELEASE -->
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 
@@ -54,7 +30,7 @@ An API request has the following attributes that can be considered for authoriza
   - resourceVersion - the API version of the resource being accessed
   - resource - which resource is being accessed
     - applies only to the API endpoints, such as
-        `/api/v1beta1/pods`.  For miscelaneous endpoints, like `/version`, the kind is the empty string.
+        `/api/v1beta1/pods`.  For miscellaneous endpoints, like `/version`, the kind is the empty string.
   - resourceName - the name of the resource during a get, update, or delete action.
   - subresource - which subresource is being accessed
 
@@ -368,6 +344,13 @@ type LocalResourceAccessReviewResponse struct {
 }
 
 ```
+
+
+
+
+<!-- BEGIN MUNGE: IS_VERSIONED -->
+<!-- TAG IS_VERSIONED -->
+<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
