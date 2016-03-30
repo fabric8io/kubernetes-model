@@ -2,7 +2,6 @@ package kubernetes
 
 import (
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	kubeletoptions "k8s.io/kubernetes/cmd/kubelet/app/options"
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/unversioned"
+	"k8s.io/kubernetes/pkg/apis/componentconfig"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/kubelet/dockertools"
@@ -23,17 +23,16 @@ import (
 	"k8s.io/kubernetes/pkg/util"
 	kerrors "k8s.io/kubernetes/pkg/util/errors"
 	"k8s.io/kubernetes/pkg/util/oom"
-	"k8s.io/kubernetes/pkg/volume"
 
 	osdnapi "github.com/openshift/openshift-sdn/plugins/osdn/api"
 	"github.com/openshift/openshift-sdn/plugins/osdn/factory"
+	"github.com/openshift/openshift-sdn/plugins/osdn/ovs"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
 	"github.com/openshift/origin/pkg/cmd/server/crypto"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	cmdflags "github.com/openshift/origin/pkg/cmd/util/flags"
 	"github.com/openshift/origin/pkg/cmd/util/variable"
-	"github.com/openshift/origin/pkg/volume/empty_dir"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 )
 
@@ -123,8 +122,9 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig) (*NodeConfig, error
 		return nil, fmt.Errorf("cannot parse node port: %v", err)
 	}
 
-	// declare the OpenShift defaults from config
+	// Defaults are tested in TestKubeletDefaults
 	server := kubeletoptions.NewKubeletServer()
+	// Adjust defaults
 	server.Config = path
 	server.RootDirectory = options.VolumeDirectory
 	server.NodeIP = options.NodeIP
@@ -133,9 +133,10 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig) (*NodeConfig, error
 	server.RegisterNode = true
 	server.Address = kubeAddressStr
 	server.Port = uint(kubePort)
-	server.ReadOnlyPort = 0 // no read only access
-	server.CAdvisorPort = 0 // no unsecured cadvisor access
-	server.HealthzPort = 0  // no unsecured healthz access
+	server.ReadOnlyPort = 0        // no read only access
+	server.CAdvisorPort = 0        // no unsecured cadvisor access
+	server.HealthzPort = 0         // no unsecured healthz access
+	server.HealthzBindAddress = "" // no unsecured healthz access
 	server.ClusterDNS = options.DNSIP
 	server.ClusterDomain = options.DNSDomain
 	server.NetworkPluginName = options.NetworkConfig.NetworkPluginName
@@ -147,6 +148,13 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig) (*NodeConfig, error
 	server.PodInfraContainerImage = imageTemplate.ExpandOrDie("pod")
 	server.CPUCFSQuota = true // enable cpu cfs quota enforcement by default
 	server.MaxPods = 110
+
+	switch server.NetworkPluginName {
+	case ovs.SingleTenantPluginName(), ovs.MultiTenantPluginName():
+		// set defaults for openshift-sdn
+		server.HairpinMode = componentconfig.HairpinNone
+		server.ConfigureCBR0 = false
+	}
 
 	// prevents kube from generating certs
 	server.TLSCertFile = options.ServingInfo.ServerCert.CertFile
@@ -170,49 +178,6 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig) (*NodeConfig, error
 	cfg, err := kubeletapp.UnsecuredKubeletConfig(server)
 	if err != nil {
 		return nil, err
-	}
-
-	// Replace the standard k8s emptyDir volume plugin with a wrapper version
-	// which offers XFS quota functionality, but only if the node config
-	// specifies an empty dir quota to apply to projects:
-	if options.VolumeConfig.LocalQuota.PerFSGroup != nil {
-		glog.V(2).Info("Replacing empty-dir volume plugin with quota wrapper")
-		wrappedEmptyDirPlugin := false
-
-		quotaApplicator, err := empty_dir.NewQuotaApplicator(options.VolumeDirectory)
-		if err != nil {
-			return nil, err
-		}
-
-		// Create a volume spec with emptyDir we can use to search for the
-		// emptyDir plugin with CanSupport:
-		emptyDirSpec := &volume.Spec{
-			Volume: &kapi.Volume{
-				VolumeSource: kapi.VolumeSource{
-					EmptyDir: &kapi.EmptyDirVolumeSource{},
-				},
-			},
-		}
-
-		for idx, plugin := range cfg.VolumePlugins {
-			// Can't really do type checking or use a constant here as they are not exported:
-			if plugin.CanSupport(emptyDirSpec) {
-				wrapper := empty_dir.EmptyDirQuotaPlugin{
-					Wrapped:         plugin,
-					Quota:           *options.VolumeConfig.LocalQuota.PerFSGroup,
-					QuotaApplicator: quotaApplicator,
-				}
-				cfg.VolumePlugins[idx] = &wrapper
-				wrappedEmptyDirPlugin = true
-			}
-		}
-		// Because we can't look for the k8s emptyDir plugin by any means that would
-		// survive a refactor, error out if we couldn't find it:
-		if !wrappedEmptyDirPlugin {
-			return nil, errors.New("unable to wrap emptyDir volume plugin for quota support")
-		}
-	} else {
-		glog.V(2).Info("Skipping replacement of empty-dir volume plugin with quota wrapper, no local fsGroup quota specified")
 	}
 
 	// provide any config overrides

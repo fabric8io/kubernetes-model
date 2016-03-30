@@ -1380,6 +1380,9 @@ type ReplicationControllerStatus struct {
 	// Replicas is the number of actual replicas.
 	Replicas int `json:"replicas"`
 
+	// The number of pods that have labels matching the labels of the pod template of the replication controller.
+	FullyLabeledReplicas int `json:"fullyLabeledReplicas,omitempty"`
+
 	// ObservedGeneration is the most recent generation observed by the controller.
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
@@ -2582,6 +2585,12 @@ type SecurityContextConstraints struct {
 	SupplementalGroups SupplementalGroupsStrategyOptions
 	// FSGroup is the strategy that will dictate what fs group is used by the SecurityContext.
 	FSGroup FSGroupStrategyOptions
+	// ReadOnlyRootFilesystem when set to true will force containers to run with a read only root file
+	// system.  If the container specifically requests to run with a non-read only root file system
+	// the SCC should deny the pod.
+	// If set to false the container may run with a read only root file system if it wishes but it
+	// will not be forced to.
+	ReadOnlyRootFilesystem bool
 
 	// The users who have permissions to use this security context constraints
 	Users []string

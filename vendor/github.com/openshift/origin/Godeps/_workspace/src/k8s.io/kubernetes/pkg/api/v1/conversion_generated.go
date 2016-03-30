@@ -2633,6 +2633,7 @@ func autoConvert_api_ReplicationControllerStatus_To_v1_ReplicationControllerStat
 		defaulting.(func(*api.ReplicationControllerStatus))(in)
 	}
 	out.Replicas = int32(in.Replicas)
+	out.FullyLabeledReplicas = int32(in.FullyLabeledReplicas)
 	out.ObservedGeneration = in.ObservedGeneration
 	return nil
 }
@@ -3038,6 +3039,7 @@ func autoConvert_api_SecurityContextConstraints_To_v1_SecurityContextConstraints
 	if err := Convert_api_FSGroupStrategyOptions_To_v1_FSGroupStrategyOptions(&in.FSGroup, &out.FSGroup, s); err != nil {
 		return err
 	}
+	out.ReadOnlyRootFilesystem = in.ReadOnlyRootFilesystem
 	if in.Users != nil {
 		out.Users = make([]string, len(in.Users))
 		for i := range in.Users {
@@ -6078,6 +6080,7 @@ func autoConvert_v1_ReplicationControllerStatus_To_api_ReplicationControllerStat
 		defaulting.(func(*ReplicationControllerStatus))(in)
 	}
 	out.Replicas = int(in.Replicas)
+	out.FullyLabeledReplicas = int(in.FullyLabeledReplicas)
 	out.ObservedGeneration = in.ObservedGeneration
 	return nil
 }
@@ -6438,6 +6441,7 @@ func autoConvert_v1_SecurityContextConstraints_To_api_SecurityContextConstraints
 	if err := Convert_v1_FSGroupStrategyOptions_To_api_FSGroupStrategyOptions(&in.FSGroup, &out.FSGroup, s); err != nil {
 		return err
 	}
+	out.ReadOnlyRootFilesystem = in.ReadOnlyRootFilesystem
 	if in.Users != nil {
 		out.Users = make([]string, len(in.Users))
 		for i := range in.Users {

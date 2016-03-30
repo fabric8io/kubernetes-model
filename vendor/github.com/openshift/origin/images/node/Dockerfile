@@ -17,7 +17,8 @@ ADD https://copr.fedoraproject.org/coprs/maxamillion/origin-next/repo/epel-7/max
 RUN yum install -y libmnl libnetfilter_conntrack openvswitch \
     libnfnetlink iptables iproute bridge-utils procps-ng ethtool socat openssl \
     binutils xz kmod-libs kmod sysvinit-tools device-mapper-libs dbus \
-    && yum clean all
+    ceph-common iscsi-initiator-utils && \
+    yum clean all
 
 RUN mkdir -p \
     /usr/lib/systemd/system/origin-node.service.d \

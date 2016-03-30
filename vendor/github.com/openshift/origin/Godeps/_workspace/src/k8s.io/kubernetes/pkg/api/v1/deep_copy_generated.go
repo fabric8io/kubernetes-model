@@ -2075,6 +2075,7 @@ func deepCopy_v1_ReplicationControllerSpec(in ReplicationControllerSpec, out *Re
 
 func deepCopy_v1_ReplicationControllerStatus(in ReplicationControllerStatus, out *ReplicationControllerStatus, c *conversion.Cloner) error {
 	out.Replicas = in.Replicas
+	out.FullyLabeledReplicas = in.FullyLabeledReplicas
 	out.ObservedGeneration = in.ObservedGeneration
 	return nil
 }
@@ -2394,6 +2395,7 @@ func deepCopy_v1_SecurityContextConstraints(in SecurityContextConstraints, out *
 	if err := deepCopy_v1_FSGroupStrategyOptions(in.FSGroup, &out.FSGroup, c); err != nil {
 		return err
 	}
+	out.ReadOnlyRootFilesystem = in.ReadOnlyRootFilesystem
 	if in.Users != nil {
 		out.Users = make([]string, len(in.Users))
 		for i := range in.Users {

@@ -27,7 +27,12 @@ angular.module('openshiftConsole')
         // this webkit bug with user-select: none;
         //   https://bugs.webkit.org/show_bug.cgi?id=80159
         line.firstChild.setAttribute('data-line-number', lineNumber);
-        line.lastChild.appendChild(document.createTextNode(text));
+
+        // Escape ANSI color codes
+        var escaped = ansi_up.escape_for_html(text);
+        var html = ansi_up.ansi_to_html(escaped);
+        var linkifiedHTML = ansi_up.linkify(html);
+        line.lastChild.innerHTML = linkifiedHTML;
 
         return line;
       };
@@ -45,7 +50,8 @@ angular.module('openshiftConsole')
           context: '=',
           options: '=?',
           chromeless: '=?',
-          run: '=?'         // boolean, logs will not run until this is truthy
+          empty: '=?',        // boolean, let the parent know when the log is empty
+          run: '=?'           // boolean, logs will not run until this is truthy
         },
         controller: [
           '$scope',
@@ -59,6 +65,7 @@ angular.module('openshiftConsole')
             var $affixableNode;
             var html = document.documentElement;
 
+            $scope.empty = true;
 
             // are we going to scroll the window, or the DOM node?
             var detectScrollableNode = function() {
@@ -248,11 +255,12 @@ angular.module('openshiftConsole')
 
               streamer.onMessage(function(msg, raw, cumulativeBytes) {
                 // ensures the digest loop will catch the state change.
-                if($scope.state !== 'logs') {
-                  $scope.$evalAsync(function() {
+                $scope.$evalAsync(function() {
+                  $scope.empty = false;
+                  if($scope.state !== 'logs') {
                     $scope.state = 'logs';
-                  });
-                }
+                  }
+                });
 
                 if (options.limitBytes && cumulativeBytes >= options.limitBytes) {
                   $scope.$evalAsync(function() {

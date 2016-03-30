@@ -1687,6 +1687,9 @@ type ReplicationControllerStatus struct {
 	// More info: http://releases.k8s.io/release-1.2/docs/user-guide/replication-controller.md#what-is-a-replication-controller
 	Replicas int32 `json:"replicas"`
 
+	// The number of pods that have labels matching the labels of the pod template of the replication controller.
+	FullyLabeledReplicas int32 `json:"fullyLabeledReplicas,omitempty"`
+
 	// ObservedGeneration reflects the generation of the most recently observed replication controller.
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
@@ -3031,6 +3034,12 @@ type SecurityContextConstraints struct {
 	SupplementalGroups SupplementalGroupsStrategyOptions `json:"supplementalGroups,omitempty" description:"strategy used to generate supplemental groups"`
 	// FSGroup is the strategy that will dictate what fs group is used by the SecurityContext.
 	FSGroup FSGroupStrategyOptions `json:"fsGroup,omitempty" description:"strategy used to generate fsGroup"`
+	// ReadOnlyRootFilesystem when set to true will force containers to run with a read only root file
+	// system.  If the container specifically requests to run with a non-read only root file system
+	// the SCC should deny the pod.
+	// If set to false the container may run with a read only root file system if it wishes but it
+	// will not be forced to.
+	ReadOnlyRootFilesystem bool `json:"readOnlyRootFilesystem" description:"require containers to run with a read only root filesystem"`
 
 	// The users who have permissions to use this security context constraints
 	Users []string `json:"users,omitempty" description:"users allowed to use this SecurityContextConstraints"`

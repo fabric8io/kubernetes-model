@@ -18706,6 +18706,11 @@
       "format": "int32",
       "description": "Replicas is the most recently oberved number of replicas. More info: http://releases.k8s.io/release-1.2/docs/user-guide/replication-controller.md#what-is-a-replication-controller"
      },
+     "fullyLabeledReplicas": {
+      "type": "integer",
+      "format": "int32",
+      "description": "The number of pods that have labels matching the labels of the pod template of the replication controller."
+     },
      "observedGeneration": {
       "type": "integer",
       "format": "int64",
@@ -18950,7 +18955,8 @@
      "allowHostNetwork",
      "allowHostPorts",
      "allowHostPID",
-     "allowHostIPC"
+     "allowHostIPC",
+     "readOnlyRootFilesystem"
     ],
     "properties": {
      "kind": {
@@ -19029,6 +19035,10 @@
      "fsGroup": {
       "$ref": "v1.FSGroupStrategyOptions",
       "description": "FSGroup is the strategy that will dictate what fs group is used by the SecurityContext."
+     },
+     "readOnlyRootFilesystem": {
+      "type": "boolean",
+      "description": "ReadOnlyRootFilesystem when set to true will force containers to run with a read only root file system.  If the container specifically requests to run with a non-read only root file system the SCC should deny the pod. If set to false the container may run with a read only root file system if it wishes but it will not be forced to."
      },
      "users": {
       "type": "array",

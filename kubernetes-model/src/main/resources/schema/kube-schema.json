@@ -6955,10 +6955,6 @@
             "javaType": "io.fabric8.openshift.api.model.ImageSource"
           }
         },
-        "jenkinsfile": {
-          "type": "string",
-          "description": ""
-        },
         "secrets": {
           "type": "array",
           "description": "",
@@ -7305,6 +7301,10 @@
       "type": "object",
       "description": "",
       "properties": {
+        "jenkinsfile": {
+          "type": "string",
+          "description": ""
+        },
         "jenkinsfilePath": {
           "type": "string",
           "description": ""
