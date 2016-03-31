@@ -60,7 +60,7 @@ public class KubernetesList extends BaseKubernetesList implements KubernetesReso
         super();
     }
 
-    public KubernetesList(KubernetesList.ApiVersion apiVersion,
+    public KubernetesList(String apiVersion,
                           List<HasMetadata> items,
                           String kind,
                           ListMeta metadata) {

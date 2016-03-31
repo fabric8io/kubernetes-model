@@ -69,7 +69,7 @@ public class Template implements HasMetadata {
      */
     @JsonProperty("apiVersion")
     @NotNull
-    private Template.ApiVersion apiVersion = Template.ApiVersion.fromValue("v1");
+    private String apiVersion = "v1";
     /**
      * (Required)
      */
@@ -122,7 +122,7 @@ public class Template implements HasMetadata {
      * @param kind
      * @param metadata
      */
-    public Template(Template.ApiVersion apiVersion, java.lang.String kind, Map<String, String> labels, ObjectMeta metadata, List<HasMetadata> objects, List<Parameter> parameters) {
+    public Template(String apiVersion, java.lang.String kind, Map<String, String> labels, ObjectMeta metadata, List<HasMetadata> objects, List<Parameter> parameters) {
         this.apiVersion = apiVersion;
         this.kind = kind;
         this.labels = labels;
@@ -137,7 +137,7 @@ public class Template implements HasMetadata {
      * @return The apiVersion
      */
     @JsonProperty("apiVersion")
-    public Template.ApiVersion getApiVersion() {
+    public String getApiVersion() {
         return apiVersion;
     }
 
@@ -147,7 +147,7 @@ public class Template implements HasMetadata {
      * @param apiVersion The apiVersion
      */
     @JsonProperty("apiVersion")
-    public void setApiVersion(Template.ApiVersion apiVersion) {
+    public void setApiVersion(String apiVersion) {
         this.apiVersion = apiVersion;
     }
 
@@ -241,41 +241,5 @@ public class Template implements HasMetadata {
     @JsonAnySetter
     public void setAdditionalProperty(java.lang.String name, java.lang.Object value) {
         this.additionalProperties.put(name, value);
-    }
-
-    @Generated("org.jsonschema2pojo")
-    public static enum ApiVersion {
-
-        V_1("v1");
-        private static Map<java.lang.String, Template.ApiVersion> constants = new HashMap<java.lang.String, Template.ApiVersion>();
-
-        static {
-            for (Template.ApiVersion c : values()) {
-                constants.put(c.value, c);
-            }
-        }
-
-        private final java.lang.String value;
-
-        private ApiVersion(java.lang.String value) {
-            this.value = value;
-        }
-
-        @JsonCreator
-        public static Template.ApiVersion fromValue(java.lang.String value) {
-            Template.ApiVersion constant = constants.get(value);
-            if (constant == null) {
-                throw new IllegalArgumentException(value);
-            } else {
-                return constant;
-            }
-        }
-
-        @JsonValue
-        @Override
-        public java.lang.String toString() {
-            return this.value;
-        }
-
     }
 }
