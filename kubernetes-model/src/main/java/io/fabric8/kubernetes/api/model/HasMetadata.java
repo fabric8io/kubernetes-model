@@ -21,4 +21,6 @@ public interface HasMetadata extends KubernetesResource {
   void setMetadata(ObjectMeta metadata);
 
   String getKind();
+
+  String getApiVersion();
 }

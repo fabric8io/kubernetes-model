@@ -359,7 +359,6 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 					if apiVersion != "unversioned" {
 						v.Required = true
 						v.Default = apiVersion
-						v.Enum = []interface{}{apiVersion}
 					}
 				default:
 					g.addConstraints(t.Name(), k, &v)

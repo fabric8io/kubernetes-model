@@ -444,10 +444,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -582,10 +579,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "conditions": {
           "type": "array",
@@ -620,10 +614,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -659,10 +650,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "data": {
           "type": "object",
@@ -714,10 +702,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -1062,10 +1047,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "gracePeriodSeconds": {
           "type": "integer",
@@ -1204,10 +1186,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -1242,10 +1221,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -1322,10 +1298,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "count": {
           "type": "integer",
@@ -1384,10 +1357,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -1774,10 +1744,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -1865,10 +1832,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -1920,10 +1884,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -2055,10 +2016,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -2093,10 +2051,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -2160,10 +2115,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -2258,10 +2210,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -2547,10 +2496,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -2585,10 +2531,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -2623,10 +2566,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -2731,10 +2671,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -2935,10 +2872,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -3005,10 +2939,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -3218,10 +3149,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -3252,10 +3180,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -3391,10 +3316,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -3429,10 +3351,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -3514,10 +3433,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -3552,10 +3468,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -3735,10 +3648,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "data": {
           "type": "object",
@@ -3794,10 +3704,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -3910,10 +3817,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "defaultAddCapabilities": {
           "type": "array",
@@ -3992,10 +3896,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -4031,10 +3932,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -4069,10 +3967,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "imagePullSecrets": {
           "type": "array",
@@ -4115,10 +4010,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -4154,10 +4046,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -4558,10 +4447,7 @@
           "type": "string",
           "description": "",
           "default": "extensions/v1beta1",
-          "required": true,
-          "enum": [
-            "extensions/v1beta1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -4596,10 +4482,7 @@
           "type": "string",
           "description": "",
           "default": "extensions/v1beta1",
-          "required": true,
-          "enum": [
-            "extensions/v1beta1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -4671,10 +4554,7 @@
           "type": "string",
           "description": "",
           "default": "extensions/v1beta1",
-          "required": true,
-          "enum": [
-            "extensions/v1beta1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -4709,10 +4589,7 @@
           "type": "string",
           "description": "",
           "default": "extensions/v1beta1",
-          "required": true,
-          "enum": [
-            "extensions/v1beta1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -4865,10 +4742,7 @@
           "type": "string",
           "description": "",
           "default": "extensions/v1beta1",
-          "required": true,
-          "enum": [
-            "extensions/v1beta1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -4903,10 +4777,7 @@
           "type": "string",
           "description": "",
           "default": "extensions/v1beta1",
-          "required": true,
-          "enum": [
-            "extensions/v1beta1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -4995,10 +4866,7 @@
           "type": "string",
           "description": "",
           "default": "extensions/v1beta1",
-          "required": true,
-          "enum": [
-            "extensions/v1beta1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -5049,10 +4917,7 @@
           "type": "string",
           "description": "",
           "default": "extensions/v1beta1",
-          "required": true,
-          "enum": [
-            "extensions/v1beta1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -5176,10 +5041,7 @@
           "type": "string",
           "description": "",
           "default": "extensions/v1beta1",
-          "required": true,
-          "enum": [
-            "extensions/v1beta1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -5246,10 +5108,7 @@
           "type": "string",
           "description": "",
           "default": "extensions/v1beta1",
-          "required": true,
-          "enum": [
-            "extensions/v1beta1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -5432,10 +5291,7 @@
           "type": "string",
           "description": "",
           "default": "extensions/v1beta1",
-          "required": true,
-          "enum": [
-            "extensions/v1beta1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -5531,10 +5387,7 @@
           "type": "string",
           "description": "",
           "default": "extensions/v1beta1",
-          "required": true,
-          "enum": [
-            "extensions/v1beta1"
-          ]
+          "required": true
         },
         "description": {
           "type": "string",
@@ -5573,10 +5426,7 @@
           "type": "string",
           "description": "",
           "default": "extensions/v1beta1",
-          "required": true,
-          "enum": [
-            "extensions/v1beta1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -5713,10 +5563,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -5755,10 +5602,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -5801,10 +5645,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -5840,10 +5681,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -5879,10 +5717,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -5917,10 +5752,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "groupNames": {
           "type": "array",
@@ -5975,10 +5807,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -6014,10 +5843,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "content": {
           "$ref": "#/definitions/kubernetes_runtime_RawExtension",
@@ -6141,10 +5967,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -6183,10 +6006,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -6229,10 +6049,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -6268,10 +6085,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -6359,10 +6173,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -6397,10 +6208,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "groupNames": {
           "type": "array",
@@ -6455,10 +6263,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -6494,10 +6299,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -6533,10 +6335,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "content": {
           "$ref": "#/definitions/kubernetes_runtime_RawExtension",
@@ -6600,10 +6399,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -6643,10 +6439,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -6681,10 +6474,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -6719,10 +6509,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -6819,10 +6606,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -6902,10 +6686,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "binary": {
           "$ref": "#/definitions/os_build_BinaryBuildSource",
@@ -7494,10 +7275,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -7532,10 +7310,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -7882,10 +7657,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "dockerImageLayers": {
           "type": "array",
@@ -7953,10 +7725,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -7992,10 +7761,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -8030,10 +7796,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -8249,10 +8012,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "authorizeToken": {
           "type": "string",
@@ -8316,10 +8076,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -8355,10 +8112,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "clientName": {
           "type": "string",
@@ -8418,10 +8172,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -8457,10 +8208,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -8503,10 +8251,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "clientName": {
           "type": "string",
@@ -8553,10 +8298,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -8592,10 +8334,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -8631,10 +8370,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -8669,10 +8405,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -8708,10 +8441,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "description": {
           "type": "string",
@@ -8774,10 +8504,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -8864,10 +8591,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -9027,10 +8751,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -9082,10 +8803,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -9121,10 +8839,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "kind": {
           "type": "string",
@@ -9159,10 +8874,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -9198,10 +8910,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "extra": {
           "type": "object",
@@ -9249,10 +8958,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
@@ -9288,10 +8994,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "fullName": {
           "type": "string",
@@ -9338,10 +9041,7 @@
           "type": "string",
           "description": "",
           "default": "v1",
-          "required": true,
-          "enum": [
-            "v1"
-          ]
+          "required": true
         },
         "items": {
           "type": "array",
