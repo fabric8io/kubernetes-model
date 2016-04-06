@@ -1,5 +1,5 @@
-hash: f33ca67818a746d3d3edd8e015ab2b28aa69fb60c703accea6c2c51af087a798
-updated: 2016-03-30T12:17:56.914136089+01:00
+hash: 0d8f5981bc2bed2b7ecb84b03e5629dd866e3bc5dad225fbc95259cffdf6908b
+updated: 2016-04-06T17:01:43.57942706+01:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c
@@ -37,8 +37,6 @@ imports:
   - store
   - version
   - wal
-  - Godeps/_workspace/src/github.com/ugorji/go/codec
-  - Godeps/_workspace/src/golang.org/x/net/context
 - name: github.com/coreos/go-etcd
   version: 003851be7bb0694fe3cc457a49529a19388ee7cf
   subpackages:
@@ -128,7 +126,7 @@ imports:
   - libcontainer/cgroups
   - libcontainer/system
 - name: github.com/openshift/origin
-  version: 847f33723fe799c202a6bb6c24dc60b89294f80d
+  version: ef1caba064de975387860175c3138aad432cf356
   subpackages:
   - pkg/authorization/api/v1
   - pkg/build/api/v1
