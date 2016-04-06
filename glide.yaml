@@ -17,7 +17,7 @@
 package: github.com/fabric8io/kubernetes-model
 import:
 - package: github.com/openshift/origin
-  version: v1.1.5
+  version: v1.1.6
   subpackages:
   - pkg/authorization/api/v1
   - pkg/build/api/v1
