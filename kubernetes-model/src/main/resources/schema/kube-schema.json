@@ -5254,6 +5254,118 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.extensions.LabelSelectorRequirement"
     },
+    "kubernetes_extensions_ReplicaSet": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "extensions/v1beta1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ReplicaSet",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/kubernetes_extensions_ReplicaSetSpec",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.ReplicaSetSpec"
+        },
+        "status": {
+          "$ref": "#/definitions/kubernetes_extensions_ReplicaSetStatus",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.ReplicaSetStatus"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.ReplicaSet",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_extensions_ReplicaSetList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "extensions/v1beta1",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_ReplicaSet",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.ReplicaSet"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ReplicaSetList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/api_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.ReplicaSetList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kubernetes_extensions_ReplicaSetSpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "description": ""
+        },
+        "selector": {
+          "$ref": "#/definitions/kubernetes_extensions_LabelSelector",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.LabelSelector"
+        },
+        "template": {
+          "$ref": "#/definitions/kubernetes_PodTemplateSpec",
+          "javaType": "io.fabric8.kubernetes.api.model.PodTemplateSpec"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.ReplicaSetSpec"
+    },
+    "kubernetes_extensions_ReplicaSetStatus": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "fullyLabeledReplicas": {
+          "type": "integer",
+          "description": ""
+        },
+        "observedGeneration": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        },
+        "replicas": {
+          "type": "integer",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.ReplicaSetStatus"
+    },
     "kubernetes_extensions_RollbackConfig": {
       "type": "object",
       "description": "",
@@ -9349,6 +9461,14 @@
     "Quantity": {
       "$ref": "#/definitions/kubernetes_resource_Quantity",
       "javaType": "io.fabric8.kubernetes.api.model.Quantity"
+    },
+    "ReplicaSet": {
+      "$ref": "#/definitions/kubernetes_extensions_ReplicaSet",
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.ReplicaSet"
+    },
+    "ReplicaSetList": {
+      "$ref": "#/definitions/kubernetes_extensions_ReplicaSetList",
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.ReplicaSetList"
     },
     "ReplicationControllerList": {
       "$ref": "#/definitions/kubernetes_ReplicationControllerList",
