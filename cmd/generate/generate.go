@@ -138,6 +138,8 @@ type Schema struct {
 	DaemonSetList                  extensions.DaemonSetList
 	Ingress                        extensions.Ingress
 	IngressList                    extensions.IngressList
+	ReplicaSet                     extensions.ReplicaSet
+	ReplicaSetList                 extensions.ReplicaSetList
 	ConfigMap                      kapi.ConfigMap
 	ConfigMapList                  kapi.ConfigMapList
 }
