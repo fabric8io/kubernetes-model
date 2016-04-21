@@ -1,5 +1,5 @@
-hash: 32f069bcd1c6a442e5edc50f70314a2e58b2ed11ffd6d922dcfa8311920a75b2
-updated: 2016-04-21T17:03:00.272651963+01:00
+hash: 6b5b94819844a72835c103f2dbf083a9cca0ac03ba4c16974553c56de389e923
+updated: 2016-04-21T17:28:28.442993348+01:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c
@@ -41,6 +41,10 @@ imports:
   version: 003851be7bb0694fe3cc457a49529a19388ee7cf
   subpackages:
   - etcd
+- name: github.com/coreos/go-systemd
+  version: 7b2428fec40033549c68f54e26e89e7ca9a9ce31
+  subpackages:
+  - journal
 - name: github.com/coreos/pkg
   version: 057ebef4f847b1f18fa40c362c228e2673f02dfb
   subpackages:

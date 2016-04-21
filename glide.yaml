@@ -31,3 +31,6 @@ import:
 - package: github.com/golang/groupcache
   subpackages:
   - lru
+- package: github.com/coreos/go-systemd
+  subpackages:
+  - journal
