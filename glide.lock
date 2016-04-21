@@ -1,5 +1,5 @@
-hash: 43eff8630db5df5852dc186aba7a4e9653ba1aeff992b6e2b4ba4bbaddf2ebb3
-updated: 2016-04-21T16:40:10.50908792+01:00
+hash: 32f069bcd1c6a442e5edc50f70314a2e58b2ed11ffd6d922dcfa8311920a75b2
+updated: 2016-04-21T17:03:00.272651963+01:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c
@@ -41,6 +41,10 @@ imports:
   version: 003851be7bb0694fe3cc457a49529a19388ee7cf
   subpackages:
   - etcd
+- name: github.com/coreos/pkg
+  version: 057ebef4f847b1f18fa40c362c228e2673f02dfb
+  subpackages:
+  - capnslog
 - name: github.com/cpuguy83/go-md2man
   version: 71acacd42f85e5e82f70a55327789582a5200a90
   subpackages:
@@ -108,6 +112,10 @@ imports:
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/golang/glog
   version: 44145f04b68cf362d9c4df2182967c2275eaefed
+- name: github.com/golang/groupcache
+  version: 4eab30f13db9d8b25c752e99d1583628ac2fa422
+  subpackages:
+  - lru
 - name: github.com/golang/protobuf
   version: b982704f8bb716bb608144408cff30e15fbde841
   subpackages:
