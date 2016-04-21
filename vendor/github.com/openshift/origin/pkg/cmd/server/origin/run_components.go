@@ -269,9 +269,14 @@ func (c *MasterConfig) RunBuildImageChangeTriggerController() {
 
 // RunBuildConfigChangeController starts the build config change trigger controller process.
 func (c *MasterConfig) RunBuildConfigChangeController() {
-	bcClient, _ := c.BuildConfigChangeControllerClients()
+	bcClient, kClient := c.BuildConfigChangeControllerClients()
 	bcInstantiator := buildclient.NewOSClientBuildConfigInstantiatorClient(bcClient)
-	factory := buildcontrollerfactory.BuildConfigControllerFactory{Client: bcClient, BuildConfigInstantiator: bcInstantiator}
+	factory := buildcontrollerfactory.BuildConfigControllerFactory{
+		Client:                  bcClient,
+		KubeClient:              kClient,
+		BuildConfigInstantiator: bcInstantiator,
+		JenkinsConfig:           c.Options.JenkinsPipelineConfig,
+	}
 	factory.Create().Run()
 }
 
@@ -305,8 +310,9 @@ func (c *MasterConfig) RunDeploymentController() {
 
 // RunDeployerPodController starts the deployer pod controller process.
 func (c *MasterConfig) RunDeployerPodController() {
-	_, kclient := c.DeployerPodControllerClients()
+	osclient, kclient := c.DeployerPodControllerClients()
 	factory := deployerpodcontroller.DeployerPodControllerFactory{
+		Client:     osclient,
 		KubeClient: kclient,
 		Codec:      c.EtcdHelper.Codec(),
 	}

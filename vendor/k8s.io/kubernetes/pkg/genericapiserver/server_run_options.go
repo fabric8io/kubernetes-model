@@ -30,7 +30,6 @@ type ServerRunOptions struct {
 	BindAddress          net.IP
 	CertDirectory        string
 	ClientCAFile         string
-	EtcdQuorumRead       bool
 	InsecureBindAddress  net.IP
 	InsecurePort         int
 	LongRunningRequestRE string
@@ -47,6 +46,7 @@ func NewServerRunOptions() *ServerRunOptions {
 		InsecureBindAddress:  net.ParseIP("127.0.0.1"),
 		InsecurePort:         8080,
 		LongRunningRequestRE: defaultLongRunningRequestRE,
+		MaxRequestsInFlight:  400,
 		SecurePort:           6443,
 	}
 }

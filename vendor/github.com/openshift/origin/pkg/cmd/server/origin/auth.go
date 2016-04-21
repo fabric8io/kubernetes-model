@@ -69,7 +69,7 @@ import (
 
 const (
 	OpenShiftOAuthAPIPrefix      = "/oauth"
-	OpenShiftLoginPrefix         = "/login"
+	openShiftLoginPrefix         = "/login"
 	OpenShiftApprovePrefix       = "/oauth/approve"
 	OpenShiftOAuthCallbackPrefix = "/oauth2callback"
 	OpenShiftWebConsoleClientID  = "openshift-web-console"
@@ -81,8 +81,7 @@ const (
 // then returns an array of strings indicating what endpoints were started
 // (these are format strings that will expect to be sent a single string value).
 func (c *AuthConfig) InstallAPI(container *restful.Container) ([]string, error) {
-	// TODO: register into container
-	mux := container.ServeMux
+	mux := c.getMux(container)
 
 	accessTokenStorage := accesstokenetcd.NewREST(c.EtcdHelper, c.EtcdBackends...)
 	accessTokenRegistry := accesstokenregistry.NewRegistry(accessTokenStorage)
@@ -171,8 +170,21 @@ func (c *AuthConfig) InstallAPI(container *restful.Container) ([]string, error) 
 
 	return []string{
 		fmt.Sprintf("Started OAuth2 API at %%s%s", OpenShiftOAuthAPIPrefix),
-		fmt.Sprintf("Started Login endpoint at %%s%s", OpenShiftLoginPrefix),
 	}, nil
+}
+
+func (c *AuthConfig) getMux(container *restful.Container) cmdutil.Mux {
+	// Register directly into the container's mux
+	if c.HandlerWrapper == nil {
+		return container.ServeMux
+	}
+
+	// Wrap all handlers before registering into the container's mux
+	// This lets us do things like defer session clearing to the end of a request
+	return &handlerWrapperMux{
+		mux:     container.ServeMux,
+		wrapper: c.HandlerWrapper,
+	}
 }
 
 func (c *AuthConfig) getErrorHandler() (*errorpage.ErrorPage, error) {
@@ -349,9 +361,23 @@ func (c *AuthConfig) getAuthenticationFinalizer() osinserver.AuthorizeHandler {
 }
 
 func (c *AuthConfig) getAuthenticationHandler(mux cmdutil.Mux, errorHandler handlers.AuthenticationErrorHandler) (handlers.AuthenticationHandler, error) {
-	// TODO: make these ordered once we can have more than one
+	// TODO: make this ordered once we can have more than one
 	challengers := map[string]handlers.AuthenticationChallenger{}
-	redirectors := map[string]handlers.AuthenticationRedirector{}
+
+	redirectors := new(handlers.AuthenticationRedirectors)
+
+	// Determine if we have more than one password-based Identity Provider
+	multiplePasswordProviders := false
+	passwordProviderCount := 0
+	for _, identityProvider := range c.Options.IdentityProviders {
+		if configapi.IsPasswordAuthenticator(identityProvider) && identityProvider.UseAsLogin {
+			passwordProviderCount++
+			if passwordProviderCount > 1 {
+				multiplePasswordProviders = true
+				break
+			}
+		}
+	}
 
 	for _, identityProvider := range c.Options.IdentityProviders {
 		identityMapper, err := identitymapper.NewIdentityUserMapper(c.IdentityRegistry, c.UserRegistry, identitymapper.MappingMethodType(identityProvider.MappingMethod))
@@ -375,8 +401,24 @@ func (c *AuthConfig) getAuthenticationHandler(mux cmdutil.Mux, errorHandler hand
 				}
 				passwordSuccessHandler := handlers.AuthenticationSuccessHandlers{c.SessionAuth, redirectSuccessHandler{}}
 
+				var (
+					// loginPath is unescaped, the way the mux will see it once URL-decoding is done
+					loginPath = openShiftLoginPrefix
+					// redirectLoginPath is escaped, the way we would need to send a Location redirect to a client
+					redirectLoginPath = openShiftLoginPrefix
+				)
+
+				if multiplePasswordProviders {
+					// If there is more than one Identity Provider acting as a login
+					// provider, we need to give each of them their own login path,
+					// to avoid ambiguity.
+					loginPath = path.Join(openShiftLoginPrefix, identityProvider.Name)
+					// url-encode the provider name for redirecting
+					redirectLoginPath = path.Join(openShiftLoginPrefix, (&url.URL{Path: identityProvider.Name}).String())
+				}
+
 				// Since we're redirecting to a local login page, we don't need to force absolute URL resolution
-				redirectors[identityProvider.Name] = redirector.NewRedirector(nil, OpenShiftLoginPrefix+"?then=${url}")
+				redirectors.Add(identityProvider.Name, redirector.NewRedirector(nil, redirectLoginPath+"?then=${url}"))
 
 				var loginTemplateFile string
 				if c.Options.Templates != nil {
@@ -388,7 +430,7 @@ func (c *AuthConfig) getAuthenticationHandler(mux cmdutil.Mux, errorHandler hand
 				}
 
 				login := login.NewLogin(identityProvider.Name, c.getCSRF(), &callbackPasswordAuthenticator{passwordAuth, passwordSuccessHandler}, loginFormRenderer)
-				login.Install(mux, OpenShiftLoginPrefix)
+				login.Install(mux, loginPath)
 			}
 			if identityProvider.UseAsChallenger {
 				// For now, all password challenges share a single basic challenger, since they'll all respond to any basic credentials
@@ -422,7 +464,7 @@ func (c *AuthConfig) getAuthenticationHandler(mux cmdutil.Mux, errorHandler hand
 
 			mux.Handle(callbackPath, oauthHandler)
 			if identityProvider.UseAsLogin {
-				redirectors[identityProvider.Name] = oauthHandler
+				redirectors.Add(identityProvider.Name, oauthHandler)
 			}
 			if identityProvider.UseAsChallenger {
 				return nil, errors.New("oauth identity providers cannot issue challenges")
@@ -437,12 +479,12 @@ func (c *AuthConfig) getAuthenticationHandler(mux cmdutil.Mux, errorHandler hand
 				challengers["requestheader-"+identityProvider.Name+"-redirect"] = redirector.NewChallenger(baseRequestURL, requestHeaderProvider.ChallengeURL)
 			}
 			if identityProvider.UseAsLogin {
-				redirectors[identityProvider.Name] = redirector.NewRedirector(baseRequestURL, requestHeaderProvider.LoginURL)
+				redirectors.Add(identityProvider.Name, redirector.NewRedirector(baseRequestURL, requestHeaderProvider.LoginURL))
 			}
 		}
 	}
 
-	if len(redirectors) > 0 && len(challengers) == 0 {
+	if redirectors.Count() > 0 && len(challengers) == 0 {
 		// Add a default challenger that will warn and give a link to the web browser token-granting location
 		challengers["placeholder"] = placeholderchallenger.New(OpenShiftOAuthTokenRequestURL(c.Options.MasterPublicURL))
 	}
@@ -654,7 +696,7 @@ func (c *AuthConfig) getAuthenticationRequestHandler() (authenticator.Request, e
 						return nil, fmt.Errorf("Error loading certs from %s: %v", provider.ClientCA, err)
 					}
 
-					authRequestHandler = x509request.NewVerifier(opts, authRequestHandler)
+					authRequestHandler = x509request.NewVerifier(opts, authRequestHandler, sets.NewString(provider.ClientCommonNames...))
 				}
 				authRequestHandlers = append(authRequestHandlers, authRequestHandler)
 

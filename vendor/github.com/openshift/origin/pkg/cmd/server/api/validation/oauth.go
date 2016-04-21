@@ -86,9 +86,6 @@ func ValidateOAuthConfig(config *api.OAuthConfig, fldPath *field.Path) Validatio
 		}
 	}
 
-	if len(redirectingIdentityProviders) > 1 {
-		validationResults.AddErrors(field.Invalid(fldPath.Child("identityProviders"), "login", fmt.Sprintf("only one identity provider can support login for a browser, found: %v", strings.Join(redirectingIdentityProviders, ", "))))
-	}
 	if len(challengeRedirectingIdentityProviders) > 1 {
 		validationResults.AddErrors(field.Invalid(fldPath.Child("identityProviders"), "challenge", fmt.Sprintf("only one identity provider can redirect clients requesting an authentication challenge, found: %v", strings.Join(challengeRedirectingIdentityProviders, ", "))))
 	}
@@ -238,7 +235,10 @@ func ValidateRequestHeaderIdentityProvider(provider *api.RequestHeaderIdentityPr
 
 	if len(provider.ClientCA) > 0 {
 		validationResults.AddErrors(ValidateFile(provider.ClientCA, fieldPath.Child("provider", "clientCA"))...)
+	} else if len(provider.ClientCommonNames) > 0 {
+		validationResults.AddErrors(field.Invalid(fieldPath.Child("provider", "clientCommonNames"), provider.ClientCommonNames, "clientCA must be specified in order to use clientCommonNames"))
 	}
+
 	if len(provider.Headers) == 0 {
 		validationResults.AddErrors(field.Required(fieldPath.Child("provider", "headers"), ""))
 	}

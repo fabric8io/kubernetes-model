@@ -162,6 +162,58 @@ items:
   kind: ClusterRole
   metadata:
     creationTimestamp: null
+    name: system:build-strategy-docker
+  rules:
+  - apiGroups:
+    - ""
+    attributeRestrictions: null
+    resources:
+    - builds/docker
+    verbs:
+    - create
+- apiVersion: v1
+  kind: ClusterRole
+  metadata:
+    creationTimestamp: null
+    name: system:build-strategy-custom
+  rules:
+  - apiGroups:
+    - ""
+    attributeRestrictions: null
+    resources:
+    - builds/custom
+    verbs:
+    - create
+- apiVersion: v1
+  kind: ClusterRole
+  metadata:
+    creationTimestamp: null
+    name: system:build-strategy-source
+  rules:
+  - apiGroups:
+    - ""
+    attributeRestrictions: null
+    resources:
+    - builds/source
+    verbs:
+    - create
+- apiVersion: v1
+  kind: ClusterRole
+  metadata:
+    creationTimestamp: null
+    name: system:build-strategy-jenkinspipeline
+  rules:
+  - apiGroups:
+    - ""
+    attributeRestrictions: null
+    resources:
+    - builds/jenkinspipeline
+    verbs:
+    - create
+- apiVersion: v1
+  kind: ClusterRole
+  metadata:
+    creationTimestamp: null
     name: admin
   rules:
   - apiGroups:
@@ -203,11 +255,7 @@ items:
     - buildlogs
     - builds
     - builds/clone
-    - builds/custom
-    - builds/docker
-    - builds/jenkinspipeline
     - builds/log
-    - builds/source
     - deploymentconfigrollbacks
     - deploymentconfigs
     - deploymentconfigs/log
@@ -272,7 +320,6 @@ items:
     - extensions
     attributeRestrictions: null
     resources:
-    - daemonsets
     - horizontalpodautoscalers
     - jobs
     - replicationcontrollers/scale
@@ -284,6 +331,15 @@ items:
     - list
     - patch
     - update
+    - watch
+  - apiGroups:
+    - extensions
+    attributeRestrictions: null
+    resources:
+    - daemonsets
+    verbs:
+    - get
+    - list
     - watch
   - apiGroups: null
     attributeRestrictions: null
@@ -376,11 +432,7 @@ items:
     - buildlogs
     - builds
     - builds/clone
-    - builds/custom
-    - builds/docker
-    - builds/jenkinspipeline
     - builds/log
-    - builds/source
     - deploymentconfigrollbacks
     - deploymentconfigs
     - deploymentconfigs/log
@@ -438,7 +490,6 @@ items:
     - extensions
     attributeRestrictions: null
     resources:
-    - daemonsets
     - horizontalpodautoscalers
     - jobs
     - replicationcontrollers/scale
@@ -450,6 +501,15 @@ items:
     - list
     - patch
     - update
+    - watch
+  - apiGroups:
+    - extensions
+    attributeRestrictions: null
+    resources:
+    - daemonsets
+    verbs:
+    - get
+    - list
     - watch
   - apiGroups: null
     attributeRestrictions: null
@@ -657,6 +717,23 @@ items:
     resources: []
     verbs:
     - get
+- apiVersion: v1
+  kind: ClusterRole
+  metadata:
+    creationTimestamp: null
+    name: system:image-auditor
+  rules:
+  - apiGroups:
+    - ""
+    attributeRestrictions: null
+    resources:
+    - images
+    verbs:
+    - get
+    - list
+    - patch
+    - update
+    - watch
 - apiVersion: v1
   kind: ClusterRole
   metadata:

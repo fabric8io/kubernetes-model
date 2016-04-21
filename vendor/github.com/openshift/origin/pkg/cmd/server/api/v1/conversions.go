@@ -32,6 +32,19 @@ func addDefaultingFuncs(scheme *runtime.Scheme) {
 			if len(obj.RoutingConfig.Subdomain) == 0 {
 				obj.RoutingConfig.Subdomain = "router.default.svc.cluster.local"
 			}
+			if len(obj.JenkinsPipelineConfig.Namespace) == 0 {
+				obj.JenkinsPipelineConfig.Namespace = "openshift"
+			}
+			if len(obj.JenkinsPipelineConfig.TemplateName) == 0 {
+				obj.JenkinsPipelineConfig.TemplateName = "jenkins"
+			}
+			if len(obj.JenkinsPipelineConfig.ServiceName) == 0 {
+				obj.JenkinsPipelineConfig.ServiceName = "jenkins"
+			}
+			if obj.JenkinsPipelineConfig.Disabled == nil {
+				disabled := false
+				obj.JenkinsPipelineConfig.Disabled = &disabled
+			}
 
 			// Populate the new NetworkConfig.ServiceNetworkCIDR field from the KubernetesMasterConfig.ServicesSubnet field if needed
 			if len(obj.NetworkConfig.ServiceNetworkCIDR) == 0 {
@@ -305,6 +318,15 @@ func addConversionFuncs(scheme *runtime.Scheme) {
 				}
 			}
 			out.Location = in.Location
+			return nil
+		},
+		func(in *MasterVolumeConfig, out *internal.MasterVolumeConfig, s conversion.Scope) error {
+			out.DynamicProvisioningEnabled = (in.DynamicProvisioningEnabled == nil) || (*in.DynamicProvisioningEnabled)
+			return nil
+		},
+		func(in *internal.MasterVolumeConfig, out *MasterVolumeConfig, s conversion.Scope) error {
+			enabled := in.DynamicProvisioningEnabled
+			out.DynamicProvisioningEnabled = &enabled
 			return nil
 		},
 		api.Convert_resource_Quantity_To_resource_Quantity,

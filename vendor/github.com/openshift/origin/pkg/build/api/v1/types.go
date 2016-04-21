@@ -83,7 +83,7 @@ type BuildStatus struct {
 	Duration time.Duration `json:"duration,omitempty"`
 
 	// OutputDockerImageReference contains a reference to the Docker image that
-	// will be built by this build. It's value is computed from
+	// will be built by this build. Its value is computed from
 	// Build.Spec.Output.To, and should include the registry address, so that
 	// it can be used to push and pull the image.
 	OutputDockerImageReference string `json:"outputDockerImageReference,omitempty"`
@@ -304,7 +304,8 @@ type BuildStrategy struct {
 	// CustomStrategy holds the parameters to the Custom build strategy
 	CustomStrategy *CustomBuildStrategy `json:"customStrategy,omitempty"`
 
-	// JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy
+	// JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy.
+	// This strategy is experimental.
 	JenkinsPipelineStrategy *JenkinsPipelineBuildStrategy `json:"jenkinsPipelineStrategy,omitempty"`
 }
 
@@ -409,13 +410,14 @@ type SourceBuildStrategy struct {
 }
 
 // JenkinsPipelineBuildStrategy holds parameters specific to a Jenkins Pipeline build.
+// This strategy is experimental.
 type JenkinsPipelineBuildStrategy struct {
-	// JenkinsfilePath is the path of the Jenkinsfile that will be used to configure the pipeline
-	// relative to the root of the source repository. If both JenkinsfilePath & Jenkinsfile are
-	// both not specified, this defaults to Jenkinsfile in the root of the specified git repo.
+	// JenkinsfilePath is the optional path of the Jenkinsfile that will be used to configure the pipeline
+	// relative to the root of the context (contextDir).If both JenkinsfilePath & Jenkinsfile are
+	// both not specified, this defaults to Jenkinsfile in the root of the specified contextDir.
 	JenkinsfilePath string `json:"jenkinsfilePath,omitempty"`
 
-	// Jenkinsfile is the raw contents of a Jenkinsfile which defines a Jenkins pipeline build.
+	// Jenkinsfile defines the optional raw contents of a Jenkinsfile which defines a Jenkins pipeline build.
 	Jenkinsfile string `json:"jenkinsfile,omitempty"`
 }
 
@@ -434,53 +436,53 @@ type JenkinsPipelineBuildStrategy struct {
 //
 // 1. Shell script:
 //
-// 	BuildPostCommitSpec{
-// 		Script: "rake test --verbose",
-// 	}
+//        "postCommit": {
+//          "script": "rake test --verbose",
+//        }
 //
-// The above is a convenient form which is equivalent to:
+//     The above is a convenient form which is equivalent to:
 //
-// 	BuildPostCommitSpec{
-// 		Command: []string{"/bin/sh", "-ic"},
-// 		Args: []string{"rake test --verbose"},
-// 	}
+//        "postCommit": {
+//          "command": ["/bin/sh", "-ic"],
+//          "args":    ["rake test --verbose"]
+//        }
 //
-// 2. Command as the image entrypoint:
+// 2. A command as the image entrypoint:
 //
-// 	BuildPostCommitSpec{
-// 		Command: []string{"rake", "test", "--verbose"},
-// 	}
+//        "postCommit": {
+//          "commit": ["rake", "test", "--verbose"]
+//        }
 //
-// Command overrides the image entrypoint in the exec form, as documented in
-// Docker: https://docs.docker.com/engine/reference/builder/#entrypoint.
+//     Command overrides the image entrypoint in the exec form, as documented in
+//     Docker: https://docs.docker.com/engine/reference/builder/#entrypoint.
 //
 // 3. Pass arguments to the default entrypoint:
 //
-// 	BuildPostCommitSpec{
-// 		Args: []string{"rake", "test", "--verbose"},
-// 	}
+//        "postCommit": {
+// 		      "args": ["rake", "test", "--verbose"]
+// 	      }
 //
-// This form is only useful if the image entrypoint can handle arguments.
+//     This form is only useful if the image entrypoint can handle arguments.
 //
 // 4. Shell script with arguments:
 //
-// 	BuildPostCommitSpec{
-// 		Script: "rake test $1",
-// 		Args: []string{"--verbose"},
-// 	}
+//        "postCommit": {
+//          "script": "rake test $1",
+//          "args":   ["--verbose"]
+//        }
 //
-// This form is useful if you need to pass arguments that would otherwise be
-// hard to quote properly in the shell script. In the script, $0 will be
-// "/bin/sh" and $1, $2, etc, are the positional arguments from Args.
+//     This form is useful if you need to pass arguments that would otherwise be
+//     hard to quote properly in the shell script. In the script, $0 will be
+//     "/bin/sh" and $1, $2, etc, are the positional arguments from Args.
 //
 // 5. Command with arguments:
 //
-// 	BuildPostCommitSpec{
-// 		Command: []string{"rake", "test"},
-// 		Args: []string{"--verbose"},
-// 	}
+//        "postCommit": {
+//          "command": ["rake", "test"],
+//          "args":    ["--verbose"]
+//        }
 //
-// This form is equivalent to appending the arguments to the Command slice.
+//     This form is equivalent to appending the arguments to the Command slice.
 //
 // It is invalid to provide both Script and Command simultaneously. If none of
 // the fields are specified, the hook is not executed.

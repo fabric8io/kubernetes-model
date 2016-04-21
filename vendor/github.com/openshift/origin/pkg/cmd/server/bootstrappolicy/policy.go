@@ -11,6 +11,7 @@ import (
 
 	"github.com/openshift/origin/pkg/api"
 	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
+	imageapi "github.com/openshift/origin/pkg/image/api"
 )
 
 func GetBootstrapOpenshiftRoles(openshiftNamespace string) []authorizationapi.Role {
@@ -110,6 +111,55 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 		},
 		{
 			ObjectMeta: kapi.ObjectMeta{
+				Name: BuildStrategyDockerRoleName,
+			},
+			Rules: []authorizationapi.PolicyRule{
+				{
+					APIGroups: []string{api.GroupName},
+					Verbs:     sets.NewString("create"),
+					Resources: sets.NewString(authorizationapi.DockerBuildResource),
+				},
+			},
+		},
+		{
+			ObjectMeta: kapi.ObjectMeta{
+				Name: BuildStrategyCustomRoleName,
+			},
+			Rules: []authorizationapi.PolicyRule{
+				{
+					APIGroups: []string{api.GroupName},
+					Verbs:     sets.NewString("create"),
+					Resources: sets.NewString(authorizationapi.CustomBuildResource),
+				},
+			},
+		},
+		{
+			ObjectMeta: kapi.ObjectMeta{
+				Name: BuildStrategySourceRoleName,
+			},
+			Rules: []authorizationapi.PolicyRule{
+				{
+					APIGroups: []string{api.GroupName},
+					Verbs:     sets.NewString("create"),
+					Resources: sets.NewString(authorizationapi.SourceBuildResource),
+				},
+			},
+		},
+		{
+			ObjectMeta: kapi.ObjectMeta{
+				Name: BuildStrategyJenkinsPipelineRoleName,
+			},
+			Rules: []authorizationapi.PolicyRule{
+				{
+					APIGroups: []string{api.GroupName},
+					Verbs:     sets.NewString("create"),
+					Resources: sets.NewString(authorizationapi.JenkinsPipelineBuildResource),
+				},
+			},
+		},
+
+		{
+			ObjectMeta: kapi.ObjectMeta{
 				Name: AdminRoleName,
 			},
 			Rules: []authorizationapi.PolicyRule{
@@ -131,10 +181,6 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 						authorizationapi.OpenshiftExposedGroupName,
 						authorizationapi.PermissionGrantingGroupName,
 						"projects",
-						authorizationapi.DockerBuildResource,
-						authorizationapi.SourceBuildResource,
-						authorizationapi.CustomBuildResource,
-						authorizationapi.JenkinsPipelineBuildResource,
 						"deploymentconfigs/scale",
 						"imagestreams/secrets",
 					),
@@ -152,7 +198,12 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				{
 					APIGroups: []string{extensions.GroupName},
 					Verbs:     sets.NewString("get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"),
-					Resources: sets.NewString("daemonsets", "jobs", "horizontalpodautoscalers", "replicationcontrollers/scale"),
+					Resources: sets.NewString("jobs", "horizontalpodautoscalers", "replicationcontrollers/scale"),
+				},
+				{
+					APIGroups: []string{extensions.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch"),
+					Resources: sets.NewString("daemonsets"),
 				},
 				{
 					Verbs:     sets.NewString("get", "list", "watch"),
@@ -191,10 +242,6 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 					Verbs:     sets.NewString("get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"),
 					Resources: sets.NewString(
 						authorizationapi.OpenshiftExposedGroupName,
-						authorizationapi.DockerBuildResource,
-						authorizationapi.SourceBuildResource,
-						authorizationapi.CustomBuildResource,
-						authorizationapi.JenkinsPipelineBuildResource,
 						"deploymentconfigs/scale",
 						"imagestreams/secrets",
 					),
@@ -212,7 +259,12 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				{
 					APIGroups: []string{extensions.GroupName},
 					Verbs:     sets.NewString("get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"),
-					Resources: sets.NewString("daemonsets", "jobs", "horizontalpodautoscalers", "replicationcontrollers/scale"),
+					Resources: sets.NewString("jobs", "horizontalpodautoscalers", "replicationcontrollers/scale"),
+				},
+				{
+					APIGroups: []string{extensions.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch"),
+					Resources: sets.NewString("daemonsets"),
 				},
 				{
 					Verbs:     sets.NewString("get", "list", "watch"),
@@ -291,6 +343,18 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 						"/oapi", "/oapi/*",
 						"/osapi", "/osapi/", // these cannot be removed until we can drop support for pre 3.1 clients
 					),
+				},
+			},
+		},
+		{
+			ObjectMeta: kapi.ObjectMeta{
+				Name: ImageAuditorRoleName,
+			},
+			Rules: []authorizationapi.PolicyRule{
+				{
+					APIGroups: []string{imageapi.GroupName},
+					Verbs:     sets.NewString("get", "list", "watch", "patch", "update"),
+					Resources: sets.NewString("images"),
 				},
 			},
 		},
@@ -920,6 +984,30 @@ func GetBootstrapClusterRoleBindings() []authorizationapi.ClusterRoleBinding {
 				{Kind: authorizationapi.SystemGroupKind, Name: AuthenticatedGroup},
 				{Kind: authorizationapi.SystemGroupKind, Name: UnauthenticatedGroup},
 			},
+		},
+
+		// Allow all build strategies by default.
+		// Cluster admins can remove these role bindings, and the reconcile-cluster-role-bindings command
+		// run during an upgrade won't re-add the "system:authenticated" group
+		{
+			ObjectMeta: kapi.ObjectMeta{Name: BuildStrategyDockerRoleBindingName},
+			RoleRef:    kapi.ObjectReference{Name: BuildStrategyDockerRoleName},
+			Subjects:   []kapi.ObjectReference{{Kind: authorizationapi.SystemGroupKind, Name: AuthenticatedGroup}},
+		},
+		{
+			ObjectMeta: kapi.ObjectMeta{Name: BuildStrategyCustomRoleBindingName},
+			RoleRef:    kapi.ObjectReference{Name: BuildStrategyCustomRoleName},
+			Subjects:   []kapi.ObjectReference{{Kind: authorizationapi.SystemGroupKind, Name: AuthenticatedGroup}},
+		},
+		{
+			ObjectMeta: kapi.ObjectMeta{Name: BuildStrategySourceRoleBindingName},
+			RoleRef:    kapi.ObjectReference{Name: BuildStrategySourceRoleName},
+			Subjects:   []kapi.ObjectReference{{Kind: authorizationapi.SystemGroupKind, Name: AuthenticatedGroup}},
+		},
+		{
+			ObjectMeta: kapi.ObjectMeta{Name: BuildStrategyJenkinsPipelineRoleBindingName},
+			RoleRef:    kapi.ObjectReference{Name: BuildStrategyJenkinsPipelineRoleName},
+			Subjects:   []kapi.ObjectReference{{Kind: authorizationapi.SystemGroupKind, Name: AuthenticatedGroup}},
 		},
 	}
 }

@@ -34,9 +34,11 @@ import (
 
 func newStorageDestinations(groupName string, groupMeta *apimachinery.GroupMeta) (*genericapiserver.StorageDestinations, error) {
 	storageDestinations := genericapiserver.NewStorageDestinations()
-	var storageConfig etcdstorage.EtcdConfig
-	storageConfig.ServerList = []string{"http://127.0.0.1:4001"}
-	storageConfig.Prefix = genericapiserver.DefaultEtcdPathPrefix
+	var storageConfig etcdstorage.EtcdStorageConfig
+	storageConfig.Config = etcdstorage.EtcdConfig{
+		Prefix:     genericapiserver.DefaultEtcdPathPrefix,
+		ServerList: []string{"http://127.0.0.1:4001"},
+	}
 	storageConfig.Codec = groupMeta.Codec
 	storageInterface, err := storageConfig.NewStorage()
 	if err != nil {
@@ -48,10 +50,11 @@ func newStorageDestinations(groupName string, groupMeta *apimachinery.GroupMeta)
 
 func Run() error {
 	config := genericapiserver.Config{
-		EnableIndex:    true,
-		APIPrefix:      "/api",
-		APIGroupPrefix: "/apis",
-		Serializer:     api.Codecs,
+		EnableIndex:          true,
+		EnableSwaggerSupport: true,
+		APIPrefix:            "/api",
+		APIGroupPrefix:       "/apis",
+		Serializer:           api.Codecs,
 	}
 	s, err := genericapiserver.New(&config)
 	if err != nil {

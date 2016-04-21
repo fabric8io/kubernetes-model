@@ -265,6 +265,19 @@ func (ImagePolicyConfig) SwaggerDoc() map[string]string {
 	return map_ImagePolicyConfig
 }
 
+var map_JenkinsPipelineConfig = map[string]string{
+	"":             "JenkinsPipelineConfig holds configuration for the Jenkins pipeline strategy",
+	"disabled":     "Disabled disables the Jenkins Pipeline auto-instantiation of Jenkins template. The ServiceName is still used to verify the project already have the Jenkins available. When not specified (default), this option defaults to false",
+	"namespace":    "Namespace contains the namespace name where the Jenkins template is stored",
+	"templateName": "TemplateName is the name of the default Jenkins template",
+	"serviceName":  "ServiceName is the name of the Jenkins service OpenShift use for Jenkins pipeline",
+	"parameters":   "Parameters specifies a set of optional parameters to the Jenkins template",
+}
+
+func (JenkinsPipelineConfig) SwaggerDoc() map[string]string {
+	return map_JenkinsPipelineConfig
+}
+
 var map_KeystonePasswordIdentityProvider = map[string]string{
 	"":           "KeystonePasswordIdentityProvider provides identities for users authenticating using keystone password credentials",
 	"domainName": "Domain Name is required for keystone v3",
@@ -408,6 +421,8 @@ var map_MasterConfig = map[string]string{
 	"projectConfig":          "ProjectConfig holds information about project creation and defaults",
 	"routingConfig":          "RoutingConfig holds information about routing and route generation",
 	"networkConfig":          "NetworkConfig to be passed to the compiled in network plugin",
+	"volumeConfig":           "MasterVolumeConfig contains options for configuring volume plugins in the master node.",
+	"jenkinsPipelineConfig":  "JenkinsPipelineConfig holds information about the default Jenkins template used for JenkinsPipeline build strategy.",
 }
 
 func (MasterConfig) SwaggerDoc() map[string]string {
@@ -425,6 +440,15 @@ var map_MasterNetworkConfig = map[string]string{
 
 func (MasterNetworkConfig) SwaggerDoc() map[string]string {
 	return map_MasterNetworkConfig
+}
+
+var map_MasterVolumeConfig = map[string]string{
+	"": "MasterVolumeConfig contains options for configuring volume plugins in the master node.",
+	"dynamicProvisioningEnabled": "DynamicProvisioningEnabled is a boolean that toggles dynamic provisioning off when false, defaults to true",
+}
+
+func (MasterVolumeConfig) SwaggerDoc() map[string]string {
+	return map_MasterVolumeConfig
 }
 
 var map_NamedCertificate = map[string]string{
@@ -482,6 +506,15 @@ var map_NodeNetworkConfig = map[string]string{
 
 func (NodeNetworkConfig) SwaggerDoc() map[string]string {
 	return map_NodeNetworkConfig
+}
+
+var map_NodeVolumeConfig = map[string]string{
+	"":           "NodeVolumeConfig contains options for configuring volumes on the node.",
+	"localQuota": "LocalQuota contains options for controlling local volume quota on the node.",
+}
+
+func (NodeVolumeConfig) SwaggerDoc() map[string]string {
+	return map_NodeVolumeConfig
 }
 
 var map_OAuthConfig = map[string]string{
@@ -617,6 +650,7 @@ var map_RequestHeaderIdentityProvider = map[string]string{
 	"loginURL":                 "LoginURL is a URL to redirect unauthenticated /authorize requests to Unauthenticated requests from OAuth clients which expect interactive logins will be redirected here ${url} is replaced with the current URL, escaped to be safe in a query parameter\n  https://www.example.com/sso-login?then=${url}\n${query} is replaced with the current query string\n  https://www.example.com/auth-proxy/oauth/authorize?${query}",
 	"challengeURL":             "ChallengeURL is a URL to redirect unauthenticated /authorize requests to Unauthenticated requests from OAuth clients which expect WWW-Authenticate challenges will be redirected here ${url} is replaced with the current URL, escaped to be safe in a query parameter\n  https://www.example.com/sso-login?then=${url}\n${query} is replaced with the current query string\n  https://www.example.com/auth-proxy/oauth/authorize?${query}",
 	"clientCA":                 "ClientCA is a file with the trusted signer certs.  If empty, no request verification is done, and any direct request to the OAuth server can impersonate any identity from this provider, merely by setting a request header.",
+	"clientCommonNames":        "ClientCommonNames is an optional list of common names to require a match from. If empty, any client certificate validated against the clientCA bundle is considered authoritative.",
 	"headers":                  "Headers is the set of headers to check for identity information",
 	"preferredUsernameHeaders": "PreferredUsernameHeaders is the set of headers to check for the preferred username",
 	"nameHeaders":              "NameHeaders is the set of headers to check for the display name",
@@ -760,13 +794,4 @@ var map_UserAgentMatchingConfig = map[string]string{
 
 func (UserAgentMatchingConfig) SwaggerDoc() map[string]string {
 	return map_UserAgentMatchingConfig
-}
-
-var map_VolumeConfig = map[string]string{
-	"":           "VolumeConfig contains options for configuring volumes on the node.",
-	"localQuota": "LocalQuota contains options for controlling local volume quota on the node.",
-}
-
-func (VolumeConfig) SwaggerDoc() map[string]string {
-	return map_VolumeConfig
 }

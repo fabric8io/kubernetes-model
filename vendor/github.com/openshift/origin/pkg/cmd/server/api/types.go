@@ -132,13 +132,19 @@ type NodeConfig struct {
 	IPTablesSyncPeriod string
 
 	// VolumeConfig contains options for configuring volumes on the node.
-	VolumeConfig VolumeConfig
+	VolumeConfig NodeVolumeConfig
 }
 
-// VolumeConfig contains options for configuring volumes on the node.
-type VolumeConfig struct {
+// NodeVolumeConfig contains options for configuring volumes on the node.
+type NodeVolumeConfig struct {
 	// LocalQuota contains options for controlling local volume quota on the node.
 	LocalQuota LocalQuota
+}
+
+// MasterVolumeConfig contains options for configuring volume plugins in the master node.
+type MasterVolumeConfig struct {
+	// DynamicProvisioningEnabled is a boolean that toggles dynamic provisioning off when false, defaults to true
+	DynamicProvisioningEnabled bool
 }
 
 // LocalQuota contains options for controlling local volume quota on the node.
@@ -279,6 +285,31 @@ type MasterConfig struct {
 
 	// NetworkConfig to be passed to the compiled in network plugin
 	NetworkConfig MasterNetworkConfig
+
+	// VolumeConfig contains options for configuring volumes on the node.
+	VolumeConfig MasterVolumeConfig
+
+	// JenkinsPipelineConfig holds information about the default Jenkins template
+	// used for JenkinsPipeline build strategy.
+	JenkinsPipelineConfig JenkinsPipelineConfig
+}
+
+// JenkinsPipelineConfig holds configuration for the Jenkins pipeline strategy
+type JenkinsPipelineConfig struct {
+	// Disabled disables the Jenkins Pipeline auto-instantiation of Jenkins
+	// template. The ServiceName is still used to verify the project already have
+	// the Jenkins available. When not specified (default), this option defaults
+	// to false
+	Disabled *bool `json:"disabled"`
+	// Namespace contains the namespace name where the Jenkins template is stored
+	Namespace string
+	// TemplateName is the name of the default Jenkins template
+	TemplateName string
+	// ServiceName is the name of the Jenkins service OpenShift use for Jenkins
+	// pipeline
+	ServiceName string
+	// Parameters specifies a set of optional parameters to the Jenkins template
+	Parameters map[string]string
 }
 
 type ImagePolicyConfig struct {
@@ -742,6 +773,9 @@ type RequestHeaderIdentityProvider struct {
 
 	// ClientCA is a file with the trusted signer certs.  If empty, no request verification is done, and any direct request to the OAuth server can impersonate any identity from this provider, merely by setting a request header.
 	ClientCA string
+	// ClientCommonNames is an optional list of common names to require a match from. If empty, any client certificate validated against the clientCA bundle is considered authoritative.
+	ClientCommonNames []string
+
 	// Headers is the set of headers to check for identity information
 	Headers []string
 	// PreferredUsernameHeaders is the set of headers to check for the preferred username

@@ -15,7 +15,7 @@ func TestComputeDefinitions(t *testing.T) {
 	diffCaps.AllowedCapabilities = []kapi.Capability{"foo"}
 
 	diffHostDir := goodSCC()
-	diffHostDir.AllowHostDirVolumePlugin = true
+	diffHostDir.Volumes = []kapi.FSType{kapi.FSTypeHostPath}
 
 	diffHostNetwork := goodSCC()
 	diffHostNetwork.AllowHostNetwork = true
@@ -40,6 +40,14 @@ func TestComputeDefinitions(t *testing.T) {
 
 	diffFSGroup := goodSCC()
 	diffFSGroup.FSGroup.Type = kapi.FSGroupStrategyMustRunAs
+
+	diffVolumes := goodSCC()
+	diffVolumes.Volumes = []kapi.FSType{kapi.FSTypeAWSElasticBlockStore}
+
+	noDiffVolumesA := goodSCC()
+	noDiffVolumesA.Volumes = []kapi.FSType{kapi.FSTypeAWSElasticBlockStore, kapi.FSTypeHostPath}
+	noDiffVolumesB := goodSCC()
+	noDiffVolumesB.Volumes = []kapi.FSType{kapi.FSTypeHostPath, kapi.FSTypeAWSElasticBlockStore}
 
 	tests := map[string]struct {
 		expected    kapi.SecurityContextConstraints
@@ -100,6 +108,16 @@ func TestComputeDefinitions(t *testing.T) {
 			expected:    goodSCC(),
 			actual:      diffFSGroup,
 			needsUpdate: true,
+		},
+		"different volumes": {
+			expected:    goodSCC(),
+			actual:      diffVolumes,
+			needsUpdate: true,
+		},
+		"unsorted volumes": {
+			expected:    noDiffVolumesA,
+			actual:      noDiffVolumesB,
+			needsUpdate: false,
 		},
 		"no diff": {
 			expected:    goodSCC(),

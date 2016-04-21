@@ -140,7 +140,7 @@ func TestBuildAdmission(t *testing.T) {
 			expectAccept:   true,
 		},
 		{
-			name:             "allowed external build",
+			name:             "allowed jenkins pipeline build",
 			object:           testBuild(buildapi.BuildStrategy{JenkinsPipelineStrategy: &buildapi.JenkinsPipelineBuildStrategy{}}),
 			kind:             buildapi.Kind("Build"),
 			resource:         buildsResource,
@@ -149,7 +149,7 @@ func TestBuildAdmission(t *testing.T) {
 			expectAccept:     true,
 		},
 		{
-			name:             "allowed external build clone",
+			name:             "allowed jenkins pipeline build clone",
 			object:           testBuildRequest("buildname"),
 			responseObject:   testBuild(buildapi.BuildStrategy{JenkinsPipelineStrategy: &buildapi.JenkinsPipelineBuildStrategy{}}),
 			kind:             buildapi.Kind("Build"),

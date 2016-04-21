@@ -17,6 +17,7 @@ limitations under the License.
 package storage_test
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 	"testing"
@@ -110,13 +111,21 @@ func TestList(t *testing.T) {
 		t.Errorf("Unexpected error: %v", err)
 	}
 
-	result := &api.PodList{}
-	// TODO: We need to pass ResourceVersion of barPod deletion operation.
-	// However, there is no easy way to get it, so it is hardcoded to 8.
-	if err := cacher.List(context.TODO(), "pods/ns", "8", storage.Everything, result); err != nil {
+	// We first List directly from etcd by passing empty resourceVersion,
+	// to get the current etcd resourceVersion.
+	rvResult := &api.PodList{}
+	if err := cacher.List(context.TODO(), "pods/ns", "", storage.Everything, rvResult); err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
-	if result.ListMeta.ResourceVersion != "8" {
+	deletedPodRV := rvResult.ListMeta.ResourceVersion
+
+	result := &api.PodList{}
+	// We pass the current etcd ResourceVersion received from the above List() operation,
+	// since there is not easy way to get ResourceVersion of barPod deletion operation.
+	if err := cacher.List(context.TODO(), "pods/ns", deletedPodRV, storage.Everything, result); err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if result.ListMeta.ResourceVersion != deletedPodRV {
 		t.Errorf("Incorrect resource version: %v", result.ListMeta.ResourceVersion)
 	}
 	if len(result.Items) != 2 {
@@ -163,8 +172,23 @@ func verifyWatchEvent(t *testing.T, w watch.Interface, eventType watch.EventType
 	}
 }
 
+type injectListError struct {
+	errors int
+	storage.Interface
+}
+
+func (self *injectListError) List(ctx context.Context, key string, resourceVersion string, filter storage.FilterFunc, listObj runtime.Object) error {
+	if self.errors > 0 {
+		self.errors--
+		return fmt.Errorf("injected error")
+	}
+	return self.Interface.List(ctx, key, resourceVersion, filter, listObj)
+}
+
 func TestWatch(t *testing.T) {
 	server, etcdStorage := newEtcdTestStorage(t, testapi.Default.Codec(), etcdtest.PathPrefix())
+	// Inject one list error to make sure we test the relist case.
+	etcdStorage = &injectListError{errors: 1, Interface: etcdStorage}
 	defer server.Terminate(t)
 	cacher := newTestCacher(etcdStorage)
 	defer cacher.Stop()
@@ -197,6 +221,7 @@ func TestWatch(t *testing.T) {
 	_ = updatePod(t, etcdStorage, podBar, nil)
 	fooUpdated := updatePod(t, etcdStorage, podFooPrime, fooCreated)
 
+	t.Log("verifying")
 	verifyWatchEvent(t, watcher, watch.Added, podFoo)
 	verifyWatchEvent(t, watcher, watch.Modified, podFooPrime)
 
@@ -212,7 +237,7 @@ func TestWatch(t *testing.T) {
 	}
 	defer initialWatcher.Stop()
 
-	verifyWatchEvent(t, initialWatcher, watch.Added, podFoo)
+	t.Log("verifying")
 	verifyWatchEvent(t, initialWatcher, watch.Modified, podFooPrime)
 
 	// Now test watch from "now".
@@ -222,10 +247,12 @@ func TestWatch(t *testing.T) {
 	}
 	defer nowWatcher.Stop()
 
+	t.Log("verifying")
 	verifyWatchEvent(t, nowWatcher, watch.Added, podFooPrime)
 
 	_ = updatePod(t, etcdStorage, podFooBis, fooUpdated)
 
+	t.Log("verifying")
 	verifyWatchEvent(t, nowWatcher, watch.Modified, podFooBis)
 }
 
@@ -311,9 +338,56 @@ func TestFiltering(t *testing.T) {
 	}
 	defer watcher.Stop()
 
-	verifyWatchEvent(t, watcher, watch.Added, podFoo)
 	verifyWatchEvent(t, watcher, watch.Deleted, podFooFiltered)
 	verifyWatchEvent(t, watcher, watch.Added, podFoo)
 	verifyWatchEvent(t, watcher, watch.Modified, podFooPrime)
 	verifyWatchEvent(t, watcher, watch.Deleted, podFooPrime)
+}
+
+func TestStartingResourceVersion(t *testing.T) {
+	server, etcdStorage := newEtcdTestStorage(t, testapi.Default.Codec(), etcdtest.PathPrefix())
+	defer server.Terminate(t)
+	cacher := newTestCacher(etcdStorage)
+	defer cacher.Stop()
+
+	// add 1 object
+	podFoo := makeTestPod("foo")
+	fooCreated := updatePod(t, etcdStorage, podFoo, nil)
+
+	// Set up Watch starting at fooCreated.ResourceVersion + 10
+	rv, err := storage.ParseWatchResourceVersion(fooCreated.ResourceVersion)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	rv += 10
+	startVersion := strconv.Itoa(int(rv))
+
+	watcher, err := cacher.Watch(context.TODO(), "pods/ns/foo", startVersion, storage.Everything)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	defer watcher.Stop()
+
+	lastFoo := fooCreated
+	for i := 0; i < 11; i++ {
+		podFooForUpdate := makeTestPod("foo")
+		podFooForUpdate.Labels = map[string]string{"foo": strconv.Itoa(i)}
+		lastFoo = updatePod(t, etcdStorage, podFooForUpdate, lastFoo)
+	}
+
+	select {
+	case e := <-watcher.ResultChan():
+		pod := e.Object.(*api.Pod)
+		podRV, err := storage.ParseWatchResourceVersion(pod.ResourceVersion)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// event should have at least rv + 1, since we're starting the watch at rv
+		if podRV <= rv {
+			t.Errorf("expected event with resourceVersion of at least %d, got %d", rv+1, podRV)
+		}
+	case <-time.After(wait.ForeverTestTimeout):
+		t.Errorf("timed out waiting for event")
+	}
 }

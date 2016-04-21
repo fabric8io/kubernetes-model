@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/cloudprovider/providers/aws"
 	"k8s.io/kubernetes/pkg/util/keymutex"
 	"k8s.io/kubernetes/pkg/util/runtime"
@@ -108,7 +107,7 @@ func (util *AWSDiskUtil) DetachDisk(c *awsElasticBlockStoreCleaner) error {
 }
 
 func (util *AWSDiskUtil) DeleteVolume(d *awsElasticBlockStoreDeleter) error {
-	cloud, err := getCloudProvider()
+	cloud, err := getCloudProvider(d.awsElasticBlockStore.plugin)
 	if err != nil {
 		return err
 	}
@@ -126,35 +125,56 @@ func (util *AWSDiskUtil) DeleteVolume(d *awsElasticBlockStoreDeleter) error {
 	return nil
 }
 
-func (util *AWSDiskUtil) CreateVolume(c *awsElasticBlockStoreProvisioner) (volumeID string, volumeSizeGB int, err error) {
-	cloud, err := getCloudProvider()
+// CreateVolume creates an AWS EBS volume.
+// Returns: volumeID, volumeSizeGB, labels, error
+func (util *AWSDiskUtil) CreateVolume(c *awsElasticBlockStoreProvisioner) (string, int, map[string]string, error) {
+	cloud, err := getCloudProvider(c.awsElasticBlockStore.plugin)
 	if err != nil {
-		return "", 0, err
+		return "", 0, nil, err
 	}
 
-	requestBytes := c.options.Capacity.Value()
-	// The cloud provider works with gigabytes, convert to GiB with rounding up
-	requestGB := volume.RoundUpSize(requestBytes, 1024*1024*1024)
+	// AWS volumes don't have Name field, store the name in Name tag
+	var tags map[string]string
+	if c.options.CloudTags == nil {
+		tags = make(map[string]string)
+	} else {
+		tags = *c.options.CloudTags
+	}
+	tags["Name"] = volume.GenerateVolumeName(c.options.ClusterName, c.options.PVName, 255) // AWS tags can have 255 characters
 
-	volumeOptions := &aws.VolumeOptions{}
-	volumeOptions.CapacityGB = int(requestGB)
+	requestBytes := c.options.Capacity.Value()
+	// AWS works with gigabytes, convert to GiB with rounding up
+	requestGB := int(volume.RoundUpSize(requestBytes, 1024*1024*1024))
+	volumeOptions := &aws.VolumeOptions{
+		CapacityGB: requestGB,
+		Tags:       tags,
+	}
 
 	name, err := cloud.CreateDisk(volumeOptions)
 	if err != nil {
 		glog.V(2).Infof("Error creating EBS Disk volume: %v", err)
-		return "", 0, err
+		return "", 0, nil, err
 	}
 	glog.V(2).Infof("Successfully created EBS Disk volume %s", name)
-	return name, int(requestGB), nil
+
+	labels, err := cloud.GetVolumeLabels(name)
+	if err != nil {
+		// We don't really want to leak the volume here...
+		glog.Errorf("error building labels for new EBS volume %q: %v", name, err)
+	}
+
+	return name, int(requestGB), labels, nil
 }
 
 // Attaches the specified persistent disk device to node, verifies that it is attached, and retries if it fails.
 func attachDiskAndVerify(b *awsElasticBlockStoreBuilder, xvdBeforeSet sets.String) (string, error) {
 	var awsCloud *aws.AWSCloud
+	var attachError error
+
 	for numRetries := 0; numRetries < maxRetries; numRetries++ {
 		var err error
 		if awsCloud == nil {
-			awsCloud, err = getCloudProvider()
+			awsCloud, err = getCloudProvider(b.awsElasticBlockStore.plugin)
 			if err != nil || awsCloud == nil {
 				// Retry on error. See issue #11321
 				glog.Errorf("Error getting AWSCloudProvider while detaching PD %q: %v", b.volumeID, err)
@@ -167,9 +187,10 @@ func attachDiskAndVerify(b *awsElasticBlockStoreBuilder, xvdBeforeSet sets.Strin
 			glog.Warningf("Retrying attach for EBS Disk %q (retry count=%v).", b.volumeID, numRetries)
 		}
 
-		devicePath, err := awsCloud.AttachDisk(b.volumeID, b.plugin.host.GetHostName(), b.readOnly)
-		if err != nil {
-			glog.Errorf("Error attaching PD %q: %v", b.volumeID, err)
+		var devicePath string
+		devicePath, attachError = awsCloud.AttachDisk(b.volumeID, "", b.readOnly)
+		if attachError != nil {
+			glog.Errorf("Error attaching PD %q: %v", b.volumeID, attachError)
 			time.Sleep(errorSleepDuration)
 			continue
 		}
@@ -193,6 +214,9 @@ func attachDiskAndVerify(b *awsElasticBlockStoreBuilder, xvdBeforeSet sets.Strin
 		}
 	}
 
+	if attachError != nil {
+		return "", fmt.Errorf("Could not attach EBS Disk %q: %v", b.volumeID, attachError)
+	}
 	return "", fmt.Errorf("Could not attach EBS Disk %q. Timeout waiting for mount paths to be created.", b.volumeID)
 }
 
@@ -225,7 +249,7 @@ func detachDiskAndVerify(c *awsElasticBlockStoreCleaner) {
 	for numRetries := 0; numRetries < maxRetries; numRetries++ {
 		var err error
 		if awsCloud == nil {
-			awsCloud, err = getCloudProvider()
+			awsCloud, err = getCloudProvider(c.awsElasticBlockStore.plugin)
 			if err != nil || awsCloud == nil {
 				// Retry on error. See issue #11321
 				glog.Errorf("Error getting AWSCloudProvider while detaching PD %q: %v", c.volumeID, err)
@@ -238,7 +262,7 @@ func detachDiskAndVerify(c *awsElasticBlockStoreCleaner) {
 			glog.Warningf("Retrying detach for EBS Disk %q (retry count=%v).", c.volumeID, numRetries)
 		}
 
-		devicePath, err := awsCloud.DetachDisk(c.volumeID, c.plugin.host.GetHostName())
+		devicePath, err := awsCloud.DetachDisk(c.volumeID, "")
 		if err != nil {
 			glog.Errorf("Error detaching PD %q: %v", c.volumeID, err)
 			time.Sleep(errorSleepDuration)
@@ -323,12 +347,19 @@ func pathExists(path string) (bool, error) {
 }
 
 // Return cloud provider
-func getCloudProvider() (*aws.AWSCloud, error) {
-	awsCloudProvider, err := cloudprovider.GetCloudProvider("aws", nil)
-	if err != nil || awsCloudProvider == nil {
-		return nil, err
+func getCloudProvider(plugin *awsElasticBlockStorePlugin) (*aws.AWSCloud, error) {
+	if plugin == nil {
+		return nil, fmt.Errorf("Failed to get AWS Cloud Provider. plugin object is nil.")
+	}
+	if plugin.host == nil {
+		return nil, fmt.Errorf("Failed to get AWS Cloud Provider. plugin.host object is nil.")
 	}
 
-	// The conversion must be safe otherwise bug in GetCloudProvider()
-	return awsCloudProvider.(*aws.AWSCloud), nil
+	cloudProvider := plugin.host.GetCloudProvider()
+	awsCloudProvider, ok := cloudProvider.(*aws.AWSCloud)
+	if !ok || awsCloudProvider == nil {
+		return nil, fmt.Errorf("Failed to get AWS Cloud Provider. plugin.host.GetCloudProvider returned %v instead", cloudProvider)
+	}
+
+	return awsCloudProvider, nil
 }
