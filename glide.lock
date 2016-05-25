@@ -1,5 +1,5 @@
-hash: 0d8f5981bc2bed2b7ecb84b03e5629dd866e3bc5dad225fbc95259cffdf6908b
-updated: 2016-04-06T17:01:43.57942706+01:00
+hash: d126eee443410a29e0e424da1c82d5c7f3c7e2d6646740842c6a5b2c1bee171b
+updated: 2016-05-25T11:16:28.358708532+01:00
 imports:
 - name: bitbucket.org/ww/goautoneg
   version: 75cd24fc2f2c
@@ -126,7 +126,7 @@ imports:
   - libcontainer/cgroups
   - libcontainer/system
 - name: github.com/openshift/origin
-  version: ef1caba064de975387860175c3138aad432cf356
+  version: 2e62fabf9639c792410e98a9a1414937d4b786c9
   subpackages:
   - pkg/authorization/api/v1
   - pkg/build/api/v1
@@ -193,7 +193,7 @@ imports:
 - name: gopkg.in/yaml.v2
   version: d466437aa4adc35830964cffc5b5f262c63ddcb4
 - name: k8s.io/kubernetes
-  version: 4a3f9c5b19c7ff804cbc1bf37a15c044ca5d2353
+  version: 114a51dfbc43a8bcf07db1774a20e05d560e34b0
   repo: git@github.com:openshift/kubernetes.git
   vcs: git
   subpackages:
@@ -210,6 +210,7 @@ imports:
   - pkg/util/intstr
   - pkg/registry/namespace
   - pkg/labels
+  - pkg/securitycontextconstraints/util
   - pkg/types
   - pkg/util
   - pkg/util/parsers
@@ -259,4 +260,6 @@ imports:
   - pkg/version
 - name: speter.net/go/exp/math/dec/inf
   version: 42ca6cd68aa922bc3f32f1e056e61b65945d9ad7
+  repo: git@github.com:go-inf/inf.git
+  vcs: git
 devImports: []

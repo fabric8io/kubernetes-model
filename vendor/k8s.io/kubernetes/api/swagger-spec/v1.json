@@ -18952,10 +18952,12 @@
      "requiredDropCapabilities",
      "allowedCapabilities",
      "allowHostDirVolumePlugin",
+     "volumes",
      "allowHostNetwork",
      "allowHostPorts",
      "allowHostPID",
-     "allowHostIPC"
+     "allowHostIPC",
+     "readOnlyRootFilesystem"
     ],
     "properties": {
      "kind": {
@@ -19003,6 +19005,13 @@
       "type": "boolean",
       "description": "AllowHostDirVolumePlugin determines if the policy allow containers to use the HostDir volume plugin"
      },
+     "volumes": {
+      "type": "array",
+      "items": {
+       "$ref": "v1.FSType"
+      },
+      "description": "Volumes is a white list of allowed volume plugins.  FSType corresponds directly with the field names of a VolumeSource (azureFile, configMap, emptyDir).  To allow all volumes you may use '*'."
+     },
      "allowHostNetwork": {
       "type": "boolean",
       "description": "AllowHostNetwork determines if the policy allows the use of HostNetwork in the pod spec."
@@ -19035,6 +19044,10 @@
       "$ref": "v1.FSGroupStrategyOptions",
       "description": "FSGroup is the strategy that will dictate what fs group is used by the SecurityContext."
      },
+     "readOnlyRootFilesystem": {
+      "type": "boolean",
+      "description": "ReadOnlyRootFilesystem when set to true will force containers to run with a read only root file system.  If the container specifically requests to run with a non-read only root file system the SCC should deny the pod. If set to false the container may run with a read only root file system if it wishes but it will not be forced to."
+     },
      "users": {
       "type": "array",
       "items": {
@@ -19050,6 +19063,10 @@
       "description": "The groups that have permission to use this security context constraints"
      }
     }
+   },
+   "v1.FSType": {
+    "id": "v1.FSType",
+    "properties": {}
    },
    "v1.SELinuxContextStrategyOptions": {
     "id": "v1.SELinuxContextStrategyOptions",

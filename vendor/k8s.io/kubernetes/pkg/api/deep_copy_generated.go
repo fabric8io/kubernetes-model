@@ -2755,7 +2755,15 @@ func DeepCopy_api_SecurityContextConstraints(in SecurityContextConstraints, out 
 	} else {
 		out.AllowedCapabilities = nil
 	}
-	out.AllowHostDirVolumePlugin = in.AllowHostDirVolumePlugin
+	if in.Volumes != nil {
+		in, out := in.Volumes, &out.Volumes
+		*out = make([]FSType, len(in))
+		for i := range in {
+			(*out)[i] = in[i]
+		}
+	} else {
+		out.Volumes = nil
+	}
 	out.AllowHostNetwork = in.AllowHostNetwork
 	out.AllowHostPorts = in.AllowHostPorts
 	out.AllowHostPID = in.AllowHostPID
@@ -2772,6 +2780,7 @@ func DeepCopy_api_SecurityContextConstraints(in SecurityContextConstraints, out 
 	if err := DeepCopy_api_FSGroupStrategyOptions(in.FSGroup, &out.FSGroup, c); err != nil {
 		return err
 	}
+	out.ReadOnlyRootFilesystem = in.ReadOnlyRootFilesystem
 	if in.Users != nil {
 		in, out := in.Users, &out.Users
 		*out = make([]string, len(in))
