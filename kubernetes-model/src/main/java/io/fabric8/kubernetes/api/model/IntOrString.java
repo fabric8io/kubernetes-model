@@ -184,9 +184,8 @@ public class IntOrString {
             ObjectCodec oc = jsonParser.getCodec();
             JsonNode node = oc.readTree(jsonParser);
             IntOrString intOrString = new IntOrString();
-            int asInt = node.asInt();
-            if (asInt != 0) {
-                intOrString.setIntVal(asInt);
+            if (node.isInt()) {
+                intOrString.setIntVal(node.asInt());
             } else {
                 intOrString.setStrVal(node.asText());
             }
