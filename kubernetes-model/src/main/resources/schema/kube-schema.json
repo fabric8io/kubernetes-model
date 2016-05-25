@@ -3853,6 +3853,10 @@
           "type": "integer",
           "description": "determines which SCC is used when multiple SCCs allow a particular pod; higher priority SCCs are preferred"
         },
+        "readOnlyRootFilesystem": {
+          "type": "boolean",
+          "description": "require containers to run with a read only root filesystem"
+        },
         "requiredDropCapabilities": {
           "type": "array",
           "description": "capabilities that will be dropped by default and may not be added",
@@ -3879,6 +3883,14 @@
           "items": {
             "type": "string",
             "description": "users allowed to use this SecurityContextConstraints"
+          }
+        },
+        "volumes": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
           }
         }
       },

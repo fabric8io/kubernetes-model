@@ -17,7 +17,7 @@
 package: github.com/fabric8io/kubernetes-model
 import:
 - package: github.com/openshift/origin
-  version: v1.1.6
+  version: v1.2.0
   subpackages:
   - pkg/authorization/api/v1
   - pkg/build/api/v1
@@ -39,3 +39,6 @@ import:
   - pkg/apis/extensions/v1beta1
   - pkg/client/unversioned/clientcmd/api/v1
   - pkg/watch/json
+- package: speter.net/go/exp/math/dec/inf
+  vcs: git
+  repo: git@github.com:go-inf/inf.git
