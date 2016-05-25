@@ -134,6 +134,7 @@ type Schema struct {
 	ThirdPartyResourceList         extensions.ThirdPartyResourceList
 	Deployment                     extensions.Deployment
 	DeploymentList                 extensions.DeploymentList
+	DeploymentRollback             extensions.DeploymentRollback
 	DaemonSet                      extensions.DaemonSet
 	DaemonSetList                  extensions.DaemonSetList
 	Ingress                        extensions.Ingress

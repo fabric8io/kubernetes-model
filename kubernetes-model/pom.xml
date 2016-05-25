@@ -143,7 +143,7 @@
             <configuration>
               <artifacts>
                 <artifact>
-                  <file>${build.outputDirectory}/schema/kube-schema.json</file>
+                  <file>${project.build.outputDirectory}/schema/kube-schema.json</file>
                   <type>json</type>
                   <classifier>schema</classifier>
                 </artifact>

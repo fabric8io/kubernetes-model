@@ -4617,6 +4617,43 @@
         "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
+    "kubernetes_extensions_DeploymentRollback": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "extensions/v1beta1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "DeploymentRollback",
+          "required": true
+        },
+        "name": {
+          "type": "string",
+          "description": ""
+        },
+        "rollbackTo": {
+          "$ref": "#/definitions/kubernetes_extensions_RollbackConfig",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.RollbackConfig"
+        },
+        "updatedAnnotations": {
+          "type": "object",
+          "description": "",
+          "additionalProperties": {
+            "type": "string",
+            "description": ""
+          },
+          "javaType": "java.util.Map\u003cString,String\u003e"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.DeploymentRollback"
+    },
     "kubernetes_extensions_DeploymentSpec": {
       "type": "object",
       "description": "",
@@ -9277,6 +9314,10 @@
     "DeploymentList": {
       "$ref": "#/definitions/kubernetes_extensions_DeploymentList",
       "javaType": "io.fabric8.kubernetes.api.model.extensions.DeploymentList"
+    },
+    "DeploymentRollback": {
+      "$ref": "#/definitions/kubernetes_extensions_DeploymentRollback",
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.DeploymentRollback"
     },
     "Endpoints": {
       "$ref": "#/definitions/kubernetes_Endpoints",
