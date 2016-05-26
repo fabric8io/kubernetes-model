@@ -34,6 +34,7 @@
 KUBE_ROOT=$(dirname "${BASH_SOURCE}")/../..
 source "${KUBE_ROOT}/cluster/aws/${KUBE_CONFIG_FILE-"config-default.sh"}"
 source "${KUBE_ROOT}/cluster/common.sh"
+source "${KUBE_ROOT}/cluster/lib/util.sh"
 
 ALLOCATE_NODE_CIDRS=true
 
@@ -119,10 +120,17 @@ NODE_SG_NAME="kubernetes-minion-${CLUSTER_ID}"
 # Be sure to map all the ephemeral drives.  We can specify more than we actually have.
 # TODO: Actually mount the correct number (especially if we have more), though this is non-trivial, and
 #  only affects the big storage instance types, which aren't a typical use case right now.
-BLOCK_DEVICE_MAPPINGS_BASE="{\"DeviceName\": \"/dev/sdc\",\"VirtualName\":\"ephemeral0\"},{\"DeviceName\": \"/dev/sdd\",\"VirtualName\":\"ephemeral1\"},{\"DeviceName\": \"/dev/sde\",\"VirtualName\":\"ephemeral2\"},{\"DeviceName\": \"/dev/sdf\",\"VirtualName\":\"ephemeral3\"}"
+EPHEMERAL_BLOCK_DEVICE_MAPPINGS=",{\"DeviceName\": \"/dev/sdc\",\"VirtualName\":\"ephemeral0\"},{\"DeviceName\": \"/dev/sdd\",\"VirtualName\":\"ephemeral1\"},{\"DeviceName\": \"/dev/sde\",\"VirtualName\":\"ephemeral2\"},{\"DeviceName\": \"/dev/sdf\",\"VirtualName\":\"ephemeral3\"}"
+
+# Experimental: If the user sets KUBE_AWS_STORAGE to ebs, use ebs storage
+# in preference to local instance storage We do this by not mounting any
+# instance storage.  We could do this better in future (e.g. making instance
+# storage available for other purposes)
+if [[ "${KUBE_AWS_STORAGE:-}" == "ebs" ]]; then
+  EPHEMERAL_BLOCK_DEVICE_MAPPINGS=""
+fi
 
 # TODO (bburns) Parameterize this for multiple cluster per project
-
 function get_vpc_id {
   $AWS_CMD describe-vpcs \
            --filters Name=tag:Name,Values=kubernetes-vpc \
@@ -239,7 +247,13 @@ function query-running-minions () {
            --query ${query}
 }
 
-function find-running-minions () {
+function detect-node-names () {
+  # If this is called directly, VPC_ID might not be set
+  # (this is case from cluster/log-dump.sh)
+  if [[ -z "${VPC_ID:-}" ]]; then
+    VPC_ID=$(get_vpc_id)
+  fi
+
   NODE_IDS=()
   NODE_NAMES=()
   for id in $(query-running-minions "Reservations[].Instances[].InstanceId"); do
@@ -250,8 +264,14 @@ function find-running-minions () {
   done
 }
 
+# Called to detect the project on GCE
+# Not needed on AWS
+function detect-project() {
+  :
+}
+
 function detect-nodes () {
-  find-running-minions
+  detect-node-names
 
   # This is inefficient, but we want NODE_NAMES / NODE_IDS to be ordered the same as KUBE_NODE_IP_ADDRESSES
   KUBE_NODE_IP_ADDRESSES=()
@@ -404,8 +424,8 @@ function detect-root-device {
       ROOT_DEVICE_NODE=$($AWS_CMD describe-images --image-ids ${node_image} --query 'Images[].RootDeviceName')
   fi
 
-  MASTER_BLOCK_DEVICE_MAPPINGS="[{\"DeviceName\":\"${ROOT_DEVICE_MASTER}\",\"Ebs\":{\"DeleteOnTermination\":true,\"VolumeSize\":${MASTER_ROOT_DISK_SIZE},\"VolumeType\":\"${MASTER_ROOT_DISK_TYPE}\"}}, ${BLOCK_DEVICE_MAPPINGS_BASE}]"
-  NODE_BLOCK_DEVICE_MAPPINGS="[{\"DeviceName\":\"${ROOT_DEVICE_NODE}\",\"Ebs\":{\"DeleteOnTermination\":true,\"VolumeSize\":${NODE_ROOT_DISK_SIZE},\"VolumeType\":\"${NODE_ROOT_DISK_TYPE}\"}}, ${BLOCK_DEVICE_MAPPINGS_BASE}]"
+  MASTER_BLOCK_DEVICE_MAPPINGS="[{\"DeviceName\":\"${ROOT_DEVICE_MASTER}\",\"Ebs\":{\"DeleteOnTermination\":true,\"VolumeSize\":${MASTER_ROOT_DISK_SIZE},\"VolumeType\":\"${MASTER_ROOT_DISK_TYPE}\"}} ${EPHEMERAL_BLOCK_DEVICE_MAPPINGS}]"
+  NODE_BLOCK_DEVICE_MAPPINGS="[{\"DeviceName\":\"${ROOT_DEVICE_NODE}\",\"Ebs\":{\"DeleteOnTermination\":true,\"VolumeSize\":${NODE_ROOT_DISK_SIZE},\"VolumeType\":\"${NODE_ROOT_DISK_TYPE}\"}} ${EPHEMERAL_BLOCK_DEVICE_MAPPINGS}]"
 }
 
 # Computes the AWS fingerprint for a public key file ($1)
@@ -1224,7 +1244,7 @@ function wait-minions {
     max_attempts=90
   fi
   while true; do
-    find-running-minions > $LOG
+    detect-node-names > $LOG
     if [[ ${#NODE_IDS[@]} == ${NUM_NODES} ]]; then
       echo -e " ${color_green}${#NODE_IDS[@]} minions started; ready${color_norm}"
       break
@@ -1551,40 +1571,41 @@ function test-teardown {
 }
 
 
-# SSH to a node by name ($1) and run a command ($2).
-function ssh-to-node {
+# Gets the hostname (or IP) that we should SSH to for the given nodename
+# For the master, we use the nodename, for the nodes we use their instanceids
+function get_ssh_hostname {
   local node="$1"
-  local cmd="$2"
 
   if [[ "${node}" == "${MASTER_NAME}" ]]; then
     node=$(get_instanceid_from_name ${MASTER_NAME})
     if [[ -z "${node-}" ]]; then
-      echo "Could not detect Kubernetes master node.  Make sure you've launched a cluster with 'kube-up.sh'"
+      echo "Could not detect Kubernetes master node.  Make sure you've launched a cluster with 'kube-up.sh'" 1>&2
       exit 1
     fi
   fi
 
   local ip=$(get_instance_public_ip ${node})
   if [[ -z "$ip" ]]; then
-    echo "Could not detect IP for ${node}."
+    echo "Could not detect IP for ${node}." 1>&2
     exit 1
   fi
+  echo ${ip}
+}
+
+# SSH to a node by name ($1) and run a command ($2).
+function ssh-to-node {
+  local node="$1"
+  local cmd="$2"
+
+  local ip=$(get_ssh_hostname ${node})
 
   for try in $(seq 1 5); do
-    if ssh -oLogLevel=quiet -oStrictHostKeyChecking=no -i "${AWS_SSH_KEY}" ${SSH_USER}@${ip} "${cmd}"; then
+    if ssh -oLogLevel=quiet -oConnectTimeout=30 -oStrictHostKeyChecking=no -i "${AWS_SSH_KEY}" ${SSH_USER}@${ip} "echo test > /dev/null"; then
       break
     fi
+    sleep 5
   done
-}
-
-# Restart the kube-proxy on a node ($1)
-function restart-kube-proxy {
-  ssh-to-node "$1" "sudo /etc/init.d/kube-proxy restart"
-}
-
-# Restart the kube-apiserver on a node ($1)
-function restart-apiserver {
-  ssh-to-node "$1" "sudo /etc/init.d/kube-apiserver restart"
+  ssh -oLogLevel=quiet -oConnectTimeout=30 -oStrictHostKeyChecking=no -i "${AWS_SSH_KEY}" ${SSH_USER}@${ip} "${cmd}"
 }
 
 # Perform preparations required to run e2e tests

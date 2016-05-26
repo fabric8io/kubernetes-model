@@ -7,13 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/kubernetes/pkg/util/wait"
-
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/util/sets"
+	"k8s.io/kubernetes/pkg/util/wait"
 	"k8s.io/kubernetes/test/e2e"
 
 	deployapi "github.com/openshift/origin/pkg/deploy/api"
@@ -28,6 +27,7 @@ var _ = g.Describe("deploymentconfigs", func() {
 	var (
 		deploymentFixture       = exutil.FixturePath("..", "extended", "fixtures", "test-deployment-test.yaml")
 		simpleDeploymentFixture = exutil.FixturePath("..", "extended", "fixtures", "deployment-simple.yaml")
+		customDeploymentFixture = exutil.FixturePath("..", "extended", "fixtures", "custom-deployment.yaml")
 		oc                      = exutil.NewCLI("cli-deployment", exutil.KubeConfigPath())
 	)
 
@@ -142,8 +142,8 @@ var _ = g.Describe("deploymentconfigs", func() {
 			o.Expect(err).NotTo(o.HaveOccurred())
 			g.By(fmt.Sprintf("checking the logs for substrings\n%s", out))
 			o.Expect(out).To(o.ContainSubstring("deployment-test-1 to 2"))
-			o.Expect(out).To(o.ContainSubstring("Pre hook finished"))
-			o.Expect(out).To(o.ContainSubstring("Deployment deployment-test-1 successfully made active"))
+			o.Expect(out).To(o.ContainSubstring("--> pre: Success"))
+			o.Expect(out).To(o.ContainSubstring("--> Success"))
 
 			g.By("verifying the deployment is marked complete and scaled to zero")
 			o.Expect(waitForLatestCondition(oc, "deployment-test", deploymentRunTimeout, deploymentReachedCompletion)).NotTo(o.HaveOccurred())
@@ -178,11 +178,36 @@ var _ = g.Describe("deploymentconfigs", func() {
 				o.Expect(err).NotTo(o.HaveOccurred())
 				g.By(fmt.Sprintf("checking the logs for substrings\n%s", out))
 				o.Expect(out).To(o.ContainSubstring(fmt.Sprintf("deployment-test-%d up to 1", i+2)))
-				o.Expect(out).To(o.ContainSubstring("Pre hook finished"))
+				o.Expect(out).To(o.ContainSubstring("--> pre: Success"))
+				o.Expect(out).To(o.ContainSubstring("test pre hook executed"))
+				o.Expect(out).To(o.ContainSubstring("--> Success"))
 
 				g.By("verifying the deployment is marked complete and scaled to zero")
 				o.Expect(waitForLatestCondition(oc, "deployment-test", deploymentRunTimeout, deploymentReachedCompletion)).NotTo(o.HaveOccurred())
 			}
+		})
+	})
+
+	g.Describe("with custom deployments", func() {
+		g.It("should run the custom deployment steps [Conformance]", func() {
+			out, err := oc.Run("create").Args("-f", customDeploymentFixture).Output()
+			o.Expect(err).NotTo(o.HaveOccurred())
+
+			o.Expect(waitForLatestCondition(oc, "custom-deployment", deploymentRunTimeout, deploymentRunning)).NotTo(o.HaveOccurred())
+
+			out, err = oc.Run("logs").Args("-f", "dc/custom-deployment").Output()
+			o.Expect(err).NotTo(o.HaveOccurred())
+			g.By(fmt.Sprintf("checking the logs for substrings\n%s", out))
+			o.Expect(out).To(o.ContainSubstring("--> pre: Running hook pod ..."))
+			o.Expect(out).To(o.ContainSubstring("test pre hook executed"))
+			o.Expect(out).To(o.ContainSubstring("--> Scaling custom-deployment-1 to 2"))
+			o.Expect(out).To(o.ContainSubstring("--> Reached 50%"))
+			o.Expect(out).To(o.ContainSubstring("Halfway"))
+			o.Expect(out).To(o.ContainSubstring("Finished"))
+			o.Expect(out).To(o.ContainSubstring("--> Success"))
+
+			g.By("verifying the deployment is marked complete")
+			o.Expect(waitForLatestCondition(oc, "custom-deployment", deploymentRunTimeout, deploymentReachedCompletion)).NotTo(o.HaveOccurred())
 		})
 	})
 })
@@ -426,3 +451,74 @@ func waitForLatestCondition(oc *exutil.CLI, name string, timeout time.Duration, 
 		return fn(dc, rcs)
 	})
 }
+
+var _ = g.Describe("deployments: parallel: deployment generation", func() {
+	defer g.GinkgoRecover()
+	var (
+		generationFixture = exutil.FixturePath("..", "extended", "fixtures", "test-deployment.yaml")
+		oc                = exutil.NewCLI("cli-deployment", exutil.KubeConfigPath())
+	)
+
+	g.Describe("deployment generation", func() {
+		g.It("should deploy based on a status version bump", func() {
+			resource, err := oc.Run("create").Args("-f", generationFixture, "-o", "name").Output()
+			o.Expect(err).NotTo(o.HaveOccurred())
+
+			parts := strings.Split(resource, "/")
+			if len(parts) != 2 {
+				o.Expect(fmt.Errorf("expected type/name syntax, got: %s", resource)).NotTo(o.HaveOccurred())
+			}
+			dcName := parts[1]
+
+			g.By("verifying that both latestVersion and generation are updated")
+			version, err := oc.Run("get").Args(resource, "--output=jsonpath=\"{.status.latestVersion}\"").Output()
+			version = strings.Trim(version, "\"")
+			o.Expect(err).NotTo(o.HaveOccurred())
+			g.By(fmt.Sprintf("checking the latest version for %s: %s", resource, version))
+			o.Expect(version).To(o.ContainSubstring("1"))
+			generation, err := oc.Run("get").Args(resource, "--output=jsonpath=\"{.metadata.generation}\"").Output()
+			o.Expect(err).NotTo(o.HaveOccurred())
+			g.By(fmt.Sprintf("checking the generation for %s: %s", resource, generation))
+			o.Expect(generation).To(o.ContainSubstring("1"))
+
+			g.By("verifying the deployment is marked complete")
+			err = wait.Poll(100*time.Millisecond, 1*time.Minute, func() (bool, error) {
+				rc, err := oc.KubeREST().ReplicationControllers(oc.Namespace()).Get(dcName + "-" + version)
+				o.Expect(err).NotTo(o.HaveOccurred())
+				return deployutil.IsTerminatedDeployment(rc), nil
+			})
+			o.Expect(err).NotTo(o.HaveOccurred())
+
+			g.By("verifying that scaling updates the generation")
+			_, err = oc.Run("scale").Args(resource, "--replicas=2").Output()
+			o.Expect(err).NotTo(o.HaveOccurred())
+			generation, err = oc.Run("get").Args(resource, "--output=jsonpath=\"{.metadata.generation}\"").Output()
+			o.Expect(err).NotTo(o.HaveOccurred())
+			g.By(fmt.Sprintf("checking the generation for %s: %s", resource, generation))
+			o.Expect(generation).To(o.ContainSubstring("2"))
+
+			g.By("deploying a second time [new client]")
+			_, err = oc.Run("deploy").Args("--latest", dcName).Output()
+			o.Expect(err).NotTo(o.HaveOccurred())
+
+			g.By("verifying that both latestVersion and generation are updated")
+			version, err = oc.Run("get").Args(resource, "--output=jsonpath=\"{.status.latestVersion}\"").Output()
+			version = strings.Trim(version, "\"")
+			o.Expect(err).NotTo(o.HaveOccurred())
+			g.By(fmt.Sprintf("checking the latest version for %s: %s", resource, version))
+			o.Expect(version).To(o.ContainSubstring("2"))
+			generation, err = oc.Run("get").Args(resource, "--output=jsonpath=\"{.metadata.generation}\"").Output()
+			o.Expect(err).NotTo(o.HaveOccurred())
+			g.By(fmt.Sprintf("checking the generation for %s: %s", resource, generation))
+			o.Expect(generation).To(o.ContainSubstring("3"))
+
+			g.By("verifying the second deployment is marked complete")
+			err = wait.Poll(100*time.Millisecond, 1*time.Minute, func() (bool, error) {
+				rc, err := oc.KubeREST().ReplicationControllers(oc.Namespace()).Get(dcName + "-" + version)
+				o.Expect(err).NotTo(o.HaveOccurred())
+				return deployutil.IsTerminatedDeployment(rc), nil
+			})
+			o.Expect(err).NotTo(o.HaveOccurred())
+		})
+	})
+})

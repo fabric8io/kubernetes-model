@@ -148,6 +148,10 @@
       "type": "object",
       "description": "",
       "properties": {
+        "as": {
+          "type": "string",
+          "description": ""
+        },
         "client-certificate": {
           "type": "string",
           "description": ""
@@ -1059,6 +1063,10 @@
           "description": "",
           "default": "DeleteOptions",
           "required": true
+        },
+        "preconditions": {
+          "$ref": "#/definitions/kubernetes_Preconditions",
+          "javaType": "io.fabric8.kubernetes.api.model.Preconditions"
         }
       },
       "additionalProperties": true,
@@ -3224,6 +3232,18 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.PodTemplateSpec"
     },
+    "kubernetes_Preconditions": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.Preconditions"
+    },
     "kubernetes_Probe": {
       "type": "object",
       "description": "",
@@ -4427,10 +4447,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "apiGroup": {
-          "type": "string",
-          "description": ""
-        },
         "name": {
           "type": "string",
           "description": ""
@@ -5656,7 +5672,7 @@
       "description": "",
       "properties": {
         "Object": {},
-        "RawJSON": {
+        "Raw": {
           "type": "string",
           "description": ""
         }
@@ -6043,6 +6059,14 @@
         "resourceName": {
           "type": "string",
           "description": ""
+        },
+        "scopes": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
         },
         "user": {
           "type": "string",
@@ -6536,6 +6560,14 @@
           "type": "string",
           "description": ""
         },
+        "scopes": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
         "user": {
           "type": "string",
           "description": ""
@@ -6722,6 +6754,10 @@
         "revision": {
           "$ref": "#/definitions/os_build_SourceRevision",
           "javaType": "io.fabric8.openshift.api.model.SourceRevision"
+        },
+        "runPolicy": {
+          "type": "string",
+          "description": ""
         },
         "serviceAccount": {
           "type": "string",
@@ -7040,6 +7076,10 @@
           "$ref": "#/definitions/os_build_DockerBuildStrategy",
           "javaType": "io.fabric8.openshift.api.model.DockerBuildStrategy"
         },
+        "jenkinsPipelineStrategy": {
+          "$ref": "#/definitions/os_build_JenkinsPipelineBuildStrategy",
+          "javaType": "io.fabric8.openshift.api.model.JenkinsPipelineBuildStrategy"
+        },
         "sourceStrategy": {
           "$ref": "#/definitions/os_build_SourceBuildStrategy",
           "javaType": "io.fabric8.openshift.api.model.SourceBuildStrategy"
@@ -7260,6 +7300,22 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.ImageSourcePath"
     },
+    "os_build_JenkinsPipelineBuildStrategy": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "jenkinsfile": {
+          "type": "string",
+          "description": ""
+        },
+        "jenkinsfilePath": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.JenkinsPipelineBuildStrategy"
+    },
     "os_build_SecretBuildSource": {
       "type": "object",
       "description": "",
@@ -7364,6 +7420,10 @@
       "type": "object",
       "description": "",
       "properties": {
+        "allowEnv": {
+          "type": "boolean",
+          "description": ""
+        },
         "secret": {
           "type": "string",
           "description": ""
@@ -7551,6 +7611,11 @@
         "latestVersion": {
           "type": "integer",
           "description": ""
+        },
+        "observedGeneration": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
         }
       },
       "additionalProperties": true,
@@ -8165,6 +8230,34 @@
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.TagReference"
     },
+    "os_oauth_ClusterRoleScopeRestriction": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "allowEscalation": {
+          "type": "boolean",
+          "description": ""
+        },
+        "namespaces": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "roleNames": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ClusterRoleScopeRestriction"
+    },
     "os_oauth_OAuthAccessToken": {
       "type": "object",
       "description": "",
@@ -8365,6 +8458,14 @@
       "type": "object",
       "description": "",
       "properties": {
+        "additionalSecrets": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
         "apiVersion": {
           "type": "string",
           "description": "",
@@ -8392,6 +8493,14 @@
         "respondWithChallenges": {
           "type": "boolean",
           "description": ""
+        },
+        "scopeRestrictions": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/os_oauth_ScopeRestriction",
+            "javaType": "io.fabric8.openshift.api.model.ScopeRestriction"
+          }
         },
         "secret": {
           "type": "string",
@@ -8522,6 +8631,26 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource",
         "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
+    },
+    "os_oauth_ScopeRestriction": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "clusterRole": {
+          "$ref": "#/definitions/os_oauth_ClusterRoleScopeRestriction",
+          "javaType": "io.fabric8.openshift.api.model.ClusterRoleScopeRestriction"
+        },
+        "literals": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ScopeRestriction"
     },
     "os_project_Project": {
       "type": "object",

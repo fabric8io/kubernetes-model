@@ -1,5 +1,34 @@
 <!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
 
+<!-- BEGIN STRIP_FOR_RELEASE -->
+
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+
+<h2>PLEASE NOTE: This document applies to the HEAD of the source tree</h2>
+
+If you are using a released version of Kubernetes, you should
+refer to the docs that go with that version.
+
+<!-- TAG RELEASE_LINK, added by the munger automatically -->
+<strong>
+The latest release of this document can be found
+[here](http://releases.k8s.io/release-1.2/docs/devel/coding-conventions.md).
+
+Documentation for other releases can be found at
+[releases.k8s.io](http://releases.k8s.io).
+</strong>
+--
+
+<!-- END STRIP_FOR_RELEASE -->
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 Code conventions
@@ -35,6 +64,7 @@ Testing conventions
   - Significant features should come with integration (test/integration) and/or [end-to-end (test/e2e) tests](e2e-tests.md)
     - Including new kubectl commands and major features of existing commands
   - Unit tests must pass on OS X and Windows platforms - if you use Linux specific features, your test case must either be skipped on windows or compiled out (skipped is better when running Linux specific commands, compiled out is required when your code does not compile on Windows).
+  - See the [testing guide](testing.md) for additional testing advice.
 
 Directory and file conventions
   - Avoid package sprawl. Find an appropriate subdirectory for new packages. (See [#4851](http://issues.k8s.io/4851) for discussion.)
@@ -58,13 +88,6 @@ Directory and file conventions
 Coding advice
   - Go
     - [Go landmines](https://gist.github.com/lavalamp/4bd23295a9f32706a48f)
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

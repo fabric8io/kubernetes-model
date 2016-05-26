@@ -1,6 +1,7 @@
 package templaterouter
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -305,7 +306,7 @@ func (r *templateRouter) reloadRouter() error {
 	cmd := exec.Command(r.reloadScriptPath)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("error reloading router: %v\n%s", err, out)
+		return fmt.Errorf("error reloading router: %v\n%s", err, string(out))
 	}
 	glog.Infof("Router reloaded:\n%s", out)
 	return nil
@@ -471,10 +472,14 @@ func (r *templateRouter) AddRoute(id string, route *routeapi.Route, host string)
 		}
 	}
 
+	key := fmt.Sprintf("%s %s", config.TLSTermination, backendKey)
+	config.RoutingKeyName = fmt.Sprintf("%x", md5.Sum([]byte(key)))
+
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
 	frontend, _ := r.findMatchingServiceUnit(id)
+
 	//create or replace
 	frontend.ServiceAliasConfigs[backendKey] = config
 	r.state[id] = frontend

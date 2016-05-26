@@ -1,5 +1,34 @@
 <!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
 
+<!-- BEGIN STRIP_FOR_RELEASE -->
+
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+
+<h2>PLEASE NOTE: This document applies to the HEAD of the source tree</h2>
+
+If you are using a released version of Kubernetes, you should
+refer to the docs that go with that version.
+
+<!-- TAG RELEASE_LINK, added by the munger automatically -->
+<strong>
+The latest release of this document can be found
+[here](http://releases.k8s.io/release-1.2/docs/devel/automation.md).
+
+Documentation for other releases can be found at
+[releases.k8s.io](http://releases.k8s.io).
+</strong>
+--
+
+<!-- END STRIP_FOR_RELEASE -->
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 
@@ -38,7 +67,7 @@ The status of the submit-queue is [online.](http://submit-queue.k8s.io/)
 A PR is considered "ready for merging" if it matches the following:
    * it has the `lgtm` label, and that `lgtm` is newer than the latest commit
    * it has passed the cla pre-submit and has the `cla:yes` label
-   * it has passed the travis and shippable pre-submit tests
+   * it has passed the travis pre-submit tests
    * one (or all) of
       * its author is in kubernetes/contrib/submit-queue/whitelist.txt
       * its author is in contributors.txt via the github API.
@@ -74,7 +103,7 @@ Currently this runs:
    * needs-rebase - Adds `needs-rebase` to PRs that aren't currently mergeable, and removes it from those that are.
    * size - Adds `size/xs` - `size/xxl` labels to PRs
    * ok-to-test - Adds the `ok-to-test` message to PRs that have an `lgtm` but the e2e-builder would otherwise not test due to whitelist
-   * ping-ci - Attempts to ping the ci systems (Travis/Shippable) if they are missing from a PR.
+   * ping-ci - Attempts to ping the ci systems (Travis) if they are missing from a PR.
    * lgtm-after-commit - Removes the `lgtm` label from PRs where there are commits that are newer than the `lgtm` label
 
 In the works:
@@ -101,16 +130,9 @@ PR builder to re-run the tests.  To do this, reply to the PR with a message that
 
 Right now you have to ask a contributor (this may be you!) to re-run the test with "@k8s-bot test this"
 
-### How can I kick Shippable to re-test on a failure?
+### How can I kick Travis to re-test on a failure?
 
 Right now the easiest way is to close and then immediately re-open the PR.
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
-
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
 [![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/docs/devel/automation.md?pixel)]()

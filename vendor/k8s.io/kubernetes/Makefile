@@ -55,17 +55,7 @@ all:
 #   make verify
 #   make verify BRANCH=branch_x
 verify:
-	hack/verify-gofmt.sh
-	hack/verify-boilerplate.sh
-	hack/verify-codecgen.sh
-	hack/verify-description.sh
-	hack/verify-generated-conversions.sh
-	hack/verify-generated-deep-copies.sh
-	hack/verify-generated-docs.sh
-	hack/verify-swagger-spec.sh
-	hack/verify-flags-underscore.py
-	hack/verify-godeps.sh $(BRANCH)
-	hack/verify-godep-licenses.sh $(BRANCH)
+	KUBE_VERIFY_GIT_BRANCH=$(BRANCH) hack/verify-all.sh -v
 .PHONY: verify
 
 # Build and run tests.
@@ -103,10 +93,14 @@ test_e2e:
 
 # Build and run node end-to-end tests.
 #
+# Args:
+#  FOCUS: regexp that matches the tests to be run
+#  SKIP: regexp that matches the tests that needs to be skipped
 # Example:
-#   make test_e2e_node
+#   make test_e2e_node FOCUS=kubelet SKIP=container
+# Build and run tests.
 test_e2e_node:
-	hack/e2e-node-test.sh
+	hack/e2e-node-test.sh FOCUS=$(FOCUS) SKIP=$(SKIP)
 .PHONY: test_e2e_node
 
 

@@ -1,5 +1,34 @@
 <!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
 
+<!-- BEGIN STRIP_FOR_RELEASE -->
+
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+
+<h2>PLEASE NOTE: This document applies to the HEAD of the source tree</h2>
+
+If you are using a released version of Kubernetes, you should
+refer to the docs that go with that version.
+
+<!-- TAG RELEASE_LINK, added by the munger automatically -->
+<strong>
+The latest release of this document can be found
+[here](http://releases.k8s.io/release-1.2/docs/devel/releasing.md).
+
+Documentation for other releases can be found at
+[releases.k8s.io](http://releases.k8s.io).
+</strong>
+--
+
+<!-- END STRIP_FOR_RELEASE -->
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 
@@ -197,23 +226,31 @@ been automated that need to happen after the branch has been cut:
    the unversioned warning in docs point to the latest release series. Please
    send the changes as a PR titled "Update the latestReleaseBranch to
    release-X.Y in the munger".
-1. Add test jobs for the new branch.
-   1. See [End-2-End Testing in Kubernetes](e2e-tests.md) for the test jobs
-      that should be running in CI, which are under version control in
-      `hack/jenkins/e2e.sh` (on the release branch) and
-      `hack/jenkins/job-configs/kubernetes-e2e.yaml` (in `master`).  You'll
-      want to munge these for the release branch so that, as we cherry-pick
-      fixes onto the branch, we know that it builds, etc.  (Talk with
-      @ihmccreery for more details.)
-   1. Make sure all features that are supposed to be GA are covered by tests,
-      but remove feature tests on the release branch for features that aren't
-      GA.  You can use `hack/list-feature-tests.sh` to see a list of tests
-      labeled as `[Feature:.+]`; make sure that these are all either covered in
-      CI jobs on the release branch or are experimental features.  (The answer
-      should already be 'yes', but this is a good time to reconcile.)
-   1. Make a dashboard in Jenkins that contains all of the jobs for this
-      release cycle, and also add them to Critical Builds.  (Don't add them to
-      the merge-bot blockers; see kubernetes/contrib#156.)
+1. Send a note to the test team (@kubernetes/goog-testing) that a new branch
+   has been created.
+   1. There is currently much work being done on our Jenkins infrastructure
+      and configs.  Eventually we could have a relatively simple interface
+      to make this change or a way to automatically use the new branch.
+      See [recent Issue #22672](https://github.com/kubernetes/kubernetes/issues/22672).
+   1. You can provide this guidance in the email to aid in the setup:
+      1. See [End-2-End Testing in Kubernetes](e2e-tests.md) for the test jobs
+         that should be running in CI, which are under version control in
+         `hack/jenkins/e2e.sh` (on the release branch) and
+         `hack/jenkins/job-configs/kubernetes-jenkins/kubernetes-e2e.yaml`
+         (in `master`).  You'll want to munge these for the release
+         branch so that, as we cherry-pick fixes onto the branch, we know that
+         it builds, etc.  (Talk with @ihmccreery for more details.)
+      1. Make sure all features that are supposed to be GA are covered by tests,
+         but remove feature tests on the release branch for features that aren't
+         GA.  You can use `hack/list-feature-tests.sh` to see a list of tests
+         labeled as `[Feature:.+]`; make sure that these are all either
+         covered in CI jobs on the release branch or are experimental
+         features.  (The answer should already be 'yes', but this is a
+         good time to reconcile.)
+      1. Make a dashboard in Jenkins that contains all of the jobs for this
+         release cycle, and also add them to Critical Builds.  (Don't add
+         them to the merge-bot blockers; see kubernetes/contrib#156.)
+
 
 ## Injecting Version into Binaries
 
@@ -263,13 +300,6 @@ tell the Go linker to override the contents of those variables at build time. It
 can, for instance, tell it to override `gitVersion` and set it to
 `v0.4-13-g4567bcdef6789-dirty` and set `gitCommit` to `4567bcdef6789...` which
 is the complete SHA1 of the (dirty) tree used at build time.
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

@@ -3,7 +3,7 @@
 
 .SH NAME
 .PP
-kubectl autoscale \- Auto\-scale a deployment or replication controller
+kubectl autoscale \- Auto\-scale a Deployment, ReplicaSet, or ReplicationController
 
 
 .SH SYNOPSIS
@@ -16,7 +16,7 @@ kubectl autoscale \- Auto\-scale a deployment or replication controller
 Creates an autoscaler that automatically chooses and sets the number of pods that run in a kubernetes cluster.
 
 .PP
-Looks up a deployment or replication controller by name and creates an autoscaler that uses this deployment or replication controller as a reference.
+Looks up a Deployment, ReplicaSet, or ReplicationController by name and creates an autoscaler that uses the given resource as a reference.
 An autoscaler can automatically increase or decrease number of pods deployed within the system as needed.
 
 
@@ -38,6 +38,10 @@ An autoscaler can automatically increase or decrease number of pods deployed wit
     The name of the API generator to use. Currently there is only 1 generator.
 
 .PP
+\fB\-\-include\-extended\-apis\fP=true
+    If true, include definitions of new APIs via calls to the API server. [default true]
+
+.PP
 \fB\-\-max\fP=\-1
     The upper limit for the number of pods that can be set by the autoscaler. Required.
 
@@ -57,7 +61,7 @@ An autoscaler can automatically increase or decrease number of pods deployed wit
 \fB\-o\fP, \fB\-\-output\fP=""
     Output format. One of: json|yaml|wide|name|go\-template=...|go\-template\-file=...|jsonpath=...|jsonpath\-file=... See golang template [
 \[la]http://golang.org/pkg/text/template/#pkg-overview\[ra]] and jsonpath template [
-\[la]http://releases.k8s.io/release-1.2/docs/user-guide/jsonpath.md\[ra]].
+\[la]http://releases.k8s.io/HEAD/docs/user-guide/jsonpath.md\[ra]].
 
 .PP
 \fB\-\-output\-version\fP=""
@@ -66,6 +70,10 @@ An autoscaler can automatically increase or decrease number of pods deployed wit
 .PP
 \fB\-\-record\fP=false
     Record current kubectl command in the resource annotation.
+
+.PP
+\fB\-R\fP, \fB\-\-recursive\fP=false
+    If true, process directory recursively.
 
 .PP
 \fB\-\-save\-config\fP=false
