@@ -9,7 +9,7 @@ import (
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/runtime/serializer"
-	"k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/util/diff"
 
 	internal "github.com/openshift/origin/pkg/cmd/server/api"
 	"github.com/openshift/origin/pkg/cmd/server/api/latest"
@@ -82,6 +82,7 @@ apiLevels: null
 apiVersion: v1
 assetConfig:
   extensionDevelopment: false
+  extensionProperties: null
   extensionScripts: null
   extensionStylesheets: null
   extensions:
@@ -102,6 +103,11 @@ assetConfig:
     maxRequestsInFlight: 0
     namedCertificates: null
     requestTimeoutSeconds: 0
+auditConfig:
+  enabled: false
+controllerConfig:
+  serviceServingCert:
+    signer: null
 controllerLeaseTTL: 0
 controllers: ""
 corsAllowedOrigins: null
@@ -146,6 +152,12 @@ imagePolicyConfig:
   maxImagesBulkImportedPerRepository: 0
   maxScheduledImageImportsPerMinute: 0
   scheduledImageImportMinimumIntervalSeconds: 0
+jenkinsPipelineConfig:
+  enabled: null
+  parameters: null
+  serviceName: ""
+  templateName: ""
+  templateNamespace: ""
 kind: MasterConfig
 kubeletClientInfo:
   ca: ""
@@ -192,6 +204,7 @@ oauthConfig:
   assetPublicURL: ""
   grantConfig:
     method: ""
+    serviceAccountMethod: ""
   identityProviders:
   - challenge: false
     login: false
@@ -473,7 +486,7 @@ func TestSerializeNodeConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(serializedConfig) != expectedSerializedNodeConfig {
-		t.Errorf("Diff:\n-------------\n%s", util.StringDiff(string(serializedConfig), expectedSerializedNodeConfig))
+		t.Errorf("Diff:\n-------------\n%s", diff.StringDiff(string(serializedConfig), expectedSerializedNodeConfig))
 	}
 }
 
@@ -676,7 +689,7 @@ func TestMasterConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(serializedConfig) != expectedSerializedMasterConfig {
-		t.Errorf("Diff:\n-------------\n%s", util.StringDiff(string(serializedConfig), expectedSerializedMasterConfig))
+		t.Errorf("Diff:\n-------------\n%s", diff.StringDiff(string(serializedConfig), expectedSerializedMasterConfig))
 	}
 
 }

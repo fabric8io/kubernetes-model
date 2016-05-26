@@ -1,5 +1,34 @@
 <!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
 
+<!-- BEGIN STRIP_FOR_RELEASE -->
+
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+<img src="http://kubernetes.io/img/warning.png" alt="WARNING"
+     width="25" height="25">
+
+<h2>PLEASE NOTE: This document applies to the HEAD of the source tree</h2>
+
+If you are using a released version of Kubernetes, you should
+refer to the docs that go with that version.
+
+<!-- TAG RELEASE_LINK, added by the munger automatically -->
+<strong>
+The latest release of this document can be found
+[here](http://releases.k8s.io/release-1.2/docs/proposals/resource-qos.md).
+
+Documentation for other releases can be found at
+[releases.k8s.io](http://releases.k8s.io).
+</strong>
+--
+
+<!-- END STRIP_FOR_RELEASE -->
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 
@@ -32,6 +61,7 @@ For each resource, containers can specify a resource request and limit, 0 <= req
 ### Compressible Resource Guarantees
 
 - For now, we are only supporting CPU.
+- Minimum CPU limit is 10 milli cores (`10m`). This a limitation of the Linux kernel.
 - Containers are guaranteed to get the amount of CPU they request, they may or may not get additional CPU time (depending on the other jobs running).
 - Excess CPU resources will be distributed based on the amount of CPU requested. For example, suppose container A requests for 60% of the CPU, and container B requests for 30% of the CPU. Suppose that both containers are trying to use as much CPU as they can. Then the extra 10% of CPU will be distributed to A and B in a 2:1 ratio (implementation discussed in later sections).
 - Containers will be throttled if they exceed their limit. If limit is unspecified, then the containers can use excess CPU when available.
@@ -106,13 +136,6 @@ Maintaining CPU performance:
 
 Documentation:
 - **Documentation**: TODO: add user docs for resource QoS
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
-
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
 [![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/docs/proposals/resource-qos.md?pixel)]()

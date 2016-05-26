@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -14,8 +15,10 @@ import (
 	"github.com/spf13/cobra"
 
 	kapi "k8s.io/kubernetes/pkg/api"
+	apierrs "k8s.io/kubernetes/pkg/api/errors"
 	kclient "k8s.io/kubernetes/pkg/client/unversioned"
 	clientcmd "k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
+	"k8s.io/kubernetes/pkg/util/wait"
 	"k8s.io/kubernetes/test/e2e"
 
 	_ "github.com/openshift/origin/pkg/api/install"
@@ -146,6 +149,17 @@ func (c *CLI) SetupProject(name string, kubeClient *kclient.Client, _ map[string
 	})
 	if err != nil {
 		e2e.Logf("Failed to create a project and namespace %q: %v", c.Namespace(), err)
+		return nil, err
+	}
+	if err := wait.ExponentialBackoff(kclient.DefaultBackoff, func() (bool, error) {
+		if _, err := c.KubeREST().Pods(c.Namespace()).List(kapi.ListOptions{}); err != nil {
+			if apierrs.IsForbidden(err) {
+				e2e.Logf("Waiting for user to have access to the namespace")
+				return false, nil
+			}
+		}
+		return true, nil
+	}); err != nil {
 		return nil, err
 	}
 	return &kapi.Namespace{ObjectMeta: kapi.ObjectMeta{Name: c.Namespace()}}, err
@@ -284,6 +298,26 @@ func (c *CLI) Output() (string, error) {
 		// unreachable code
 		return "", nil
 	}
+}
+
+// Background executes the command in the background and returns the Cmd object
+// returns the Cmd which should be killed later via cmd.Process.Kill(), as well
+// as the stdout and stderr byte buffers assigned to the cmd.Stdout and cmd.Stderr
+// writers.
+func (c *CLI) Background() (*exec.Cmd, *bytes.Buffer, *bytes.Buffer, error) {
+	if c.verbose {
+		fmt.Printf("DEBUG: oc %s\n", c.printCmd())
+	}
+	cmd := exec.Command(c.execPath, c.finalArgs...)
+	cmd.Stdin = c.stdin
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = bufio.NewWriter(&stdout)
+	cmd.Stderr = bufio.NewWriter(&stderr)
+
+	e2e.Logf("Running '%s %s'", c.execPath, strings.Join(c.finalArgs, " "))
+
+	err := cmd.Start()
+	return cmd, &stdout, &stderr, err
 }
 
 // Stdout returns the current stdout writer

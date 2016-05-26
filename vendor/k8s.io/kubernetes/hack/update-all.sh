@@ -20,7 +20,7 @@ set -o nounset
 set -o pipefail
 
 KUBE_ROOT=$(dirname "${BASH_SOURCE}")/..
-source "${KUBE_ROOT}/cluster/kube-env.sh"
+source "${KUBE_ROOT}/cluster/lib/util.sh"
 
 SILENT=true
 ALL=false
@@ -50,9 +50,7 @@ if ! $ALL ; then
 	echo "Running in short-circuit mode; run with -a to force all scripts to run."
 fi
 
-BASH_TARGETS="codecgen
-	generated-conversions
-	generated-deep-copies
+BASH_TARGETS="generated-conversions
 	generated-docs
 	generated-swagger-docs
 	swagger-spec

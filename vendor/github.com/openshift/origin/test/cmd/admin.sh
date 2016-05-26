@@ -24,8 +24,8 @@ trap os::test::junit::reconcile_output EXIT
   oc delete users/orphaned-user
   oc delete identities/anypassword:orphaned-user
   oc delete identities/anypassword:cascaded-user
-  oadm policy reconcile-cluster-roles --confirm
-  oadm policy reconcile-cluster-role-bindings --confirm
+  oadm policy reconcile-cluster-roles --confirm --additive-only=false
+  oadm policy reconcile-cluster-role-bindings --confirm --additive-only=false
 ) &>/dev/null
 
 
@@ -45,6 +45,7 @@ os::cmd::expect_failure_and_text 'openshift start network --config=${NODECONFIG}
 os::cmd::expect_failure_and_text 'openshift start node' 'kubeconfig must be set'
 os::cmd::expect_failure_and_text 'openshift start node --config=${NODECONFIG} --disable=other' 'the following components are not recognized: other'
 os::cmd::expect_failure_and_text 'openshift start node --config=${NODECONFIG} --disable=kubelet,proxy,plugins' 'at least one node component must be enabled \(kubelet, plugins, proxy\)'
+os::cmd::expect_failure_and_text 'openshift start --write-config=/tmp/test --hostname=""' 'error: --hostname must have a value'
 os::test::junit::declare_suite_end
 
 os::test::junit::declare_suite_start "cmd/admin/manage-node"
@@ -125,7 +126,7 @@ os::cmd::expect_success_and_text 'oadm policy who-can get PodASDF' "Resource:  P
 os::cmd::expect_success_and_text 'oadm policy who-can get hpa.autoscaling -n default' "Resource:  horizontalpodautoscalers.autoscaling"
 os::cmd::expect_success_and_text 'oadm policy who-can get hpa.v1.autoscaling -n default' "Resource:  horizontalpodautoscalers.autoscaling"
 os::cmd::expect_success_and_text 'oadm policy who-can get hpa.extensions -n default' "Resource:  horizontalpodautoscalers.extensions"
-os::cmd::expect_success_and_text 'oadm policy who-can get hpa -n default' "Resource:  horizontalpodautoscalers.extensions"
+os::cmd::expect_success_and_text 'oadm policy who-can get hpa -n default' "Resource:  horizontalpodautoscalers.autoscaling"
 
 os::cmd::expect_success 'oadm policy add-role-to-group cluster-admin system:unauthenticated'
 os::cmd::expect_success 'oadm policy add-role-to-user cluster-admin system:no-user'
@@ -176,16 +177,33 @@ os::cmd::expect_failure 'oc get clusterrole/cluster-status'
 os::cmd::expect_success 'oadm policy reconcile-cluster-roles clusterrole/cluster-status --confirm'
 os::cmd::expect_success 'oc get clusterrole/cluster-status'
 
-os::cmd::expect_success 'oc replace --force -f ./test/fixtures/basic-user.json'
+# test reconciliation protection by replacing the basic-user role with one that has missing default permissions, and extra non-default permissions
+os::cmd::expect_success 'oc replace --force -f ./test/fixtures/basic-user-with-groups-without-projectrequests.yaml'
+# 1. mark the role as protected, and ensure the role is skipped by reconciliation
+os::cmd::expect_success 'oc annotate clusterrole/basic-user openshift.io/reconcile-protect=true'
+os::cmd::expect_success_and_text     'oadm policy reconcile-cluster-roles basic-user --additive-only=false --confirm' 'skipped: clusterrole/basic-user'
+# 2. unmark the role as protected, and ensure reconcile expects to remove extra permissions, and put back removed permissions
+os::cmd::expect_success 'oc annotate clusterrole/basic-user openshift.io/reconcile-protect=false --overwrite'
+os::cmd::expect_success_and_text     'oc get clusterrole/basic-user -o jsonpath="{.rules[*].resources}"' 'groups'
+os::cmd::expect_success_and_not_text 'oc get clusterrole/basic-user -o jsonpath="{.rules[*].resources}"' 'projectrequests'
+os::cmd::expect_success_and_not_text 'oadm policy reconcile-cluster-roles basic-user -o jsonpath="{.items[*].rules[*].resources}" --additive-only=false' 'groups'
+os::cmd::expect_success_and_text     'oadm policy reconcile-cluster-roles basic-user -o jsonpath="{.items[*].rules[*].resources}" --additive-only=false' 'projectrequests'
+# reconcile updates the role
+os::cmd::expect_success_and_text     'oadm policy reconcile-cluster-roles basic-user --additive-only=false --confirm' 'clusterrole/basic-user'
+# a second reconcile doesn't need to update the role
+os::cmd::expect_success_and_not_text 'oadm policy reconcile-cluster-roles basic-user --additive-only=false --confirm' 'clusterrole/basic-user'
+
+# test label/annotation reconciliation by replacing the basic-user role with one that has custom labels, annotations, and permissions
+os::cmd::expect_success 'oc replace --force -f ./test/fixtures/basic-user-with-annotations-labels-groups-without-projectrequests.yaml'
 # display shows customized labels/annotations
 os::cmd::expect_success_and_text 'oadm policy reconcile-cluster-roles' 'custom-label'
 os::cmd::expect_success_and_text 'oadm policy reconcile-cluster-roles' 'custom-annotation'
-os::cmd::expect_success 'oadm policy reconcile-cluster-roles --additive-only --confirm'
+os::cmd::expect_success_and_text 'oadm policy reconcile-cluster-roles --additive-only --confirm' 'clusterrole/basic-user'
 # reconcile preserves added rules, labels, and annotations
 os::cmd::expect_success_and_text 'oc get clusterroles/basic-user -o json' 'custom-label'
 os::cmd::expect_success_and_text 'oc get clusterroles/basic-user -o json' 'custom-annotation'
 os::cmd::expect_success_and_text 'oc get clusterroles/basic-user -o json' 'groups'
-os::cmd::expect_success 'oadm policy reconcile-cluster-roles --confirm'
+os::cmd::expect_success 'oadm policy reconcile-cluster-roles --additive-only=false --confirm'
 os::cmd::expect_success_and_not_text 'oc get clusterroles/basic-user -o yaml' 'groups'
 echo "admin-reconcile-cluster-roles: ok"
 os::test::junit::declare_suite_end
@@ -278,6 +296,16 @@ echo "router: ok"
 os::test::junit::declare_suite_end
 
 os::test::junit::declare_suite_start "cmd/admin/registry"
+# Test running a registry as a daemonset
+os::cmd::expect_failure_and_text 'oadm registry --daemonset --dry-run' 'does not exist'
+os::cmd::expect_success_and_text "oadm registry --daemonset -o yaml --credentials=${KUBECONFIG}" 'DaemonSet'
+os::cmd::expect_success "oadm registry --daemonset --credentials=${KUBECONFIG} --images='${USE_IMAGES}'"
+os::cmd::expect_success_and_text 'oadm registry --daemonset' 'service exists'
+os::cmd::expect_success_and_text 'oc get ds/docker-registry --template="{{.status.desiredNumberScheduled}}"' '1'
+# clean up so we can test non-daemonset
+os::cmd::expect_success "oc delete ds/docker-registry svc/docker-registry"
+echo "registry daemonset: ok"
+
 # Test running a registry
 os::cmd::expect_failure_and_text 'oadm registry --dry-run' 'does not exist'
 os::cmd::expect_success_and_text "oadm registry -o yaml --credentials=${KUBECONFIG}" 'image:.*-docker-registry'
@@ -353,6 +381,25 @@ os::cmd::expect_success_and_not_text 'oc get scc/restricted -o yaml' 'topic: my-
 echo "reconcile-scc: ok"
 os::test::junit::declare_suite_end
 
+
+os::test::junit::declare_suite_start "cmd/admin/policybinding-required"
+# Admin can't bind local roles without cluster-admin permissions
+os::cmd::expect_success "oc create -f test/extended/fixtures/roles/empty-role.yaml -n cmd-admin"
+os::cmd::expect_success "oc delete policybinding/cmd-admin:default -n cmd-admin"
+os::cmd::expect_success 'oadm policy add-role-to-user admin local-admin  -n cmd-admin'
+os::cmd::try_until_text "oc policy who-can get policybindings -n cmd-admin" "local-admin"
+os::cmd::expect_success 'oc login -u local-admin -p pw'
+os::cmd::expect_failure 'oc policy add-role-to-user empty-role other --role-namespace=cmd-admin'
+os::cmd::expect_success 'oc login -u system:admin'
+os::cmd::expect_success "oc create policybinding cmd-admin -n cmd-admin"
+os::cmd::expect_success 'oc login -u local-admin -p pw'
+os::cmd::expect_success 'oc policy add-role-to-user empty-role other --role-namespace=cmd-admin -n cmd-admin'
+os::cmd::expect_success 'oc login -u system:admin'
+os::cmd::expect_success "oc delete role/empty-role -n cmd-admin"
+echo "policybinding-required: ok"
+os::test::junit::declare_suite_end
+
+
 os::test::junit::declare_suite_start "cmd/admin/user-group-cascade"
 # Create test users/identities and groups
 os::cmd::expect_success 'oc login -u cascaded-user -p pw'
@@ -416,6 +463,15 @@ os::cmd::expect_success_and_text 'oc get secrets --selector="mykey=myvalue"' 'my
 os::cmd::expect_success_and_text 'oc get secrets --selector="myotherkey=myothervalue"' 'my-sa-name'
 os::cmd::expect_success_and_text 'oc get secrets --selector="mykey=myvalue,myotherkey=myothervalue"' 'my-sa-name'
 echo "serviceacounts: ok"
+os::test::junit::declare_suite_end
+
+# user creation
+os::test::junit::declare_suite_start "cmd/admin/user-creation"
+os::cmd::expect_success 'oc create user                test-cmd-user'
+os::cmd::expect_success 'oc create identity            test-idp:test-uid'
+os::cmd::expect_success 'oc create useridentitymapping test-idp:test-uid test-cmd-user'
+os::cmd::expect_success_and_text 'oc describe identity test-idp:test-uid' 'test-cmd-user'
+os::cmd::expect_success_and_text 'oc describe user     test-cmd-user' 'test-idp:test-uid'
 os::test::junit::declare_suite_end
 
 os::test::junit::declare_suite_end

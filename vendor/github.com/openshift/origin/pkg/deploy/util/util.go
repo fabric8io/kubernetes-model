@@ -2,7 +2,6 @@ package util
 
 import (
 	"fmt"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -105,35 +104,18 @@ func HasChangeTrigger(config *deployapi.DeploymentConfig) bool {
 	return false
 }
 
-// CauseFromAutomaticImageChange inspects any existing deployment config cause and
-// validates if it comes from the image change controller.
-func CauseFromAutomaticImageChange(config *deployapi.DeploymentConfig) bool {
-	if config.Status.Details != nil && len(config.Status.Details.Causes) > 0 {
-		for _, trigger := range config.Spec.Triggers {
-			if trigger.Type == deployapi.DeploymentTriggerOnImageChange &&
-				trigger.ImageChangeParams.Automatic &&
-				config.Status.Details.Causes[0].Type == deployapi.DeploymentTriggerOnImageChange &&
-				reflect.DeepEqual(trigger.ImageChangeParams.From, config.Status.Details.Causes[0].ImageTrigger.From) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // DecodeDeploymentConfig decodes a DeploymentConfig from controller using codec. An error is returned
 // if the controller doesn't contain an encoded config.
 func DecodeDeploymentConfig(controller *api.ReplicationController, decoder runtime.Decoder) (*deployapi.DeploymentConfig, error) {
 	encodedConfig := []byte(EncodedDeploymentConfigFor(controller))
-	if decoded, err := runtime.Decode(decoder, encodedConfig); err == nil {
+	decoded, err := runtime.Decode(decoder, encodedConfig)
+	if err == nil {
 		if config, ok := decoded.(*deployapi.DeploymentConfig); ok {
 			return config, nil
-		} else {
-			return nil, fmt.Errorf("decoded DeploymentConfig from controller is not a DeploymentConfig: %v", err)
 		}
-	} else {
-		return nil, fmt.Errorf("failed to decode DeploymentConfig from controller: %v", err)
+		return nil, fmt.Errorf("decoded object from controller is not a DeploymentConfig")
 	}
+	return nil, fmt.Errorf("failed to decode DeploymentConfig from controller: %v", err)
 }
 
 // EncodeDeploymentConfig encodes config as a string using codec.
@@ -223,6 +205,9 @@ func MakeDeployment(config *deployapi.DeploymentConfig, codec runtime.Codec) (*a
 			},
 		},
 	}
+	if value, ok := config.Annotations[deployapi.DeploymentIgnorePodAnnotation]; ok {
+		deployment.Annotations[deployapi.DeploymentIgnorePodAnnotation] = value
+	}
 
 	return deployment, nil
 }
@@ -270,6 +255,23 @@ func DeploymentVersionFor(obj runtime.Object) int {
 func IsDeploymentCancelled(deployment *api.ReplicationController) bool {
 	value := annotationFor(deployment, deployapi.DeploymentCancelledAnnotation)
 	return strings.EqualFold(value, deployapi.DeploymentCancelledAnnotationValue)
+}
+
+func Instantiate(dc deployapi.DeploymentConfig) *deployapi.DeploymentConfig {
+	if dc.Annotations == nil {
+		dc.Annotations = make(map[string]string)
+	}
+	dc.Annotations[deployapi.DeploymentInstantiatedAnnotation] = deployapi.DeploymentInstantiatedAnnotationValue
+	return &dc
+}
+
+func IsInstantiated(dc *deployapi.DeploymentConfig) bool {
+	value := annotationFor(dc, deployapi.DeploymentInstantiatedAnnotation)
+	return strings.EqualFold(value, deployapi.DeploymentInstantiatedAnnotationValue)
+}
+
+func HasSynced(dc *deployapi.DeploymentConfig) bool {
+	return dc.Status.ObservedGeneration >= dc.Generation
 }
 
 // IsTerminatedDeployment returns true if the passed deployment has terminated (either
