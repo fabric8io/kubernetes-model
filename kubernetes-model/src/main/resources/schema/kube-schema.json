@@ -2434,9 +2434,7 @@
         },
         "name": {
           "type": "string",
-          "description": "",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          "description": ""
         },
         "namespace": {
           "type": "string",

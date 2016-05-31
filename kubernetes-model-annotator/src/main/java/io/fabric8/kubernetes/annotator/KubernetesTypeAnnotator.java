@@ -18,6 +18,7 @@ package io.fabric8.kubernetes.annotator;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.sun.codemodel.JAnnotationUse;
 import com.sun.codemodel.JClassAlreadyExistsException;
 import com.sun.codemodel.JCodeModel;
 import com.sun.codemodel.JDefinedClass;
@@ -30,7 +31,18 @@ import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import org.jsonschema2pojo.Jackson2Annotator;
 
+import java.util.Map;
+
 public class KubernetesTypeAnnotator extends Jackson2Annotator {
+
+    private final String nameIsDNS952LabelPattern = "[a-z]([-a-z0-9]*[a-z0-9])?";
+    private final int nameIsDNS952LabelLength = 24;
+
+    private final String nameIsDNS1123LabelPattern = "[a-z0-9]([-a-z0-9]*[a-z0-9])?";
+    private final int nameIsDNS1123LabelLength = 63;
+
+    private final String nameIsDNS1123SubdomainPattern = nameIsDNS1123LabelPattern + "(\\." + nameIsDNS1123LabelPattern + ")*";
+    private final int nameIsDNS1123SubdomainLength = 253;
 
     @Override
     public void propertyOrder(JDefinedClass clazz, JsonNode propertiesNode) {
@@ -49,9 +61,67 @@ public class KubernetesTypeAnnotator extends Jackson2Annotator {
                     .param("type", new JCodeModel()._class("io.fabric8.kubernetes.api.model.Doneable"))
                     .param("prefix", "Doneable")
                     .param("value", "done");
+
+            annotateMetatadataValidator(clazz);
         } catch (JClassAlreadyExistsException e) {
             e.printStackTrace();
         }
+    }
+
+    private int getObjectNameMaxLength(JDefinedClass clazz) {
+        String kind = clazz.name();
+        if (kind.equals("Service")) {
+            return nameIsDNS952LabelLength;
+        }
+        if (kind.equals("Namespace") || kind.equals("Project")) {
+            return nameIsDNS1123LabelLength;
+        }
+        return nameIsDNS1123SubdomainLength;
+    }
+
+    private String getObjectNamePattern(JDefinedClass clazz) {
+        String kind = clazz.name();
+        if (kind.equals("Service")) {
+            return nameIsDNS952LabelPattern;
+        }
+        if (kind.equals("Namespace") || kind.equals("Project")) {
+            return nameIsDNS1123LabelPattern;
+        }
+        return nameIsDNS1123SubdomainPattern;
+    }
+
+    private void annotateMetatadataValidator(JDefinedClass clazz) {
+        if (clazz.name().equals("PodTemplateSpec")) {
+            return;
+        }
+
+        for (Map.Entry<String, JFieldVar> f : clazz.fields().entrySet()) {
+            if (f.getKey().equals("metadata") && f.getValue().type().name().equals("ObjectMeta")) {
+                try {
+                    JAnnotationUse annotation = f.getValue().annotate(new JCodeModel()._class("io.fabric8.kubernetes.api.model.validators.CheckObjectMeta"));
+
+                    if (isMinimal(clazz)) {
+                        annotation.param("minimal", true);
+                    } else {
+                        annotation
+                            .param("regexp", "^" + getObjectNamePattern(clazz) + "$")
+                            .param("max", getObjectNameMaxLength(clazz));
+                    }
+                } catch (JClassAlreadyExistsException e) {
+                    e.printStackTrace();
+                }
+                return;
+            }
+        }
+    }
+
+    private boolean isMinimal(JDefinedClass clazz) {
+        String kind = clazz.name();
+        return kind.equals("Group") || kind.equals("User") || kind.equals("Identity") || kind.equals("UserIdentityMapping")
+            || kind.equals("ClusterNetwork") || kind.equals("HostSubnet") || kind.equals("NetNamespace")
+            || kind.equals("Image") || kind.equals("ImageStream") || kind.equals("ImageStreamMapping") || kind.equals("ImageStreamTag") || kind.equals("ImageStreamImport")
+            || kind.equals("Policy") || kind.equals("PolicyBinding") || kind.equals("Role") || kind.equals("RoleBinding")
+            || kind.equals("OAuthAccessToken") || kind.equals("OAuthAuthorizeToken") || kind.equals("OAuthClientAuthorization");
     }
 
     @Override
