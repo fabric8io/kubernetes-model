@@ -386,9 +386,6 @@ func (g *schemaGenerator) addConstraints(objectName string, propName string, pro
 		case "namespace":
 			prop.Pattern = `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
 			prop.MaxLength = 253
-		case "name":
-			prop.Pattern = `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-			prop.MaxLength = 63
 		}
 	case "EnvVar":
 		switch propName {
