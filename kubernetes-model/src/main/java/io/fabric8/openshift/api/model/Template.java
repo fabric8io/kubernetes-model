@@ -17,12 +17,10 @@ package io.fabric8.openshift.api.model;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.fabric8.kubernetes.api.model.Doneable;
@@ -37,6 +35,7 @@ import lombok.ToString;
 import javax.annotation.Generated;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Size;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -95,7 +94,8 @@ public class Template implements HasMetadata {
      *
      */
     @JsonProperty("objects")
-    @Valid
+    @NotNull
+    @Size(min = 1)
     private List<HasMetadata> objects = new ArrayList<HasMetadata>();
     /**
      *

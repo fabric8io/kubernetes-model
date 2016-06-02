@@ -38,14 +38,8 @@ public class ObjectMetaValidator implements ConstraintValidator<CheckObjectMeta,
 
   @Override
   public boolean isValid(ObjectMeta value, ConstraintValidatorContext context) {
-    if (value.getName() == null) {
-      context.disableDefaultConstraintViolation();
-      context.buildConstraintViolationWithTemplate(
-          "{io.fabric8.kubernetes.api.model.NotNull.message}")
-          .addPropertyNode("name")
-          .addConstraintViolation();
-
-      return false;
+    if (value == null || value.getName() == null) {
+      return true;
     }
 
     String name = value.getName();

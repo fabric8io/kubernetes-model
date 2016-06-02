@@ -53,7 +53,7 @@ public class KubernetesTypeAnnotator extends Jackson2Annotator {
         clazz.annotate(EqualsAndHashCode.class);
         try {
             clazz.annotate(Buildable.class)
-                    .param("editableEnabled", true)
+                    .param("editableEnabled", false)
                     .param("validationEnabled", true)
                     .param("generateBuilderPackage", true)
                     .param("builderPackage", "io.fabric8.kubernetes.api.builder")

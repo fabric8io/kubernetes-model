@@ -16,7 +16,11 @@
 package io.fabric8.kubernetes.api.model;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import io.fabric8.openshift.api.model.GroupBuilder;
+import io.fabric8.openshift.api.model.GroupListBuilder;
 import org.junit.Test;
+
+import javax.validation.ConstraintViolationException;
 
 public class ValidationTest {
 
@@ -25,9 +29,26 @@ public class ValidationTest {
     new NodeBuilder().withNewMetadata().withName("1.0.0.1").and().build();
   }
 
-  @Test(expected = IllegalStateException.class)
+  @Test(expected = ConstraintViolationException.class)
   public void testIllegalNodeName() throws JsonProcessingException {
     new NodeBuilder().withNewMetadata().withName("..").and().build();
+  }
+
+  @Test(expected = ConstraintViolationException.class)
+  public void testIllegalGroupName() throws JsonProcessingException {
+    new GroupBuilder().withNewMetadata().withName("..").and().build();
+  }
+
+  @Test(expected = ConstraintViolationException.class)
+  public void testIllegalGroupNameInList() throws JsonProcessingException {
+    try {
+      new GroupListBuilder()
+          .addNewItem().withNewMetadata().withName("valid").and().endItem()
+          .addNewItem().withNewMetadata().withName("..").and().endItem()
+          .build();
+    } catch (ConstraintViolationException e) {
+      throw e;
+    }
   }
 
 }
