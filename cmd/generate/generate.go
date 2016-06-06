@@ -71,6 +71,7 @@ type Schema struct {
 	ServiceAccount                 kapi.ServiceAccount
 	ServiceAccountList             kapi.ServiceAccountList
 	Status                         rapi.Status
+	Patch                          rapi.Patch
 	Binding                        kapi.Binding
 	LimitRangeList                 kapi.LimitRangeList
 	DeleteOptions                  kapi.DeleteOptions
