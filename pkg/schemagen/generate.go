@@ -174,7 +174,7 @@ func (g *schemaGenerator) javaInterfaces(t reflect.Type) []string {
 	if hasItems && hasListMeta {
 		return []string{"io.fabric8.kubernetes.api.model.KubernetesResource", "io.fabric8.kubernetes.api.model.KubernetesResourceList"}
 	}
-	return nil
+	return []string{"io.fabric8.kubernetes.api.model.KubernetesResource"}
 }
 
 func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
