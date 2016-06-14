@@ -60,7 +60,7 @@ import java.util.Map;
 @JsonDeserialize(using = JsonDeserializer.None.class)
 @EqualsAndHashCode
 @ToString
-@Buildable(editableEnabled = true, validationEnabled = true, generateBuilderPackage=true, builderPackage = "io.fabric8.kubernetes.api.builder", inline = @Inline(type = Doneable.class, prefix = "Doneable", value = "done"))
+@Buildable(editableEnabled = false, validationEnabled = true, generateBuilderPackage=true, builderPackage = "io.fabric8.kubernetes.api.builder", inline = @Inline(type = Doneable.class, prefix = "Doneable", value = "done"))
 public class Template implements HasMetadata {
 
     /**
