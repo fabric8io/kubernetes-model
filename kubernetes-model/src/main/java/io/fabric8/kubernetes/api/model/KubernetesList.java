@@ -36,18 +36,10 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Generated("org.jsonschema2pojo")
 @JsonPropertyOrder({
-        "annotations",
         "apiVersion",
-        "creationTimestamp",
-        "deletionTimestamp",
-        "generateName",
-        "id",
-        "items",
         "kind",
-        "namespace",
-        "resourceVersion",
-        "selfLink",
-        "uid"
+        "metadata",
+        "items",
 })
 @JsonDeserialize(using = JsonDeserializer.None.class)
 @Buildable(editableEnabled = false, validationEnabled = true, generateBuilderPackage=true, builderPackage = "io.fabric8.kubernetes.api.builder", inline = @Inline(type = Doneable.class, prefix = "Doneable", value = "done"))
