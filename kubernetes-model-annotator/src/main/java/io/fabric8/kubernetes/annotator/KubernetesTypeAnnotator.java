@@ -38,7 +38,6 @@ import java.util.Map;
 public class KubernetesTypeAnnotator extends Jackson2Annotator {
 
     private final String nameIsDNS952LabelPattern = "[a-z]([-a-z0-9]*[a-z0-9])?";
-    private final int nameIsDNS952LabelLength = 24;
 
     private final String nameIsDNS1123LabelPattern = "[a-z0-9]([-a-z0-9]*[a-z0-9])?";
     private final int nameIsDNS1123LabelLength = 63;
@@ -84,10 +83,7 @@ public class KubernetesTypeAnnotator extends Jackson2Annotator {
 
     private int getObjectNameMaxLength(JDefinedClass clazz) {
         String kind = clazz.name();
-        if (kind.equals("Service")) {
-            return nameIsDNS952LabelLength;
-        }
-        if (kind.equals("Namespace") || kind.equals("Project")) {
+        if (kind.equals("Namespace") || kind.equals("Project") || kind.equals("Service")) {
             return nameIsDNS1123LabelLength;
         }
         return nameIsDNS1123SubdomainLength;
