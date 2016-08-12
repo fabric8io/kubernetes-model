@@ -52,8 +52,8 @@ import java.util.Map;
 @JsonPropertyOrder({
         "apiVersion",
         "kind",
-        "labels",
         "metadata",
+        "labels",
         "objects",
         "parameters"
 })

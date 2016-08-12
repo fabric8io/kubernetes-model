@@ -93,6 +93,7 @@
           <includeHashcodeAndEquals>false</includeHashcodeAndEquals>
           <outputDirectory>${basedir}/target/generated-sources</outputDirectory>
           <customAnnotator>io.fabric8.kubernetes.annotator.KubernetesTypeAnnotator</customAnnotator>
+          <annotationStyle>none</annotationStyle>
         </configuration>
         <executions>
           <execution>
