@@ -26,20 +26,28 @@ public class HasMetadataComparator implements Comparator<HasMetadata> {
             switch (kind) {
                 case "SecurityContextConstraints":
                     return 0;
-                case "Secret":
+                case "Namespace":
+                case "Project":
+                case "ProjectRequest":
                     return 1;
-                case "ServiceAccount":
+                case "Secret":
                     return 2;
-                case "OAuthClient":
+                case "ServiceAccount":
                     return 3;
-                case "Service":
+                case "OAuthClient":
                     return 4;
-                case "PersistentVolume":
+                case "Service":
                     return 5;
-                case "PersistentVolumeClaim":
+                case "ClusterPolicyBinding":
+                case "RoleBinding":
+                case "PolicyBinding":
                     return 6;
-                case "ImageStream":
+                case "PersistentVolume":
                     return 7;
+                case "PersistentVolumeClaim":
+                    return 8;
+                case "ImageStream":
+                    return 9;
                 default:
                     return 100;
             }
