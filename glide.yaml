@@ -1,34 +1,10 @@
 package: github.com/fabric8io/kubernetes-model
 import:
 - package: github.com/openshift/origin
-  version: v1.3.0-alpha.1
-  subpackages:
-  - pkg/authorization/api/v1
-  - pkg/build/api/v1
-  - pkg/deploy/api/v1
-  - pkg/image/api/v1
-  - pkg/oauth/api/v1
-  - pkg/project/api/v1
-  - pkg/route/api/v1
-  - pkg/template/api/v1
-  - pkg/user/api/v1
+  version: v1.3.0
 - package: k8s.io/kubernetes
-  version: stable-20160411
+  version: 52492b4bff99ef3b8ca617d385a3ff0612f9402d
   repo: git@github.com:openshift/kubernetes.git
   vcs: git
-  subpackages:
-  - pkg/api/resource
-  - pkg/api/unversioned
-  - pkg/api/v1
-  - pkg/apis/extensions/v1beta1
-  - pkg/client/unversioned/clientcmd/api/v1
-  - pkg/watch/json
-- package: speter.net/go/exp/math/dec/inf
-  repo: git@github.com:go-inf/inf.git
-  vcs: git
-- package: github.com/coreos/pkg
-  subpackages:
-  - capnslog
-- package: github.com/coreos/go-systemd
-  subpackages:
-  - journal
+- package: github.com/dgrijalva/jwt-go
+  version: 5ca80149b9d3f8b863af0e2bb6742e608603bd99
