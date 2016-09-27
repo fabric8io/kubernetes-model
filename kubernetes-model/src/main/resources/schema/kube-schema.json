@@ -3481,14 +3481,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "InitContainers": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "$ref": "#/definitions/kubernetes_Container",
-            "javaType": "io.fabric8.kubernetes.api.model.Container"
-          }
-        },
         "activeDeadlineSeconds": {
           "type": "integer",
           "description": "",
@@ -3591,14 +3583,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "InitContainerStatuses": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "$ref": "#/definitions/kubernetes_ContainerStatus",
-            "javaType": "io.fabric8.kubernetes.api.model.ContainerStatus"
-          }
-        },
         "conditions": {
           "type": "array",
           "description": "",
@@ -6416,7 +6400,6 @@
       "type": "object",
       "description": "",
       "properties": {
-        "Object": {},
         "Raw": {
           "type": "string",
           "description": ""
