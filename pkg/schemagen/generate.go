@@ -56,11 +56,7 @@ func getFieldName(f reflect.StructField) string {
 	json := f.Tag.Get("json")
 	if len(json) > 0 {
 		parts := strings.Split(json, ",")
-		name := parts[0]
-		if name == "-" {
-			name = f.Name
-		}
-		return name
+		return parts[0]
 	}
 	return f.Name
 }
@@ -322,6 +318,10 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 			continue
 		}
 		name := getFieldName(field)
+		// Skip unserialized fields
+		if name == "-" {
+			continue
+		}
 		desc := getFieldDescription(field)
 		prop := g.getPropertyDescriptor(field.Type, desc)
 		if field.Anonymous && field.Type.Kind() == reflect.Struct && len(name) == 0 {
