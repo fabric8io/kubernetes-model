@@ -46,11 +46,6 @@ public class KubernetesTypeAnnotator extends Jackson2Annotator {
     private final int nameIsDNS1123SubdomainLength = 253;
 
     @Override
-    public void propertyInclusion(JDefinedClass clazz, JsonNode schema) {
-        clazz.annotate(JsonInclude.class).param("value", JsonInclude.Include.NON_EMPTY);
-    }
-
-    @Override
     public void propertyOrder(JDefinedClass clazz, JsonNode propertiesNode) {
         JAnnotationArrayMember annotationValue = clazz.annotate(JsonPropertyOrder.class).paramArray("value");
 
