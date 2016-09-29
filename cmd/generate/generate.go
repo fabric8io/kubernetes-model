@@ -81,6 +81,7 @@ type Schema struct {
 	BuildConfigList                buildapi.BuildConfigList
 	ImageList                      imageapi.ImageList
 	ImageStreamList                imageapi.ImageStreamList
+	ImageStreamTagList	       imageapi.ImageStreamTagList
 	DeploymentConfigList           deployapi.DeploymentConfigList
 	RouteList                      routeapi.RouteList
 	ComponentStatusList            kapi.ComponentStatusList

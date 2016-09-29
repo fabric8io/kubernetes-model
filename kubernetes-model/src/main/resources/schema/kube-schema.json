@@ -9261,6 +9261,90 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "os_image_ImageStreamTag": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true
+        },
+        "conditions": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/os_image_TagEventCondition",
+            "javaType": "io.fabric8.openshift.api.model.TagEventCondition"
+          }
+        },
+        "generation": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        },
+        "image": {
+          "$ref": "#/definitions/os_image_Image",
+          "javaType": "io.fabric8.openshift.api.model.Image"
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ImageStreamTag",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "tag": {
+          "$ref": "#/definitions/os_image_TagReference",
+          "javaType": "io.fabric8.openshift.api.model.TagReference"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ImageStreamTag",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "os_image_ImageStreamTagList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "v1",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/os_image_ImageStreamTag",
+            "javaType": "io.fabric8.openshift.api.model.ImageStreamTag"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ImageStreamTagList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/api_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ImageStreamTagList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
     "os_image_NamedTagEventList": {
       "type": "object",
       "description": "",
@@ -10855,6 +10939,10 @@
     "ImageStreamList": {
       "$ref": "#/definitions/os_image_ImageStreamList",
       "javaType": "io.fabric8.openshift.api.model.ImageStreamList"
+    },
+    "ImageStreamTagList": {
+      "$ref": "#/definitions/os_image_ImageStreamTagList",
+      "javaType": "io.fabric8.openshift.api.model.ImageStreamTagList"
     },
     "Ingress": {
       "$ref": "#/definitions/kubernetes_extensions_Ingress",
