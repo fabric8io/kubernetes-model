@@ -48,6 +48,8 @@ public class HasMetadataComparator implements Comparator<HasMetadata> {
                     return 8;
                 case "ImageStream":
                     return 9;
+                case "ImageStreamTag":
+                    return 10;
                 default:
                     return 100;
             }
