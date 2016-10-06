@@ -8941,6 +8941,239 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "os_image_DockerConfig": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "AttachStderr": {
+          "type": "boolean",
+          "description": ""
+        },
+        "AttachStdin": {
+          "type": "boolean",
+          "description": ""
+        },
+        "AttachStdout": {
+          "type": "boolean",
+          "description": ""
+        },
+        "Cmd": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "CpuShares": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        },
+        "Cpuset": {
+          "type": "string",
+          "description": ""
+        },
+        "Dns": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "Domainname": {
+          "type": "string",
+          "description": ""
+        },
+        "Entrypoint": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "Env": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "ExposedPorts": {
+          "type": "object",
+          "description": "",
+          "additionalProperties": {
+            "type": "string",
+            "description": ""
+          },
+          "javaType": "java.util.Map\u003cString,Object\u003e"
+        },
+        "Hostname": {
+          "type": "string",
+          "description": ""
+        },
+        "Image": {
+          "type": "string",
+          "description": ""
+        },
+        "Labels": {
+          "type": "object",
+          "description": "",
+          "additionalProperties": {
+            "type": "string",
+            "description": ""
+          },
+          "javaType": "java.util.Map\u003cString,String\u003e"
+        },
+        "Memory": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        },
+        "MemorySwap": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        },
+        "NetworkDisabled": {
+          "type": "boolean",
+          "description": ""
+        },
+        "OnBuild": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "OpenStdin": {
+          "type": "boolean",
+          "description": ""
+        },
+        "PortSpecs": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "SecurityOpts": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "StdinOnce": {
+          "type": "boolean",
+          "description": ""
+        },
+        "Tty": {
+          "type": "boolean",
+          "description": ""
+        },
+        "User": {
+          "type": "string",
+          "description": ""
+        },
+        "Volumes": {
+          "type": "object",
+          "description": "",
+          "additionalProperties": {
+            "type": "string",
+            "description": ""
+          },
+          "javaType": "java.util.Map\u003cString,Object\u003e"
+        },
+        "VolumesFrom": {
+          "type": "string",
+          "description": ""
+        },
+        "WorkingDir": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.DockerConfig",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "os_image_DockerImage": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "Architecture": {
+          "type": "string",
+          "description": ""
+        },
+        "Author": {
+          "type": "string",
+          "description": ""
+        },
+        "Comment": {
+          "type": "string",
+          "description": ""
+        },
+        "Config": {
+          "$ref": "#/definitions/os_image_DockerConfig",
+          "javaType": "io.fabric8.openshift.api.model.DockerConfig"
+        },
+        "Container": {
+          "type": "string",
+          "description": ""
+        },
+        "ContainerConfig": {
+          "$ref": "#/definitions/os_image_DockerConfig",
+          "javaType": "io.fabric8.openshift.api.model.DockerConfig"
+        },
+        "Created": {
+          "type": "string",
+          "description": ""
+        },
+        "DockerVersion": {
+          "type": "string",
+          "description": ""
+        },
+        "Id": {
+          "type": "string",
+          "description": ""
+        },
+        "Parent": {
+          "type": "string",
+          "description": ""
+        },
+        "Size": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        },
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "image/api",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "DockerImage",
+          "required": true
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.DockerImage",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "os_image_Image": {
       "type": "object",
       "description": "",
@@ -10891,6 +11124,10 @@
     "DeploymentRollback": {
       "$ref": "#/definitions/kubernetes_extensions_DeploymentRollback",
       "javaType": "io.fabric8.kubernetes.api.model.extensions.DeploymentRollback"
+    },
+    "DockerImage": {
+      "$ref": "#/definitions/os_image_DockerImage",
+      "javaType": "io.fabric8.openshift.api.model.DockerImage"
     },
     "Endpoints": {
       "$ref": "#/definitions/kubernetes_Endpoints",
