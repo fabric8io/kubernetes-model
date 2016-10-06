@@ -27,7 +27,8 @@ import (
 	authapi "github.com/openshift/origin/pkg/authorization/api/v1"
 	buildapi "github.com/openshift/origin/pkg/build/api/v1"
 	deployapi "github.com/openshift/origin/pkg/deploy/api/v1"
-	imageapi "github.com/openshift/origin/pkg/image/api/v1"
+	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapiv1 "github.com/openshift/origin/pkg/image/api/v1"
 	oauthapi "github.com/openshift/origin/pkg/oauth/api/v1"
 	projectapi "github.com/openshift/origin/pkg/project/api/v1"
 	routeapi "github.com/openshift/origin/pkg/route/api/v1"
@@ -79,9 +80,10 @@ type Schema struct {
 	BuildRequest                   buildapi.BuildRequest
 	BuildList                      buildapi.BuildList
 	BuildConfigList                buildapi.BuildConfigList
-	ImageList                      imageapi.ImageList
-	ImageStreamList                imageapi.ImageStreamList
-	ImageStreamTagList	       imageapi.ImageStreamTagList
+	ImageList                      imageapiv1.ImageList
+	ImageStreamList                imageapiv1.ImageStreamList
+	ImageStreamTagList             imageapiv1.ImageStreamTagList
+	DockerImage                    imageapi.DockerImage
 	DeploymentConfigList           deployapi.DeploymentConfigList
 	RouteList                      routeapi.RouteList
 	ComponentStatusList            kapi.ComponentStatusList
@@ -160,6 +162,7 @@ func main() {
 		{"speter.net/go/exp/math/dec/inf", "io.fabric8.openshift.api.model", "speter_inf_"},
 		{"github.com/openshift/origin/pkg/build/api/v1", "io.fabric8.openshift.api.model", "os_build_"},
 		{"github.com/openshift/origin/pkg/deploy/api/v1", "io.fabric8.openshift.api.model", "os_deploy_"},
+		{"github.com/openshift/origin/pkg/image/api", "io.fabric8.openshift.api.model", "os_image_"},
 		{"github.com/openshift/origin/pkg/image/api/v1", "io.fabric8.openshift.api.model", "os_image_"},
 		{"github.com/openshift/origin/pkg/oauth/api/v1", "io.fabric8.openshift.api.model", "os_oauth_"},
 		{"github.com/openshift/origin/pkg/route/api/v1", "io.fabric8.openshift.api.model", "os_route_"},
