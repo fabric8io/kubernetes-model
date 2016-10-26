@@ -38,18 +38,22 @@ public class HasMetadataComparator implements Comparator<HasMetadata> {
                     return 4;
                 case "Service":
                     return 5;
-                case "ClusterPolicyBinding":
-                case "RoleBinding":
                 case "PolicyBinding":
                     return 6;
-                case "PersistentVolume":
+                case "ClusterPolicyBinding":
                     return 7;
-                case "PersistentVolumeClaim":
+                case "Role":
                     return 8;
-                case "ImageStream":
+                case "RoleBinding":
                     return 9;
+                case "PersistentVolume":
+                    return 20;
+                case "PersistentVolumeClaim":
+                    return 21;
+                case "ImageStream":
+                    return 30;
                 case "ImageStreamTag":
-                    return 10;
+                    return 31;
                 default:
                     return 100;
             }
