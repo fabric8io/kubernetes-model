@@ -5080,6 +5080,132 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "kubernetes_apps_PetSet": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "apps/v1alpha1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PetSet",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/kubernetes_apps_PetSetSpec",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.PetSetSpec"
+        },
+        "status": {
+          "$ref": "#/definitions/kubernetes_apps_PetSetStatus",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.PetSetStatus"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.PetSet",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_apps_PetSetList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "apps/v1alpha1",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_apps_PetSet",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.PetSet"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PetSetList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/api_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.PetSetList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kubernetes_apps_PetSetSpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "description": ""
+        },
+        "selector": {
+          "$ref": "#/definitions/api_LabelSelector",
+          "javaType": "io.fabric8.kubernetes.api.model.LabelSelector"
+        },
+        "serviceName": {
+          "type": "string",
+          "description": ""
+        },
+        "template": {
+          "$ref": "#/definitions/kubernetes_PodTemplateSpec",
+          "javaType": "io.fabric8.kubernetes.api.model.PodTemplateSpec"
+        },
+        "volumeClaimTemplates": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_PersistentVolumeClaim",
+            "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaim"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.PetSetSpec",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_apps_PetSetStatus": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "observedGeneration": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        },
+        "replicas": {
+          "type": "integer",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.PetSetStatus",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "kubernetes_extensions_APIVersion": {
       "type": "object",
       "description": "",
@@ -9709,20 +9835,20 @@
       "type": "object",
       "description": "",
       "properties": {
-        "created": {
+        "Created": {
           "type": "string",
           "description": ""
         },
-        "dockerImageReference": {
+        "DockerImageReference": {
           "type": "string",
           "description": ""
         },
-        "generation": {
+        "Generation": {
           "type": "integer",
           "description": "",
           "javaType": "Long"
         },
-        "image": {
+        "Image": {
           "type": "string",
           "description": ""
         }
@@ -11280,6 +11406,14 @@
     "PersistentVolumeList": {
       "$ref": "#/definitions/kubernetes_PersistentVolumeList",
       "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeList"
+    },
+    "PetSet": {
+      "$ref": "#/definitions/kubernetes_apps_PetSet",
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.PetSet"
+    },
+    "PetSetList": {
+      "$ref": "#/definitions/kubernetes_apps_PetSetList",
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.PetSetList"
     },
     "PodList": {
       "$ref": "#/definitions/kubernetes_PodList",
