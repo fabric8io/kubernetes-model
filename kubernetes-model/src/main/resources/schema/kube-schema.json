@@ -9097,10 +9097,6 @@
           "type": "string",
           "description": ""
         },
-        "dockerImageMetadata": {
-          "$ref": "#/definitions/kubernetes_runtime_RawExtension",
-          "javaType": "io.fabric8.kubernetes.api.model.HasMetadata"
-        },
         "dockerImageMetadataVersion": {
           "type": "string",
           "description": ""
