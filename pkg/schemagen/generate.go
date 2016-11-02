@@ -322,6 +322,11 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 		if name == "-" {
 			continue
 		}
+		// Skip dockerImageMetadata field
+		if t.PkgPath() == "github.com/openshift/origin/pkg/image/api/v1" && t.Name() == "Image" && name == "dockerImageMetadata" {
+			continue
+		}
+
 		desc := getFieldDescription(field)
 		prop := g.getPropertyDescriptor(field.Type, desc)
 		if field.Anonymous && field.Type.Kind() == reflect.Struct && len(name) == 0 {
