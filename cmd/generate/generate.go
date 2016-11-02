@@ -27,8 +27,7 @@ import (
 	authapi "github.com/openshift/origin/pkg/authorization/api/v1"
 	buildapi "github.com/openshift/origin/pkg/build/api/v1"
 	deployapi "github.com/openshift/origin/pkg/deploy/api/v1"
-	imageapi "github.com/openshift/origin/pkg/image/api"
-	imageapiv1 "github.com/openshift/origin/pkg/image/api/v1"
+	imageapi "github.com/openshift/origin/pkg/image/api/v1"
 	oauthapi "github.com/openshift/origin/pkg/oauth/api/v1"
 	projectapi "github.com/openshift/origin/pkg/project/api/v1"
 	routeapi "github.com/openshift/origin/pkg/route/api/v1"
@@ -81,10 +80,9 @@ type Schema struct {
 	BuildRequest                   buildapi.BuildRequest
 	BuildList                      buildapi.BuildList
 	BuildConfigList                buildapi.BuildConfigList
-	ImageList                      imageapiv1.ImageList
-	ImageStreamList                imageapiv1.ImageStreamList
-	ImageStreamTagList             imageapiv1.ImageStreamTagList
-	DockerImage                    imageapi.DockerImage
+	ImageList                      imageapi.ImageList
+	ImageStreamList                imageapi.ImageStreamList
+	ImageStreamTagList             imageapi.ImageStreamTagList
 	DeploymentConfigList           deployapi.DeploymentConfigList
 	RouteList                      routeapi.RouteList
 	ComponentStatusList            kapi.ComponentStatusList
