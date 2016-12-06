@@ -34,6 +34,7 @@ import javax.annotation.Generated;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.io.Serializable;
 
 
 /**
@@ -45,7 +46,7 @@ import java.util.Map;
 @ToString
 @EqualsAndHashCode
 @Buildable(editableEnabled = false, validationEnabled = true, generateBuilderPackage=true, builderPackage = "io.fabric8.kubernetes.api.builder", inline = @Inline(type = Doneable.class, prefix = "Doneable", value = "done"))
-public class Quantity {
+public class Quantity  implements Serializable {
 
     private String amount;
     private String format;

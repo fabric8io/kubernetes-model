@@ -39,6 +39,7 @@ import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -53,7 +54,7 @@ import java.util.Map;
 @ToString
 @EqualsAndHashCode
 @Buildable(editableEnabled = false, validationEnabled = true, generateBuilderPackage=true, builderPackage = "io.fabric8.kubernetes.api.builder", inline = @Inline(type = Doneable.class, prefix = "Doneable", value = "done"))
-public class IntOrString {
+public class IntOrString implements Serializable {
 
     @JsonProperty("IntVal")
     private Integer IntVal;
