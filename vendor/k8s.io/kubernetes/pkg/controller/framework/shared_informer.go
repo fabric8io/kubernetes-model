@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,6 +25,9 @@ import (
 	"k8s.io/kubernetes/pkg/client/cache"
 	"k8s.io/kubernetes/pkg/runtime"
 	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
+	"k8s.io/kubernetes/pkg/util/wait"
+
+	"github.com/golang/glog"
 )
 
 // if you use this, there is one behavior change compared to a standard Informer.
@@ -77,6 +80,34 @@ func NewSharedIndexInformer(lw cache.ListerWatcher, objType runtime.Object, resy
 	return sharedIndexInformer
 }
 
+// InformerSynced is a function that can be used to determine if an informer has synced.  This is useful for determining if caches have synced.
+type InformerSynced func() bool
+
+// syncedPollPeriod controls how often you look at the status of your sync funcs
+const syncedPollPeriod = 100 * time.Millisecond
+
+// WaitForCacheSync waits for caches to populate.  It returns true if it was successful, false
+// if the contoller should shutdown
+func WaitForCacheSync(stopCh <-chan struct{}, cacheSyncs ...InformerSynced) bool {
+	err := wait.PollUntil(syncedPollPeriod,
+		func() (bool, error) {
+			for _, syncFunc := range cacheSyncs {
+				if !syncFunc() {
+					return false, nil
+				}
+			}
+			return true, nil
+		},
+		stopCh)
+	if err != nil {
+		glog.V(2).Infof("stop requested")
+		return false
+	}
+
+	glog.V(4).Infof("caches populated")
+	return true
+}
+
 type sharedIndexInformer struct {
 	indexer    cache.Indexer
 	controller *Controller
@@ -91,13 +122,6 @@ type sharedIndexInformer struct {
 
 	started     bool
 	startedLock sync.Mutex
-
-	// blockDeltas gives a way to stop all event distribution so that a late event handler
-	// can safely join the shared informer.
-	blockDeltas sync.Mutex
-	// stopCh is the channel used to stop the main Run process.  We have to track it so that
-	// late joiners can have a proper stop
-	stopCh <-chan struct{}
 }
 
 // dummyController hides the fact that a SharedInformer is different from a dedicated one
@@ -152,7 +176,6 @@ func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 		s.started = true
 	}()
 
-	s.stopCh = stopCh
 	s.cacheMutationDetector.Run(stopCh)
 	s.processor.run(stopCh)
 	s.controller.Run(stopCh)
@@ -211,38 +234,16 @@ func (s *sharedIndexInformer) AddEventHandler(handler ResourceEventHandler) erro
 	s.startedLock.Lock()
 	defer s.startedLock.Unlock()
 
-	if !s.started {
-		listener := newProcessListener(handler)
-		s.processor.listeners = append(s.processor.listeners, listener)
-		return nil
+	if s.started {
+		return fmt.Errorf("informer has already started")
 	}
-
-	// in order to safely join, we have to
-	// stop sending add/update/delete notification
-	// do a list against the store
-	// send synthetic "Add" events to the new handler
-	// unblock
-	s.blockDeltas.Lock()
-	defer s.blockDeltas.Unlock()
 
 	listener := newProcessListener(handler)
 	s.processor.listeners = append(s.processor.listeners, listener)
-
-	go listener.run(s.stopCh)
-	go listener.pop(s.stopCh)
-
-	items := s.indexer.List()
-	for i := range items {
-		listener.add(addNotification{newObj: items[i]})
-	}
-
 	return nil
 }
 
 func (s *sharedIndexInformer) HandleDeltas(obj interface{}) error {
-	s.blockDeltas.Lock()
-	defer s.blockDeltas.Unlock()
-
 	// from oldest to newest
 	for _, d := range obj.(cache.Deltas) {
 		switch d.Type {

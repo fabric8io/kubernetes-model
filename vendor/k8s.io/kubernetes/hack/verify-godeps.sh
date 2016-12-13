@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2015 The Kubernetes Authors All rights reserved.
+# Copyright 2015 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -99,6 +99,13 @@ hack/godep-save.sh
 # Test for diffs
 if ! _out="$(diff -Naupr --ignore-matching-lines='^\s*\"GoVersion\":' --ignore-matching-line='^\s*\"GodepVersion\":' --ignore-matching-lines='^\s*\"Comment\":' ${KUBE_ROOT}/Godeps/Godeps.json ${_kubetmp}/Godeps/Godeps.json)"; then
   echo "Your Godeps.json is different:"
+  echo "${_out}"
+  echo "Godeps Verify failed."
+  exit 1
+fi
+
+if ! _out="$(diff -Naupr ${KUBE_ROOT}/vendor ${_kubetmp}/vendor)"; then
+  echo "Your vendored results are different:"
   echo "${_out}"
   echo "Godeps Verify failed."
   exit 1

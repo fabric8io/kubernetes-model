@@ -41,7 +41,7 @@ reservation grows), or running multiple Kubelets on a single node.
 ![image](node-allocatable.png)
 
 1. **Node Capacity** - Already provided as
-   [`NodeStatus.Capacity`](https://htmlpreview.github.io/?https://github.com/kubernetes/kubernetes/blob/v1.3.0-beta.0/docs/api-reference/v1/definitions.html#_v1_nodestatus),
+   [`NodeStatus.Capacity`](https://htmlpreview.github.io/?https://github.com/kubernetes/kubernetes/blob/release-1.4/docs/api-reference/v1/definitions.html#_v1_nodestatus),
    this is total capacity read from the node instance, and assumed to be constant.
 2. **System-Reserved** (proposed) - Compute resources reserved for processes which are not managed by
    Kubernetes. Currently this covers all the processes lumped together in the `/system` raw
@@ -57,7 +57,7 @@ reservation grows), or running multiple Kubelets on a single node.
 #### Allocatable
 
 Add `Allocatable` (4) to
-[`NodeStatus`](https://htmlpreview.github.io/?https://github.com/kubernetes/kubernetes/blob/v1.3.0-beta.0/docs/api-reference/v1/definitions.html#_v1_nodestatus):
+[`NodeStatus`](https://htmlpreview.github.io/?https://github.com/kubernetes/kubernetes/blob/release-1.4/docs/api-reference/v1/definitions.html#_v1_nodestatus):
 
 ```
 type NodeStatus struct {

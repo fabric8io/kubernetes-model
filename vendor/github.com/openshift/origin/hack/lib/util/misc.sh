@@ -129,3 +129,99 @@ function os::util::find-go-binary() {
   done
 }
 readonly -f os::util::find-go-binary
+
+# os::util::sed attempts to make our Bash scripts agnostic to the platform
+# on which they run `sed` by glossing over a discrepancy in flag use in GNU.
+#
+# Globals:
+#  None
+# Arguments:
+#  - all: arguments to pass to `sed -i`
+# Return:
+#  None
+function os::util::sed() {
+	if LANG=C sed --help 2>&1 | grep -q "GNU sed"; then
+		sed -i'' "$@"
+	else
+		sed -i '' "$@"
+	fi
+}
+readonly -f os::util::sed
+
+# os::util::base64decode attempts to make our Bash scripts agnostic to the platform
+# on which they run `base64decode` by glossing over a discrepancy in flag use in GNU.
+#
+# Globals:
+#  None
+# Arguments:
+#  - all: arguments to pass to `base64decode`
+# Return:
+#  None
+function os::util::base64decode() {
+	if [[ "$(go env GOHOSTOS)" == "darwin" ]]; then
+		base64 -D "$@"
+	else
+		base64 -d "$@"
+	fi
+}
+readonly -f os::util::base64decode
+
+# os::util::curl_etcd sends a request to the backing etcd store for the master.
+# We use the administrative client cert and key for access and re-encode them
+# as necessary for OSX clients.
+#
+# Globals:
+#  MASTER_CONFIG_DIR
+#  API_SCHEME
+#  API_HOST
+#  ETCD_PORT
+# Arguments:
+#  - 1: etcd-relative URL to curl, with leading slash
+# Returns:
+#  None
+function os::util::curl_etcd() {
+	local url="$1"
+	local full_url="${API_SCHEME}://${API_HOST}:${ETCD_PORT}${url}"
+
+	local etcd_client_cert="${MASTER_CONFIG_DIR}/master.etcd-client.crt"
+	local etcd_client_key="${MASTER_CONFIG_DIR}/master.etcd-client.key"
+	local ca_bundle="${MASTER_CONFIG_DIR}/ca-bundle.crt"
+
+	if curl -V | grep -q 'SecureTransport'; then
+		# on newer OSX `curl` implementations, SSL is not used and client certs
+		# and keys are expected to be encoded in P12 format instead of PEM format,
+		# so we need to convert the secrets that the server wrote if we haven't
+		# already done so
+		local etcd_client_cert_p12="${MASTER_CONFIG_DIR}/master.etcd-client.crt.p12"
+		local etcd_client_cert_p12_password="${CURL_CERT_P12_PASSWORD:-'password'}"
+		if [[ ! -f "${etcd_client_cert_p12}" ]]; then
+			openssl pkcs12 -export                        \
+			               -in "${etcd_client_cert}"      \
+			               -inkey "${etcd_client_key}"    \
+			               -out "${etcd_client_cert_p12}" \
+			               -password "pass:${etcd_client_cert_p12_password}"
+		fi
+
+		curl --fail --silent --cacert "${ca_bundle}" \
+		     --cert "${etcd_client_cert_p12}:${etcd_client_cert_p12_password}" "${full_url}"
+	fi
+
+
+	curl --fail --silent --cacert "${ca_bundle}" \
+	     --cert "${etcd_client_cert}" --key "${etcd_client_key}" "${full_url}"
+}
+
+# os::util::host_platform determines what the host OS and architecture
+# are, as Golang sees it. The go tool chain does some slightly different
+# things when the target platform matches the host platform.
+#
+# Globals:
+#  None
+# Arguments:
+#  None
+# Returns:
+#  None
+function os::util::host_platform() {
+	echo "$(go env GOHOSTOS)/$(go env GOHOSTARCH)"
+}
+readonly -f os::util::host_platform

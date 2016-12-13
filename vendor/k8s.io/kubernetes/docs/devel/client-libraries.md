@@ -7,7 +7,7 @@
 
 ### Supported
 
-   * [Go](http://releases.k8s.io/release-1.3/pkg/client/)
+   * [Go](https://github.com/kubernetes/client-go)
 
 ### User Contributed
 
@@ -18,6 +18,7 @@ the core Kubernetes team*
    * [Java (OSGi)](https://bitbucket.org/amdatulabs/amdatu-kubernetes)
    * [Java (Fabric8, OSGi)](https://github.com/fabric8io/kubernetes-client)
    * [Node.js](https://github.com/tenxcloud/node-kubernetes-client)
+   * [Node.js](https://github.com/godaddy/kubernetes-client)
    * [Perl](https://metacpan.org/pod/Net::Kubernetes)
    * [PHP](https://github.com/devstub/kubernetes-api-php-client)
    * [PHP](https://github.com/maclof/kubernetes-client)

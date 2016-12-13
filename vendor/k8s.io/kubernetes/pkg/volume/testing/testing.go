@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,11 +32,11 @@ import (
 	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/types"
-	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/util/io"
 	"k8s.io/kubernetes/pkg/util/mount"
 	utilstrings "k8s.io/kubernetes/pkg/util/strings"
 	utiltesting "k8s.io/kubernetes/pkg/util/testing"
+	"k8s.io/kubernetes/pkg/util/uuid"
 	. "k8s.io/kubernetes/pkg/volume"
 )
 
@@ -273,7 +273,7 @@ func (plugin *FakeVolumePlugin) GetNewDetacherCallCount() int {
 	return plugin.NewDetacherCallCount
 }
 
-func (plugin *FakeVolumePlugin) NewRecycler(pvName string, spec *Spec) (Recycler, error) {
+func (plugin *FakeVolumePlugin) NewRecycler(pvName string, spec *Spec, eventRecorder RecycleEventRecorder) (Recycler, error) {
 	return &fakeRecycler{"/attributesTransferredFromSpec", MetricsNil{}}, nil
 }
 
@@ -290,6 +290,14 @@ func (plugin *FakeVolumePlugin) NewProvisioner(options VolumeOptions) (Provision
 
 func (plugin *FakeVolumePlugin) GetAccessModes() []api.PersistentVolumeAccessMode {
 	return []api.PersistentVolumeAccessMode{}
+}
+
+func (plugin *FakeVolumePlugin) ConstructVolumeSpec(volumeName, mountPath string) (*Spec, error) {
+	return nil, nil
+}
+
+func (plugin *FakeVolumePlugin) GetDeviceMountRefs(deviceMountPath string) ([]string, error) {
+	return []string{}, nil
 }
 
 type FakeVolume struct {
@@ -449,7 +457,7 @@ func (fr *fakeRecycler) GetPath() string {
 	return fr.path
 }
 
-func NewFakeRecycler(pvName string, spec *Spec, host VolumeHost, config VolumeConfig) (Recycler, error) {
+func NewFakeRecycler(pvName string, spec *Spec, eventRecorder RecycleEventRecorder, host VolumeHost, config VolumeConfig) (Recycler, error) {
 	if spec.PersistentVolume == nil || spec.PersistentVolume.Spec.HostPath == nil {
 		return nil, fmt.Errorf("fakeRecycler only supports spec.PersistentVolume.Spec.HostPath")
 	}
@@ -478,7 +486,7 @@ type FakeProvisioner struct {
 }
 
 func (fc *FakeProvisioner) Provision() (*api.PersistentVolume, error) {
-	fullpath := fmt.Sprintf("/tmp/hostpath_pv/%s", util.NewUUID())
+	fullpath := fmt.Sprintf("/tmp/hostpath_pv/%s", uuid.NewUUID())
 
 	pv := &api.PersistentVolume{
 		ObjectMeta: api.ObjectMeta{
@@ -489,9 +497,9 @@ func (fc *FakeProvisioner) Provision() (*api.PersistentVolume, error) {
 		},
 		Spec: api.PersistentVolumeSpec{
 			PersistentVolumeReclaimPolicy: fc.Options.PersistentVolumeReclaimPolicy,
-			AccessModes:                   fc.Options.AccessModes,
+			AccessModes:                   fc.Options.PVC.Spec.AccessModes,
 			Capacity: api.ResourceList{
-				api.ResourceName(api.ResourceStorage): fc.Options.Capacity,
+				api.ResourceName(api.ResourceStorage): fc.Options.PVC.Spec.Resources.Requests[api.ResourceName(api.ResourceStorage)],
 			},
 			PersistentVolumeSource: api.PersistentVolumeSource{
 				HostPath: &api.HostPathVolumeSource{
@@ -725,9 +733,35 @@ func VerifyZeroDetachCallCount(fakeVolumePlugin *FakeVolumePlugin) error {
 // manager and fake volume plugin using a fake volume host.
 func GetTestVolumePluginMgr(
 	t *testing.T) (*VolumePluginMgr, *FakeVolumePlugin) {
+	v := NewFakeVolumeHost(
+		"",  /* rootDir */
+		nil, /* kubeClient */
+		nil, /* plugins */
+		"",  /* rootContext */
+	)
 	plugins := ProbeVolumePlugins(VolumeConfig{})
-	volumePluginMgr := NewFakeVolumeHost(
-		"" /* rootDir */, nil /* kubeClient */, plugins, "" /* rootContext */).pluginMgr
+	if err := v.pluginMgr.InitPlugins(plugins, v); err != nil {
+		t.Fatal(err)
+	}
 
-	return &volumePluginMgr, plugins[0].(*FakeVolumePlugin)
+	return &v.pluginMgr, plugins[0].(*FakeVolumePlugin)
+}
+
+// CreateTestPVC returns a provisionable PVC for tests
+func CreateTestPVC(capacity string, accessModes []api.PersistentVolumeAccessMode) *api.PersistentVolumeClaim {
+	claim := api.PersistentVolumeClaim{
+		ObjectMeta: api.ObjectMeta{
+			Name:      "dummy",
+			Namespace: "default",
+		},
+		Spec: api.PersistentVolumeClaimSpec{
+			AccessModes: accessModes,
+			Resources: api.ResourceRequirements{
+				Requests: api.ResourceList{
+					api.ResourceName(api.ResourceStorage): resource.MustParse(capacity),
+				},
+			},
+		},
+	}
+	return &claim
 }

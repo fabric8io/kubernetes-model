@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/pkg/parsers"
 	docker "github.com/fsouza/go-dockerclient"
 	"k8s.io/kubernetes/pkg/util/interrupt"
 	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
@@ -47,6 +46,26 @@ type DockerClient interface {
 	WaitContainer(id string) (int, error)
 	Logs(opts docker.LogsOptions) error
 	TagImage(name string, opts docker.TagImageOptions) error
+}
+
+func pullImage(client DockerClient, name string, authConfig docker.AuthConfiguration) error {
+	logProgress := func(s string) {
+		glog.V(0).Infof("%s", s)
+	}
+	opts := docker.PullImageOptions{
+		Repository:    name,
+		OutputStream:  imageprogress.NewPullWriter(logProgress),
+		RawJSONStream: true,
+	}
+	if glog.Is(5) {
+		opts.OutputStream = os.Stderr
+		opts.RawJSONStream = false
+	}
+	err := client.PullImage(opts, authConfig)
+	if err == nil {
+		return nil
+	}
+	return err
 }
 
 // pushImage pushes a docker image to the registry specified in its tag.
@@ -123,7 +142,7 @@ func buildImage(client DockerClient, dir string, tar tar.Tar, opts *docker.Build
 // helper to facilitate the usage of dockerClient.TagImage, because the former
 // requires the name to be split into more explicit parts.
 func tagImage(dockerClient DockerClient, image, name string) error {
-	repo, tag := parsers.ParseRepositoryTag(name)
+	repo, tag := docker.ParseRepositoryTag(name)
 	return dockerClient.TagImage(image, docker.TagImageOptions{
 		Repo: repo,
 		Tag:  tag,
@@ -145,7 +164,7 @@ func dockerRun(client DockerClient, createOpts docker.CreateContainerOptions, lo
 		return fmt.Errorf("create container %q: %v", createOpts.Name, err)
 	}
 
-	containerName := containerNameOrID(c)
+	containerName := getContainerNameOrID(c)
 
 	removeContainer := func() {
 		glog.V(4).Infof("Removing container %q ...", containerName)
@@ -185,7 +204,7 @@ func dockerRun(client DockerClient, createOpts docker.CreateContainerOptions, lo
 	return interrupt.New(nil, removeContainer).Run(startWaitContainer)
 }
 
-func containerNameOrID(c *docker.Container) string {
+func getContainerNameOrID(c *docker.Container) string {
 	if c.Name != "" {
 		return c.Name
 	}

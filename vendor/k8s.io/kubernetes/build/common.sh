@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2014 The Kubernetes Authors All rights reserved.
+# Copyright 2014 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ readonly DOCKER_MACHINE_DRIVER=${DOCKER_MACHINE_DRIVER:-"virtualbox --virtualbox
 # This will canonicalize the path
 KUBE_ROOT=$(cd $(dirname "${BASH_SOURCE}")/.. && pwd -P)
 
-source hack/lib/init.sh
+source "${KUBE_ROOT}/hack/lib/init.sh"
 
 # Incoming options
 #
@@ -43,9 +43,18 @@ readonly KUBE_GCS_DOCKER_REG_PREFIX=${KUBE_GCS_DOCKER_REG_PREFIX-docker-reg}/
 readonly KUBE_GCS_PUBLISH_VERSION=${KUBE_GCS_PUBLISH_VERSION:-}
 readonly KUBE_GCS_DELETE_EXISTING="${KUBE_GCS_DELETE_EXISTING:-n}"
 
+# Set KUBE_BUILD_PPC64LE to y to build for ppc64le in addition to other
+# platforms.
+# TODO(IBM): remove KUBE_BUILD_PPC64LE and reenable ppc64le compilation by
+# default when
+# https://github.com/kubernetes/kubernetes/issues/30384 and
+# https://github.com/kubernetes/kubernetes/issues/25886 are fixed.
+# The majority of the logic is in hack/lib/golang.sh.
+readonly KUBE_BUILD_PPC64LE="${KUBE_BUILD_PPC64LE:-n}"
+
 # Constants
 readonly KUBE_BUILD_IMAGE_REPO=kube-build
-readonly KUBE_BUILD_IMAGE_CROSS_TAG="v1.6.2-2"
+readonly KUBE_BUILD_IMAGE_CROSS_TAG="$(cat ${KUBE_ROOT}/build/build-image/cross/VERSION)"
 # KUBE_BUILD_DATA_CONTAINER_NAME=kube-build-data-<hash>"
 
 # Here we map the output directories across both the local and remote _output
@@ -61,23 +70,22 @@ readonly KUBE_BUILD_IMAGE_CROSS_TAG="v1.6.2-2"
 readonly LOCAL_OUTPUT_ROOT="${KUBE_ROOT}/${OUT_DIR:-_output}"
 readonly LOCAL_OUTPUT_SUBPATH="${LOCAL_OUTPUT_ROOT}/dockerized"
 readonly LOCAL_OUTPUT_BINPATH="${LOCAL_OUTPUT_SUBPATH}/bin"
+readonly LOCAL_OUTPUT_GOPATH="${LOCAL_OUTPUT_SUBPATH}/go"
 readonly LOCAL_OUTPUT_IMAGE_STAGING="${LOCAL_OUTPUT_ROOT}/images"
 
-readonly OUTPUT_BINPATH="${CUSTOM_OUTPUT_BINPATH:-$LOCAL_OUTPUT_BINPATH}"
+# This is a symlink to binaries for "this platform" (e.g. build tools).
+readonly THIS_PLATFORM_BIN="${LOCAL_OUTPUT_ROOT}/bin"
 
 readonly REMOTE_OUTPUT_ROOT="/go/src/${KUBE_GO_PACKAGE}/_output"
 readonly REMOTE_OUTPUT_SUBPATH="${REMOTE_OUTPUT_ROOT}/dockerized"
 readonly REMOTE_OUTPUT_BINPATH="${REMOTE_OUTPUT_SUBPATH}/bin"
+readonly REMOTE_OUTPUT_GOPATH="${REMOTE_OUTPUT_SUBPATH}/go"
 
 readonly DOCKER_MOUNT_ARGS_BASE=(
-  --volume "${OUTPUT_BINPATH}:${REMOTE_OUTPUT_BINPATH}"
+  # where the container build will drop output
+  --volume "${LOCAL_OUTPUT_BINPATH}:${REMOTE_OUTPUT_BINPATH}"
+  # timezone
   --volume /etc/localtime:/etc/localtime:ro
-)
-
-# We create a Docker data container to cache incremental build artifacts.
-readonly REMOTE_OUTPUT_GOPATH="${REMOTE_OUTPUT_SUBPATH}/go"
-readonly DOCKER_DATA_MOUNT_ARGS=(
-  --volume "${REMOTE_OUTPUT_GOPATH}"
 )
 
 # This is where the final release artifacts are created locally
@@ -97,36 +105,28 @@ kube::build::get_docker_wrapped_binaries() {
           kube-apiserver,busybox
           kube-controller-manager,busybox
           kube-scheduler,busybox
-          kube-proxy,gcr.io/google_containers/debian-iptables-amd64:v3
-          federation-apiserver,busybox
-          federation-controller-manager,busybox
+          kube-proxy,gcr.io/google_containers/debian-iptables-amd64:v4
         );;
     "arm")
         local targets=(
           kube-apiserver,armel/busybox
           kube-controller-manager,armel/busybox
           kube-scheduler,armel/busybox
-          kube-proxy,gcr.io/google_containers/debian-iptables-arm:v3
-          federation-apiserver,armel/busybox
-          federation-controller-manager,armel/busybox
+          kube-proxy,gcr.io/google_containers/debian-iptables-arm:v4
         );;
     "arm64")
         local targets=(
           kube-apiserver,aarch64/busybox
           kube-controller-manager,aarch64/busybox
           kube-scheduler,aarch64/busybox
-          kube-proxy,gcr.io/google_containers/debian-iptables-arm64:v3
-          federation-apiserver,aarch64/busybox
-          federation-controller-manager,aarch64/busybox
+          kube-proxy,gcr.io/google_containers/debian-iptables-arm64:v4
         );;
     "ppc64le")
         local targets=(
           kube-apiserver,ppc64le/busybox
           kube-controller-manager,ppc64le/busybox
           kube-scheduler,ppc64le/busybox
-          kube-proxy,gcr.io/google_containers/debian-iptables-ppc64le:v3
-          federation-apiserver,ppc64le/busybox
-          federation-controller-manager,ppc64le/busybox
+          kube-proxy,gcr.io/google_containers/debian-iptables-ppc64le:v4
         );;
   esac
 
@@ -174,10 +174,10 @@ function kube::build::docker_available_on_osx() {
       kube::log::status "Using Docker for MacOS"
       return 0
     fi
-    
+
     kube::log::status "No docker host is set. Checking options for setting one..."
     if [[ -z "$(which docker-machine)" && -z "$(which boot2docker)" ]]; then
-      kube::log::status "It looks like you're running Mac OS X, and neither Docker for Mac, docker-machine or boot2docker are nowhere to be found."
+      kube::log::status "It looks like you're running Mac OS X, yet none of Docker for Mac, docker-machine or boot2docker are on the path."
       kube::log::status "See: https://docs.docker.com/machine/ for installation instructions."
       return 1
     elif [[ -n "$(which docker-machine)" ]]; then
@@ -205,8 +205,14 @@ function kube::build::prepare_docker_machine() {
   }
   docker-machine start "${DOCKER_MACHINE_NAME}" &> /dev/null
   # it takes `docker-machine env` a few seconds to work if the machine was just started
-  while ! docker-machine env ${DOCKER_MACHINE_NAME} &> /dev/null; do
-    sleep 1
+  local docker_machine_out
+  while ! docker_machine_out=$(docker-machine env "${DOCKER_MACHINE_NAME}" 2>&1); do
+    if [[ ${docker_machine_out} =~ "Error checking TLS connection" ]]; then
+      echo ${docker_machine_out}
+      docker-machine regenerate-certs ${DOCKER_MACHINE_NAME}
+    else
+      sleep 1
+    fi
   done
   eval $(docker-machine env "${DOCKER_MACHINE_NAME}")
   kube::log::status "A Docker host using docker-machine named '${DOCKER_MACHINE_NAME}' is ready to go!"
@@ -240,11 +246,15 @@ function kube::build::is_osx() {
   [[ "$(uname)" == "Darwin" ]]
 }
 
+function kube::build::is_gnu_sed() {
+  [[ $(sed --version 2>&1) == *GNU* ]]
+}
+
 function kube::build::update_dockerfile() {
-  if kube::build::is_osx; then
-    sed_opts=(-i '')
-  else
+  if kube::build::is_gnu_sed; then
     sed_opts=(-i)
+  else
+    sed_opts=(-i '')
   fi
   sed "${sed_opts[@]}" "s/KUBE_BUILD_IMAGE_CROSS_TAG/${KUBE_BUILD_IMAGE_CROSS_TAG}/" "${LOCAL_OUTPUT_BUILD_CONTEXT}/Dockerfile"
 }
@@ -270,6 +280,9 @@ function kube::build::ensure_docker_daemon_connectivity {
       echo "    - Set your environment variables using: "
       echo "      - eval \$(docker-machine env ${DOCKER_MACHINE_NAME})"
       echo "      - \$(boot2docker shellinit)"
+      echo "    - Update your Docker VM"
+      echo "      - Error Message: 'Error response from daemon: client is newer than server (...)' "
+      echo "      - docker-machine upgrade ${DOCKER_MACHINE_NAME}"
       echo "  - On Linux, user isn't in 'docker' group.  Add and relogin."
       echo "    - Something like 'sudo usermod -a -G docker ${USER-user}'"
       echo "    - RHEL7 bug and workaround: https://bugzilla.redhat.com/show_bug.cgi?id=1119282#c8"
@@ -310,11 +323,11 @@ function kube::build::clean_output() {
       kube::log::error "Build image not built.  Cannot clean via docker build image."
     fi
 
-    kube::log::status "Removing data container"
+    kube::log::status "Removing data container ${KUBE_BUILD_DATA_CONTAINER_NAME}"
     "${DOCKER[@]}" rm -v "${KUBE_BUILD_DATA_CONTAINER_NAME}" >/dev/null 2>&1 || true
   fi
 
-  kube::log::status "Cleaning out local _output directory"
+  kube::log::status "Removing _output directory"
   rm -rf "${LOCAL_OUTPUT_ROOT}"
 }
 
@@ -469,30 +482,10 @@ function kube::build::build_image_built() {
 # The set of source targets to include in the kube-build image
 function kube::build::source_targets() {
   local targets=(
-    api
-    build
-    cluster
-    cmd
-    docs
-    examples
-    federation
-    Godeps/Godeps.json
-    hack
-    LICENSE
-    pkg
-    plugin
-    DESIGN.md
-    README.md
-    test
-    third_party
-    vendor
-    contrib/mesos
+      $(find . -mindepth 1 -maxdepth 1 -not \(        \
+          \( -path ./_\* -o -path ./.git\* \) -prune  \
+        \))
   )
-  if [ -n "${KUBERNETES_CONTRIB:-}" ]; then
-    for contrib in "${KUBERNETES_CONTRIB}"; do
-      targets+=($(eval "kube::contrib::${contrib}::source_targets"))
-    done
-  fi
   echo "${targets[@]}"
 }
 
@@ -522,7 +515,7 @@ function kube::build::docker_build() {
   local -r pull="${3:-true}"
   local -ra build_cmd=("${DOCKER[@]}" build -t "${image}" "--pull=${pull}" "${context_dir}")
 
-  kube::log::status "Building Docker image ${image}."
+  kube::log::status "Building Docker image ${image}"
   local docker_output
   docker_output=$("${build_cmd[@]}" 2>&1) || {
     cat <<EOF >&2
@@ -556,24 +549,32 @@ function kube::build::clean_images() {
 }
 
 function kube::build::ensure_data_container() {
-  # This is temporary, while last remnants of _workspace are obliterated.  If
-  # the data container exists it might be from before the change from
-  # Godeps/_workspace/ to vendor/, and thereby still have a Godeps/_workspace/
-  # directory in it, which trips up godep (yay godep!).  Once we are confident
-  # that this has run ~everywhere we care about, we can remove this.
-  # TODO(thockin): remove this after v1.3 is cut.
-  if "${DOCKER[@]}" inspect "${KUBE_BUILD_DATA_CONTAINER_NAME}" \
-      | grep -q "Godeps/_workspace/pkg"; then
-    docker rm -f "${KUBE_BUILD_DATA_CONTAINER_NAME}"
+  # If the data container exists AND exited successfully, we can use it.
+  # Otherwise nuke it and start over.
+  local ret=0
+  local code=$(docker inspect \
+      -f '{{.State.ExitCode}}' \
+      "${KUBE_BUILD_DATA_CONTAINER_NAME}" 2>/dev/null || ret=$?)
+  if [[ "${ret}" == 0 && "${code}" != 0 ]]; then
+    kube::build::destroy_container "${KUBE_BUILD_DATA_CONTAINER_NAME}"
+    ret=1
   fi
-  if ! "${DOCKER[@]}" inspect "${KUBE_BUILD_DATA_CONTAINER_NAME}" >/dev/null 2>&1; then
-    kube::log::status "Creating data container"
+  if [[ "${ret}" != 0 ]]; then
+    kube::log::status "Creating data container ${KUBE_BUILD_DATA_CONTAINER_NAME}"
+    # We have to ensure the directory exists, or else the docker run will
+    # create it as root.
+    mkdir -p "${LOCAL_OUTPUT_GOPATH}"
+    # We want this to run as root to be able to chown, so non-root users can
+    # later use the result as a data container.  This run both creates the data
+    # container and chowns the GOPATH.
     local -ra docker_cmd=(
       "${DOCKER[@]}" run
-      "${DOCKER_DATA_MOUNT_ARGS[@]}"
       --name "${KUBE_BUILD_DATA_CONTAINER_NAME}"
+      --hostname "${HOSTNAME}"
+      --volume "${REMOTE_OUTPUT_ROOT}"   # white-out the whole output dir
+      --volume "${REMOTE_OUTPUT_GOPATH}" # make a non-root owned mountpoint
       "${KUBE_BUILD_IMAGE}"
-      true
+      chown -R $(id -u).$(id -g) "${REMOTE_OUTPUT_ROOT}"
     )
     "${docker_cmd[@]}"
   fi
@@ -590,6 +591,8 @@ function kube::build::run_build_command() {
 
   local -a docker_run_opts=(
     "--name=${KUBE_BUILD_CONTAINER_NAME}"
+    "--user=$(id -u):$(id -g)"
+    "--hostname=${HOSTNAME}"
     "${DOCKER_MOUNT_ARGS[@]}"
   )
 
@@ -600,6 +603,7 @@ function kube::build::run_build_command() {
   docker_run_opts+=(
     --env "KUBE_FASTBUILD=${KUBE_FASTBUILD:-false}"
     --env "KUBE_BUILDER_OS=${OSTYPE:-notdetected}"
+    --env "KUBE_BUILD_PPC64LE=${KUBE_BUILD_PPC64LE}"  # TODO(IBM): remove
   )
 
   # If we have stdin we can run interactive.  This allows things like 'shell.sh'
@@ -642,9 +646,10 @@ function kube::build::copy_output() {
     # Bug: https://github.com/docker/docker/pull/8509
     local -a docker_run_opts=(
       "--name=${KUBE_BUILD_CONTAINER_NAME}"
-       "${DOCKER_MOUNT_ARGS[@]}"
-       -d
-      )
+      "--user=$(id -u):$(id -g)"
+      "${DOCKER_MOUNT_ARGS[@]}"
+      -d
+    )
 
     local -ra docker_cmd=(
       "${DOCKER[@]}" run "${docker_run_opts[@]}" "${KUBE_BUILD_IMAGE}"
@@ -653,6 +658,8 @@ function kube::build::copy_output() {
     kube::log::status "Syncing back _output/dockerized/bin directory from remote Docker"
     rm -rf "${LOCAL_OUTPUT_BINPATH}"
     mkdir -p "${LOCAL_OUTPUT_BINPATH}"
+    rm -f "${THIS_PLATFORM_BIN}"
+    ln -s "${LOCAL_OUTPUT_BINPATH}" "${THIS_PLATFORM_BIN}"
 
     kube::build::destroy_container "${KUBE_BUILD_CONTAINER_NAME}"
     "${docker_cmd[@]}" bash -c "cp -r ${REMOTE_OUTPUT_BINPATH} /tmp/bin;touch /tmp/finished;rm /tmp/bin/test_for_remote;/bin/sleep 600" > /dev/null 2>&1
@@ -693,12 +700,8 @@ function kube::release::package_hyperkube() {
   # If we have these variables set then we want to build all docker images.
   if [[ -n "${KUBE_DOCKER_IMAGE_TAG-}" && -n "${KUBE_DOCKER_REGISTRY-}" ]]; then
     for arch in "${KUBE_SERVER_PLATFORMS[@]##*/}"; do
-
-      # TODO(IBM): Enable hyperkube builds for ppc64le again
-      if [[ ${arch} != "ppc64le" ]]; then
-        kube::log::status "Building hyperkube image for arch: ${arch}"
-        REGISTRY="${KUBE_DOCKER_REGISTRY}" VERSION="${KUBE_DOCKER_IMAGE_TAG}" ARCH="${arch}" make -C cluster/images/hyperkube/ build
-      fi
+      kube::log::status "Building hyperkube image for arch: ${arch}"
+      REGISTRY="${KUBE_DOCKER_REGISTRY}" VERSION="${KUBE_DOCKER_IMAGE_TAG}" ARCH="${arch}" make -C cluster/images/hyperkube/ build
     done
   fi
 }
@@ -939,6 +942,8 @@ function kube::release::package_kube_manifests_tarball() {
   cp "${salt_dir}/kube-controller-manager/kube-controller-manager.manifest" "${dst_dir}"
   cp "${salt_dir}/kube-addons/kube-addon-manager.yaml" "${dst_dir}"
   cp "${salt_dir}/l7-gcp/glbc.manifest" "${dst_dir}"
+  cp "${salt_dir}/rescheduler/rescheduler.manifest" "${dst_dir}/"
+  cp "${salt_dir}/e2e-image-puller/e2e-image-puller.manifest" "${dst_dir}/"
   cp "${KUBE_ROOT}/cluster/gce/trusty/configure-helper.sh" "${dst_dir}/trusty-configure-helper.sh"
   cp "${KUBE_ROOT}/cluster/gce/gci/configure-helper.sh" "${dst_dir}/gci-configure-helper.sh"
   cp "${KUBE_ROOT}/cluster/gce/gci/health-monitor.sh" "${dst_dir}/health-monitor.sh"
@@ -946,9 +951,6 @@ function kube::release::package_kube_manifests_tarball() {
   local objects
   objects=$(cd "${KUBE_ROOT}/cluster/addons" && find . \( -name \*.yaml -or -name \*.yaml.in -or -name \*.json \) | grep -v demo)
   tar c -C "${KUBE_ROOT}/cluster/addons" ${objects} | tar x -C "${dst_dir}"
-  objects=$(cd "${KUBE_ROOT}/cluster/saltbase/salt/kube-dns" && find . \( -name \*.yaml -or -name \*.yaml.in -or -name \*.json \) | grep -v demo)
-  mkdir -p "${dst_dir}/dns"
-  tar c -C "${KUBE_ROOT}/cluster/saltbase/salt/kube-dns" ${objects} | tar x -C "${dst_dir}/dns"
 
   # This is for coreos only. ContainerVM, GCI, or Trusty does not use it.
   cp -r "${KUBE_ROOT}/cluster/gce/coreos/kube-manifests"/* "${release_stage}/"
@@ -975,6 +977,11 @@ function kube::release::package_test_tarball() {
     fi
     mkdir -p "${release_stage}/platforms/${platform}"
     cp "${test_bins[@]/#/${LOCAL_OUTPUT_BINPATH}/${platform}/}" \
+      "${release_stage}/platforms/${platform}"
+  done
+  for platform in "${KUBE_NODE_TEST_PLATFORMS[@]}"; do
+    mkdir -p "${release_stage}/platforms/${platform}"
+    cp "${KUBE_NODE_TEST_BINARIES[@]/#/${LOCAL_OUTPUT_BINPATH}/${platform}/}" \
       "${release_stage}/platforms/${platform}"
   done
 
@@ -1027,10 +1034,11 @@ function kube::release::package_full_tarball() {
   mkdir -p "${release_stage}/third_party"
   cp -R "${KUBE_ROOT}/third_party/htpasswd" "${release_stage}/third_party/htpasswd"
 
-  # Include only federation/cluster and federation/manifests
+  # Include only federation/cluster, federation/manifests and federation/deploy
   mkdir "${release_stage}/federation"
   cp -R "${KUBE_ROOT}/federation/cluster" "${release_stage}/federation/"
   cp -R "${KUBE_ROOT}/federation/manifests" "${release_stage}/federation/"
+  cp -R "${KUBE_ROOT}/federation/deploy" "${release_stage}/federation/"
 
   cp -R "${KUBE_ROOT}/examples" "${release_stage}/"
   cp -R "${KUBE_ROOT}/docs" "${release_stage}/"
@@ -1080,7 +1088,7 @@ function kube::release::gcs::verify_prereqs() {
   fi
 
   if [[ -z "${GCLOUD_ACCOUNT-}" ]]; then
-    GCLOUD_ACCOUNT=$(gcloud auth list 2>/dev/null | awk '/(active)/ { print $2 }')
+    GCLOUD_ACCOUNT=$(gcloud config list --format='value(core.account)' 2>/dev/null)
   fi
   if [[ -z "${GCLOUD_ACCOUNT-}" ]]; then
     echo "No account authorized through gcloud.  Please fix with:"
@@ -1090,7 +1098,7 @@ function kube::release::gcs::verify_prereqs() {
   fi
 
   if [[ -z "${GCLOUD_PROJECT-}" ]]; then
-    GCLOUD_PROJECT=$(gcloud config list project | awk '{project = $3} END {print project}')
+    GCLOUD_PROJECT=$(gcloud config list --format='value(core.project)' 2>/dev/null)
   fi
   if [[ -z "${GCLOUD_PROJECT-}" ]]; then
     echo "No account authorized through gcloud.  Please fix with:"
@@ -1209,7 +1217,8 @@ function kube::release::gcs::copy_release_artifacts() {
 
   gsutil ls -lhr "${gcs_destination}" || return 1
 
-  if [[ -n "${KUBE_GCS_RELEASE_BUCKET_MIRROR:-}" ]]; then
+  if [[ -n "${KUBE_GCS_RELEASE_BUCKET_MIRROR:-}" ]] &&
+     [[ "${KUBE_GCS_RELEASE_BUCKET_MIRROR}" != "${KUBE_GCS_RELEASE_BUCKET}" ]]; then
     local -r gcs_mirror="gs://${KUBE_GCS_RELEASE_BUCKET_MIRROR}/${KUBE_GCS_RELEASE_PREFIX}"
     kube::log::status "Mirroring build to ${gcs_mirror}"
     gsutil -q -m "${gcs_options[@]+${gcs_options[@]}}" rsync -d -r "${gcs_destination}" "${gcs_mirror}" || return 1
@@ -1485,7 +1494,8 @@ function kube::release::gcs::publish() {
 
   kube::release::gcs::publish_to_bucket "${KUBE_GCS_RELEASE_BUCKET}" "${publish_file}" || return 1
 
-  if [[ -n "${KUBE_GCS_RELEASE_BUCKET_MIRROR:-}" ]]; then
+  if [[ -n "${KUBE_GCS_RELEASE_BUCKET_MIRROR:-}" ]] &&
+     [[ "${KUBE_GCS_RELEASE_BUCKET_MIRROR}" != "${KUBE_GCS_RELEASE_BUCKET}" ]]; then
     kube::release::gcs::publish_to_bucket "${KUBE_GCS_RELEASE_BUCKET_MIRROR}" "${publish_file}" || return 1
   fi
 }
@@ -1542,8 +1552,6 @@ function kube::release::docker::release() {
     "kube-scheduler"
     "kube-proxy"
     "hyperkube"
-    "federation-apiserver"
-    "federation-controller-manager"
   )
 
   local docker_push_cmd=("${DOCKER[@]}")
@@ -1586,7 +1594,7 @@ function kube::release::docker::release() {
 
 function kube::release::gcloud_account_is_active() {
   local -r account="${1-}"
-  if [[ -n $(gcloud auth list --filter-account $account 2>/dev/null | grep "active") ]]; then
+  if [[ "$(gcloud config list --format='value(core.account)')" == "${account}" ]]; then
     return 0
   else
     return 1

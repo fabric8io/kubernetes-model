@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2015 The Kubernetes Authors All rights reserved.
+# Copyright 2015 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ generated_files=($(
       \( \
         -wholename './output' \
         -o -wholename './_output' \
+        -o -wholename './staging' \
         -o -wholename './release' \
         -o -wholename './target' \
         -o -wholename '*/third_party/*' \
@@ -117,6 +118,7 @@ if [[ -z ${haveindex} ]]; then
 fi
 
 echo "Building codecgen"
+make generated_files
 CODECGEN="${PWD}/codecgen_binary"
 go build -o "${CODECGEN}" ./vendor/github.com/ugorji/go/codec/codecgen
 

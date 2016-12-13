@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,31 +19,31 @@ package set
 import (
 	"io"
 
+	"github.com/renstrom/dedent"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 )
 
-const (
-	set_long = `Configure application resources
+var (
+	set_long = dedent.Dedent(`
+		Configure application resources
 	
-These commands help you make changes to existing application resources.`
-	set_example = ``
+		These commands help you make changes to existing application resources.`)
+	set_example = dedent.Dedent(``)
 )
 
-func NewCmdSet(f *cmdutil.Factory, out io.Writer) *cobra.Command {
-
+func NewCmdSet(f *cmdutil.Factory, out, err io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "set SUBCOMMAND",
 		Short:   "Set specific features on objects",
 		Long:    set_long,
 		Example: set_example,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Help()
-		},
+		Run:     cmdutil.DefaultSubCommandRun(err),
 	}
 
 	// add subcommands
-	cmd.AddCommand(NewCmdImage(f, out))
+	cmd.AddCommand(NewCmdImage(f, out, err))
+	cmd.AddCommand(NewCmdResources(f, out, err))
 
 	return cmd
 }

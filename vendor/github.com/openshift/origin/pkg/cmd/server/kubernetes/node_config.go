@@ -17,11 +17,15 @@ import (
 	kerrs "k8s.io/kubernetes/pkg/api/errors"
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/apis/componentconfig"
+	"k8s.io/kubernetes/pkg/apis/componentconfig/v1alpha1"
 	"k8s.io/kubernetes/pkg/client/cache"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	clientadapter "k8s.io/kubernetes/pkg/client/unversioned/adapters/internalclientset"
 	"k8s.io/kubernetes/pkg/cloudprovider"
+	"k8s.io/kubernetes/pkg/kubelet"
 	"k8s.io/kubernetes/pkg/kubelet/dockertools"
+	kubeletnetwork "k8s.io/kubernetes/pkg/kubelet/network"
+	kubeletcni "k8s.io/kubernetes/pkg/kubelet/network/cni"
 	kubeletserver "k8s.io/kubernetes/pkg/kubelet/server"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
 	kcrypto "k8s.io/kubernetes/pkg/util/crypto"
@@ -36,7 +40,6 @@ import (
 	"github.com/openshift/origin/pkg/dns"
 	sdnapi "github.com/openshift/origin/pkg/sdn/api"
 	sdnplugin "github.com/openshift/origin/pkg/sdn/plugin"
-	sdnpluginapi "github.com/openshift/origin/pkg/sdn/plugin/api"
 )
 
 // NodeConfig represents the required parameters to start the OpenShift node
@@ -57,8 +60,8 @@ type NodeConfig struct {
 	DockerClient dockertools.DockerInterface
 	// KubeletServer contains the KubeletServer configuration
 	KubeletServer *kubeletoptions.KubeletServer
-	// KubeletConfig is the configuration for the kubelet, fully initialized
-	KubeletConfig *kubeletapp.KubeletConfig
+	// KubeletDeps are the injected code dependencies for the kubelet, fully initialized
+	KubeletDeps *kubelet.KubeletDeps
 	// ProxyConfig is the configuration for the kube-proxy, fully initialized
 	ProxyConfig *proxyoptions.ProxyServerConfig
 	// IPTablesSyncPeriod is how often iptable rules are refreshed
@@ -77,9 +80,9 @@ type NodeConfig struct {
 	DNSServer *dns.Server
 
 	// SDNPlugin is an optional SDN plugin
-	SDNPlugin sdnpluginapi.OsdnNodePlugin
-	// EndpointsFilterer is an optional endpoints filterer
-	FilteringEndpointsHandler sdnpluginapi.FilteringEndpointsConfigHandler
+	SDNPlugin *sdnplugin.OsdnNode
+	// SDNProxy is an optional service endpoints filterer
+	SDNProxy *sdnplugin.OsdnProxy
 }
 
 func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enableDNS bool) (*NodeConfig, error) {
@@ -117,15 +120,6 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
 		fileCheckInterval = options.PodManifestConfig.FileCheckIntervalSeconds
 	}
 
-	var dockerExecHandler dockertools.ExecHandler
-
-	switch options.DockerConfig.ExecHandlerName {
-	case configapi.DockerExecHandlerNative:
-		dockerExecHandler = &dockertools.NativeExecHandler{}
-	case configapi.DockerExecHandlerNsenter:
-		dockerExecHandler = &dockertools.NsenterExecHandler{}
-	}
-
 	kubeAddressStr, kubePortStr, err := net.SplitHostPort(options.ServingInfo.BindAddress)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse node address: %v", err)
@@ -142,14 +136,15 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
 	// Defaults are tested in TestKubeletDefaults
 	server := kubeletoptions.NewKubeletServer()
 	// Adjust defaults
-	server.Config = path
+	server.RequireKubeConfig = true
+	server.PodManifestPath = path
 	server.RootDirectory = options.VolumeDirectory
 	server.NodeIP = options.NodeIP
 	server.HostnameOverride = options.NodeName
 	server.AllowPrivileged = true
 	server.RegisterNode = true
 	server.Address = kubeAddressStr
-	server.Port = uint(kubePort)
+	server.Port = int32(kubePort)
 	server.ReadOnlyPort = 0        // no read only access
 	server.CAdvisorPort = 0        // no unsecured cadvisor access
 	server.HealthzPort = 0         // no unsecured healthz access
@@ -157,22 +152,24 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
 	server.ClusterDNS = options.DNSIP
 	server.ClusterDomain = options.DNSDomain
 	server.NetworkPluginName = options.NetworkConfig.NetworkPluginName
-	server.HostNetworkSources = strings.Join([]string{kubelettypes.ApiserverSource, kubelettypes.FileSource}, ",")
-	server.HostPIDSources = strings.Join([]string{kubelettypes.ApiserverSource, kubelettypes.FileSource}, ",")
-	server.HostIPCSources = strings.Join([]string{kubelettypes.ApiserverSource, kubelettypes.FileSource}, ",")
+	server.HostNetworkSources = []string{kubelettypes.ApiserverSource, kubelettypes.FileSource}
+	server.HostPIDSources = []string{kubelettypes.ApiserverSource, kubelettypes.FileSource}
+	server.HostIPCSources = []string{kubelettypes.ApiserverSource, kubelettypes.FileSource}
 	server.HTTPCheckFrequency = unversioned.Duration{Duration: time.Duration(0)} // no remote HTTP pod creation access
 	server.FileCheckFrequency = unversioned.Duration{Duration: time.Duration(fileCheckInterval) * time.Second}
 	server.PodInfraContainerImage = imageTemplate.ExpandOrDie("pod")
 	server.CPUCFSQuota = true // enable cpu cfs quota enforcement by default
-	server.MaxPods = 110
+	server.MaxPods = 250
+	server.PodsPerCore = 10
 	server.SerializeImagePulls = false          // disable serialized image pulls by default
 	server.EnableControllerAttachDetach = false // stay consistent with existing config, but admins should enable it
 	if enableDNS {
 		// if we are running local DNS, skydns will load the default recursive nameservers for us
 		server.ResolverConfig = ""
 	}
+	server.DockerExecHandlerName = string(options.DockerConfig.ExecHandlerName)
 
-	if sdnplugin.IsOpenShiftNetworkPlugin(server.NetworkPluginName) {
+	if sdnapi.IsOpenShiftNetworkPlugin(server.NetworkPluginName) {
 		// set defaults for openshift-sdn
 		server.HairpinMode = componentconfig.HairpinNone
 		server.ConfigureCBR0 = false
@@ -197,23 +194,53 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
 		return nil, err
 	}
 
-	cfg, err := kubeletapp.UnsecuredKubeletConfig(server)
+	// Initialize SDN before building kubelet config so it can modify options
+	iptablesSyncPeriod, err := time.ParseDuration(options.IPTablesSyncPeriod)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot parse the provided ip-tables sync period (%s) : %v", options.IPTablesSyncPeriod, err)
+	}
+	sdnPlugin, err := sdnplugin.NewNodePlugin(options.NetworkConfig.NetworkPluginName, originClient, kubeClient, options.NodeName, options.NodeIP, iptablesSyncPeriod, options.NetworkConfig.MTU)
+	if err != nil {
+		return nil, fmt.Errorf("SDN initialization failed: %v", err)
+	}
+	if sdnPlugin != nil {
+		// SDN plugin pod setup/teardown is implemented as a CNI plugin
+		server.NetworkPluginName = kubeletcni.CNIPluginName
+		server.NetworkPluginDir = kubeletcni.DefaultNetDir
+		server.HairpinMode = componentconfig.HairpinNone
+		server.ConfigureCBR0 = false
+	}
+
+	deps, err := kubeletapp.UnsecuredKubeletDeps(server)
 	if err != nil {
 		return nil, err
 	}
 
+	// Initialize cloud provider
+	cloud, err := buildCloudProvider(server)
+	if err != nil {
+		return nil, err
+	}
+	deps.Cloud = cloud
+
+	// Replace the kubelet-created CNI plugin with the SDN plugin
+	// Kubelet must be initialized with NetworkPluginName="cni" but
+	// the SDN plugin (if available) needs to be the only one used
+	if sdnPlugin != nil {
+		deps.NetworkPlugins = []kubeletnetwork.NetworkPlugin{sdnPlugin}
+	}
+
 	// provide any config overrides
-	cfg.NodeName = options.NodeName
-	cfg.KubeClient = clientadapter.FromUnversionedClient(kubeClient)
-	cfg.EventClient = clientadapter.FromUnversionedClient(eventClient)
-	cfg.DockerExecHandler = dockerExecHandler
+	//deps.NodeName = options.NodeName
+	deps.KubeClient = clientadapter.FromUnversionedClient(kubeClient)
+	deps.EventClient = clientadapter.FromUnversionedClient(eventClient)
 
 	// Setup auth
 	authnTTL, err := time.ParseDuration(options.AuthConfig.AuthenticationCacheTTL)
 	if err != nil {
 		return nil, err
 	}
-	authn, err := newAuthenticator(cfg.KubeClient.Authentication(), clientCAs, authnTTL, options.AuthConfig.AuthenticationCacheSize)
+	authn, err := newAuthenticator(deps.KubeClient.Authentication(), clientCAs, authnTTL, options.AuthConfig.AuthenticationCacheSize)
 	if err != nil {
 		return nil, err
 	}
@@ -232,11 +259,7 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
 		return nil, err
 	}
 
-	cfg.Auth = kubeletserver.NewKubeletAuth(authn, authzAttr, authz)
-
-	// Make sure the node doesn't think it is in standalone mode
-	// This is required for the node to enforce nodeSelectors on pods, to set hostIP on pod status updates, etc
-	cfg.StandaloneMode = false
+	deps.Auth = kubeletserver.NewKubeletAuth(authn, authzAttr, authz)
 
 	// TODO: could be cleaner
 	if configapi.UseTLS(options.ServingInfo) {
@@ -244,7 +267,7 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
 		if err != nil {
 			return nil, err
 		}
-		cfg.TLSOptions = &kubeletserver.TLSOptions{
+		deps.TLSOptions = &kubeletserver.TLSOptions{
 			Config: crypto.SecureTLSConfig(&tls.Config{
 				// RequestClientCert lets us request certs, but allow requests without client certs
 				// Verification is done by the authn layer
@@ -259,36 +282,10 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
 			KeyFile:  options.ServingInfo.ServerCert.KeyFile,
 		}
 	} else {
-		cfg.TLSOptions = nil
+		deps.TLSOptions = nil
 	}
 
-	if server.CloudProvider == kubeletoptions.AutoDetectCloudProvider {
-		cfg.AutoDetectCloudProvider = true
-	} else {
-		// Prepare cloud provider
-		cloud, err := cloudprovider.InitCloudProvider(server.CloudProvider, server.CloudConfigFile)
-		if err != nil {
-			return nil, err
-		}
-		if cloud != nil {
-			glog.V(2).Infof("Successfully initialized cloud provider: %q from the config file: %q\n", server.CloudProvider, server.CloudConfigFile)
-		}
-		cfg.Cloud = cloud
-	}
-
-	iptablesSyncPeriod, err := time.ParseDuration(options.IPTablesSyncPeriod)
-	if err != nil {
-		return nil, fmt.Errorf("Cannot parse the provided ip-tables sync period (%s) : %v", options.IPTablesSyncPeriod, err)
-	}
-	sdnPlugin, err := sdnplugin.NewNodePlugin(options.NetworkConfig.NetworkPluginName, originClient, kubeClient, options.NodeName, options.NodeIP, iptablesSyncPeriod, options.NetworkConfig.MTU)
-	if err != nil {
-		return nil, fmt.Errorf("SDN initialization failed: %v", err)
-	}
-	if sdnPlugin != nil {
-		cfg.NetworkPlugins = append(cfg.NetworkPlugins, sdnPlugin)
-	}
-
-	endpointFilter, err := sdnplugin.NewProxyPlugin(options.NetworkConfig.NetworkPluginName, originClient, kubeClient)
+	sdnProxy, err := sdnplugin.NewProxyPlugin(options.NetworkConfig.NetworkPluginName, originClient, kubeClient)
 	if err != nil {
 		return nil, fmt.Errorf("SDN proxy initialization failed: %v", err)
 	}
@@ -304,15 +301,15 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
 		VolumeDir: options.VolumeDirectory,
 
 		KubeletServer: server,
-		KubeletConfig: cfg,
+		KubeletDeps:   deps,
 
 		ServicesReady: make(chan struct{}),
 
 		ProxyConfig:    proxyconfig,
 		EnableUnidling: options.EnableUnidling,
 
-		SDNPlugin:                 sdnPlugin,
-		FilteringEndpointsHandler: endpointFilter,
+		SDNPlugin: sdnPlugin,
+		SDNProxy:  sdnProxy,
 	}
 
 	if enableDNS {
@@ -419,7 +416,7 @@ func buildKubeProxyConfig(options configapi.NodeConfig) (*proxyoptions.ProxyServ
 }
 
 func validateNetworkPluginName(originClient *osclient.Client, pluginName string) error {
-	if sdnplugin.IsOpenShiftNetworkPlugin(pluginName) {
+	if sdnapi.IsOpenShiftNetworkPlugin(pluginName) {
 		// Detect any plugin mismatches between node and master
 		clusterNetwork, err := originClient.ClusterNetwork().Get(sdnapi.ClusterNetworkDefault)
 		if kerrs.IsNotFound(err) {
@@ -438,4 +435,18 @@ func validateNetworkPluginName(originClient *osclient.Client, pluginName string)
 		}
 	}
 	return nil
+}
+
+func buildCloudProvider(server *kubeletoptions.KubeletServer) (cloudprovider.Interface, error) {
+	if len(server.CloudProvider) == 0 || server.CloudProvider == v1alpha1.AutoDetectCloudProvider {
+		return nil, nil
+	}
+	cloud, err := cloudprovider.InitCloudProvider(server.CloudProvider, server.CloudConfigFile)
+	if err != nil {
+		return nil, err
+	}
+	if cloud != nil {
+		glog.V(2).Infof("Successfully initialized cloud provider: %q from the config file: %q", server.CloudProvider, server.CloudConfigFile)
+	}
+	return cloud, nil
 }

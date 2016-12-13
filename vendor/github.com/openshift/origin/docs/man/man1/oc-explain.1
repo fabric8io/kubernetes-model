@@ -3,7 +3,7 @@
 
 .SH NAME
 .PP
-oc explain \- Documentation of resources.
+oc explain \- Documentation of resources
 
 
 .SH SYNOPSIS
@@ -16,10 +16,7 @@ oc explain \- Documentation of resources.
 Documentation of resources.
 
 .PP
-Possible resource types include: pods (po), services (svc),
-replicationcontrollers (rc), nodes (no), events (ev), componentstatuses (cs),
-limitranges (limits), persistentvolumes (pv), persistentvolumeclaims (pvc),
-resourcequotas (quota), namespaces (ns) or endpoints (ep).
+Possible resource types include: pods (po), services (svc), replicationcontrollers (rc), nodes (no), events (ev), componentstatuses (cs), limitranges (limits), persistentvolumes (pv), persistentvolumeclaims (pvc), resourcequotas (quota), namespaces (ns) or endpoints (ep).
 
 
 .SH OPTIONS
@@ -39,19 +36,19 @@ resourcequotas (quota), namespaces (ns) or endpoints (ep).
 
 .PP
 \fB\-\-as\fP=""
-    Username to impersonate for the operation.
+    Username to impersonate for the operation
 
 .PP
 \fB\-\-certificate\-authority\fP=""
-    Path to a cert. file for the certificate authority.
+    Path to a cert. file for the certificate authority
 
 .PP
 \fB\-\-client\-certificate\fP=""
-    Path to a client certificate file for TLS.
+    Path to a client certificate file for TLS
 
 .PP
 \fB\-\-client\-key\fP=""
-    Path to a client key file for TLS.
+    Path to a client key file for TLS
 
 .PP
 \fB\-\-cluster\fP=""
@@ -71,7 +68,7 @@ resourcequotas (quota), namespaces (ns) or endpoints (ep).
 
 .PP
 \fB\-\-insecure\-skip\-tls\-verify\fP=false
-    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure.
+    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
 
 .PP
 \fB\-\-log\-flush\-frequency\fP=0
@@ -83,7 +80,11 @@ resourcequotas (quota), namespaces (ns) or endpoints (ep).
 
 .PP
 \fB\-n\fP, \fB\-\-namespace\fP=""
-    If present, the namespace scope for this CLI request.
+    If present, the namespace scope for this CLI request
+
+.PP
+\fB\-\-request\-timeout\fP="0"
+    The length of time to wait before giving up on a single server request. Non\-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.
 
 .PP
 \fB\-\-server\fP=""
@@ -91,7 +92,7 @@ resourcequotas (quota), namespaces (ns) or endpoints (ep).
 
 .PP
 \fB\-\-token\fP=""
-    Bearer token for authentication to the API server.
+    Bearer token for authentication to the API server
 
 .PP
 \fB\-\-user\fP=""
@@ -103,11 +104,11 @@ resourcequotas (quota), namespaces (ns) or endpoints (ep).
 .RS
 
 .nf
-# Get the documentation of the resource and its fields
-oc explain pods
-
-# Get the documentation of a specific field of a resource
-oc explain pods.spec.containers
+  # Get the documentation of the resource and its fields
+  oc explain pods
+  
+  # Get the documentation of a specific field of a resource
+  oc explain pods.spec.containers
 
 .fi
 .RE

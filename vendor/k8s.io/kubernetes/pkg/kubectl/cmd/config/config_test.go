@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -770,7 +770,7 @@ func testConfigCommand(args []string, startingConfig clientcmdapi.Config, t *tes
 
 	buf := bytes.NewBuffer([]byte{})
 
-	cmd := NewCmdConfig(clientcmd.NewDefaultPathOptions(), buf)
+	cmd := NewCmdConfig(clientcmd.NewDefaultPathOptions(), buf, buf)
 	cmd.SetArgs(argsToUse)
 	cmd.Execute()
 

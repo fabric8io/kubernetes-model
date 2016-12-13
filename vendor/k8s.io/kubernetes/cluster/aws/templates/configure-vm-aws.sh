@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2015 The Kubernetes Authors All rights reserved.
+# Copyright 2015 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ EOF
   if [[ ! -z "${KUBELET_APISERVER:-}" ]] && [[ ! -z "${KUBELET_CERT:-}" ]] && [[ ! -z "${KUBELET_KEY:-}" ]]; then
     cat <<EOF >>/etc/salt/minion.d/grains.conf
   kubelet_api_servers: '${KUBELET_APISERVER}'
-  cbr-cidr: 10.123.45.0/30
+  cbr-cidr: 10.123.45.0/29
 EOF
   else
     # If the kubelet is running disconnected from a master, give it a fixed
@@ -102,6 +102,7 @@ EOF
   fi
 
   env-to-grains "runtime_config"
+  env-to-grains "kube_user"
 }
 
 salt-node-role() {
@@ -109,7 +110,7 @@ salt-node-role() {
 grains:
   roles:
     - kubernetes-pool
-  cbr-cidr: 10.123.45.0/30
+  cbr-cidr: 10.123.45.0/29
   cloud: aws
   api_servers: '${API_SERVERS}'
 EOF

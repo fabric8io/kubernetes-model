@@ -18,7 +18,7 @@ fi
 
 ensure_iptables_or_die
 
-echo "[INFO] Starting end-to-end test"
+os::log::info "Starting end-to-end test"
 
 function cleanup()
 {
@@ -27,12 +27,12 @@ function cleanup()
 	if [ $out -ne 0 ]; then
 		echo "[FAIL] !!!!! Test Failed !!!!"
 	else
-		echo "[INFO] Test Succeeded"
+		os::log::info "Test Succeeded"
 	fi
 	echo
 
 	cleanup_openshift
-	echo "[INFO] Exiting"
+	os::log::info "Exiting"
 	ENDTIME=$(date +%s); echo "$0 took $(($ENDTIME - $STARTTIME)) seconds"
 	exit $out
 }
@@ -42,14 +42,13 @@ trap "cleanup" EXIT
 
 
 # Start All-in-one server and wait for health
-os::util::environment::setup_all_server_vars "test-end-to-end/"
 os::util::environment::use_sudo
-reset_tmp_dir
+os::util::environment::setup_all_server_vars "test-end-to-end/"
 
-os::log::start_system_logger
+os::log::system::start
 
-configure_os_server
-start_os_server
+os::start::configure_server
+os::start::server
 
 # set our default KUBECONFIG location
 export KUBECONFIG="${ADMIN_KUBECONFIG}"

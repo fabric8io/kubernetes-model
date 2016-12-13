@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/renstrom/dedent"
 	"github.com/spf13/cobra"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/meta"
@@ -33,21 +34,22 @@ import (
 // ImageOptions is the start of the data required to perform the operation.  As new fields are added, add them here instead of
 // referencing the cmd.Flags()
 type ImageOptions struct {
-	Mapper      meta.RESTMapper
-	Typer       runtime.ObjectTyper
-	Infos       []*resource.Info
-	Encoder     runtime.Encoder
-	Selector    string
-	Out         io.Writer
-	Err         io.Writer
-	Filenames   []string
-	Recursive   bool
-	ShortOutput bool
-	All         bool
-	Record      bool
-	ChangeCause string
-	Local       bool
-	Cmd         *cobra.Command
+	Mapper       meta.RESTMapper
+	Typer        runtime.ObjectTyper
+	Infos        []*resource.Info
+	Encoder      runtime.Encoder
+	Selector     string
+	Out          io.Writer
+	Err          io.Writer
+	Filenames    []string
+	Recursive    bool
+	ShortOutput  bool
+	All          bool
+	Record       bool
+	ChangeCause  string
+	Local        bool
+	ResolveImage func(in string) (string, error)
+	Cmd          *cobra.Command
 
 	PrintObject            func(cmd *cobra.Command, mapper meta.RESTMapper, obj runtime.Object, out io.Writer) error
 	UpdatePodSpecForObject func(obj runtime.Object, fn func(*api.PodSpec) error) (bool, error)
@@ -55,30 +57,33 @@ type ImageOptions struct {
 	ContainerImages        map[string]string
 }
 
-const (
+var (
 	image_resources = `
-  pod (po), replicationcontroller (rc), deployment, daemonset (ds), job, replicaset (rs)`
+  pod (po), replicationcontroller (rc), deployment (deploy), daemonset (ds), job, replicaset (rs)`
 
-	image_long = `Update existing container image(s) of resources.
+	image_long = dedent.Dedent(`
+		Update existing container image(s) of resources.
 
-Possible resources include (case insensitive):` + image_resources
+		Possible resources include (case insensitive):`) + image_resources
 
-	image_example = `# Set a deployment's nginx container image to 'nginx:1.9.1', and its busybox container image to 'busybox'.
-kubectl set image deployment/nginx busybox=busybox nginx=nginx:1.9.1
+	image_example = dedent.Dedent(`
+		# Set a deployment's nginx container image to 'nginx:1.9.1', and its busybox container image to 'busybox'.
+		kubectl set image deployment/nginx busybox=busybox nginx=nginx:1.9.1
 
-# Update all deployments' and rc's nginx container's image to 'nginx:1.9.1'
-kubectl set image deployments,rc nginx=nginx:1.9.1 --all
+		# Update all deployments' and rc's nginx container's image to 'nginx:1.9.1'
+		kubectl set image deployments,rc nginx=nginx:1.9.1 --all
 
-# Update image of all containers of daemonset abc to 'nginx:1.9.1'
-kubectl set image daemonset abc *=nginx:1.9.1
+		# Update image of all containers of daemonset abc to 'nginx:1.9.1'
+		kubectl set image daemonset abc *=nginx:1.9.1
 
-# Print result (in yaml format) of updating nginx container image from local file, without hitting the server 
-kubectl set image -f path/to/file.yaml nginx=nginx:1.9.1 --local -o yaml`
+		# Print result (in yaml format) of updating nginx container image from local file, without hitting the server
+		kubectl set image -f path/to/file.yaml nginx=nginx:1.9.1 --local -o yaml`)
 )
 
-func NewCmdImage(f *cmdutil.Factory, out io.Writer) *cobra.Command {
+func NewCmdImage(f *cmdutil.Factory, out, err io.Writer) *cobra.Command {
 	options := &ImageOptions{
 		Out: out,
+		Err: err,
 	}
 
 	cmd := &cobra.Command{
@@ -112,6 +117,7 @@ func (o *ImageOptions) Complete(f *cmdutil.Factory, cmd *cobra.Command, args []s
 	o.Record = cmdutil.GetRecordFlag(cmd)
 	o.ChangeCause = f.Command()
 	o.PrintObject = f.PrintObject
+	o.ResolveImage = f.ResolveImage
 	o.Cmd = cmd
 
 	cmdNamespace, enforceNamespace, err := f.DefaultNamespace()
@@ -162,12 +168,22 @@ func (o *ImageOptions) Run() error {
 		transformed := false
 		_, err := o.UpdatePodSpecForObject(info.Object, func(spec *api.PodSpec) error {
 			for name, image := range o.ContainerImages {
-				containerFound := false
+				var (
+					containerFound bool
+					err            error
+					resolved       string
+				)
 				// Find the container to update, and update its image
 				for i, c := range spec.Containers {
 					if c.Name == name || name == "*" {
-						spec.Containers[i].Image = image
 						containerFound = true
+						if len(resolved) == 0 {
+							if resolved, err = o.ResolveImage(image); err != nil {
+								allErrs = append(allErrs, fmt.Errorf("error: unable to resolve image %q for container %q: %v", image, name, err))
+								continue
+							}
+						}
+						spec.Containers[i].Image = resolved
 						// Perform updates
 						transformed = true
 					}
@@ -195,7 +211,7 @@ func (o *ImageOptions) Run() error {
 		}
 
 		if o.Local {
-			fmt.Fprintln(o.Out, "running in local mode...")
+			fmt.Fprintln(o.Err, "running in local mode...")
 			return o.PrintObject(o.Cmd, o.Mapper, info.Object, o.Out)
 		}
 
@@ -209,15 +225,15 @@ func (o *ImageOptions) Run() error {
 
 		// record this change (for rollout history)
 		if o.Record || cmdutil.ContainsChangeCause(info) {
-			if err := cmdutil.RecordChangeCause(obj, o.ChangeCause); err == nil {
-				if obj, err = resource.NewHelper(info.Client, info.Mapping).Replace(info.Namespace, info.Name, false, obj); err != nil {
-					allErrs = append(allErrs, fmt.Errorf("changes to %s/%s can't be recorded: %v\n", info.Mapping.Resource, info.Name, err))
+			if patch, err := cmdutil.ChangeResourcePatch(info, o.ChangeCause); err == nil {
+				if obj, err = resource.NewHelper(info.Client, info.Mapping).Patch(info.Namespace, info.Name, api.StrategicMergePatchType, patch); err != nil {
+					fmt.Fprintf(o.Err, "WARNING: changes to %s/%s can't be recorded: %v\n", info.Mapping.Resource, info.Name, err)
 				}
 			}
 		}
 
 		info.Refresh(obj, true)
-		cmdutil.PrintSuccess(o.Mapper, o.ShortOutput, o.Out, info.Mapping.Resource, info.Name, "image updated")
+		cmdutil.PrintSuccess(o.Mapper, o.ShortOutput, o.Out, info.Mapping.Resource, info.Name, false, "image updated")
 	}
 	return utilerrors.NewAggregate(allErrs)
 }

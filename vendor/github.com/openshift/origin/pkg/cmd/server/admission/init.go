@@ -6,6 +6,7 @@ import (
 	"k8s.io/kubernetes/pkg/quota"
 
 	"github.com/openshift/origin/pkg/authorization/authorizer"
+	"github.com/openshift/origin/pkg/authorization/authorizer/adapter"
 	"github.com/openshift/origin/pkg/client"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
 	"github.com/openshift/origin/pkg/controller/shared"
@@ -42,6 +43,14 @@ func (i *PluginInitializer) Initialize(plugins []admission.Interface) {
 		if wantsAuthorizer, ok := plugin.(WantsAuthorizer); ok {
 			wantsAuthorizer.SetAuthorizer(i.Authorizer)
 		}
+		if kubeWantsAuthorizer, ok := plugin.(admission.WantsAuthorizer); ok {
+			kubeAuthorizer, err := adapter.NewAuthorizer(i.Authorizer)
+			// this shouldn't happen
+			if err != nil {
+				panic(err)
+			}
+			kubeWantsAuthorizer.SetAuthorizer(kubeAuthorizer)
+		}
 		if wantsJenkinsPipelineConfig, ok := plugin.(WantsJenkinsPipelineConfig); ok {
 			wantsJenkinsPipelineConfig.SetJenkinsPipelineConfig(i.JenkinsPipelineConfig)
 		}
@@ -50,6 +59,9 @@ func (i *PluginInitializer) Initialize(plugins []admission.Interface) {
 		}
 		if wantsInformers, ok := plugin.(WantsInformers); ok {
 			wantsInformers.SetInformers(i.Informers)
+		}
+		if wantsInformerFactory, ok := plugin.(admission.WantsInformerFactory); ok {
+			wantsInformerFactory.SetInformerFactory(i.Informers.KubernetesInformers())
 		}
 		if wantsClusterQuotaMapper, ok := plugin.(WantsClusterQuotaMapper); ok {
 			wantsClusterQuotaMapper.SetClusterQuotaMapper(i.ClusterQuotaMapper)

@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -166,9 +166,6 @@ func (plugin *gcePersistentDiskPlugin) newDeleterInternal(spec *volume.Spec, man
 }
 
 func (plugin *gcePersistentDiskPlugin) NewProvisioner(options volume.VolumeOptions) (volume.Provisioner, error) {
-	if len(options.AccessModes) == 0 {
-		options.AccessModes = plugin.GetAccessModes()
-	}
 	return plugin.newProvisionerInternal(options, &GCEDiskUtil{})
 }
 
@@ -180,6 +177,24 @@ func (plugin *gcePersistentDiskPlugin) newProvisionerInternal(options volume.Vol
 		},
 		options: options,
 	}, nil
+}
+
+func (plugin *gcePersistentDiskPlugin) ConstructVolumeSpec(volumeName, mountPath string) (*volume.Spec, error) {
+	mounter := plugin.host.GetMounter()
+	pluginDir := plugin.host.GetPluginDir(plugin.GetPluginName())
+	sourceName, err := mounter.GetDeviceNameFromMount(mountPath, pluginDir)
+	if err != nil {
+		return nil, err
+	}
+	gceVolume := &api.Volume{
+		Name: volumeName,
+		VolumeSource: api.VolumeSource{
+			GCEPersistentDisk: &api.GCEPersistentDiskVolumeSource{
+				PDName: sourceName,
+			},
+		},
+	}
+	return volume.NewSpecFromVolume(gceVolume), nil
 }
 
 // Abstract interface to PD operations.
@@ -375,7 +390,7 @@ func (c *gcePersistentDiskProvisioner) Provision() (*api.PersistentVolume, error
 		},
 		Spec: api.PersistentVolumeSpec{
 			PersistentVolumeReclaimPolicy: c.options.PersistentVolumeReclaimPolicy,
-			AccessModes:                   c.options.AccessModes,
+			AccessModes:                   c.options.PVC.Spec.AccessModes,
 			Capacity: api.ResourceList{
 				api.ResourceName(api.ResourceStorage): resource.MustParse(fmt.Sprintf("%dGi", sizeGB)),
 			},
@@ -387,6 +402,9 @@ func (c *gcePersistentDiskProvisioner) Provision() (*api.PersistentVolume, error
 				},
 			},
 		},
+	}
+	if len(c.options.PVC.Spec.AccessModes) == 0 {
+		pv.Spec.AccessModes = c.plugin.GetAccessModes()
 	}
 
 	if len(labels) != 0 {

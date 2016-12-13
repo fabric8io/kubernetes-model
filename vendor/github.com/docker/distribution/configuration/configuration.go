@@ -22,12 +22,6 @@ type Configuration struct {
 	// Log supports setting various parameters related to the logging
 	// subsystem.
 	Log struct {
-		// AccessLog configures access logging.
-		AccessLog struct {
-			// Disabled disables access logging.
-			Disabled bool `yaml:"disabled,omitempty"`
-		} `yaml:"accesslog,omitempty"`
-
 		// Level is the granularity at which registry operations are logged.
 		Level Loglevel `yaml:"level"`
 
@@ -39,7 +33,7 @@ type Configuration struct {
 		// the logger context.
 		Fields map[string]interface{} `yaml:"fields,omitempty"`
 
-		// Hooks allows users to configure the log hooks, to enabling the
+		// Hooks allows users to configurate the log hooks, to enabling the
 		// sequent handling behavior, when defined levels of log message emit.
 		Hooks []LogHook `yaml:"hooks,omitempty"`
 	}
@@ -129,13 +123,6 @@ type Configuration struct {
 			// Addr specifies the bind address for the debug server.
 			Addr string `yaml:"addr,omitempty"`
 		} `yaml:"debug,omitempty"`
-
-		// HTTP2 configuration options
-		HTTP2 struct {
-			// Specifies wether the registry should disallow clients attempting
-			// to connect via http2. If set to true, only http/1.1 is supported.
-			Disabled bool `yaml:"disabled,omitempty"`
-		} `yaml:"http2,omitempty"`
 	} `yaml:"http,omitempty"`
 
 	// Notifications specifies configuration about various endpoint to which
@@ -185,24 +172,6 @@ type Configuration struct {
 			TrustKey string `yaml:"signingkeyfile,omitempty"`
 		} `yaml:"schema1,omitempty"`
 	} `yaml:"compatibility,omitempty"`
-
-	// Validation configures validation options for the registry.
-	Validation struct {
-		// Enabled enables the other options in this section.
-		Enabled bool `yaml:"enabled,omitempty"`
-		// Manifests configures manifest validation.
-		Manifests struct {
-			// URLs configures validation for URLs in pushed manifests.
-			URLs struct {
-				// Allow specifies regular expressions (https://godoc.org/regexp/syntax)
-				// that URLs in pushed manifests must match.
-				Allow []string `yaml:"allow,omitempty"`
-				// Deny specifies regular expressions (https://godoc.org/regexp/syntax)
-				// that URLs in pushed manifests must not match.
-				Deny []string `yaml:"deny,omitempty"`
-			} `yaml:"urls,omitempty"`
-		} `yaml:"manifests,omitempty"`
-	} `yaml:"validation,omitempty"`
 }
 
 // LogHook is composed of hook Level and Type.
@@ -235,7 +204,7 @@ type MailOptions struct {
 		// Password defines password of login user
 		Password string `yaml:"password,omitempty"`
 
-		// Insecure defines if smtp login skips the secure certification.
+		// Insecure defines if smtp login skips the secure cerification.
 		Insecure bool `yaml:"insecure,omitempty"`
 	} `yaml:"smtp,omitempty"`
 

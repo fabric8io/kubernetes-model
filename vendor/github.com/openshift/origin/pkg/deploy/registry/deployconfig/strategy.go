@@ -38,8 +38,13 @@ func (strategy) AllowUnconditionalUpdate() bool {
 	return false
 }
 
+func (s strategy) Export(ctx kapi.Context, obj runtime.Object, exact bool) error {
+	s.PrepareForCreate(ctx, obj)
+	return nil
+}
+
 // PrepareForCreate clears fields that are not allowed to be set by end users on creation.
-func (strategy) PrepareForCreate(obj runtime.Object) {
+func (strategy) PrepareForCreate(ctx kapi.Context, obj runtime.Object) {
 	dc := obj.(*api.DeploymentConfig)
 	dc.Generation = 1
 	dc.Status = api.DeploymentConfigStatus{}
@@ -52,7 +57,7 @@ func (strategy) PrepareForCreate(obj runtime.Object) {
 }
 
 // PrepareForUpdate clears fields that are not allowed to be set by end users on update.
-func (strategy) PrepareForUpdate(obj, old runtime.Object) {
+func (strategy) PrepareForUpdate(ctx kapi.Context, obj, old runtime.Object) {
 	newDc := obj.(*api.DeploymentConfig)
 	oldDc := old.(*api.DeploymentConfig)
 
@@ -67,6 +72,8 @@ func (strategy) PrepareForUpdate(obj, old runtime.Object) {
 	if newVersion == oldVersion+1 {
 		newDc.Status.LatestVersion = newVersion
 	}
+
+	// TODO: Disallow lastTriggeredImage updates from this update path.
 
 	// Any changes to the spec or labels, increment the generation number, any changes
 	// to the status should reflect the generation number of the corresponding object
@@ -103,7 +110,7 @@ type statusStrategy struct {
 var StatusStrategy = statusStrategy{Strategy}
 
 // PrepareForUpdate clears fields that are not allowed to be set by end users on update of status.
-func (statusStrategy) PrepareForUpdate(obj, old runtime.Object) {
+func (statusStrategy) PrepareForUpdate(ctx kapi.Context, obj, old runtime.Object) {
 	newDc := obj.(*api.DeploymentConfig)
 	oldDc := old.(*api.DeploymentConfig)
 	newDc.Spec = oldDc.Spec
@@ -116,7 +123,7 @@ func (statusStrategy) ValidateUpdate(ctx kapi.Context, obj, old runtime.Object) 
 }
 
 // Matcher returns a generic matcher for a given label and field selector.
-func Matcher(label labels.Selector, field fields.Selector) generic.Matcher {
+func Matcher(label labels.Selector, field fields.Selector) *generic.SelectionPredicate {
 	return &generic.SelectionPredicate{
 		Label: label,
 		Field: field,

@@ -16,25 +16,16 @@ oc adm migrate storage \- Update the stored version of API objects
 Migrate internal object storage via update
 
 .PP
-This command invokes an update operation on every API object reachable by the caller. This forces
-the server to write to the underlying storage if the object representation has changed. Use this
-command to ensure that the most recent storage changes have been applied to all objects (storage
-version, storage encoding, any newer object defaults).
+This command invokes an update operation on every API object reachable by the caller. This forces the server to write to the underlying storage if the object representation has changed. Use this command to ensure that the most recent storage changes have been applied to all objects (storage version, storage encoding, any newer object defaults).
 
 .PP
-To operate on a subset of resources, use the \-\-include flag. If you encounter errors during a run
-the command will output a list of resources that received errors, which you can then re\-run the
-command on. You may also specify \-\-from\-key and \-\-to\-key to restrict the set of resource names
-to operate on (key is NAMESPACE/NAME for resources in namespaces or NAME for cluster scoped
-resources). \-\-from\-key is inclusive if specified, while \-\-to\-key is exclusive.
+To operate on a subset of resources, use the \-\-include flag. If you encounter errors during a run the command will output a list of resources that received errors, which you can then re\-run the command on. You may also specify \-\-from\-key and \-\-to\-key to restrict the set of resource names to operate on (key is NAMESPACE/NAME for resources in namespaces or NAME for cluster scoped resources). \-\-from\-key is inclusive if specified, while \-\-to\-key is exclusive.
 
 .PP
-By default, events are not migrated since they expire within a very short period of time. If you
-have significantly increased the expiration time of events, run a migration with \-\-include=events
+By default, events are not migrated since they expire within a very short period of time. If you have significantly increased the expiration time of events, run a migration with \-\-include=events
 
 .PP
-WARNING: This is a slow command and will put significant load on an API server. It may also
-  result in significant intra\-cluster traffic.
+WARNING: This is a slow command and will put significant load on an API server. It may also result in significant intra\-cluster traffic.
 
 
 .SH OPTIONS
@@ -74,19 +65,19 @@ WARNING: This is a slow command and will put significant load on an API server. 
 
 .PP
 \fB\-\-as\fP=""
-    Username to impersonate for the operation.
+    Username to impersonate for the operation
 
 .PP
 \fB\-\-certificate\-authority\fP=""
-    Path to a cert. file for the certificate authority.
+    Path to a cert. file for the certificate authority
 
 .PP
 \fB\-\-client\-certificate\fP=""
-    Path to a client certificate file for TLS.
+    Path to a client certificate file for TLS
 
 .PP
 \fB\-\-client\-key\fP=""
-    Path to a client key file for TLS.
+    Path to a client key file for TLS
 
 .PP
 \fB\-\-cluster\fP=""
@@ -106,7 +97,7 @@ WARNING: This is a slow command and will put significant load on an API server. 
 
 .PP
 \fB\-\-insecure\-skip\-tls\-verify\fP=false
-    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure.
+    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
 
 .PP
 \fB\-\-log\-flush\-frequency\fP=0
@@ -118,7 +109,11 @@ WARNING: This is a slow command and will put significant load on an API server. 
 
 .PP
 \fB\-n\fP, \fB\-\-namespace\fP=""
-    If present, the namespace scope for this CLI request.
+    If present, the namespace scope for this CLI request
+
+.PP
+\fB\-\-request\-timeout\fP="0"
+    The length of time to wait before giving up on a single server request. Non\-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.
 
 .PP
 \fB\-\-server\fP=""
@@ -126,7 +121,7 @@ WARNING: This is a slow command and will put significant load on an API server. 
 
 .PP
 \fB\-\-token\fP=""
-    Bearer token for authentication to the API server.
+    Bearer token for authentication to the API server
 
 .PP
 \fB\-\-user\fP=""
@@ -140,16 +135,15 @@ WARNING: This is a slow command and will put significant load on an API server. 
 .nf
   # Perform a dry\-run of updating all objects
   oc adm migrate storage
-
+  
   # To actually perform the update, the confirm flag must be appended
   oc adm migrate storage \-\-confirm
-
+  
   # Only migrate pods
   oc adm migrate storage \-\-include=pods \-\-confirm
-
+  
   # Only pods that are in namespaces starting with "bar"
   oc adm migrate storage \-\-include=pods \-\-confirm \-\-from\-key=bar/ \-\-to\-key=bar/\\xFF
-
 
 .fi
 .RE

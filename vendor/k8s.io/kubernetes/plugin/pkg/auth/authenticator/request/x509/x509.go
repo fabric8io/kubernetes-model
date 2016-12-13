@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package x509
 
 import (
 	"crypto/x509"
+	"encoding/asn1"
 	"net/http"
 
 	"k8s.io/kubernetes/pkg/auth/user"
@@ -51,28 +52,34 @@ func New(opts x509.VerifyOptions, user UserConversion) *Authenticator {
 
 // AuthenticateRequest authenticates the request using presented client certificates
 func (a *Authenticator) AuthenticateRequest(req *http.Request) (user.Info, bool, error) {
-	if req.TLS == nil {
+	if req.TLS == nil || len(req.TLS.PeerCertificates) == 0 {
 		return nil, false, nil
 	}
 
+	// Use intermediates, if provided
+	optsCopy := a.opts
+	if optsCopy.Intermediates == nil && len(req.TLS.PeerCertificates) > 1 {
+		optsCopy.Intermediates = x509.NewCertPool()
+		for _, intermediate := range req.TLS.PeerCertificates[1:] {
+			optsCopy.Intermediates.AddCert(intermediate)
+		}
+	}
+
+	chains, err := req.TLS.PeerCertificates[0].Verify(optsCopy)
+	if err != nil {
+		return nil, false, err
+	}
+
 	var errlist []error
-	for _, cert := range req.TLS.PeerCertificates {
-		chains, err := cert.Verify(a.opts)
+	for _, chain := range chains {
+		user, ok, err := a.user.User(chain)
 		if err != nil {
 			errlist = append(errlist, err)
 			continue
 		}
 
-		for _, chain := range chains {
-			user, ok, err := a.user.User(chain)
-			if err != nil {
-				errlist = append(errlist, err)
-				continue
-			}
-
-			if ok {
-				return user, ok, err
-			}
+		if ok {
+			return user, ok, err
 		}
 	}
 	return nil, false, utilerrors.NewAggregate(errlist)
@@ -91,7 +98,10 @@ var CommonNameUserConversion = UserConversionFunc(func(chain []*x509.Certificate
 	if len(chain[0].Subject.CommonName) == 0 {
 		return nil, false, nil
 	}
-	return &user.DefaultInfo{Name: chain[0].Subject.CommonName}, true, nil
+	return &user.DefaultInfo{
+		Name:   chain[0].Subject.CommonName,
+		Groups: chain[0].Subject.Organization,
+	}, true, nil
 })
 
 // DNSNameUserConversion builds user info from a certificate chain using the first DNSName on the certificate
@@ -104,7 +114,13 @@ var DNSNameUserConversion = UserConversionFunc(func(chain []*x509.Certificate) (
 
 // EmailAddressUserConversion builds user info from a certificate chain using the first EmailAddress on the certificate
 var EmailAddressUserConversion = UserConversionFunc(func(chain []*x509.Certificate) (user.Info, bool, error) {
+	var emailAddressOID asn1.ObjectIdentifier = []int{1, 2, 840, 113549, 1, 9, 1}
 	if len(chain[0].EmailAddresses) == 0 {
+		for _, name := range chain[0].Subject.Names {
+			if name.Type.Equal(emailAddressOID) {
+				return &user.DefaultInfo{Name: name.Value.(string)}, true, nil
+			}
+		}
 		return nil, false, nil
 	}
 	return &user.DefaultInfo{Name: chain[0].EmailAddresses[0]}, true, nil

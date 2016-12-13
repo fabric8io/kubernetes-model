@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2014 The Kubernetes Authors All rights reserved.
+# Copyright 2014 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -124,7 +124,7 @@ federations_domain_map: ''
 e2e_storage_test_environment: "${E2E_STORAGE_TEST_ENVIRONMENT:-false}"
 cluster_cidr: "$NODE_IP_RANGES"
 allocate_node_cidrs: "${ALLOCATE_NODE_CIDRS:-true}"
-admission_control: NamespaceLifecycle,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota
+admission_control: NamespaceLifecycle,LimitRanger,SecurityContextDeny,ServiceAccount,DefaultStorageClass,ResourceQuota
 EOF
 
 mkdir -p /srv/salt-overlay/salt/nginx

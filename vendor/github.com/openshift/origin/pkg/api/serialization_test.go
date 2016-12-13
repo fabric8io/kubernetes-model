@@ -418,10 +418,28 @@ func fuzzInternalObject(t *testing.T, forVersion unversioned.GroupVersion, item 
 			j.Spec.Template.Spec.InitContainers = nil
 			j.Status.Template.Spec.InitContainers = nil
 		},
+		func(j *oauthapi.OAuthAuthorizeToken, c fuzz.Continue) {
+			c.FuzzNoCustom(j)
+			if len(j.CodeChallenge) > 0 && len(j.CodeChallengeMethod) == 0 {
+				j.CodeChallengeMethod = "plain"
+			}
+		},
 		func(j *oauthapi.OAuthClientAuthorization, c fuzz.Continue) {
 			c.FuzzNoCustom(j)
 			if len(j.Scopes) == 0 {
 				j.Scopes = append(j.Scopes, "user:full")
+			}
+		},
+		func(j *route.RouteSpec, c fuzz.Continue) {
+			c.FuzzNoCustom(j)
+			if len(j.WildcardPolicy) == 0 {
+				j.WildcardPolicy = route.WildcardPolicyNone
+			}
+		},
+		func(j *route.RouteIngress, c fuzz.Continue) {
+			c.FuzzNoCustom(j)
+			if len(j.WildcardPolicy) == 0 {
+				j.WildcardPolicy = route.WildcardPolicyNone
 			}
 		},
 

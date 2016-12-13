@@ -14,7 +14,7 @@ openshift kube apply \- Apply a configuration to a resource by filename or stdin
 .SH DESCRIPTION
 .PP
 Apply a configuration to a resource by filename or stdin.
-The resource will be created if it doesn't exist yet.
+This resource will be created if it doesn't exist yet.
 To use 'apply', always create the resource initially with either 'apply' or 'create \-\-save\-config'.
 
 .PP
@@ -22,6 +22,10 @@ JSON and YAML formats are accepted.
 
 
 .SH OPTIONS
+.PP
+\fB\-\-dry\-run\fP=false
+    If true, only print the object that would be sent, without sending it.
+
 .PP
 \fB\-f\fP, \fB\-\-filename\fP=[]
     Filename, directory, or URL to file that contains the configuration to apply
@@ -31,8 +35,23 @@ JSON and YAML formats are accepted.
     If true, include definitions of new APIs via calls to the API server. [default true]
 
 .PP
+\fB\-\-no\-headers\fP=false
+    When using the default or custom\-column output format, don't print headers.
+
+.PP
 \fB\-o\fP, \fB\-\-output\fP=""
-    Output mode. Use "\-o name" for shorter output (resource/name).
+    Output format. One of: json|yaml|wide|name|custom\-columns=...|custom\-columns\-file=...|go\-template=...|go\-template\-file=...|jsonpath=...|jsonpath\-file=... See custom columns [
+\[la]http://kubernetes.io/docs/user-guide/kubectl-overview/#custom-columns\[ra]], golang template [
+\[la]http://golang.org/pkg/text/template/#pkg-overview\[ra]] and jsonpath template [
+\[la]http://kubernetes.io/docs/user-guide/jsonpath\[ra]].
+
+.PP
+\fB\-\-output\-version\fP=""
+    Output the formatted object with the given group version (for ex: 'extensions/v1beta1').
+
+.PP
+\fB\-\-overwrite\fP=true
+    Automatically resolve conflicts between the modified and live configuration by using values from the modified configuration
 
 .PP
 \fB\-\-record\fP=false
@@ -47,11 +66,32 @@ JSON and YAML formats are accepted.
     If non\-empty, load/store cached API schemas in this directory, default is '$HOME/.kube/schema'
 
 .PP
+\fB\-a\fP, \fB\-\-show\-all\fP=false
+    When printing, show all resources (default hide terminated pods.)
+
+.PP
+\fB\-\-show\-labels\fP=false
+    When printing, show all labels as the last column (default hide labels column)
+
+.PP
+\fB\-\-sort\-by\fP=""
+    If non\-empty, sort list types using this field specification.  The field specification is expressed as a JSONPath expression (e.g. '{.metadata.name}'). The field in the API resource specified by this JSONPath expression must be an integer or a string.
+
+.PP
+\fB\-\-template\fP=""
+    Template string or path to template file to use when \-o=go\-template, \-o=go\-template\-file. The template format is golang templates [
+\[la]http://golang.org/pkg/text/template/#pkg-overview\[ra]].
+
+.PP
 \fB\-\-validate\fP=true
     If true, use a schema to validate the input before sending it
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
+.PP
+\fB\-\-allow\-verification\-with\-non\-compliant\-keys\fP=false
+    Allow a SignatureVerifier to use keys which are technically non\-compliant with RFC6962.
+
 .PP
 \fB\-\-alsologtostderr\fP=false
     log to standard error as well as files
@@ -66,7 +106,7 @@ JSON and YAML formats are accepted.
 
 .PP
 \fB\-\-as\fP=""
-    Username to impersonate for the operation.
+    Username to impersonate for the operation
 
 .PP
 \fB\-\-boot\-id\-file\fP="/proc/sys/kernel/random/boot\_id"
@@ -74,15 +114,15 @@ JSON and YAML formats are accepted.
 
 .PP
 \fB\-\-certificate\-authority\fP=""
-    Path to a cert. file for the certificate authority.
+    Path to a cert. file for the certificate authority
 
 .PP
 \fB\-\-client\-certificate\fP=""
-    Path to a client certificate file for TLS.
+    Path to a client certificate file for TLS
 
 .PP
 \fB\-\-client\-key\fP=""
-    Path to a client key file for TLS.
+    Path to a client key file for TLS
 
 .PP
 \fB\-\-cluster\fP=""
@@ -146,7 +186,7 @@ JSON and YAML formats are accepted.
 
 .PP
 \fB\-\-insecure\-skip\-tls\-verify\fP=false
-    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure.
+    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
 
 .PP
 \fB\-\-ir\-data\-source\fP="influxdb"
@@ -214,7 +254,11 @@ JSON and YAML formats are accepted.
 
 .PP
 \fB\-n\fP, \fB\-\-namespace\fP=""
-    If present, the namespace scope for this CLI request.
+    If present, the namespace scope for this CLI request
+
+.PP
+\fB\-\-request\-timeout\fP="0"
+    The length of time to wait before giving up on a single server request. Non\-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.
 
 .PP
 \fB\-\-server\fP=""
@@ -254,7 +298,7 @@ JSON and YAML formats are accepted.
 
 .PP
 \fB\-\-token\fP=""
-    Bearer token for authentication to the API server.
+    Bearer token for authentication to the API server
 
 .PP
 \fB\-\-user\fP=""
@@ -274,6 +318,7 @@ JSON and YAML formats are accepted.
 .RS
 
 .nf
+
 # Apply the configuration in pod.json to a pod.
 kubectl apply \-f ./pod.json
 

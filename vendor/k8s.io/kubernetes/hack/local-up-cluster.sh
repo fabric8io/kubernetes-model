@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2014 The Kubernetes Authors All rights reserved.
+# Copyright 2014 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,6 +40,19 @@ WAIT_FOR_URL_API_SERVER=${WAIT_FOR_URL_API_SERVER:-10}
 ENABLE_DAEMON=${ENABLE_DAEMON:-false}
 HOSTNAME_OVERRIDE=${HOSTNAME_OVERRIDE:-"127.0.0.1"}
 CLOUD_PROVIDER=${CLOUD_PROVIDER:-""}
+CLOUD_CONFIG=${CLOUD_CONFIG:-""}
+
+# sanity check for OpenStack provider
+if [ "${CLOUD_PROVIDER}" == "openstack" ]; then
+    if [ "${CLOUD_CONFIG}" == "" ]; then
+        echo "Missing CLOUD_CONFIG env for OpenStack provider!"
+        exit 1
+    fi
+    if [ ! -f "${CLOUD_CONFIG}" ]; then
+        echo "Cloud config ${CLOUD_CONFIG} doesn't exit"
+        exit 1
+    fi
+fi
 
 if [ "$(id -u)" != "0" ]; then
     echo "WARNING : This script MAY be run as root for docker socket / iptables functionality; if failures occur, retry as root." 2>&1
@@ -78,9 +91,7 @@ do
 done
 
 if [ "x$GO_OUT" == "x" ]; then
-    "${KUBE_ROOT}/hack/build-go.sh" \
-        cmd/kubectl \
-        cmd/hyperkube
+    make -C "${KUBE_ROOT}" WHAT="cmd/kubectl cmd/hyperkube"
 else
     echo "skipped the build."
 fi
@@ -106,6 +117,8 @@ set +e
 
 API_PORT=${API_PORT:-8080}
 API_HOST=${API_HOST:-127.0.0.1}
+API_HOST_IP=${API_HOST_IP:-${API_HOST}}
+API_BIND_ADDR=${API_HOST_IP:-"0.0.0.0"}
 KUBELET_HOST=${KUBELET_HOST:-"127.0.0.1"}
 # By default only allow CORS for requests on localhost
 API_CORS_ALLOWED_ORIGINS=${API_CORS_ALLOWED_ORIGINS:-"/127.0.0.1(:[0-9]+)?$,/localhost(:[0-9]+)?$"}
@@ -122,7 +135,7 @@ CLAIM_BINDER_SYNC_PERIOD=${CLAIM_BINDER_SYNC_PERIOD:-"15s"} # current k8s defaul
 function test_apiserver_off {
     # For the common local scenario, fail fast if server is already running.
     # this can happen if you run local-up-cluster.sh twice and kill etcd in between.
-    curl $API_HOST:$API_PORT
+    curl --silent -g $API_HOST:$API_PORT
     if [ ! $? -eq 0 ]; then
         echo "API SERVER port is free, proceeding..."
     else
@@ -251,9 +264,9 @@ function set_service_accounts {
 function start_apiserver {
     # Admission Controllers to invoke prior to persisting objects in cluster
     if [[ -z "${ALLOW_SECURITY_CONTEXT}" ]]; then
-      ADMISSION_CONTROL=NamespaceLifecycle,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota
+      ADMISSION_CONTROL=NamespaceLifecycle,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota,DefaultStorageClass
     else
-      ADMISSION_CONTROL=NamespaceLifecycle,LimitRanger,ServiceAccount,ResourceQuota
+      ADMISSION_CONTROL=NamespaceLifecycle,LimitRanger,ServiceAccount,ResourceQuota,DefaultStorageClass
     fi
     # This is the default dir and filename where the apiserver will generate a self-signed cert
     # which should be able to be used as the CA to verify itself
@@ -269,19 +282,28 @@ function start_apiserver {
       runtime_config="--runtime-config=${RUNTIME_CONFIG}"
     fi
 
+    # Let the API server pick a default address when API_HOST
+    # is set to 127.0.0.1
+    advertise_address=""
+    if [[ "${API_HOST}" != "127.0.0.1" ]]; then
+        advertise_address="--advertise_address=${API_HOST}"
+    fi
+
     APISERVER_LOG=/tmp/kube-apiserver.log
     sudo -E "${GO_OUT}/hyperkube" apiserver ${priv_arg} ${runtime_config}\
+      ${advertise_address} \
       --v=${LOG_LEVEL} \
       --cert-dir="${CERT_DIR}" \
       --service-account-key-file="${SERVICE_ACCOUNT_KEY}" \
       --service-account-lookup="${SERVICE_ACCOUNT_LOOKUP}" \
       --admission-control="${ADMISSION_CONTROL}" \
-      --insecure-bind-address="${API_HOST}" \
+      --bind-address="${API_BIND_ADDR}" \
+      --insecure-bind-address="${API_HOST_IP}" \
       --insecure-port="${API_PORT}" \
-      --advertise-address="${API_HOST}" \
       --etcd-servers="http://${ETCD_HOST}:${ETCD_PORT}" \
       --service-cluster-ip-range="10.0.0.0/24" \
       --cloud-provider="${CLOUD_PROVIDER}" \
+      --cloud-config="${CLOUD_CONFIG}" \
       --cors-allowed-origins="${API_CORS_ALLOWED_ORIGINS}" >"${APISERVER_LOG}" 2>&1 &
     APISERVER_PID=$!
 
@@ -305,6 +327,7 @@ function start_controller_manager {
       ${node_cidr_args} \
       --pvclaimbinder-sync-period="${CLAIM_BINDER_SYNC_PERIOD}" \
       --cloud-provider="${CLOUD_PROVIDER}" \
+      --cloud-config="${CLOUD_CONFIG}" \
       --master="${API_HOST}:${API_PORT}" >"${CTLRMGR_LOG}" 2>&1 &
     CTLRMGR_PID=$!
 }
@@ -321,7 +344,7 @@ function start_kubelet {
          which chcon > /dev/null ; then
          if [[ ! $(ls -Zd /var/lib/kubelet) =~ system_u:object_r:svirt_sandbox_file_t:s0 ]] ; then
             echo "Applying SELinux label to /var/lib/kubelet directory."
-            if ! chcon -R system_u:object_r:svirt_sandbox_file_t:s0 /var/lib/kubelet; then
+            if ! sudo chcon -Rt svirt_sandbox_file_t /var/lib/kubelet; then
                echo "Failed to apply selinux label to /var/lib/kubelet."
             fi
          fi
@@ -359,6 +382,7 @@ function start_kubelet {
         --rkt-stage1-image="${RKT_STAGE1_IMAGE}" \
         --hostname-override="${HOSTNAME_OVERRIDE}" \
         --cloud-provider="${CLOUD_PROVIDER}" \
+        --cloud-config="${CLOUD_CONFIG}" \
         --address="${KUBELET_HOST}" \
         --api-servers="${API_HOST}:${API_PORT}" \
         --cpu-cfs-quota=${CPU_CFS_QUOTA} \
@@ -373,6 +397,21 @@ function start_kubelet {
       # unless that file does not already exist; clean up an existing
       # dockerized kubelet that might be running.
       cleanup_dockerized_kubelet
+      cred_bind=""
+      # path to cloud credentails. 
+      cloud_cred=""
+      if [ "${CLOUD_PROVIDER}" == "aws" ]; then
+          cloud_cred="${HOME}/.aws/credentials"
+      fi
+      if [ "${CLOUD_PROVIDER}" == "gce" ]; then
+          cloud_cred="${HOME}/.config/gcloud"
+      fi
+      if [ "${CLOUD_PROVIDER}" == "openstack" ]; then
+          cloud_cred="${CLOUD_CONFIG}"
+      fi
+      if  [[ -n "${cloud_cred}" ]]; then
+          cred_bind="--volume=${cloud_cred}:${cloud_cred}:ro"
+      fi
 
       docker run \
         --volume=/:/rootfs:ro \
@@ -380,12 +419,14 @@ function start_kubelet {
         --volume=/sys:/sys:ro \
         --volume=/var/lib/docker/:/var/lib/docker:ro \
         --volume=/var/lib/kubelet/:/var/lib/kubelet:rw,z \
+        --volume=/dev:/dev \
+        ${cred_bind} \
         --net=host \
         --privileged=true \
         -i \
         --cidfile=$KUBELET_CIDFILE \
         gcr.io/google_containers/kubelet \
-        /kubelet --v=3 --containerized ${priv_arg}--chaos-chance="${CHAOS_CHANCE}" --hostname-override="${HOSTNAME_OVERRIDE}" --cloud-provider="${CLOUD_PROVIDER}" --address="127.0.0.1" --api-servers="${API_HOST}:${API_PORT}" --port="$KUBELET_PORT" --resource-container="" &> $KUBELET_LOG &
+        /kubelet --v=${LOG_LEVEL} --containerized ${priv_arg}--chaos-chance="${CHAOS_CHANCE}" --hostname-override="${HOSTNAME_OVERRIDE}" --cloud-provider="${CLOUD_PROVIDER}" --cloud-config="${CLOUD_CONFIG}" \ --address="127.0.0.1" --api-servers="${API_HOST}:${API_PORT}" --port="$KUBELET_PORT"  &> $KUBELET_LOG &
     fi
 }
 
@@ -408,7 +449,7 @@ function start_kubedns {
 
     if [[ "${ENABLE_CLUSTER_DNS}" = true ]]; then
         echo "Creating kube-system namespace"
-        sed -e "s/{{ pillar\['dns_replicas'\] }}/${DNS_REPLICAS}/g;s/{{ pillar\['dns_domain'\] }}/${DNS_DOMAIN}/g;" "${KUBE_ROOT}/cluster/saltbase/salt/kube-dns/skydns-rc.yaml.in" >| skydns-rc.yaml
+        sed -e "s/{{ pillar\['dns_replicas'\] }}/${DNS_REPLICAS}/g;s/{{ pillar\['dns_domain'\] }}/${DNS_DOMAIN}/g;" "${KUBE_ROOT}/cluster/addons/dns/skydns-rc.yaml.in" >| skydns-rc.yaml
         if [[ "${FEDERATION:-}" == "true" ]]; then
           FEDERATIONS_DOMAIN_MAP="${FEDERATIONS_DOMAIN_MAP:-}"
           if [[ -z "${FEDERATIONS_DOMAIN_MAP}" && -n "${FEDERATION_NAME:-}" && -n "${DNS_ZONE_NAME:-}" ]]; then
@@ -422,7 +463,7 @@ function start_kubedns {
         else
           sed -i -e "/{{ pillar\['federations_domain_map'\] }}/d" skydns-rc.yaml
         fi
-        sed -e "s/{{ pillar\['dns_server'\] }}/${DNS_SERVER_IP}/g" "${KUBE_ROOT}/cluster/saltbase/salt/kube-dns/skydns-svc.yaml.in" >| skydns-svc.yaml
+        sed -e "s/{{ pillar\['dns_server'\] }}/${DNS_SERVER_IP}/g" "${KUBE_ROOT}/cluster/addons/dns/skydns-svc.yaml.in" >| skydns-svc.yaml
         cat <<EOF >namespace.yaml
 apiVersion: v1
 kind: Namespace

@@ -26,7 +26,8 @@ os::test::junit::declare_suite_start "cmd/basicresources/versionreporting"
 os::build::get_version_vars
 os_git_regex="$( escape_regex "${OS_GIT_VERSION%%-*}" )"
 kube_git_regex="$( escape_regex "${KUBE_GIT_VERSION%%-*}" )"
-etcd_git_regex="$( escape_regex "${ETCD_GIT_VERSION%%-*}" )"
+etcd_version="$(echo "${ETCD_GIT_VERSION}" | sed -E "s/\-.*//g" | sed -E "s/v//")"
+etcd_git_regex="$( escape_regex "${etcd_version%%-*}" )"
 os::cmd::expect_success_and_text 'oc version' "oc ${os_git_regex}"
 os::cmd::expect_success_and_text 'oc version' "kubernetes ${kube_git_regex}"
 os::cmd::expect_success_and_text 'oc version' "features: Basic-Auth"
@@ -129,7 +130,8 @@ os::test::junit::declare_suite_start "cmd/basicresources/services"
 os::cmd::expect_success 'oc get services'
 os::cmd::expect_success 'oc create -f test/integration/testdata/test-service.json'
 os::cmd::expect_success 'oc delete services frontend'
-os::cmd::expect_failure_and_text 'oc create -f test/integration/testdata/test-service-with-finalizer.json' "finalizers are disabled"
+# TODO: reenable with a permission check
+# os::cmd::expect_failure_and_text 'oc create -f test/integration/testdata/test-service-with-finalizer.json' "finalizers are disabled"
 echo "services: ok"
 os::test::junit::declare_suite_end
 

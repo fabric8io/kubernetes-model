@@ -41,21 +41,26 @@ var (
 
 	APIGroupKube           = ""
 	APIGroupExtensions     = "extensions"
-	APIGroupAutoscaling    = "autoscaling"
-	APIGroupAuthentication = "authentication.k8s.io"
-	APIGroupBatch          = "batch"
-	APIGroupPolicy         = "policy"
 	APIGroupApps           = "apps"
+	APIGroupAuthentication = "authentication.k8s.io"
+	APIGroupAutoscaling    = "autoscaling"
+	APIGroupBatch          = "batch"
+	APIGroupCertificates   = "certificates.k8s.io"
 	APIGroupFederation     = "federation"
+	APIGroupPolicy         = "policy"
+	APIGroupStorage        = "storage.k8s.io"
 
 	// Map of group names to allowed REST API versions
 	KubeAPIGroupsToAllowedVersions = map[string][]string{
 		APIGroupKube:           {"v1"},
 		APIGroupExtensions:     {"v1beta1"},
-		APIGroupAutoscaling:    {"v1"},
-		APIGroupAuthentication: {"v1beta1"},
-		APIGroupBatch:          {"v1", "v2alpha1"},
 		APIGroupApps:           {"v1alpha1"},
+		APIGroupAuthentication: {"v1beta1"},
+		APIGroupAutoscaling:    {"v1"},
+		APIGroupBatch:          {"v1", "v2alpha1"},
+		APIGroupCertificates:   {"v1alpha1"},
+		APIGroupPolicy:         {"v1alpha1"},
+		APIGroupStorage:        {"v1beta1"},
 		// TODO: enable as part of a separate binary
 		//APIGroupFederation:  {"v1beta1"},
 	}
@@ -320,13 +325,21 @@ type AuditConfig struct {
 	// If this flag is set, audit log will be printed in the logs.
 	// The logs contains, method, user and a requested URL.
 	Enabled bool
+	// All requests coming to the apiserver will be logged to this file.
+	AuditFilePath string
+	// Maximum number of days to retain old log files based on the timestamp encoded in their filename.
+	MaximumFileRetentionDays int
+	// Maximum number of old log files to retain.
+	MaximumRetainedFiles int
+	// Maximum size in megabytes of the log file before it gets rotated. Defaults to 100MB.
+	MaximumFileSizeMegabytes int
 }
 
 // JenkinsPipelineConfig holds configuration for the Jenkins pipeline strategy
 type JenkinsPipelineConfig struct {
 	// AutoProvisionEnabled determines whether a Jenkins server will be spawned from the provided
 	// template when the first build config in the project with type JenkinsPipeline
-	// is created. When not specified this option defaults to false.
+	// is created. When not specified this option defaults to true.
 	AutoProvisionEnabled *bool
 	// TemplateNamespace contains the namespace name where the Jenkins template is stored
 	TemplateNamespace string
@@ -630,7 +643,7 @@ type OAuthConfig struct {
 	// MasterURL is used for making server-to-server calls to exchange authorization codes for access tokens
 	MasterURL string
 
-	// MasterPublicURL is used for building valid client redirect URLs for external access
+	// MasterPublicURL is used for building valid client redirect URLs for internal and external access
 	MasterPublicURL string
 
 	// AssetPublicURL is used for building valid client redirect URLs for external access

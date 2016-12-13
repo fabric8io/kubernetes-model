@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	dockerdigest "github.com/docker/distribution/digest"
 	dockerref "github.com/docker/distribution/reference"
 	"github.com/docker/docker/pkg/jsonmessage"
 	dockerapi "github.com/docker/engine-api/client"
@@ -33,6 +34,7 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/credentialprovider"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
+	"k8s.io/kubernetes/pkg/kubelet/images"
 	"k8s.io/kubernetes/pkg/kubelet/leaky"
 	"k8s.io/kubernetes/pkg/types"
 	utilerrors "k8s.io/kubernetes/pkg/util/errors"
@@ -43,7 +45,9 @@ import (
 const (
 	PodInfraContainerName = leaky.PodInfraContainerName
 	DockerPrefix          = "docker://"
+	DockerPullablePrefix  = "docker-pullable://"
 	LogSuffix             = "log"
+	ext4MaxFileNameLen    = 255
 )
 
 const (
@@ -53,8 +57,8 @@ const (
 	milliCPUToCPU = 1000
 
 	// 100000 is equivalent to 100ms
-	quotaPeriod   = 100000
-	minQuotaPerod = 1000
+	quotaPeriod    = 100000
+	minQuotaPeriod = 1000
 )
 
 // DockerInterface is an abstract interface for testability.  It abstracts the interface of docker client.
@@ -65,7 +69,8 @@ type DockerInterface interface {
 	StartContainer(id string) error
 	StopContainer(id string, timeout int) error
 	RemoveContainer(id string, opts dockertypes.ContainerRemoveOptions) error
-	InspectImage(image string) (*dockertypes.ImageInspect, error)
+	InspectImageByRef(imageRef string) (*dockertypes.ImageInspect, error)
+	InspectImageByID(imageID string) (*dockertypes.ImageInspect, error)
 	ListImages(opts dockertypes.ImageListOptions) ([]dockertypes.Image, error)
 	PullImage(image string, auth dockertypes.AuthConfig, opts dockertypes.ImagePullOptions) error
 	RemoveImage(image string, opts dockertypes.ImageRemoveOptions) ([]dockertypes.ImageDelete, error)
@@ -142,10 +147,71 @@ func filterHTTPError(err error, image string) error {
 		jerr.Code == http.StatusServiceUnavailable ||
 		jerr.Code == http.StatusGatewayTimeout) {
 		glog.V(2).Infof("Pulling image %q failed: %v", image, err)
-		return kubecontainer.RegistryUnavailable
+		return images.RegistryUnavailable
 	} else {
 		return err
 	}
+}
+
+// matchImageTagOrSHA checks if the given image specifier is a valid image ref,
+// and that it matches the given image. It should fail on things like image IDs
+// (config digests) and other digest-only references, but succeed on image names
+// (`foo`), tag references (`foo:bar`), and manifest digest references
+// (`foo@sha256:xyz`).
+func matchImageTagOrSHA(inspected dockertypes.ImageInspect, image string) bool {
+	// The image string follows the grammar specified here
+	// https://github.com/docker/distribution/blob/master/reference/reference.go#L4
+	named, err := dockerref.ParseNamed(image)
+	if err != nil {
+		glog.V(4).Infof("couldn't parse image reference %q: %v", image, err)
+		return false
+	}
+	_, isTagged := named.(dockerref.Tagged)
+	digest, isDigested := named.(dockerref.Digested)
+	if !isTagged && !isDigested {
+		// No Tag or SHA specified, so just return what we have
+		return true
+	}
+
+	if isTagged {
+		// Check the RepoTags for a match.
+		for _, tag := range inspected.RepoTags {
+			// An image name (without the tag/digest) can be [hostname '/'] component ['/' component]*
+			// Because either the RepoTag or the name *may* contain the
+			// hostname or not, we only check for the suffix match.
+			if strings.HasSuffix(image, tag) || strings.HasSuffix(tag, image) {
+				return true
+			}
+		}
+	}
+
+	if isDigested {
+		for _, repoDigest := range inspected.RepoDigests {
+			named, err := dockerref.ParseNamed(repoDigest)
+			if err != nil {
+				glog.V(4).Infof("couldn't parse image RepoDigest reference %q: %v", repoDigest, err)
+				continue
+			}
+			if d, isDigested := named.(dockerref.Digested); isDigested {
+				if digest.Digest().Algorithm().String() == d.Digest().Algorithm().String() &&
+					digest.Digest().Hex() == d.Digest().Hex() {
+					return true
+				}
+			}
+		}
+
+		// process the ID as a digest
+		id, err := dockerdigest.ParseDigest(inspected.ID)
+		if err != nil {
+			glog.V(4).Infof("couldn't parse image ID reference %q: %v", id, err)
+			return false
+		}
+		if digest.Digest().Algorithm().String() == id.Algorithm().String() && digest.Digest().Hex() == id.Hex() {
+			return true
+		}
+	}
+	glog.V(4).Infof("Inspected image (%q) does not match %s", inspected.ID, image)
+	return false
 }
 
 // applyDefaultImageTag parses a docker image string, if it doesn't contain any tag or digest,
@@ -165,6 +231,43 @@ func applyDefaultImageTag(image string) (string, error) {
 		image = named.String()
 	}
 	return image, nil
+}
+
+// matchImageIDOnly checks that the given image specifier is a digest-only
+// reference, and that it matches the given image.
+func matchImageIDOnly(inspected dockertypes.ImageInspect, image string) bool {
+	// If the image ref is literally equal to the inspected image's ID,
+	// just return true here (this might be the case for Docker 1.9,
+	// where we won't have a digest for the ID)
+	if inspected.ID == image {
+		return true
+	}
+
+	// Otherwise, we should try actual parsing to be more correct
+	ref, err := dockerref.Parse(image)
+	if err != nil {
+		glog.V(4).Infof("couldn't parse image reference %q: %v", image, err)
+		return false
+	}
+
+	digest, isDigested := ref.(dockerref.Digested)
+	if !isDigested {
+		glog.V(4).Infof("the image reference %q was not a digest reference")
+		return false
+	}
+
+	id, err := dockerdigest.ParseDigest(inspected.ID)
+	if err != nil {
+		glog.V(4).Infof("couldn't parse image ID reference %q: %v", id, err)
+		return false
+	}
+
+	if digest.Digest().Algorithm().String() == id.Algorithm().String() && digest.Digest().Hex() == id.Hex() {
+		return true
+	}
+
+	glog.V(4).Infof("The reference %s does not directly refer to the given image's ID (%q)", image, inspected.ID)
+	return false
 }
 
 func (p dockerPuller) Pull(image string, secrets []api.Secret) error {
@@ -233,7 +336,7 @@ func (p throttledDockerPuller) Pull(image string, secrets []api.Secret) error {
 }
 
 func (p dockerPuller) IsImagePresent(image string) (bool, error) {
-	_, err := p.client.InspectImage(image)
+	_, err := p.client.InspectImageByRef(image)
 	if err == nil {
 		return true, nil
 	}
@@ -248,7 +351,7 @@ func (p throttledDockerPuller) IsImagePresent(name string) (bool, error) {
 }
 
 // Creates a name which can be reversed to identify both full pod name and container name.
-// This function returns stable name, unique name and an unique id.
+// This function returns stable name, unique name and a unique id.
 // Although rand.Uint32() is not really unique, but it's enough for us because error will
 // only occur when instances of the same container in the same pod have the same UID. The
 // chance is really slim.
@@ -299,7 +402,13 @@ func ParseDockerName(name string) (dockerName *KubeletContainerName, hash uint64
 }
 
 func LogSymlink(containerLogsDir, podFullName, containerName, dockerId string) string {
-	return path.Join(containerLogsDir, fmt.Sprintf("%s_%s-%s.%s", podFullName, containerName, dockerId, LogSuffix))
+	suffix := fmt.Sprintf(".%s", LogSuffix)
+	logPath := fmt.Sprintf("%s_%s-%s", podFullName, containerName, dockerId)
+	// Length of a filename cannot exceed 255 characters in ext4 on Linux.
+	if len(logPath) > ext4MaxFileNameLen-len(suffix) {
+		logPath = logPath[:ext4MaxFileNameLen-len(suffix)]
+	}
+	return path.Join(containerLogsDir, logPath+suffix)
 }
 
 // Get a *dockerapi.Client, either using the endpoint passed in, or using
@@ -350,8 +459,8 @@ func milliCPUToQuota(milliCPU int64) (quota int64, period int64) {
 	quota = (milliCPU * quotaPeriod) / milliCPUToCPU
 
 	// quota needs to be a minimum of 1ms.
-	if quota < minQuotaPerod {
-		quota = minQuotaPerod
+	if quota < minQuotaPeriod {
+		quota = minQuotaPeriod
 	}
 
 	return
@@ -374,7 +483,6 @@ func milliCPUToShares(milliCPU int64) int64 {
 
 // GetKubeletDockerContainers lists all container or just the running ones.
 // Returns a list of docker containers that we manage
-// TODO: Move this function with dockerCache to DockerManager.
 func GetKubeletDockerContainers(client DockerInterface, allContainers bool) ([]*dockertypes.Container, error) {
 	result := []*dockertypes.Container{}
 	containers, err := client.ListContainers(dockertypes.ContainerListOptions{All: allContainers})
@@ -388,10 +496,8 @@ func GetKubeletDockerContainers(client DockerInterface, allContainers bool) ([]*
 		}
 		// Skip containers that we didn't create to allow users to manually
 		// spin up their own containers if they want.
-		// TODO(dchen1107): Remove the old separator "--" by end of Oct
-		if !strings.HasPrefix(container.Names[0], "/"+containerNamePrefix+"_") &&
-			!strings.HasPrefix(container.Names[0], "/"+containerNamePrefix+"--") {
-			glog.V(3).Infof("Docker Container: %s is not managed by kubelet.", container.Names[0])
+		if !strings.HasPrefix(container.Names[0], "/"+containerNamePrefix+"_") {
+			glog.V(5).Infof("Docker Container: %s is not managed by kubelet.", container.Names[0])
 			continue
 		}
 		result = append(result, container)

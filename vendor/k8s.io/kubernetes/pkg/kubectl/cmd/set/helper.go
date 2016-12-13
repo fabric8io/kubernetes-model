@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/errors"
+	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/util/strategicpatch"
@@ -57,6 +58,10 @@ func handlePodUpdateError(out io.Writer, err error, resource string) {
 				}
 			}
 			if all && match {
+				return
+			}
+		} else {
+			if ok := kcmdutil.PrintErrorWithCauses(err, out); ok {
 				return
 			}
 		}

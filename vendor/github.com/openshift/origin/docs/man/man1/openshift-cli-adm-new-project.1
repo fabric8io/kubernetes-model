@@ -16,9 +16,7 @@ openshift cli adm new\-project \- Create a new project
 Create a new project
 
 .PP
-Use this command to create a project. You may optionally specify metadata about the project,
-an admin user (and role, if you want to use a non\-default admin role), and a node selector
-to restrict which nodes pods in this project can be scheduled to.
+Use this command to create a project. You may optionally specify metadata about the project, an admin user (and role, if you want to use a non\-default admin role), and a node selector to restrict which nodes pods in this project can be scheduled to.
 
 
 .SH OPTIONS
@@ -50,19 +48,19 @@ to restrict which nodes pods in this project can be scheduled to.
 
 .PP
 \fB\-\-as\fP=""
-    Username to impersonate for the operation.
+    Username to impersonate for the operation
 
 .PP
 \fB\-\-certificate\-authority\fP=""
-    Path to a cert. file for the certificate authority.
+    Path to a cert. file for the certificate authority
 
 .PP
 \fB\-\-client\-certificate\fP=""
-    Path to a client certificate file for TLS.
+    Path to a client certificate file for TLS
 
 .PP
 \fB\-\-client\-key\fP=""
-    Path to a client key file for TLS.
+    Path to a client key file for TLS
 
 .PP
 \fB\-\-cluster\fP=""
@@ -82,7 +80,7 @@ to restrict which nodes pods in this project can be scheduled to.
 
 .PP
 \fB\-\-insecure\-skip\-tls\-verify\fP=false
-    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure.
+    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
 
 .PP
 \fB\-\-log\-flush\-frequency\fP=0
@@ -94,7 +92,11 @@ to restrict which nodes pods in this project can be scheduled to.
 
 .PP
 \fB\-n\fP, \fB\-\-namespace\fP=""
-    If present, the namespace scope for this CLI request.
+    If present, the namespace scope for this CLI request
+
+.PP
+\fB\-\-request\-timeout\fP="0"
+    The length of time to wait before giving up on a single server request. Non\-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.
 
 .PP
 \fB\-\-server\fP=""
@@ -102,7 +104,7 @@ to restrict which nodes pods in this project can be scheduled to.
 
 .PP
 \fB\-\-token\fP=""
-    Bearer token for authentication to the API server.
+    Bearer token for authentication to the API server
 
 .PP
 \fB\-\-user\fP=""

@@ -249,7 +249,7 @@ Congratulations!
 ### Testing
 
 The following will run all of the end-to-end testing scenarios assuming you set
-your environment in `cluster/kube-env.sh`:
+your environment:
 
 ```shell
 NUM_NODES=3 go run hack/e2e.go -v --build --up --test --down
@@ -398,6 +398,20 @@ environment variables. For example, if running `make quick-release`, use:
 
 ```shell
 sudo -E make quick-release
+```
+
+#### I have repository access errors during VM provisioning!
+
+Sometimes VM provisioning may fail with errors that look like this:
+
+```
+Timeout was reached for https://mirrors.fedoraproject.org/metalink?repo=fedora-23&arch=x86_64 [Connection timed out after 120002 milliseconds]
+```
+
+You may use a custom Fedora repository URL to fix this:
+
+```shell
+export CUSTOM_FEDORA_REPOSITORY_URL=https://download.fedoraproject.org/pub/fedora/
 ```
 
 #### I ran vagrant suspend and nothing works!

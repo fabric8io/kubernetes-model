@@ -51,6 +51,7 @@ var DescriberCoverageExceptions = []reflect.Type{
 	reflect.TypeOf(&deployapi.DeploymentConfigRollback{}),             // normal users don't ever look at these
 	reflect.TypeOf(&deployapi.DeploymentLog{}),                        // normal users don't ever look at these
 	reflect.TypeOf(&deployapi.DeploymentLogOptions{}),                 // normal users don't ever look at these
+	reflect.TypeOf(&deployapi.DeploymentRequest{}),                    // normal users don't ever look at these
 	reflect.TypeOf(&imageapi.DockerImage{}),                           // not a top level resource
 	reflect.TypeOf(&imageapi.ImageStreamImport{}),                     // normal users don't ever look at these
 	reflect.TypeOf(&oauthapi.OAuthAccessToken{}),                      // normal users don't ever look at these
@@ -69,9 +70,11 @@ var DescriberCoverageExceptions = []reflect.Type{
 	reflect.TypeOf(&authorizationapi.LocalSubjectAccessReview{}),
 	reflect.TypeOf(&authorizationapi.LocalResourceAccessReview{}),
 	reflect.TypeOf(&authorizationapi.SelfSubjectRulesReview{}),
+	reflect.TypeOf(&authorizationapi.SubjectRulesReview{}),
 	reflect.TypeOf(&securityapi.PodSecurityPolicySubjectReview{}),
 	reflect.TypeOf(&securityapi.PodSecurityPolicySelfSubjectReview{}),
 	reflect.TypeOf(&securityapi.PodSecurityPolicyReview{}),
+	reflect.TypeOf(&oauthapi.OAuthRedirectReference{}),
 }
 
 // MissingDescriberCoverageExceptions is the list of types that were missing describer methods when I started
@@ -109,7 +112,7 @@ main:
 
 		_, ok := DescriberFor(api.SchemeGroupVersion.WithKind(apiType.Name()).GroupKind(), c, &ktestclient.Fake{}, "")
 		if !ok {
-			t.Errorf("missing printer for %v.  Check pkg/cmd/cli/describe/describer.go", apiType)
+			t.Errorf("missing describer for %v.  Check pkg/cmd/cli/describe/describer.go", apiType)
 		}
 	}
 }
@@ -119,24 +122,27 @@ func TestDescribers(t *testing.T) {
 	fakeKube := &ktestclient.Fake{}
 	c := &describeClient{T: t, Namespace: "foo", Fake: fake}
 
-	testDescriberList := []kubectl.Describer{
-		&BuildDescriber{c, fakeKube},
-		&BuildConfigDescriber{c, ""},
-		&ImageDescriber{c},
-		&ImageStreamDescriber{c},
-		&ImageStreamTagDescriber{c},
-		&ImageStreamImageDescriber{c},
-		&RouteDescriber{c, fakeKube},
-		&ProjectDescriber{c, fakeKube},
-		&PolicyDescriber{c},
-		&PolicyBindingDescriber{c},
-		&TemplateDescriber{c, nil, nil, nil},
+	testCases := []struct {
+		d    kubectl.Describer
+		name string
+	}{
+		{&BuildDescriber{c, fakeKube}, "bar"},
+		{&BuildConfigDescriber{c, fakeKube, ""}, "bar"},
+		{&ImageDescriber{c}, "bar"},
+		{&ImageStreamDescriber{c}, "bar"},
+		{&ImageStreamTagDescriber{c}, "bar:latest"},
+		{&ImageStreamImageDescriber{c}, "bar@sha256:other"},
+		{&RouteDescriber{c, fakeKube}, "bar"},
+		{&ProjectDescriber{c, fakeKube}, "bar"},
+		{&PolicyDescriber{c}, "bar"},
+		{&PolicyBindingDescriber{c}, "bar"},
+		{&TemplateDescriber{c, nil, nil, nil}, "bar"},
 	}
 
-	for _, d := range testDescriberList {
-		out, err := d.Describe("foo", "bar", kubectl.DescriberSettings{})
+	for _, test := range testCases {
+		out, err := test.d.Describe("foo", test.name, kubectl.DescriberSettings{})
 		if err != nil {
-			t.Errorf("unexpected error for %v: %v", d, err)
+			t.Errorf("unexpected error for %v: %v", test.d, err)
 		}
 		if !strings.Contains(out, "Name:") || !strings.Contains(out, "Labels:") {
 			t.Errorf("unexpected out: %s", out)
