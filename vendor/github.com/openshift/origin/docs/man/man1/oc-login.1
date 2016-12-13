@@ -16,15 +16,10 @@ oc login \- Log in to a server
 Log in to your server and save login for subsequent use
 
 .PP
-First\-time users of the client should run this command to connect to a server,
-establish an authenticated session, and save connection to the configuration file. The
-default configuration will be saved to your home directory under
-".kube/config".
+First\-time users of the client should run this command to connect to a server, establish an authenticated session, and save connection to the configuration file. The default configuration will be saved to your home directory under ".kube/config".
 
 .PP
-The information required to login \-\- like username and password, a session token, or
-the server details \-\- can be provided through flags. If not provided, the command will
-prompt for user input as needed.
+The information required to login \-\- like username and password, a session token, or the server details \-\- can be provided through flags. If not provided, the command will prompt for user input as needed.
 
 
 .SH OPTIONS
@@ -44,19 +39,19 @@ prompt for user input as needed.
 
 .PP
 \fB\-\-as\fP=""
-    Username to impersonate for the operation.
+    Username to impersonate for the operation
 
 .PP
 \fB\-\-certificate\-authority\fP=""
-    Path to a cert. file for the certificate authority.
+    Path to a cert. file for the certificate authority
 
 .PP
 \fB\-\-client\-certificate\fP=""
-    Path to a client certificate file for TLS.
+    Path to a client certificate file for TLS
 
 .PP
 \fB\-\-client\-key\fP=""
-    Path to a client key file for TLS.
+    Path to a client key file for TLS
 
 .PP
 \fB\-\-cluster\fP=""
@@ -76,7 +71,7 @@ prompt for user input as needed.
 
 .PP
 \fB\-\-insecure\-skip\-tls\-verify\fP=false
-    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure.
+    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
 
 .PP
 \fB\-\-log\-flush\-frequency\fP=0
@@ -88,7 +83,11 @@ prompt for user input as needed.
 
 .PP
 \fB\-n\fP, \fB\-\-namespace\fP=""
-    If present, the namespace scope for this CLI request.
+    If present, the namespace scope for this CLI request
+
+.PP
+\fB\-\-request\-timeout\fP="0"
+    The length of time to wait before giving up on a single server request. Non\-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.
 
 .PP
 \fB\-\-server\fP=""
@@ -96,7 +95,7 @@ prompt for user input as needed.
 
 .PP
 \fB\-\-token\fP=""
-    Bearer token for authentication to the API server.
+    Bearer token for authentication to the API server
 
 .PP
 \fB\-\-user\fP=""
@@ -110,10 +109,10 @@ prompt for user input as needed.
 .nf
   # Log in interactively
   oc login
-
+  
   # Log in to the given server with the given certificate authority file
   oc login localhost:8443 \-\-certificate\-authority=/path/to/cert.crt
-
+  
   # Log in to the given server with the given credentials (will not prompt interactively)
   oc login localhost:8443 \-\-username=myuser \-\-password=mypass
 

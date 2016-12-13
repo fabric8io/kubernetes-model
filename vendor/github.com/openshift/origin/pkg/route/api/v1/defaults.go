@@ -2,6 +2,12 @@ package v1
 
 import "k8s.io/kubernetes/pkg/runtime"
 
+func SetDefaults_RouteSpec(obj *RouteSpec) {
+	if len(obj.WildcardPolicy) == 0 {
+		obj.WildcardPolicy = WildcardPolicyNone
+	}
+}
+
 func SetDefaults_RouteTargetReference(obj *RouteTargetReference) {
 	if len(obj.Kind) == 0 {
 		obj.Kind = "Service"
@@ -26,12 +32,17 @@ func SetDefaults_TLSConfig(obj *TLSConfig) {
 	}
 }
 
-func addDefaultingFuncs(scheme *runtime.Scheme) {
-	err := scheme.AddDefaultingFuncs(
+func SetDefaults_RouteIngress(obj *RouteIngress) {
+	if len(obj.WildcardPolicy) == 0 {
+		obj.WildcardPolicy = WildcardPolicyNone
+	}
+}
+
+func addDefaultingFuncs(scheme *runtime.Scheme) error {
+	return scheme.AddDefaultingFuncs(
+		SetDefaults_RouteSpec,
 		SetDefaults_RouteTargetReference,
 		SetDefaults_TLSConfig,
+		SetDefaults_RouteIngress,
 	)
-	if err != nil {
-		panic(err)
-	}
 }

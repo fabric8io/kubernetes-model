@@ -676,10 +676,7 @@ func (l *loggingT) output(s severity, buf *buffer, file string, line int, alsoTo
 		}
 	}
 	data := buf.Bytes()
-	if !flag.Parsed() {
-		os.Stderr.Write([]byte("ERROR: logging before flag.Parse: "))
-		os.Stderr.Write(data)
-	} else if l.toStderr {
+	if l.toStderr {
 		os.Stderr.Write(data)
 	} else {
 		if alsoToStderr || l.alsoToStderr || s >= l.stderrThreshold.get() {
@@ -1046,6 +1043,14 @@ func (v Verbose) Infoln(args ...interface{}) {
 func (v Verbose) Infof(format string, args ...interface{}) {
 	if v {
 		logging.printf(infoLog, format, args...)
+	}
+}
+
+// InfoDepth is equivalent to the global InfoDepth function, guarded by the value of v.
+// See the documentation of V for usage.
+func (v Verbose) InfoDepth(depth int, args ...interface{}) {
+	if v {
+		logging.printDepth(infoLog, depth, args...)
 	}
 }
 

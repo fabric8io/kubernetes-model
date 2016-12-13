@@ -16,26 +16,18 @@ openshift cli adm create\-server\-cert \-
 Create a key and server certificate
 
 .PP
-Create a key and server certificate valid for the specified hostnames,
-signed by the specified CA. These are useful for securing infrastructure
-components such as the router, authentication server, etc.
+Create a key and server certificate valid for the specified hostnames, signed by the specified CA. These are useful for securing infrastructure components such as the router, authentication server, etc.
 
 .PP
 Example: Creating a secure router certificate.
 
 .PP
-.RS
-
-.nf
 CA=openshift.local.config/master
-openshift cli adm create\-server\-cert \-\-signer\-cert=$CA/ca.crt \\
-          \-\-signer\-key=$CA/ca.key \-\-signer\-serial=$CA/ca.serial.txt \\
-          \-\-hostnames='*.cloudapps.example.com' \\
-          \-\-cert=cloudapps.crt \-\-key=cloudapps.key
-cat cloudapps.crt cloudapps.key $CA/ca.crt > cloudapps.router.pem
-
-.fi
-.RE
+      openshift cli adm create\-server\-cert \-\-signer\-cert=$CA/ca.crt \\
+            \-\-signer\-key=$CA/ca.key \-\-signer\-serial=$CA/ca.serial.txt \\
+            \-\-hostnames='*.cloudapps.example.com' \\
+            \-\-cert=cloudapps.crt \-\-key=cloudapps.key
+  cat cloudapps.crt cloudapps.key $CA/ca.crt > cloudapps.router.pem
 
 
 .SH OPTIONS
@@ -75,19 +67,19 @@ cat cloudapps.crt cloudapps.key $CA/ca.crt > cloudapps.router.pem
 
 .PP
 \fB\-\-as\fP=""
-    Username to impersonate for the operation.
+    Username to impersonate for the operation
 
 .PP
 \fB\-\-certificate\-authority\fP=""
-    Path to a cert. file for the certificate authority.
+    Path to a cert. file for the certificate authority
 
 .PP
 \fB\-\-client\-certificate\fP=""
-    Path to a client certificate file for TLS.
+    Path to a client certificate file for TLS
 
 .PP
 \fB\-\-client\-key\fP=""
-    Path to a client key file for TLS.
+    Path to a client key file for TLS
 
 .PP
 \fB\-\-cluster\fP=""
@@ -107,7 +99,7 @@ cat cloudapps.crt cloudapps.key $CA/ca.crt > cloudapps.router.pem
 
 .PP
 \fB\-\-insecure\-skip\-tls\-verify\fP=false
-    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure.
+    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
 
 .PP
 \fB\-\-log\-flush\-frequency\fP=0
@@ -119,7 +111,11 @@ cat cloudapps.crt cloudapps.key $CA/ca.crt > cloudapps.router.pem
 
 .PP
 \fB\-n\fP, \fB\-\-namespace\fP=""
-    If present, the namespace scope for this CLI request.
+    If present, the namespace scope for this CLI request
+
+.PP
+\fB\-\-request\-timeout\fP="0"
+    The length of time to wait before giving up on a single server request. Non\-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.
 
 .PP
 \fB\-\-server\fP=""
@@ -127,7 +123,7 @@ cat cloudapps.crt cloudapps.key $CA/ca.crt > cloudapps.router.pem
 
 .PP
 \fB\-\-token\fP=""
-    Bearer token for authentication to the API server.
+    Bearer token for authentication to the API server
 
 .PP
 \fB\-\-user\fP=""

@@ -66,7 +66,7 @@ func (c *BuildConfigController) HandleBuildConfig(bc *buildapi.BuildConfig) erro
 	request := &buildapi.BuildRequest{
 		TriggeredBy: append(buildTriggerCauses,
 			buildapi.BuildTriggerCause{
-				Message: "Build configuration change",
+				Message: buildapi.BuildTriggerCauseConfigMsg,
 			}),
 		ObjectMeta: kapi.ObjectMeta{
 			Name:      bc.Name,
@@ -83,6 +83,7 @@ func (c *BuildConfigController) HandleBuildConfig(bc *buildapi.BuildConfig) erro
 			return &ConfigControllerFatalError{err.Error()}
 		} else {
 			instantiateErr = fmt.Errorf("error instantiating Build from BuildConfig %s/%s: %v", bc.Namespace, bc.Name, err)
+			c.Recorder.Event(bc, kapi.EventTypeWarning, "BuildConfigInstantiateFailed", instantiateErr.Error())
 			utilruntime.HandleError(instantiateErr)
 		}
 		return instantiateErr

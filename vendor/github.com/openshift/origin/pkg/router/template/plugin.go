@@ -48,6 +48,7 @@ type TemplatePluginConfig struct {
 	StatsUsername          string
 	StatsPassword          string
 	IncludeUDP             bool
+	AllowWildcardRoutes    bool
 	PeerService            *ktypes.NamespacedName
 }
 
@@ -107,6 +108,9 @@ func NewTemplatePlugin(cfg TemplatePluginConfig, lookupSvc ServiceLookup) (*Temp
 		"matchPattern":      matchPattern,      //anchors provided regular expression and evaluates against given string
 		"isInteger":         isInteger,         //determines if a given variable is an integer
 		"matchValues":       matchValues,       //compares a given string to a list of allowed strings
+
+		"genSubdomainWildcardRegexp": genSubdomainWildcardRegexp, //generates a regular expression matching the subdomain for hosts (and paths) with a wildcard policy
+		"genCertificateHostName":     genCertificateHostName,     //generates host name to use for serving/matching certificates
 	}
 	masterTemplate, err := template.New("config").Funcs(globalFuncs).ParseFiles(cfg.TemplatePath)
 	if err != nil {
@@ -138,6 +142,7 @@ func NewTemplatePlugin(cfg TemplatePluginConfig, lookupSvc ServiceLookup) (*Temp
 		statsUser:              cfg.StatsUsername,
 		statsPassword:          cfg.StatsPassword,
 		statsPort:              cfg.StatsPort,
+		allowWildcardRoutes:    cfg.AllowWildcardRoutes,
 		peerEndpointsKey:       peerKey,
 	}
 	router, err := newTemplateRouter(templateRouterCfg)
@@ -173,6 +178,13 @@ func (p *TemplatePlugin) HandleEndpoints(eventType watch.EventType, endpoints *k
 		p.Router.Commit()
 	}
 
+	return nil
+}
+
+// HandleNode processes watch events on the Node resource
+// The template type of plugin currently does not need to act on such events
+// so the implementation just returns without error
+func (p *TemplatePlugin) HandleNode(eventType watch.EventType, node *kapi.Node) error {
 	return nil
 }
 

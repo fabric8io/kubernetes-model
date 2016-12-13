@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -116,8 +116,8 @@ func TestParseAnnotations(t *testing.T) {
 			expectErr:      false,
 		},
 		{
-			annotations:    []string{"url=" + testURL, "kubernetes.io/created-by=" + testJSON},
-			expected:       map[string]string{"url": testURL, "kubernetes.io/created-by": testJSON},
+			annotations:    []string{"url=" + testURL, api.CreatedByAnnotation + "=" + testJSON},
+			expected:       map[string]string{"url": testURL, api.CreatedByAnnotation: testJSON},
 			expectedRemove: []string{},
 			scenario:       "add annotations with special characters",
 			expectErr:      false,
@@ -143,15 +143,16 @@ func TestParseAnnotations(t *testing.T) {
 			expectErr:   true,
 		},
 		{
-			annotations: []string{"a="},
-			expectedErr: "invalid annotation format: a=",
-			scenario:    "incorrect annotation input (missing value)",
-			expectErr:   true,
+			annotations:    []string{"a="},
+			expected:       map[string]string{"a": ""},
+			expectedRemove: []string{},
+			scenario:       "add valid annotation with empty value",
+			expectErr:      false,
 		},
 		{
 			annotations: []string{"ab", "a="},
-			expectedErr: "invalid annotation format: ab, a=",
-			scenario:    "incorrect multiple annotation input (missing value)",
+			expectedErr: "invalid annotation format: ab",
+			scenario:    "incorrect annotation input (missing =value)",
 			expectErr:   true,
 		},
 	}
@@ -389,7 +390,7 @@ func TestAnnotateErrors(t *testing.T) {
 	}
 
 	for k, testCase := range testCases {
-		f, tf, _ := NewAPIFactory()
+		f, tf, _, _ := NewAPIFactory()
 		tf.Printer = &testPrinter{}
 		tf.Namespace = "test"
 		tf.ClientConfig = &restclient.Config{ContentConfig: restclient.ContentConfig{GroupVersion: testapi.Default.GroupVersion()}}
@@ -419,10 +420,10 @@ func TestAnnotateErrors(t *testing.T) {
 func TestAnnotateObject(t *testing.T) {
 	pods, _, _ := testData()
 
-	f, tf, codec := NewAPIFactory()
+	f, tf, codec, ns := NewAPIFactory()
 	tf.Printer = &testPrinter{}
 	tf.Client = &fake.RESTClient{
-		Codec: codec,
+		NegotiatedSerializer: ns,
 		Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
 			switch req.Method {
 			case "GET":
@@ -469,10 +470,10 @@ func TestAnnotateObject(t *testing.T) {
 func TestAnnotateObjectFromFile(t *testing.T) {
 	pods, _, _ := testData()
 
-	f, tf, codec := NewAPIFactory()
+	f, tf, codec, ns := NewAPIFactory()
 	tf.Printer = &testPrinter{}
 	tf.Client = &fake.RESTClient{
-		Codec: codec,
+		NegotiatedSerializer: ns,
 		Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
 			switch req.Method {
 			case "GET":
@@ -504,7 +505,7 @@ func TestAnnotateObjectFromFile(t *testing.T) {
 	cmd := NewCmdAnnotate(f, buf)
 	cmd.SetOutput(buf)
 	options := &AnnotateOptions{}
-	options.filenames = []string{"../../../examples/cassandra/cassandra-controller.yaml"}
+	options.filenames = []string{"../../../examples/storage/cassandra/cassandra-controller.yaml"}
 	args := []string{"a=b", "c-"}
 	if err := options.Complete(f, buf, cmd, args); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -520,10 +521,10 @@ func TestAnnotateObjectFromFile(t *testing.T) {
 func TestAnnotateMultipleObjects(t *testing.T) {
 	pods, _, _ := testData()
 
-	f, tf, codec := NewAPIFactory()
+	f, tf, codec, ns := NewAPIFactory()
 	tf.Printer = &testPrinter{}
 	tf.Client = &fake.RESTClient{
-		Codec: codec,
+		NegotiatedSerializer: ns,
 		Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
 			switch req.Method {
 			case "GET":

@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,6 +39,8 @@ type Args struct {
 	// ClientsetOutputPath is the path the clientset will be generated at. It's
 	// populated from command-line arguments.
 	ClientsetOutputPath string
+	// clientsetAPIPath is the default API path for generated clients.
+	ClientsetAPIPath string
 	// ClientsetOnly determines if we should generate the clients for groups and
 	// types along with the clientset. It's populated from command-line
 	// arguments.

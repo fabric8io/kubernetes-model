@@ -118,22 +118,3 @@ func TestNewFakeClock(t *testing.T) {
 		t.Fatalf("fakeClock.Now() returned different value: want=%#v got=%#v", now, now2)
 	}
 }
-
-func TestNewFakeClockAt(t *testing.T) {
-	t1 := time.Date(1999, time.February, 3, 4, 5, 6, 7, time.UTC)
-	fc := NewFakeClockAt(t1)
-	now := fc.Now()
-	if !reflect.DeepEqual(now, t1) {
-		t.Fatalf("fakeClock.Now() returned unexpected non-initialised value: want=%#v, got %#v", t1, now)
-	}
-}
-
-func TestFakeClockSince(t *testing.T) {
-	fc := NewFakeClock()
-	now := fc.Now()
-	elapsedTime := time.Second
-	fc.Advance(elapsedTime)
-	if fc.Since(now) != elapsedTime {
-		t.Fatalf("fakeClock.Since() returned unexpected duration, got: %d, want: %d", fc.Since(now), elapsedTime)
-	}
-}

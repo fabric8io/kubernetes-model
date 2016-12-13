@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/golang/glog"
+	"github.com/renstrom/dedent"
 	"github.com/spf13/cobra"
 	"k8s.io/kubernetes/pkg/api/meta"
 	"k8s.io/kubernetes/pkg/kubectl"
@@ -39,46 +41,53 @@ type GetOptions struct {
 	Raw string
 }
 
-const (
-	get_long = `Display one or many resources.
+var (
+	get_long = dedent.Dedent(`
+		Display one or many resources.
 
-` + kubectl.PossibleResourceTypes + `
+		`) + valid_resources + dedent.Dedent(`
 
-By specifying the output as 'template' and providing a Go template as the value
-of the --template flag, you can filter the attributes of the fetched resource(s).`
-	get_example = `# List all pods in ps output format.
-kubectl get pods
+		This command will hide resources that have completed. For instance, pods that are in the Succeeded or Failed phases.
+		You can see the full results for any resource by providing the '--show-all' flag.
 
-# List all pods in ps output format with more information (such as node name).
-kubectl get pods -o wide
+		By specifying the output as 'template' and providing a Go template as the value
+		of the --template flag, you can filter the attributes of the fetched resource(s).`)
+	get_example = dedent.Dedent(`
+		# List all pods in ps output format.
+		kubectl get pods
 
-# List a single replication controller with specified NAME in ps output format.
-kubectl get replicationcontroller web
+		# List all pods in ps output format with more information (such as node name).
+		kubectl get pods -o wide
 
-# List a single pod in JSON output format.
-kubectl get -o json pod web-pod-13je7
+		# List a single replication controller with specified NAME in ps output format.
+		kubectl get replicationcontroller web
 
-# List a pod identified by type and name specified in "pod.yaml" in JSON output format.
-kubectl get -f pod.yaml -o json
+		# List a single pod in JSON output format.
+		kubectl get -o json pod web-pod-13je7
 
-# Return only the phase value of the specified pod.
-kubectl get -o template pod/web-pod-13je7 --template={{.status.phase}}
+		# List a pod identified by type and name specified in "pod.yaml" in JSON output format.
+		kubectl get -f pod.yaml -o json
 
-# List all replication controllers and services together in ps output format.
-kubectl get rc,services
+		# Return only the phase value of the specified pod.
+		kubectl get -o template pod/web-pod-13je7 --template={{.status.phase}}
 
-# List one or more resources by their type and names.
-kubectl get rc/web service/frontend pods/web-pod-13je7`
+		# List all replication controllers and services together in ps output format.
+		kubectl get rc,services
+
+		# List one or more resources by their type and names.
+		kubectl get rc/web service/frontend pods/web-pod-13je7`)
 )
 
 // NewCmdGet creates a command object for the generic "get" action, which
 // retrieves one or more resources from a server.
-func NewCmdGet(f *cmdutil.Factory, out io.Writer) *cobra.Command {
+func NewCmdGet(f *cmdutil.Factory, out, errOut io.Writer) *cobra.Command {
 	options := &GetOptions{}
 
 	// retrieve a list of handled resources from printer as valid args
 	validArgs, argAliases := []string{}, []string{}
-	p, err := f.Printer(nil, nil)
+	p, err := f.Printer(nil, kubectl.PrintOptions{
+		ColumnLabels: []string{},
+	})
 	cmdutil.CheckErr(err)
 	if p != nil {
 		validArgs = p.HandledResources()
@@ -86,12 +95,12 @@ func NewCmdGet(f *cmdutil.Factory, out io.Writer) *cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Use:     "get [(-o|--output=)json|yaml|wide|go-template=...|go-template-file=...|jsonpath=...|jsonpath-file=...] (TYPE [NAME | -l label] | TYPE/NAME ...) [flags]",
+		Use:     "get [(-o|--output=)json|yaml|wide|custom-columns=...|custom-columns-file=...|go-template=...|go-template-file=...|jsonpath=...|jsonpath-file=...] (TYPE [NAME | -l label] | TYPE/NAME ...) [flags]",
 		Short:   "Display one or many resources",
 		Long:    get_long,
 		Example: get_example,
 		Run: func(cmd *cobra.Command, args []string) {
-			err := RunGet(f, out, cmd, args, options)
+			err := RunGet(f, out, errOut, cmd, args, options)
 			cmdutil.CheckErr(err)
 		},
 		SuggestFor: []string{"list", "ps"},
@@ -102,9 +111,9 @@ func NewCmdGet(f *cmdutil.Factory, out io.Writer) *cobra.Command {
 	cmd.Flags().StringP("selector", "l", "", "Selector (label query) to filter on")
 	cmd.Flags().BoolP("watch", "w", false, "After listing/getting the requested object, watch for changes.")
 	cmd.Flags().Bool("watch-only", false, "Watch for changes to the requested object(s), without listing/getting first.")
+	cmd.Flags().Bool("show-kind", false, "If present, list the resource type for the requested object(s).")
 	cmd.Flags().Bool("all-namespaces", false, "If present, list the requested object(s) across all namespaces. Namespace in current context is ignored even if specified with --namespace.")
-	cmd.Flags().Bool("show-kind", false, "If present, list the kind of each requested resource.")
-	cmd.Flags().StringSliceP("label-columns", "L", []string{}, "Accepts a comma separated list of labels that are going to be presented as columns. Names are case-sensitive. You can also use multiple flag statements like -L label1 -L label2...")
+	cmd.Flags().StringSliceP("label-columns", "L", []string{}, "Accepts a comma separated list of labels that are going to be presented as columns. Names are case-sensitive. You can also use multiple flag options like -L label1 -L label2...")
 	cmd.Flags().Bool("export", false, "If true, use 'export' for the resources.  Exported resources are stripped of cluster-specific information.")
 	usage := "Filename, directory, or URL to a file identifying the resource to get from a server."
 	kubectl.AddJsonFilenameFlag(cmd, &options.Filenames, usage)
@@ -116,7 +125,7 @@ func NewCmdGet(f *cmdutil.Factory, out io.Writer) *cobra.Command {
 
 // RunGet implements the generic Get command
 // TODO: convert all direct flag accessors to a struct and pass that instead of cmd
-func RunGet(f *cmdutil.Factory, out io.Writer, cmd *cobra.Command, args []string, options *GetOptions) error {
+func RunGet(f *cmdutil.Factory, out, errOut io.Writer, cmd *cobra.Command, args []string, options *GetOptions) error {
 	if len(options.Raw) > 0 {
 		client, err := f.Client()
 		if err != nil {
@@ -148,6 +157,9 @@ func RunGet(f *cmdutil.Factory, out io.Writer, cmd *cobra.Command, args []string
 	allNamespaces := cmdutil.GetFlagBool(cmd, "all-namespaces")
 	showKind := cmdutil.GetFlagBool(cmd, "show-kind")
 	mapper, typer := f.Object(cmdutil.GetIncludeThirdPartyAPIs(cmd))
+	filterFuncs := f.DefaultResourceFilterFunc()
+	filterOpts := f.DefaultResourceFilterOptions(cmd, allNamespaces)
+	printAll := false
 
 	cmdNamespace, enforceNamespace, err := f.DefaultNamespace()
 	if err != nil {
@@ -159,8 +171,23 @@ func RunGet(f *cmdutil.Factory, out io.Writer, cmd *cobra.Command, args []string
 	}
 
 	if len(args) == 0 && len(options.Filenames) == 0 {
-		fmt.Fprint(out, "You must specify the type of resource to get. ", valid_resources)
-		return cmdutil.UsageError(cmd, "Required resource not specified.")
+		fmt.Fprint(errOut, "You must specify the type of resource to get. ", valid_resources)
+
+		fullCmdName := cmd.Parent().CommandPath()
+		usageString := "Required resource not specified."
+		if len(fullCmdName) > 0 && cmdutil.IsSiblingCommandExists(cmd, "explain") {
+			usageString = fmt.Sprintf("%s\nUse \"%s explain <resource>\" for a detailed description of that resource (e.g. %[2]s explain pods).", usageString, fullCmdName)
+		}
+
+		return cmdutil.UsageError(cmd, usageString)
+	}
+
+	// determine if args contains "all"
+	for _, a := range args {
+		if a == "all" {
+			printAll = true
+			break
+		}
 	}
 
 	// always show resources when getting by name or filename
@@ -202,7 +229,6 @@ func RunGet(f *cmdutil.Factory, out io.Writer, cmd *cobra.Command, args []string
 		if err != nil {
 			return err
 		}
-
 		obj, err := r.Object()
 		if err != nil {
 			return err
@@ -224,10 +250,13 @@ func RunGet(f *cmdutil.Factory, out io.Writer, cmd *cobra.Command, args []string
 		}
 
 		// print the current object
+		filteredResourceCount := 0
 		if !isWatchOnly {
 			if err := printer.PrintObj(obj, out); err != nil {
 				return fmt.Errorf("unable to output the provided object: %v", err)
 			}
+			filteredResourceCount++
+			cmdutil.PrintFilterCount(filteredResourceCount, mapping.Resource, errOut, filterOpts)
 		}
 
 		// print watched changes
@@ -237,13 +266,19 @@ func RunGet(f *cmdutil.Factory, out io.Writer, cmd *cobra.Command, args []string
 		}
 
 		first := true
+		filteredResourceCount = 0
 		kubectl.WatchLoop(w, func(e watch.Event) error {
 			if !isList && first {
 				// drop the initial watch event in the single resource case
 				first = false
 				return nil
 			}
-			return printer.PrintObj(e.Object, out)
+			err := printer.PrintObj(e.Object, out)
+			if err == nil {
+				filteredResourceCount++
+				cmdutil.PrintFilterCount(filteredResourceCount, mapping.Resource, errOut, filterOpts)
+			}
+			return err
 		})
 		return nil
 	}
@@ -274,16 +309,6 @@ func RunGet(f *cmdutil.Factory, out io.Writer, cmd *cobra.Command, args []string
 			return err
 		}
 
-		allErrs := []error{}
-		singular := false
-		infos, err := r.IntoSingular(&singular).Infos()
-		if err != nil {
-			if singular {
-				return err
-			}
-			allErrs = append(allErrs, err)
-		}
-
 		// the outermost object will be converted to the output-version, but inner
 		// objects can use their mappings
 		version, err := cmdutil.OutputVersion(cmd, clientConfig.GroupVersion)
@@ -291,21 +316,72 @@ func RunGet(f *cmdutil.Factory, out io.Writer, cmd *cobra.Command, args []string
 			return err
 		}
 
+		var errs []error
+		singular := false
+		infos, err := r.IntoSingular(&singular).Infos()
+		if err != nil {
+			if singular {
+				return err
+			}
+			errs = append(errs, err)
+		}
+		if len(infos) == 0 {
+			outputEmptyListWarning(errOut)
+		}
+
+		res := ""
+		if len(infos) > 0 {
+			res = infos[0].ResourceMapping().Resource
+		}
+
 		obj, err := resource.AsVersionedObject(infos, !singular, version, f.JSONEncoder())
 		if err != nil {
 			return err
 		}
 
-		if err := printer.PrintObj(obj, out); err != nil {
-			allErrs = append(allErrs, err)
+		isList := meta.IsListType(obj)
+		if isList {
+			filteredResourceCount, items, err := cmdutil.FilterResourceList(obj, filterFuncs, filterOpts)
+			if err != nil {
+				return err
+			}
+			filteredObj, err := cmdutil.ObjectListToVersionedObject(items, version)
+			if err != nil {
+				return err
+			}
+			if err := printer.PrintObj(filteredObj, out); err != nil {
+				errs = append(errs, err)
+			}
+
+			cmdutil.PrintFilterCount(filteredResourceCount, res, errOut, filterOpts)
+			// we can receive multiple layers of aggregates, so attempt to flatten them as much
+			// as is possible before returning.
+			return utilerrors.Reduce(utilerrors.Flatten(utilerrors.NewAggregate(errs)))
 		}
-		return utilerrors.NewAggregate(allErrs)
+
+		filteredResourceCount := 0
+		if isFiltered, err := filterFuncs.Filter(obj, filterOpts); !isFiltered {
+			if err != nil {
+				glog.V(2).Infof("Unable to filter resource: %v", err)
+			} else if err := printer.PrintObj(obj, out); err != nil {
+				errs = append(errs, err)
+			}
+		} else if isFiltered {
+			filteredResourceCount++
+		}
+		cmdutil.PrintFilterCount(filteredResourceCount, res, errOut, filterOpts)
+		// we can receive multiple layers of aggregates, so attempt to flatten them as much
+		// as is possible before returning.
+		return utilerrors.Reduce(utilerrors.Flatten(utilerrors.NewAggregate(errs)))
 	}
 
 	allErrs := []error{}
 	infos, err := r.Infos()
 	if err != nil {
 		allErrs = append(allErrs, err)
+	}
+	if len(infos) == 0 {
+		outputEmptyListWarning(errOut)
 	}
 
 	objs := make([]runtime.Object, len(infos))
@@ -314,8 +390,11 @@ func RunGet(f *cmdutil.Factory, out io.Writer, cmd *cobra.Command, args []string
 	}
 
 	sorting, err := cmd.Flags().GetString("sort-by")
+	if err != nil {
+		return err
+	}
 	var sorter *kubectl.RuntimeSort
-	if err == nil && len(sorting) > 0 && len(objs) > 1 {
+	if len(sorting) > 0 && len(objs) > 1 {
 		clientConfig, err := f.ClientConfig()
 		if err != nil {
 			return err
@@ -344,9 +423,9 @@ func RunGet(f *cmdutil.Factory, out io.Writer, cmd *cobra.Command, args []string
 	printer = nil
 	var lastMapping *meta.RESTMapping
 	w := kubectl.GetNewTabWriter(out)
-	defer w.Flush()
+	filteredResourceCount := 0
 
-	if mustPrintWithKinds(objs, infos, sorter) {
+	if cmdutil.MustPrintWithKinds(objs, infos, sorter, printAll) {
 		showKind = true
 	}
 
@@ -361,15 +440,37 @@ func RunGet(f *cmdutil.Factory, out io.Writer, cmd *cobra.Command, args []string
 			original = infos[ix].Object
 		}
 		if printer == nil || lastMapping == nil || mapping == nil || mapping.Resource != lastMapping.Resource {
+			if printer != nil {
+				w.Flush()
+				cmdutil.PrintFilterCount(filteredResourceCount, lastMapping.Resource, errOut, filterOpts)
+			}
 			printer, err = f.PrinterForMapping(cmd, mapping, allNamespaces)
 			if err != nil {
 				allErrs = append(allErrs, err)
 				continue
 			}
+
+			// add linebreak between resource groups (if there is more than one)
+			// skip linebreak above first resource group
+			noHeaders := cmdutil.GetFlagBool(cmd, "no-headers")
+			if lastMapping != nil && !noHeaders {
+				fmt.Fprintf(errOut, "%s\n", "")
+			}
+
 			lastMapping = mapping
 		}
+
+		// filter objects if filter has been defined for current object
+		if isFiltered, err := filterFuncs.Filter(original, filterOpts); isFiltered {
+			if err == nil {
+				filteredResourceCount++
+				continue
+			}
+			allErrs = append(allErrs, err)
+		}
+
 		if resourcePrinter, found := printer.(*kubectl.HumanReadablePrinter); found {
-			resourceName := resourcePrinter.GetResourceName()
+			resourceName := resourcePrinter.GetResourceKind()
 			if mapping != nil {
 				if resourceName == "" {
 					resourceName = mapping.Resource
@@ -397,30 +498,15 @@ func RunGet(f *cmdutil.Factory, out io.Writer, cmd *cobra.Command, args []string
 			continue
 		}
 	}
+	w.Flush()
+	if printer != nil && lastMapping != nil {
+		cmdutil.PrintFilterCount(filteredResourceCount, lastMapping.Resource, errOut, filterOpts)
+	}
 	return utilerrors.NewAggregate(allErrs)
 }
 
-// mustPrintWithKinds determines if printer is dealing
-// with multiple resource kinds, in which case it will
-// return true, indicating resource kind will be
-// included as part of printer output
-func mustPrintWithKinds(objs []runtime.Object, infos []*resource.Info, sorter *kubectl.RuntimeSort) bool {
-	var lastMap *meta.RESTMapping
-
-	for ix := range objs {
-		var mapping *meta.RESTMapping
-		if sorter != nil {
-			mapping = infos[sorter.OriginalPosition(ix)].Mapping
-		} else {
-			mapping = infos[ix].Mapping
-		}
-
-		// display "kind" only if we have mixed resources
-		if lastMap != nil && mapping.Resource != lastMap.Resource {
-			return true
-		}
-		lastMap = mapping
-	}
-
-	return false
+// outputEmptyListWarning outputs a warning indicating that no items are available to display
+func outputEmptyListWarning(out io.Writer) error {
+	_, err := fmt.Fprintf(out, "%s\n", "No resources found.")
+	return err
 }

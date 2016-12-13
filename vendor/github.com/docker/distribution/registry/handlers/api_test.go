@@ -43,7 +43,6 @@ var headerConfig = http.Header{
 // 200 OK response.
 func TestCheckAPI(t *testing.T) {
 	env := newTestEnv(t, false)
-	defer env.Shutdown()
 	baseURL, err := env.builder.BuildBaseURL()
 	if err != nil {
 		t.Fatalf("unexpected error building base url: %v", err)
@@ -75,7 +74,6 @@ func TestCheckAPI(t *testing.T) {
 func TestCatalogAPI(t *testing.T) {
 	chunkLen := 2
 	env := newTestEnv(t, false)
-	defer env.Shutdown()
 
 	values := url.Values{
 		"last": []string{""},
@@ -222,16 +220,12 @@ func TestURLPrefix(t *testing.T) {
 	config := configuration.Configuration{
 		Storage: configuration.Storage{
 			"testdriver": configuration.Parameters{},
-			"maintenance": configuration.Parameters{"uploadpurging": map[interface{}]interface{}{
-				"enabled": false,
-			}},
 		},
 	}
 	config.HTTP.Prefix = "/test/"
 	config.HTTP.Headers = headerConfig
 
 	env := newTestEnvWithConfig(t, &config)
-	defer env.Shutdown()
 
 	baseURL, err := env.builder.BuildBaseURL()
 	if err != nil {
@@ -279,23 +273,20 @@ func makeBlobArgs(t *testing.T) blobArgs {
 // TestBlobAPI conducts a full test of the of the blob api.
 func TestBlobAPI(t *testing.T) {
 	deleteEnabled := false
-	env1 := newTestEnv(t, deleteEnabled)
-	defer env1.Shutdown()
+	env := newTestEnv(t, deleteEnabled)
 	args := makeBlobArgs(t)
-	testBlobAPI(t, env1, args)
+	testBlobAPI(t, env, args)
 
 	deleteEnabled = true
-	env2 := newTestEnv(t, deleteEnabled)
-	defer env2.Shutdown()
+	env = newTestEnv(t, deleteEnabled)
 	args = makeBlobArgs(t)
-	testBlobAPI(t, env2, args)
+	testBlobAPI(t, env, args)
 
 }
 
 func TestBlobDelete(t *testing.T) {
 	deleteEnabled := true
 	env := newTestEnv(t, deleteEnabled)
-	defer env.Shutdown()
 
 	args := makeBlobArgs(t)
 	env = testBlobAPI(t, env, args)
@@ -306,15 +297,11 @@ func TestRelativeURL(t *testing.T) {
 	config := configuration.Configuration{
 		Storage: configuration.Storage{
 			"testdriver": configuration.Parameters{},
-			"maintenance": configuration.Parameters{"uploadpurging": map[interface{}]interface{}{
-				"enabled": false,
-			}},
 		},
 	}
 	config.HTTP.Headers = headerConfig
 	config.HTTP.RelativeURLs = false
 	env := newTestEnvWithConfig(t, &config)
-	defer env.Shutdown()
 	ref, _ := reference.WithName("foo/bar")
 	uploadURLBaseAbs, _ := startPushLayer(t, env, ref)
 
@@ -382,7 +369,6 @@ func TestRelativeURL(t *testing.T) {
 func TestBlobDeleteDisabled(t *testing.T) {
 	deleteEnabled := false
 	env := newTestEnv(t, deleteEnabled)
-	defer env.Shutdown()
 	args := makeBlobArgs(t)
 
 	imageName := args.imageName
@@ -698,7 +684,6 @@ func testBlobDelete(t *testing.T, env *testEnv, args blobArgs) {
 
 func TestDeleteDisabled(t *testing.T) {
 	env := newTestEnv(t, false)
-	defer env.Shutdown()
 
 	imageName, _ := reference.ParseNamed("foo/bar")
 	// "build" our layer file
@@ -725,7 +710,6 @@ func TestDeleteDisabled(t *testing.T) {
 
 func TestDeleteReadOnly(t *testing.T) {
 	env := newTestEnv(t, true)
-	defer env.Shutdown()
 
 	imageName, _ := reference.ParseNamed("foo/bar")
 	// "build" our layer file
@@ -754,7 +738,6 @@ func TestDeleteReadOnly(t *testing.T) {
 
 func TestStartPushReadOnly(t *testing.T) {
 	env := newTestEnv(t, true)
-	defer env.Shutdown()
 	env.app.readOnly = true
 
 	imageName, _ := reference.ParseNamed("foo/bar")
@@ -799,18 +782,16 @@ func TestManifestAPI(t *testing.T) {
 	schema2Repo, _ := reference.ParseNamed("foo/schema2")
 
 	deleteEnabled := false
-	env1 := newTestEnv(t, deleteEnabled)
-	defer env1.Shutdown()
-	testManifestAPISchema1(t, env1, schema1Repo)
-	schema2Args := testManifestAPISchema2(t, env1, schema2Repo)
-	testManifestAPIManifestList(t, env1, schema2Args)
+	env := newTestEnv(t, deleteEnabled)
+	testManifestAPISchema1(t, env, schema1Repo)
+	schema2Args := testManifestAPISchema2(t, env, schema2Repo)
+	testManifestAPIManifestList(t, env, schema2Args)
 
 	deleteEnabled = true
-	env2 := newTestEnv(t, deleteEnabled)
-	defer env2.Shutdown()
-	testManifestAPISchema1(t, env2, schema1Repo)
-	schema2Args = testManifestAPISchema2(t, env2, schema2Repo)
-	testManifestAPIManifestList(t, env2, schema2Args)
+	env = newTestEnv(t, deleteEnabled)
+	testManifestAPISchema1(t, env, schema1Repo)
+	schema2Args = testManifestAPISchema2(t, env, schema2Repo)
+	testManifestAPIManifestList(t, env, schema2Args)
 }
 
 func TestManifestDelete(t *testing.T) {
@@ -819,7 +800,6 @@ func TestManifestDelete(t *testing.T) {
 
 	deleteEnabled := true
 	env := newTestEnv(t, deleteEnabled)
-	defer env.Shutdown()
 	schema1Args := testManifestAPISchema1(t, env, schema1Repo)
 	testManifestDelete(t, env, schema1Args)
 	schema2Args := testManifestAPISchema2(t, env, schema2Repo)
@@ -830,7 +810,6 @@ func TestManifestDeleteDisabled(t *testing.T) {
 	schema1Repo, _ := reference.ParseNamed("foo/schema1")
 	deleteEnabled := false
 	env := newTestEnv(t, deleteEnabled)
-	defer env.Shutdown()
 	testManifestDeleteDisabled(t, env, schema1Repo)
 }
 
@@ -1907,9 +1886,6 @@ func newTestEnvMirror(t *testing.T, deleteEnabled bool) *testEnv {
 		Storage: configuration.Storage{
 			"testdriver": configuration.Parameters{},
 			"delete":     configuration.Parameters{"enabled": deleteEnabled},
-			"maintenance": configuration.Parameters{"uploadpurging": map[interface{}]interface{}{
-				"enabled": false,
-			}},
 		},
 		Proxy: configuration.Proxy{
 			RemoteURL: "http://example.com",
@@ -1925,9 +1901,6 @@ func newTestEnv(t *testing.T, deleteEnabled bool) *testEnv {
 		Storage: configuration.Storage{
 			"testdriver": configuration.Parameters{},
 			"delete":     configuration.Parameters{"enabled": deleteEnabled},
-			"maintenance": configuration.Parameters{"uploadpurging": map[interface{}]interface{}{
-				"enabled": false,
-			}},
 		},
 	}
 
@@ -1960,11 +1933,6 @@ func newTestEnvWithConfig(t *testing.T, config *configuration.Configuration) *te
 		server:  server,
 		builder: builder,
 	}
-}
-
-func (t *testEnv) Shutdown() {
-	t.server.CloseClientConnections()
-	t.server.Close()
 }
 
 func putManifest(t *testing.T, msg, url, contentType string, v interface{}) *http.Response {
@@ -2360,7 +2328,6 @@ func createRepository(env *testEnv, t *testing.T, imageName string, tag string) 
 func TestRegistryAsCacheMutationAPIs(t *testing.T) {
 	deleteEnabled := true
 	env := newTestEnvMirror(t, deleteEnabled)
-	defer env.Shutdown()
 
 	imageName, _ := reference.ParseNamed("foo/bar")
 	tag := "latest"
@@ -2419,7 +2386,6 @@ func TestRegistryAsCacheMutationAPIs(t *testing.T) {
 // that implements http.ContextNotifier.
 func TestCheckContextNotifier(t *testing.T) {
 	env := newTestEnv(t, false)
-	defer env.Shutdown()
 
 	// Register a new endpoint for testing
 	env.app.router.Handle("/unittest/{name}/", env.app.dispatcher(func(ctx *Context, r *http.Request) http.Handler {
@@ -2448,9 +2414,6 @@ func TestProxyManifestGetByTag(t *testing.T) {
 	truthConfig := configuration.Configuration{
 		Storage: configuration.Storage{
 			"testdriver": configuration.Parameters{},
-			"maintenance": configuration.Parameters{"uploadpurging": map[interface{}]interface{}{
-				"enabled": false,
-			}},
 		},
 	}
 	truthConfig.HTTP.Headers = headerConfig
@@ -2459,7 +2422,6 @@ func TestProxyManifestGetByTag(t *testing.T) {
 	tag := "latest"
 
 	truthEnv := newTestEnvWithConfig(t, &truthConfig)
-	defer truthEnv.Shutdown()
 	// create a repository in the truth registry
 	dgst := createRepository(truthEnv, t, imageName.Name(), tag)
 
@@ -2474,7 +2436,6 @@ func TestProxyManifestGetByTag(t *testing.T) {
 	proxyConfig.HTTP.Headers = headerConfig
 
 	proxyEnv := newTestEnvWithConfig(t, &proxyConfig)
-	defer proxyEnv.Shutdown()
 
 	digestRef, _ := reference.WithDigest(imageName, dgst)
 	manifestDigestURL, err := proxyEnv.builder.BuildManifestURL(digestRef)

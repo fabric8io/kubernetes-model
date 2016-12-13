@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bytes"
+	"crypto/rand"
 	"io"
 	mrand "math/rand"
 	"os"
@@ -15,7 +16,7 @@ import (
 func TestSimpleRead(t *testing.T) {
 	ctx := context.Background()
 	content := make([]byte, 1<<20)
-	n, err := mrand.Read(content)
+	n, err := rand.Read(content)
 	if err != nil {
 		t.Fatalf("unexpected error building random data: %v", err)
 	}

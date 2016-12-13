@@ -19,56 +19,59 @@ import (
 	"k8s.io/kubernetes/pkg/util/sets"
 
 	"github.com/openshift/origin/pkg/cmd/cli/describe"
+	"github.com/openshift/origin/pkg/cmd/templates"
+	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/template"
 	templateapi "github.com/openshift/origin/pkg/template/api"
 )
 
-const (
-	processLong = `
-Process template into a list of resources specified in filename or stdin
+var (
+	processLong = templates.LongDesc(`
+		Process template into a list of resources specified in filename or stdin
 
-Templates allow parameterization of resources prior to being sent to the server for creation or
-update. Templates have "parameters", which may either be generated on creation or set by the user,
-as well as metadata describing the template.
+		Templates allow parameterization of resources prior to being sent to the server for creation or
+		update. Templates have "parameters", which may either be generated on creation or set by the user,
+		as well as metadata describing the template.
 
-The output of the process command is always a list of one or more resources. You may pipe the
-output to the create command over STDIN (using the '-f -' option) or redirect it to a file.`
+		The output of the process command is always a list of one or more resources. You may pipe the
+		output to the create command over STDIN (using the '-f -' option) or redirect it to a file.`)
 
-	processExample = `  # Convert template.json file into resource list and pass to create
-  %[1]s process -f template.json | %[1]s create -f -
+	processExample = templates.Examples(`
+		# Convert template.json file into resource list and pass to create
+	  %[1]s process -f template.json | %[1]s create -f -
 
-  # Process template while passing a user-defined label
-  %[1]s process -f template.json -l name=mytemplate
+	  # Process template while passing a user-defined label
+	  %[1]s process -f template.json -l name=mytemplate
 
-  # Convert stored template into resource list
-  %[1]s process foo
+	  # Convert stored template into resource list
+	  %[1]s process foo
 
-  # Convert stored template into resource list by setting/overriding parameter values
-  %[1]s process foo PARM1=VALUE1 PARM2=VALUE2
+	  # Convert stored template into resource list by setting/overriding parameter values
+	  %[1]s process foo PARM1=VALUE1 PARM2=VALUE2
 
-  # Convert template stored in different namespace into a resource list
-  %[1]s process openshift//foo
+	  # Convert template stored in different namespace into a resource list
+	  %[1]s process openshift//foo
 
-  # Convert template.json into resource list
-  cat template.json | %[1]s process -f -`
+	  # Convert template.json into resource list
+	  cat template.json | %[1]s process -f -`)
 )
 
 // NewCmdProcess implements the OpenShift cli process command
-func NewCmdProcess(fullName string, f *clientcmd.Factory, out io.Writer) *cobra.Command {
+func NewCmdProcess(fullName string, f *clientcmd.Factory, out, errout io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "process (TEMPLATE | -f FILENAME) [-v=KEY=VALUE]",
 		Short:   "Process a template into list of resources",
 		Long:    processLong,
 		Example: fmt.Sprintf(processExample, fullName),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := RunProcess(f, out, cmd, args)
+			err := RunProcess(f, out, errout, cmd, args)
 			kcmdutil.CheckErr(err)
 		},
 	}
 	cmd.Flags().StringP("filename", "f", "", "Filename or URL to file to read a template")
 	cmd.MarkFlagFilename("filename", "yaml", "yml", "json")
-	cmd.Flags().StringSliceP("value", "v", nil, "Specify a list of key-value pairs (eg. -v FOO=BAR,BAR=FOO) to set/override parameter values")
+	cmd.Flags().StringArrayP("value", "v", nil, "Specify a key-value pair (eg. -v FOO=BAR) to set/override a parameter value in the template.")
 	cmd.Flags().BoolP("parameters", "", false, "Do not process but only print available parameters")
 	cmd.Flags().StringP("labels", "l", "", "Label to set in all resources for this template")
 
@@ -80,8 +83,8 @@ func NewCmdProcess(fullName string, f *clientcmd.Factory, out io.Writer) *cobra.
 	return cmd
 }
 
-// RunProject contains all the necessary functionality for the OpenShift cli process command
-func RunProcess(f *clientcmd.Factory, out io.Writer, cmd *cobra.Command, args []string) error {
+// RunProcess contains all the necessary functionality for the OpenShift cli process command
+func RunProcess(f *clientcmd.Factory, out, errout io.Writer, cmd *cobra.Command, args []string) error {
 	templateName, valueArgs := "", []string{}
 	for _, s := range args {
 		isValue := strings.Contains(s, "=")
@@ -100,8 +103,10 @@ func RunProcess(f *clientcmd.Factory, out io.Writer, cmd *cobra.Command, args []
 
 	var flagValues []string
 	if cmd.Flag("value").Changed {
-		flagValues = kcmdutil.GetFlagStringSlice(cmd, "value")
+		flagValues = getFlagStringArray(cmd, "value")
 	}
+
+	cmdutil.WarnAboutCommaSeparation(errout, flagValues, "--value")
 
 	for _, value := range flagValues {
 		key := strings.Split(value, "=")[0]
@@ -196,8 +201,6 @@ func RunProcess(f *clientcmd.Factory, out io.Writer, cmd *cobra.Command, args []
 		}
 	}
 
-	outputFormat := kcmdutil.GetFlagString(cmd, "output")
-
 	if len(infos) > 1 {
 		// in order to run validation on the input given to us by a user, we only support the processing
 		// of one template in a list. For instance, we want to be able to fail when a user does not give
@@ -238,7 +241,7 @@ func RunProcess(f *clientcmd.Factory, out io.Writer, cmd *cobra.Command, args []
 	// Override the values for the current template parameters
 	// when user specify the --value
 	if cmd.Flag("value").Changed {
-		values := kcmdutil.GetFlagStringSlice(cmd, "value")
+		values := getFlagStringArray(cmd, "value")
 		if errs := injectUserVars(values, obj); errs != nil {
 			return kerrors.NewAggregate(errs)
 		}
@@ -253,6 +256,7 @@ func RunProcess(f *clientcmd.Factory, out io.Writer, cmd *cobra.Command, args []
 		return fmt.Errorf("error processing the template %q: %v\n", obj.Name, err)
 	}
 
+	outputFormat := kcmdutil.GetFlagString(cmd, "output")
 	if outputFormat == "describe" {
 		if s, err := (&describe.TemplateDescriber{
 			MetadataAccessor: meta.NewAccessor(),
@@ -267,13 +271,7 @@ func RunProcess(f *clientcmd.Factory, out io.Writer, cmd *cobra.Command, args []
 	}
 	objects = append(objects, resultObj.Objects...)
 
-	// Do not print the processed templates when asked to only show parameters or
-	// describe.
-	if kcmdutil.GetFlagBool(cmd, "parameters") || outputFormat == "describe" {
-		return nil
-	}
-
-	p, _, err := kubectl.GetPrinter(outputFormat, "")
+	p, _, err := kubectl.GetPrinter(outputFormat, "", false)
 	if err != nil {
 		return err
 	}
@@ -309,7 +307,6 @@ func injectUserVars(values []string, t *templateapi.Template) []error {
 			if v := template.GetParameterByName(t, p[0]); v != nil {
 				v.Value = p[1]
 				v.Generate = ""
-				template.AddParameter(t, *v)
 			} else {
 				errors = append(errors, fmt.Errorf("unknown parameter name %q\n", p[0]))
 			}

@@ -38,7 +38,6 @@ func TestAppDispatcher(t *testing.T) {
 		registry: registry,
 	}
 	server := httptest.NewServer(app)
-	defer server.Close()
 	router := v2.Router()
 
 	serverURL, err := url.Parse(server.URL)
@@ -144,9 +143,6 @@ func TestNewApp(t *testing.T) {
 	config := configuration.Configuration{
 		Storage: configuration.Storage{
 			"testdriver": nil,
-			"maintenance": configuration.Parameters{"uploadpurging": map[interface{}]interface{}{
-				"enabled": false,
-			}},
 		},
 		Auth: configuration.Auth{
 			// For now, we simply test that new auth results in a viable
@@ -164,7 +160,6 @@ func TestNewApp(t *testing.T) {
 	app := NewApp(ctx, &config)
 
 	server := httptest.NewServer(app)
-	defer server.Close()
 	builder, err := v2.NewURLBuilderFromString(server.URL, false)
 	if err != nil {
 		t.Fatalf("error creating urlbuilder: %v", err)

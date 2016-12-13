@@ -47,6 +47,7 @@ os::cmd::expect_success 'oc new-app php mysql'
 os::cmd::expect_success 'oc delete all -l app=php'
 os::cmd::expect_failure 'oc get dc/mysql'
 os::cmd::expect_failure 'oc get dc/php'
+os::cmd::expect_success_and_text 'oc new-app -f test/testdata/template-without-app-label.json -o yaml' 'app: ruby-helloworld-sample'
 
 # ensure non-duplicate invalid label errors show up
 os::cmd::expect_failure_and_text 'oc new-app nginx -l qwer1345%$$#=self' 'error: ImageStream "nginx" is invalid'
@@ -62,11 +63,38 @@ os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample -o yaml' 'AD
 os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample -o yaml' 'ADMIN_PASSWORD'
 os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample --param MYSQL_PASSWORD=hello -o yaml' 'hello'
 
+# check that values are not split on commas
+os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample --param MYSQL_PASSWORD=hello,MYSQL_USER=fail -o yaml' 'value: hello,MYSQL_USER=fail'
+# check that warning is printed when --param PARAM1=VAL1,PARAM2=VAL2 is used
+os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample --param MYSQL_PASSWORD=hello,MYSQL_USER=fail -o yaml' 'no longer accepts comma-separated list'
+# check that env vars are not split on commas
+os::cmd::expect_success_and_text 'oc new-app php --env PASS=one,two=three -o yaml' 'value: one,two=three'
+# check that warning is printed when --env PARAM1=VAL1,PARAM2=VAL2 is used
+os::cmd::expect_success_and_text 'oc new-app php --env PASS=one,two=three -o yaml' 'no longer accepts comma-separated list'
+# check that warning is not printed when --param/env doesn't contain two k-v pairs
+os::cmd::expect_success_and_not_text 'oc new-app php --env DEBUG=disabled -o yaml' 'no longer accepts comma-separated list'
+os::cmd::expect_success_and_not_text 'oc new-app php --env LEVELS=INFO,WARNING -o yaml' 'no longer accepts comma-separated list'
+os::cmd::expect_success_and_not_text 'oc new-app ruby-helloworld-sample --param MYSQL_USER=mysql -o yaml' 'no longer accepts comma-separated list'
+os::cmd::expect_success_and_not_text 'oc new-app ruby-helloworld-sample --param MYSQL_PASSWORD=com,ma -o yaml' 'no longer accepts comma-separated list'
+# check that warning is not printed when env vars are passed positionally
+os::cmd::expect_success_and_text 'oc new-app php PASS=one,two=three -o yaml' 'value: one,two=three'
+os::cmd::expect_success_and_not_text 'oc new-app php PASS=one,two=three -o yaml' 'no longer accepts comma-separated list'
+
+# new-build
+# check that env vars are not split on commas and warning is printed where they previously have
+os::cmd::expect_success_and_text 'oc new-build --binary php --env X=Y,Z=W -o yaml' 'value: Y,Z=W'
+os::cmd::expect_success_and_text 'oc new-build --binary php --env X=Y,Z=W -o yaml' 'no longer accepts comma-separated list'
+os::cmd::expect_success_and_text 'oc new-build --binary php --env X=Y,Z,W -o yaml' 'value: Y,Z,W'
+os::cmd::expect_success_and_not_text 'oc new-build --binary php --env X=Y,Z,W -o yaml' 'no longer accepts comma-separated list'
+os::cmd::expect_success_and_not_text 'oc new-build --binary php --env X=Y -o yaml' 'no longer accepts comma-separated list'
+os::cmd::expect_success_and_text 'oc new-build --binary php X=Y,Z=W -o yaml' 'value: Y,Z=W'
+os::cmd::expect_success_and_not_text 'oc new-build --binary php X=Y,Z=W -o yaml' 'no longer accepts comma-separated list'
+
 # verify we can create from a template when some objects in the template declare an app label
-# the app label should still be applied to the other objects in the template.
-os::cmd::expect_success_and_text 'oc new-app -f test/testdata/template-with-app-label.json -o yaml' 'app: ruby-helloworld-sample'
-# verify the existing app label on an object is overridden by new-app
-os::cmd::expect_success_and_not_text 'oc new-app -f test/testdata/template-with-app-label.json -o yaml' 'app: myapp'
+# the app label will not be applied to any objects in the template.
+os::cmd::expect_success_and_not_text 'oc new-app -f test/testdata/template-with-app-label.json -o yaml' 'app: ruby-helloworld-sample'
+# verify the existing app label on an object is not overridden by new-app
+os::cmd::expect_success_and_text 'oc new-app -f test/testdata/template-with-app-label.json -o yaml' 'app: myapp'
 
 # verify that a template can be passed in stdin
 os::cmd::expect_success 'cat examples/sample-app/application-template-stibuild.json | oc new-app -o yaml -f -'
@@ -117,7 +145,10 @@ os::cmd::try_until_success 'oc get imagestreamtags ruby:2.0'
 os::cmd::try_until_success 'oc get imagestreamtags ruby:2.2'
 os::cmd::try_until_success 'oc get imagestreamtags ruby:2.3'
 os::cmd::try_until_success 'oc get imagestreamtags wildfly:latest'
+os::cmd::try_until_success 'oc get imagestreamtags wildfly:10.1'
 os::cmd::try_until_success 'oc get imagestreamtags wildfly:10.0'
+os::cmd::try_until_success 'oc get imagestreamtags wildfly:9.0'
+os::cmd::try_until_success 'oc get imagestreamtags wildfly:8.1'
 
 os::cmd::expect_success_and_text 'oc new-app --search --image-stream=mongodb' "Tags:\s+2.4, 2.6, 3.2, latest"
 os::cmd::expect_success_and_text 'oc new-app --search --image-stream=mysql' "Tags:\s+5.5, 5.6, latest"
@@ -127,7 +158,7 @@ os::cmd::expect_success_and_text 'oc new-app --search --image-stream=php' "Tags:
 os::cmd::expect_success_and_text 'oc new-app --search --image-stream=postgresql' "Tags:\s+9.2, 9.4, 9.5, latest"
 os::cmd::expect_success_and_text 'oc new-app -S --image-stream=python' "Tags:\s+2.7, 3.3, 3.4, 3.5, latest"
 os::cmd::expect_success_and_text 'oc new-app -S --image-stream=ruby' "Tags:\s+2.0, 2.2, 2.3, latest"
-os::cmd::expect_success_and_text 'oc new-app -S --image-stream=wildfly' "Tags:\s+10.0, 8.1, 9.0, latest"
+os::cmd::expect_success_and_text 'oc new-app -S --image-stream=wildfly' "Tags:\s+10.0, 10.1, 8.1, 9.0, latest"
 os::cmd::expect_success_and_text 'oc new-app --search --template=ruby-helloworld-sample' 'ruby-helloworld-sample'
 # check search - no matches
 os::cmd::expect_failure_and_text 'oc new-app -S foo-the-bar' 'no matches found'
@@ -177,15 +208,12 @@ os::cmd::expect_success "oc new-app mysql+ruby~https://github.com/openshift/ruby
 os::cmd::expect_failure_and_text "oc new-app mysql ruby~https://github.com/openshift/ruby-ex --name foo -o yaml" "error: only one component or source repository can be used when specifying a name"
 # do not allow specifying output image when specifying multiple input repos
 os::cmd::expect_failure_and_text 'oc new-build https://github.com/openshift/nodejs-ex https://github.com/openshift/ruby-ex --to foo' 'error: only one component with source can be used when specifying an output image reference'
-# but succeed with multiple intput repos and no output image specified
+# but succeed with multiple input repos and no output image specified
 os::cmd::expect_success 'oc new-build https://github.com/openshift/nodejs-ex https://github.com/openshift/ruby-ex -o yaml'
-
 # check that binary build with a builder image results in a source type build
 os::cmd::expect_success_and_text 'oc new-build --binary --image-stream=ruby -o yaml' 'type: Source'
-
 # check that binary build with a specific strategy uses that strategy regardless of the image type
 os::cmd::expect_success_and_text 'oc new-build --binary --image=ruby --strategy=docker -o yaml' 'type: Docker'
-
 os::cmd::expect_success 'oc delete imageStreams --all'
 
 # check that we can create from the template without errors
@@ -210,7 +238,10 @@ os::cmd::expect_success_and_text 'oc import docker-compose -f test/testdata/app-
 os::cmd::expect_success_and_text 'oc import docker-compose -f test/testdata/app-scenarios/docker-compose/complex/docker-compose.yml --dry-run' 'no-ports: no ports defined to send traffic to - no OpenShift service was created'
 os::cmd::expect_success_and_text 'oc import docker-compose -f test/testdata/app-scenarios/docker-compose/complex/docker-compose.yml -o name --dry-run' 'service/redis'
 os::cmd::expect_success_and_text 'oc import docker-compose -f test/testdata/app-scenarios/docker-compose/complex/docker-compose.yml -o name --as-template=other --dry-run' 'template/other'
-os::cmd::expect_success '[[ $(diff --suppress-common-lines -y <(oc import docker-compose -f test/testdata/app-scenarios/docker-compose/complex/docker-compose.yml -o yaml) test/testdata/app-scenarios/docker-compose/complex/docker-compose.imported.yaml | grep -vE "ref\:|secret|uri\:" | wc -l) -eq 0 ]]'
+if git status &>/dev/null; then
+  # TODO: only consistent when running in a Git repository
+  os::cmd::expect_success '[[ $(diff --suppress-common-lines -y <(oc import docker-compose -f test/testdata/app-scenarios/docker-compose/complex/docker-compose.yml -o yaml) test/testdata/app-scenarios/docker-compose/complex/docker-compose.imported.yaml | grep -vE "ref\:|secret|uri\:" | wc -l) -eq 0 ]]'
+fi
 
 # verify a docker-compose.yml schema 2 resource can be transformed, and that it sets env vars correctly.
 os::cmd::expect_success_and_text 'oc import docker-compose -f test/testdata/app-scenarios/docker-compose/wordpress/docker-compose.yml -o yaml --as-template=other --dry-run' 'value: wordpress'
@@ -220,14 +251,21 @@ os::cmd::expect_failure_and_text 'oc new-build mysql -o yaml' 'you must specify 
 os::cmd::expect_success_and_text 'oc new-build mysql --binary -o yaml --to mysql:bin' 'type: Binary'
 os::cmd::expect_success_and_text 'oc new-build mysql https://github.com/openshift/ruby-hello-world --strategy=docker -o yaml' 'type: Docker'
 os::cmd::expect_failure_and_text 'oc new-build mysql https://github.com/openshift/ruby-hello-world --binary' 'specifying binary builds and source repositories at the same time is not allowed'
+# binary builds cannot be created unless a builder image is specified.
+os::cmd::expect_failure_and_text 'oc new-build --name mybuild --binary --strategy=source -o yaml' 'you must provide a builder image when using the source strategy with a binary build'
+os::cmd::expect_success_and_text 'oc new-build --name mybuild centos/ruby-22-centos7 --binary --strategy=source -o yaml' 'name: ruby-22-centos7:latest'
+# binary builds can be created with no builder image if no strategy or docker strategy is specified
+os::cmd::expect_success_and_text 'oc new-build --name mybuild --binary -o yaml' 'type: Binary'
+os::cmd::expect_success_and_text 'oc new-build --name mybuild --binary --strategy=docker -o yaml' 'type: Binary'
+
 # new-build image source tests
 os::cmd::expect_failure_and_text 'oc new-build mysql --source-image centos' 'error: --source-image-path must be specified when --source-image is specified.'
 os::cmd::expect_failure_and_text 'oc new-build mysql --source-image-path foo' 'error: --source-image must be specified when --source-image-path is specified.'
 
 # do not allow use of non-existent image (should fail)
-os::cmd::expect_failure_and_text 'oc new-app  openshift/bogusImage https://github.com/openshift/ruby-hello-world.git -o yaml' "no match for"
+os::cmd::expect_failure_and_text 'oc new-app  openshift/bogusimage https://github.com/openshift/ruby-hello-world.git -o yaml' "no match for"
 # allow use of non-existent image (should succeed)
-os::cmd::expect_success 'oc new-app openshift/bogusImage https://github.com/openshift/ruby-hello-world.git -o yaml --allow-missing-images'
+os::cmd::expect_success 'oc new-app openshift/bogusimage https://github.com/openshift/ruby-hello-world.git -o yaml --allow-missing-images'
 
 os::cmd::expect_success 'oc create -f test/testdata/installable-stream.yaml'
 

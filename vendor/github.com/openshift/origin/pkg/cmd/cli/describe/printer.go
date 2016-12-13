@@ -65,7 +65,7 @@ var (
 )
 
 // NewHumanReadablePrinter returns a new HumanReadablePrinter
-func NewHumanReadablePrinter(printOptions *kctl.PrintOptions) *kctl.HumanReadablePrinter {
+func NewHumanReadablePrinter(printOptions kctl.PrintOptions) *kctl.HumanReadablePrinter {
 	// TODO: support cross namespace listing
 	p := kctl.NewHumanReadablePrinter(printOptions)
 	p.Handler(buildColumns, printBuild)
@@ -177,6 +177,10 @@ func printTemplate(t *templateapi.Template, w io.Writer, opts kctl.PrintOptions)
 	description := ""
 	if t.Annotations != nil {
 		description = t.Annotations["description"]
+	}
+	// Only print the first line of description
+	if lines := strings.SplitN(description, "\n", 2); len(lines) > 1 {
+		description = lines[0] + "..."
 	}
 	if len(description) > templateDescriptionLen {
 		description = strings.TrimSpace(description[:templateDescriptionLen-3]) + "..."
@@ -581,7 +585,12 @@ func printRoute(route *routeapi.Route, w io.Writer, opts kctl.PrintOptions) erro
 		port = "<all>"
 	}
 
-	_, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", name, host, route.Spec.Path, strings.Join(backendInfo, ","), port, policy)
+	if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s", name, host, route.Spec.Path, strings.Join(backendInfo, ","), port, policy); err != nil {
+		return err
+	}
+
+	err := appendItemLabels(route.Labels, w, opts.ColumnLabels, opts.ShowLabels)
+
 	return err
 }
 

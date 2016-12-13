@@ -16,10 +16,7 @@ openshift cli types \- An introduction to concepts and types
 Concepts and Types
 
 .PP
-Kubernetes and OpenShift help developers and operators build, test, and deploy
-applications in a containerized cloud environment. Applications may be composed
-of all of the components below, although most developers will be concerned with
-Services, Deployments, and Builds for delivering changes.
+Kubernetes and OpenShift help developers and operators build, test, and deploy applications in a containerized cloud environment. Applications may be composed of all of the components below, although most developers will be concerned with Services, Deployments, and Builds for delivering changes.
 
 .PP
 Concepts:
@@ -173,19 +170,19 @@ For more, see
 
 .PP
 \fB\-\-as\fP=""
-    Username to impersonate for the operation.
+    Username to impersonate for the operation
 
 .PP
 \fB\-\-certificate\-authority\fP=""
-    Path to a cert. file for the certificate authority.
+    Path to a cert. file for the certificate authority
 
 .PP
 \fB\-\-client\-certificate\fP=""
-    Path to a client certificate file for TLS.
+    Path to a client certificate file for TLS
 
 .PP
 \fB\-\-client\-key\fP=""
-    Path to a client key file for TLS.
+    Path to a client key file for TLS
 
 .PP
 \fB\-\-cluster\fP=""
@@ -205,7 +202,7 @@ For more, see
 
 .PP
 \fB\-\-insecure\-skip\-tls\-verify\fP=false
-    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure.
+    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
 
 .PP
 \fB\-\-log\-flush\-frequency\fP=0
@@ -217,7 +214,11 @@ For more, see
 
 .PP
 \fB\-n\fP, \fB\-\-namespace\fP=""
-    If present, the namespace scope for this CLI request.
+    If present, the namespace scope for this CLI request
+
+.PP
+\fB\-\-request\-timeout\fP="0"
+    The length of time to wait before giving up on a single server request. Non\-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.
 
 .PP
 \fB\-\-server\fP=""
@@ -225,7 +226,7 @@ For more, see
 
 .PP
 \fB\-\-token\fP=""
-    Bearer token for authentication to the API server.
+    Bearer token for authentication to the API server
 
 .PP
 \fB\-\-user\fP=""
@@ -239,13 +240,13 @@ For more, see
 .nf
   # View all projects you have access to
   openshift cli get projects
-
+  
   # See a list of all services in the current project
   openshift cli get svc
-
+  
   # Describe a deployment configuration in detail
   openshift cli describe dc mydeploymentconfig
-
+  
   # Show the images tagged into an image stream
   openshift cli describe is ruby\-centos7
 

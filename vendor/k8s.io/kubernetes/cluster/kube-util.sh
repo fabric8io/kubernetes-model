@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2014 The Kubernetes Authors All rights reserved.
+# Copyright 2014 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,12 @@ KUBE_ROOT=$(dirname "${BASH_SOURCE}")/..
 
 source "${KUBE_ROOT}/cluster/skeleton/util.sh"
 
-KUBERNETES_PROVIDER="${KUBERNETES_PROVIDER:-gce}"
+if [[ -n "${KUBERNETES_CONFORMANCE_TEST:-}" ]]; then
+    KUBERNETES_PROVIDER=""
+else
+    KUBERNETES_PROVIDER="${KUBERNETES_PROVIDER:-gce}"
+fi
+
 PROVIDER_UTILS="${KUBE_ROOT}/cluster/${KUBERNETES_PROVIDER}/util.sh"
 if [ -f ${PROVIDER_UTILS} ]; then
     source "${PROVIDER_UTILS}"

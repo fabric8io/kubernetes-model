@@ -29,11 +29,16 @@
 %global os_git_vars OS_GIT_VERSION='' OS_GIT_COMMIT='' OS_GIT_MAJOR='' OS_GIT_MINOR='' OS_GIT_TREE_STATE=''
 }
 
+%{!?make_redistributable:
 %if 0%{?fedora} || 0%{?epel}
 %global make_redistributable 0
 %else
 %global make_redistributable 1
 %endif
+}
+
+# by default build the test binaries for Origin
+%{!?build_tests: %global build_tests 1 }
 
 %if "%{dist}" == ".el7aos"
 %global package_name atomic-openshift
@@ -97,12 +102,14 @@ Obsoletes:      openshift-master < %{package_refector_version}
 %description master
 %{summary}
 
+%if 0%{build_tests}
 %package tests
 Summary: %{product_name} Test Suite
 Requires:       %{name} = %{version}-%{release}
 
 %description tests
 %{summary}
+%endif
 
 %package node
 Summary:        %{product_name} Node
@@ -173,6 +180,28 @@ Obsoletes:        openshift-sdn-ovs < %{package_refector_version}
 %description sdn-ovs
 %{summary}
 
+%package excluder
+Summary:   Exclude openshift packages from updates
+BuildArch: noarch
+
+%description excluder
+Many times admins do not want openshift updated when doing
+normal system updates.
+
+%{name}-excluder exclude - No openshift packages can be updated
+%{name}-excluder unexclude - Openshift packages can be updated
+
+%package docker-excluder
+Summary:   Exclude docker packages from updates
+BuildArch: noarch
+
+%description docker-excluder
+Certain versions of OpenShift will not work with newer versions
+of docker.  Exclude those versions of docker.
+
+%{name}-docker-excluder exclude - No major docker updates
+%{name}-docker-excluder unexclude - docker packages can be updated
+
 %prep
 %setup -q
 
@@ -180,11 +209,10 @@ Obsoletes:        openshift-sdn-ovs < %{package_refector_version}
 # Create Binaries
 %{os_git_vars} hack/build-cross.sh
 
+%if 0%{build_tests}
 # Create extended.test
 %{os_git_vars} hack/build-go.sh test/extended/extended.test
-
-# Create/Update man pages
-%{os_git_vars} hack/update-generated-docs.sh
+%endif
 
 %install
 
@@ -198,7 +226,9 @@ do
   install -p -m 755 _output/local/bin/${PLATFORM}/${bin} %{buildroot}%{_bindir}/${bin}
 done
 install -d %{buildroot}%{_libexecdir}/%{name}
+%if 0%{build_tests}
 install -p -m 755 _output/local/bin/${PLATFORM}/extended.test %{buildroot}%{_libexecdir}/%{name}/
+%endif
 
 %if 0%{?make_redistributable}
 # Install client executable for windows and mac
@@ -267,12 +297,18 @@ mkdir -p %{buildroot}%{_sharedstatedir}/origin
 
 
 # Install sdn scripts
-install -d -m 0755 %{buildroot}%{_unitdir}/docker.service.d
-install -p -m 0644 contrib/systemd/docker-sdn-ovs.conf %{buildroot}%{_unitdir}/docker.service.d/
-pushd pkg/sdn/plugin/bin
-   install -p -m 755 openshift-sdn-ovs %{buildroot}%{_bindir}/openshift-sdn-ovs
-   install -p -m 755 openshift-sdn-docker-setup.sh %{buildroot}%{_bindir}/openshift-sdn-docker-setup.sh
+install -d -m 0755 %{buildroot}%{_sysconfdir}/cni/net.d
+pushd pkg/sdn/plugin/sdn-cni-plugin
+   install -p -m 0644 80-openshift-sdn.conf %{buildroot}%{_sysconfdir}/cni/net.d
 popd
+pushd pkg/sdn/plugin/bin
+   install -p -m 0755 openshift-sdn-ovs %{buildroot}%{_bindir}/openshift-sdn-ovs
+popd
+install -d -m 0755 %{buildroot}/opt/cni/bin
+install -p -m 0755 _output/local/bin/linux/amd64/sdn-cni-plugin %{buildroot}/opt/cni/bin/openshift-sdn
+install -p -m 0755 _output/local/bin/linux/amd64/host-local %{buildroot}/opt/cni/bin
+install -p -m 0755 _output/local/bin/linux/amd64/loopback %{buildroot}/opt/cni/bin
+
 install -d -m 0755 %{buildroot}%{_unitdir}/%{name}-node.service.d
 install -p -m 0644 contrib/systemd/openshift-sdn-ovs.conf %{buildroot}%{_unitdir}/%{name}-node.service.d/openshift-sdn-ovs.conf
 
@@ -288,6 +324,25 @@ done
 # Install origin-accounting
 install -d -m 755 %{buildroot}%{_sysconfdir}/systemd/system.conf.d/
 install -p -m 644 contrib/systemd/origin-accounting.conf %{buildroot}%{_sysconfdir}/systemd/system.conf.d/
+
+# Excluder variables
+mkdir -p $RPM_BUILD_ROOT/usr/sbin
+%if 0%{?fedora}
+  OS_CONF_FILE="/etc/dnf.conf"
+%else
+  OS_CONF_FILE="/etc/yum.conf"
+%endif
+
+# Install openshift-excluder script
+sed "s|@@CONF_FILE-VARIABLE@@|${OS_CONF_FILE}|" contrib/excluder/excluder-template > $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
+sed -i "s|@@PACKAGE_LIST-VARIABLE@@|%{name} %{name}-clients %{name}-clients-redistributable %{name}-dockerregistry %{name}-master %{name}-node %{name}-pod %{name}-recycle %{name}-sdn-ovs %{name}-tests tuned-profiles-%{name}-node|" $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
+chmod 0744 $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
+
+# Install docker-excluder script
+sed "s|@@CONF_FILE-VARIABLE@@|${OS_CONF_FILE}|" contrib/excluder/excluder-template > $RPM_BUILD_ROOT/usr/sbin/%{name}-docker-excluder
+sed -i "s|@@PACKAGE_LIST-VARIABLE@@|docker*1.13* docker*1.14*|" $RPM_BUILD_ROOT/usr/sbin/%{name}-docker-excluder
+chmod 0744 $RPM_BUILD_ROOT/usr/sbin/%{name}-docker-excluder
+
 
 %files
 %doc README.md
@@ -332,10 +387,11 @@ if [ -d "%{_sharedstatedir}/openshift" ]; then
   fi
 fi
 
+%if 0%{build_tests}
 %files tests
 %{_libexecdir}/%{name}
 %{_libexecdir}/%{name}/extended.test
-
+%endif
 
 %files master
 %{_unitdir}/%{name}-master.service
@@ -415,12 +471,13 @@ fi
 %systemd_postun
 
 %files sdn-ovs
-%dir %{_unitdir}/docker.service.d/
 %dir %{_unitdir}/%{name}-node.service.d/
+%dir %{_sysconfdir}/cni/net.d
+%dir /opt/cni/bin
 %{_bindir}/openshift-sdn-ovs
-%{_bindir}/openshift-sdn-docker-setup.sh
 %{_unitdir}/%{name}-node.service.d/openshift-sdn-ovs.conf
-%{_unitdir}/docker.service.d/docker-sdn-ovs.conf
+%{_sysconfdir}/cni/net.d/80-openshift-sdn.conf
+/opt/cni/bin/*
 
 %posttrans sdn-ovs
 # This path was installed by older packages but the directory wasn't owned by
@@ -474,6 +531,32 @@ fi
 
 %files pod
 %{_bindir}/pod
+
+%files excluder
+/usr/sbin/%{name}-excluder
+
+%post excluder
+if [ "$1" -eq 1 ] ; then
+  %{name}-excluder exclude
+fi
+
+%preun excluder
+if [ "$1" -eq 0 ] ; then
+  /usr/sbin/%{name}-excluder unexclude
+fi
+
+%files docker-excluder
+/usr/sbin/%{name}-docker-excluder
+
+%post docker-excluder
+# we always want to run this, since the 
+#   package-list may be different with each version
+%{name}-docker-excluder exclude
+
+%preun docker-excluder
+# we always want to clear this out, since the 
+#   package-list may be different with each version
+/usr/sbin/%{name}-docker-excluder unexclude
 
 %changelog
 * Fri Sep 18 2015 Scott Dodson <sdodson@redhat.com> 0.2-9

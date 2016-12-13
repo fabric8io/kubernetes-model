@@ -16,27 +16,16 @@ oc debug \- Launch a new instance of a pod for debugging
 Launch a command shell to debug a running application
 
 .PP
-When debugging images and setup problems, it's useful to get an exact copy of a running
-pod configuration and troubleshoot with a shell. Since a pod that is failing may not be
-started and not accessible to 'rsh' or 'exec', the 'debug' command makes it easy to
-create a carbon copy of that setup.
+When debugging images and setup problems, it's useful to get an exact copy of a running pod configuration and troubleshoot with a shell. Since a pod that is failing may not be started and not accessible to 'rsh' or 'exec', the 'debug' command makes it easy to create a carbon copy of that setup.
 
 .PP
-The default mode is to start a shell inside of the first container of the referenced pod,
-replication controller, or deployment config. The started pod will be a copy of your
-source pod, with labels stripped, the command changed to '/bin/sh', and readiness and
-liveness checks disabled. If you just want to run a command, add '\-\-' and a command to
-run. Passing a command will not create a TTY or send STDIN by default. Other flags are
-supported for altering the container or pod in common ways.
+The default mode is to start a shell inside of the first container of the referenced pod, replication controller, or deployment config. The started pod will be a copy of your source pod, with labels stripped, the command changed to '/bin/sh', and readiness and liveness checks disabled. If you just want to run a command, add '\-\-' and a command to run. Passing a command will not create a TTY or send STDIN by default. Other flags are supported for altering the container or pod in common ways.
 
 .PP
-A common problem running containers is a security policy that prohibits you from running
-as a root user on the cluster. You can use this command to test running a pod as
-non\-root (with \-\-as\-user) or to run a non\-root pod as root (with \-\-as\-root).
+A common problem running containers is a security policy that prohibits you from running as a root user on the cluster. You can use this command to test running a pod as non\-root (with \-\-as\-user) or to run a non\-root pod as root (with \-\-as\-root).
 
 .PP
-The debug pod is deleted when the the remote command completes or the user interrupts
-the shell.
+The debug pod is deleted when the the remote command completes or the user interrupts the shell.
 
 
 .SH OPTIONS
@@ -73,10 +62,6 @@ the shell.
     Keep the original pod readiness probes
 
 .PP
-\fB\-\-no\-headers\fP=false
-    When using the default output, don't print headers.
-
-.PP
 \fB\-I\fP, \fB\-\-no\-stdin\fP=false
     Bypasses passing STDIN to the container, defaults to true if no command specified
 
@@ -103,14 +88,6 @@ the shell.
     Output the formatted object with the given version (default api\-version).
 
 .PP
-\fB\-\-show\-all\fP=true
-    When printing, show all resources (false means hide terminated pods.)
-
-.PP
-\fB\-\-sort\-by\fP=""
-    If non\-empty, sort list types using this field specification.  The field specification is expressed as a JSONPath expression (e.g. 'ObjectMeta.Name'). The field in the API resource specified by this JSONPath expression must be an integer or a string.
-
-.PP
 \fB\-\-template\fP=""
     Template string or path to template file to use when \-o=go\-template, \-o=go\-template\-file. The template format is golang templates [
 \[la]http://golang.org/pkg/text/template/#pkg-overview\[ra]].
@@ -127,19 +104,19 @@ the shell.
 
 .PP
 \fB\-\-as\fP=""
-    Username to impersonate for the operation.
+    Username to impersonate for the operation
 
 .PP
 \fB\-\-certificate\-authority\fP=""
-    Path to a cert. file for the certificate authority.
+    Path to a cert. file for the certificate authority
 
 .PP
 \fB\-\-client\-certificate\fP=""
-    Path to a client certificate file for TLS.
+    Path to a client certificate file for TLS
 
 .PP
 \fB\-\-client\-key\fP=""
-    Path to a client key file for TLS.
+    Path to a client key file for TLS
 
 .PP
 \fB\-\-cluster\fP=""
@@ -159,7 +136,7 @@ the shell.
 
 .PP
 \fB\-\-insecure\-skip\-tls\-verify\fP=false
-    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure.
+    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
 
 .PP
 \fB\-\-log\-flush\-frequency\fP=0
@@ -171,7 +148,11 @@ the shell.
 
 .PP
 \fB\-n\fP, \fB\-\-namespace\fP=""
-    If present, the namespace scope for this CLI request.
+    If present, the namespace scope for this CLI request
+
+.PP
+\fB\-\-request\-timeout\fP="0"
+    The length of time to wait before giving up on a single server request. Non\-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.
 
 .PP
 \fB\-\-server\fP=""
@@ -179,7 +160,7 @@ the shell.
 
 .PP
 \fB\-\-token\fP=""
-    Bearer token for authentication to the API server.
+    Bearer token for authentication to the API server
 
 .PP
 \fB\-\-user\fP=""
@@ -191,16 +172,15 @@ the shell.
 .RS
 
 .nf
-
   # Debug a currently running deployment
   oc debug dc/test
-
+  
   # Test running a deployment as a non\-root user
   oc debug dc/test \-\-as\-user=1000000
-
+  
   # Debug a specific failing container by running the env command in the 'second' container
   oc debug dc/test \-c second \-\- /bin/env
-
+  
   # See the pod that would be created to debug
   oc debug dc/test \-o yaml
 

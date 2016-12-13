@@ -80,9 +80,6 @@ readonly -f os::util::environment::setup_time_vars
 #  - export API_HOST
 #  - export API_PORT
 #  - export API_SCHEME
-#  - export CURL_CA_BUNDLE
-#  - export CURL_CERT
-#  - export CURL_KEY
 #  - export SERVER_CONFIG_DIR
 #  - export MASTER_CONFIG_DIR
 #  - export NODE_CONFIG_DIR
@@ -121,6 +118,7 @@ readonly -f os::util::environment::update_path_var
 #  - TMPDIR
 #  - LOG_DIR
 #  - ARTIFACT_DIR
+#  - USE_SUDO
 # Arguments:
 #  - 1: the path under the root temporary directory for OpenShift where these subdirectories should be made
 # Returns:
@@ -148,7 +146,17 @@ function os::util::environment::setup_tmpdir_vars() {
     HOME="${FAKE_HOME_DIR}"
     export HOME
 
-    mkdir -p  "${BASETMPDIR}" "${LOG_DIR}" "${VOLUME_DIR}" "${ARTIFACT_DIR}" "${HOME}"
+    # ensure that the directories are clean
+    for target in $( ${USE_SUDO:+sudo} findmnt --output TARGET --list ); do
+        if [[ "${target}" == "${BASETMPDIR}"* ]]; then
+            ${USE_SUDO:+sudo} umount "${target}"
+        fi
+    done
+
+    for directory in "${BASETMPDIR}" "${LOG_DIR}" "${VOLUME_DIR}" "${ARTIFACT_DIR}" "${HOME}"; do
+        rm -rf "${directory}"
+        mkdir -p "${directory}"
+    done
 }
 readonly -f os::util::environment::setup_tmpdir_vars
 
@@ -224,9 +232,6 @@ readonly -f os::util::environment::setup_etcd_vars
 #  - export API_HOST
 #  - export API_PORT
 #  - export API_SCHEME
-#  - export CURL_CA_BUNDLE
-#  - export CURL_CERT
-#  - export CURL_KEY
 #  - export SERVER_CONFIG_DIR
 #  - export MASTER_CONFIG_DIR
 #  - export NODE_CONFIG_DIR
@@ -257,15 +262,6 @@ function os::util::environment::setup_server_vars() {
     export NODE_CONFIG_DIR
 
     mkdir -p "${SERVER_CONFIG_DIR}" "${MASTER_CONFIG_DIR}" "${NODE_CONFIG_DIR}"
-
-    if [[ "${API_SCHEME}" == "https" ]]; then
-        CURL_CA_BUNDLE="${MASTER_CONFIG_DIR}/ca.crt"
-        export CURL_CA_BUNDLE
-        CURL_CERT="${MASTER_CONFIG_DIR}/admin.crt"
-        export CURL_CERT
-        CURL_KEY="${MASTER_CONFIG_DIR}/admin.key"
-        export CURL_KEY
-    fi
 }
 readonly -f os::util::environment::setup_server_vars
 

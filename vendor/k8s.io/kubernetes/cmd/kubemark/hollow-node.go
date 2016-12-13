@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@ package main
 
 import (
 	"fmt"
-	"runtime"
 
 	"k8s.io/kubernetes/pkg/api"
+	_ "k8s.io/kubernetes/pkg/client/metrics/prometheus" // for client metric registration
 	"k8s.io/kubernetes/pkg/client/record"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	clientset "k8s.io/kubernetes/pkg/client/unversioned/adapters/internalclientset"
@@ -33,6 +33,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/flag"
 	fakeiptables "k8s.io/kubernetes/pkg/util/iptables/testing"
 	"k8s.io/kubernetes/pkg/util/sets"
+	_ "k8s.io/kubernetes/pkg/version/prometheus" // for version metric registration
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
@@ -83,7 +84,6 @@ func (c *HollowNodeConfig) createClientFromFile() (*client.Client, error) {
 }
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	config := HollowNodeConfig{}
 	config.addFlags(pflag.CommandLine)

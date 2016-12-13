@@ -7,7 +7,6 @@ os::build::setup_env
 export API_SCHEME="http"
 export API_BIND_HOST="127.0.0.1"
 os::util::environment::setup_all_server_vars "test-integration/"
-reset_tmp_dir
 
 function cleanup() {
 	out=$?
@@ -29,13 +28,13 @@ verbose="${VERBOSE:-}"
 
 # build the test executable (cgo must be disabled to have the symbol table available)
 if [[ -n "${OPENSHIFT_SKIP_BUILD:-}" ]]; then
-  echo "WARNING: Skipping build due to OPENSHIFT_SKIP_BUILD"
+  os::log::warn "Skipping build due to OPENSHIFT_SKIP_BUILD"
 else
-	CGO_ENABLED=0 "${OS_ROOT}/hack/build-go.sh" "${package}/${name}.test" -a -installsuffix=cgo
+	CGO_ENABLED=0 "${OS_ROOT}/hack/build-go.sh" "${package}/${name}.test" -installsuffix=cgo
 fi
 testexec="$(pwd)/$(os::build::find-binary "${name}.test")"
 
-os::log::start_system_logger
+os::log::system::start
 
 function exectest() {
 	echo "Running $1..."

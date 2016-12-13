@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,19 +27,18 @@ import (
 	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/quota"
 	"k8s.io/kubernetes/pkg/runtime"
-	kutil "k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/selection"
 	"k8s.io/kubernetes/pkg/util/sets"
+	"k8s.io/kubernetes/pkg/util/uuid"
 	"k8s.io/kubernetes/pkg/util/wait"
-	e2e "k8s.io/kubernetes/test/e2e/framework"
 
 	buildapi "github.com/openshift/origin/pkg/build/api"
 	"github.com/openshift/origin/pkg/client"
 	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployutil "github.com/openshift/origin/pkg/deploy/util"
 	imageapi "github.com/openshift/origin/pkg/image/api"
 	"github.com/openshift/origin/pkg/util/namer"
 )
-
-var TestContext e2e.TestContextType
 
 const pvPrefix = "pv-"
 
@@ -127,30 +127,21 @@ func DumpImageStreams(oc *CLI) {
 }
 
 func DumpNamedBuildLogs(buildName string, oc *CLI) {
-	bldOuput, err := oc.Run("logs").Args("-f", "build/"+buildName).Output()
+	buildOuput, err := oc.Run("logs").Args("-f", "build/"+buildName, "--timestamps").Output()
 	if err == nil {
-		fmt.Fprintf(g.GinkgoWriter, "\n\n  build logs for %s: %s\n\n", buildName, bldOuput)
+		fmt.Fprintf(g.GinkgoWriter, "\n\n  build logs for %s: %s\n\n", buildName, buildOuput)
 	} else {
-		fmt.Fprintf(g.GinkgoWriter, "\n\n  got error on bld logs for %s: %+v\n\n", buildName, err)
+		fmt.Fprintf(g.GinkgoWriter, "\n\n  got error on build logs for %s: %+v\n\n", buildName, err)
 	}
 }
 
 // DumpBuildLogs will dump the latest build logs for a BuildConfig for debug purposes
 func DumpBuildLogs(bc string, oc *CLI) {
-	bldOuput, err := oc.Run("logs").Args("-f", "bc/"+bc).Output()
+	buildOuput, err := oc.Run("logs").Args("-f", "bc/"+bc, "--timestamps").Output()
 	if err == nil {
-		fmt.Fprintf(g.GinkgoWriter, "\n\n  build logs : %s\n\n", bldOuput)
+		fmt.Fprintf(g.GinkgoWriter, "\n\n  build logs : %s\n\n", buildOuput)
 	} else {
-		fmt.Fprintf(g.GinkgoWriter, "\n\n  got error on bld logs %+v\n\n", err)
-
-		// there have been some issues with oc new-app where build don't appear to even be started;
-		// temporarily trying a start-build to see what is up
-		/*err = oc.Run("start-build").Args(bc).Execute()
-		if err != nil {
-			fmt.Fprintf(g.GinkgoWriter, "\n GGM start-build error for %s is %+v", bc, err)
-		} else {
-			fmt.Fprintf(g.GinkgoWriter, "\n GGM start build after new-app hiccup for %s worked\n", bc)
-		}*/
+		fmt.Fprintf(g.GinkgoWriter, "\n\n  got error on build logs %+v\n\n", err)
 	}
 
 	// if we suspect that we are filling up the registry file system, call ExamineDiskUsage / ExaminePodDiskUsage
@@ -177,11 +168,18 @@ func DumpDeploymentLogs(dc string, oc *CLI) {
 				fmt.Fprintf(g.GinkgoWriter, "\n\n looking at pod %s to see if it is affiliated with %s \n\n", pod.ObjectMeta.Name, dc)
 				if strings.Contains(pod.ObjectMeta.Name, dc) {
 					podName := pod.ObjectMeta.Name
+					fmt.Fprintf(g.GinkgoWriter, "\n\n Describing pod %s \n\n", podName)
+					descOutput, err := oc.Run("describe").Args("pod/" + podName).Output()
+					if err == nil {
+						fmt.Fprintf(g.GinkgoWriter, "\n\n  description for pod %s : %s\n\n", podName, descOutput)
+					} else {
+						fmt.Fprintf(g.GinkgoWriter, "\n\n  got error on describing %s:  %v\n\n", podName, err)
+					}
 
 					fmt.Fprintf(g.GinkgoWriter, "\n\n dumping logs for pod %s \n\n", podName)
-					depOuput, err := oc.Run("logs").Args("pod/" + podName).Output()
+					depOutput, err := oc.Run("logs").Args("pod/" + podName).Output()
 					if err == nil {
-						fmt.Fprintf(g.GinkgoWriter, "\n\n  logs for pod %s : %s\n\n", podName, depOuput)
+						fmt.Fprintf(g.GinkgoWriter, "\n\n  logs for pod %s : %s\n\n", podName, depOutput)
 					} else {
 						fmt.Fprintf(g.GinkgoWriter, "\n\n  got error on dep logs for %s:  %v\n\n", podName, err)
 					}
@@ -193,15 +191,6 @@ func DumpDeploymentLogs(dc string, oc *CLI) {
 	} else {
 		fmt.Fprintf(g.GinkgoWriter, "\n\n  got error on get pods: %v\n\n", err)
 	}
-	// temporary debug around deployments not even getting started with oc new-app
-	/*out, err = oc.Run("deploy").Args(dc, "--latest").Output()
-	if err == nil {
-		fmt.Fprintf(g.GinkgoWriter, "\n\n debug oc test deploy for %s is OK\n", dc)
-	} else {
-		fmt.Fprintf(g.GinkgoWriter, "\n\n debug oc test deploy for %s got error %+v\n\n", dc, err)
-	}*/
-	// temporary debug dump the local images for the neutered, deploy doesn't even start scenario
-
 }
 
 // ExamineDiskUsage will dump df output on the testing system; leveraging this as part of diagnosing
@@ -337,11 +326,11 @@ func (t *BuildResult) DumpLogs() {
 
 	fmt.Fprintf(g.GinkgoWriter, "\n** Build Logs:\n")
 
-	bldOuput, err := t.Logs()
+	buildOuput, err := t.Logs()
 	if err != nil {
 		fmt.Fprintf(g.GinkgoWriter, "Error during log retrieval: %+v\n", err)
 	} else {
-		fmt.Fprintf(g.GinkgoWriter, "%s\n", bldOuput)
+		fmt.Fprintf(g.GinkgoWriter, "%s\n", buildOuput)
 	}
 
 	fmt.Fprintf(g.GinkgoWriter, "\n\n")
@@ -360,12 +349,12 @@ func (t *BuildResult) Logs() (string, error) {
 		return "", fmt.Errorf("Not enough information to retrieve logs for %#v", *t)
 	}
 
-	bldOuput, err := t.oc.Run("logs").Args("-f", t.BuildPath).Output()
+	buildOuput, err := t.oc.Run("logs").Args("-f", t.BuildPath, "--timestamps").Output()
 	if err != nil {
 		return "", fmt.Errorf("Error retieving logs for %#v: %v", *t, err)
 	}
 
-	return bldOuput, nil
+	return buildOuput, nil
 }
 
 // Dumps logs and triggers a Ginkgo assertion if the build did NOT succeed.
@@ -566,8 +555,14 @@ func WaitForAnImageStream(client client.ImageStreamInterface,
 }
 
 // WaitForAnImageStreamTag waits until an image stream with given name has non-empty history for given tag.
+// Defaults to waiting for 60 seconds
 func WaitForAnImageStreamTag(oc *CLI, namespace, name, tag string) error {
-	waitTimeout := time.Second * 60
+	return TimedWaitForAnImageStreamTag(oc, namespace, name, tag, time.Second*60)
+}
+
+// TimedWaitForAnImageStreamTag waits until an image stream with given name has non-empty history for given tag.
+// Gives up waiting after the specified waitTimeout
+func TimedWaitForAnImageStreamTag(oc *CLI, namespace, name, tag string, waitTimeout time.Duration) error {
 	g.By(fmt.Sprintf("waiting for an is importer to import a tag %s into a stream %s", tag, name))
 	start := time.Now()
 	c := make(chan error)
@@ -607,6 +602,42 @@ var CheckImageStreamTagNotFoundFn = func(i *imageapi.ImageStream) bool {
 		strings.Contains(i.Annotations[imageapi.DockerImageRepositoryCheckAnnotation], "error")
 }
 
+// compareResourceControllerNames compares names of two resource controllers. It returns:
+//  -1 if rc a is older than b
+//   1 if rc a is newer than b
+//   0 if their names are the same
+func compareResourceControllerNames(a, b string) int {
+	var reDeploymentConfigName = regexp.MustCompile(`^(.*)-(\d+)$`)
+	am := reDeploymentConfigName.FindStringSubmatch(a)
+	bm := reDeploymentConfigName.FindStringSubmatch(b)
+
+	if len(am) == 0 || len(bm) == 0 {
+		switch {
+		case a < b:
+			return -1
+		case a > b:
+			return 1
+		default:
+			return 0
+		}
+	}
+
+	aname, averstr := am[0], am[1]
+	bname, bverstr := bm[0], bm[1]
+
+	aver, _ := strconv.Atoi(averstr)
+	bver, _ := strconv.Atoi(bverstr)
+
+	switch {
+	case aname < bname || (aname == bname && aver < bver):
+		return -1
+	case bname < aname || (bname == aname && bver < aver):
+		return 1
+	default:
+		return 0
+	}
+}
+
 // WaitForADeployment waits for a deployment to fulfill either isOK or isFailed.
 // When isOK returns true, WaitForADeployment returns nil, when isFailed returns
 // true, WaitForADeployment returns an error including the deployment status.
@@ -634,7 +665,7 @@ func WaitForADeployment(client kclient.ReplicationControllerInterface, name stri
 	// waitForDeployment waits until okOrFailed returns true or the done
 	// channel is closed.
 	waitForDeployment := func() (err error, retry bool) {
-		requirement, err := labels.NewRequirement(deployapi.DeploymentConfigAnnotation, labels.EqualsOperator, sets.NewString(name))
+		requirement, err := labels.NewRequirement(deployapi.DeploymentConfigAnnotation, selection.Equals, sets.NewString(name))
 		if err != nil {
 			return fmt.Errorf("unexpected error generating label selector: %v", err), false
 		}
@@ -649,8 +680,7 @@ func WaitForADeployment(client kclient.ReplicationControllerInterface, name stri
 				lastRC = &rc
 				continue
 			}
-			// assuming won't have to deal with more than 9 deployments
-			if lastRC.GetName() <= rc.GetName() {
+			if compareResourceControllerNames(lastRC.GetName(), rc.GetName()) <= 0 {
 				lastRC = &rc
 			}
 		}
@@ -674,17 +704,19 @@ func WaitForADeployment(client kclient.ReplicationControllerInterface, name stri
 					// watcher error, re-get and re-watch
 					return nil, true
 				}
-				if rc, ok := val.Object.(*kapi.ReplicationController); ok {
-					if lastRC == nil {
-						lastRC = rc
-					}
-					// multiple deployments are conceivable; so we look to see how the latest depoy does
-					if lastRC.GetName() <= rc.GetName() {
-						lastRC = rc
-						err, matched := okOrFailed(rc)
-						if matched {
-							return err, false
-						}
+				rc, ok := val.Object.(*kapi.ReplicationController)
+				if !ok {
+					continue
+				}
+				if lastRC == nil {
+					lastRC = rc
+				}
+				// multiple deployments are conceivable; so we look to see how the latest deployment does
+				if compareResourceControllerNames(lastRC.GetName(), rc.GetName()) <= 0 {
+					lastRC = rc
+					err, matched := okOrFailed(rc)
+					if matched {
+						return err, false
 					}
 				}
 			case <-done:
@@ -724,6 +756,63 @@ func WaitForADeployment(client kclient.ReplicationControllerInterface, name stri
 // WaitForADeploymentToComplete waits for a deployment to complete.
 func WaitForADeploymentToComplete(client kclient.ReplicationControllerInterface, name string, oc *CLI) error {
 	return WaitForADeployment(client, name, CheckDeploymentCompletedFn, CheckDeploymentFailedFn, oc)
+}
+
+// WaitForRegistry waits until a newly deployed registry becomes ready. If waitForDCVersion is given, the
+// function will wait until a corresponding replica controller completes. If not give, the latest version of
+// registry's deployment config will be fetched from etcd.
+func WaitForRegistry(
+	dcNamespacer client.DeploymentConfigsNamespacer,
+	kubeClient kclient.Interface,
+	waitForDCVersion *int64,
+	oc *CLI,
+) error {
+	var latestVersion int64
+	start := time.Now()
+
+	if waitForDCVersion != nil {
+		latestVersion = *waitForDCVersion
+	} else {
+		dc, err := dcNamespacer.DeploymentConfigs(kapi.NamespaceDefault).Get("docker-registry")
+		if err != nil {
+			return err
+		}
+		latestVersion = dc.Status.LatestVersion
+	}
+	fmt.Fprintf(g.GinkgoWriter, "waiting for deployment of version %d to complete\n", latestVersion)
+
+	err := WaitForADeployment(kubeClient.ReplicationControllers(kapi.NamespaceDefault), "docker-registry",
+		func(rc *kapi.ReplicationController) bool {
+			if !CheckDeploymentCompletedFn(rc) {
+				return false
+			}
+			v, err := strconv.ParseInt(rc.Annotations[deployapi.DeploymentVersionAnnotation], 10, 64)
+			if err != nil {
+				fmt.Fprintf(g.GinkgoWriter, "failed to parse %q of replication controller %q: %v\n", deployapi.DeploymentVersionAnnotation, rc.Name, err)
+				return false
+			}
+			return v >= latestVersion
+		},
+		func(rc *kapi.ReplicationController) bool {
+			v, err := strconv.ParseInt(rc.Annotations[deployapi.DeploymentVersionAnnotation], 10, 64)
+			if err != nil {
+				fmt.Fprintf(g.GinkgoWriter, "failed to parse %q of replication controller %q: %v\n", deployapi.DeploymentVersionAnnotation, rc.Name, err)
+				return false
+			}
+			if v < latestVersion {
+				return false
+			}
+			return CheckDeploymentFailedFn(rc)
+		}, oc)
+	if err != nil {
+		return err
+	}
+
+	requirement, err := labels.NewRequirement(deployapi.DeploymentLabel, selection.Equals, sets.NewString(fmt.Sprintf("docker-registry-%d", latestVersion)))
+	pods, err := WaitForPods(kubeClient.Pods(kapi.NamespaceDefault), labels.NewSelector().Add(*requirement), CheckPodIsReadyFn, 1, time.Minute)
+	now := time.Now()
+	fmt.Fprintf(g.GinkgoWriter, "deployed registry pod %s after %s\n", pods[0], now.Sub(start).String())
+	return err
 }
 
 func isUsageSynced(received, expected kapi.ResourceList, expectedIsUpperLimit bool) bool {
@@ -803,12 +892,12 @@ func WaitForResourceQuotaSync(
 
 // CheckDeploymentCompletedFn returns true if the deployment completed
 var CheckDeploymentCompletedFn = func(d *kapi.ReplicationController) bool {
-	return d.Annotations[deployapi.DeploymentStatusAnnotation] == string(deployapi.DeploymentStatusComplete)
+	return deployutil.IsCompleteDeployment(d)
 }
 
 // CheckDeploymentFailedFn returns true if the deployment failed
 var CheckDeploymentFailedFn = func(d *kapi.ReplicationController) bool {
-	return d.Annotations[deployapi.DeploymentStatusAnnotation] == string(deployapi.DeploymentStatusFailed)
+	return deployutil.IsFailedDeployment(d)
 }
 
 // GetPodNamesByFilter looks up pods that satisfy the predicate and returns their names.
@@ -870,6 +959,20 @@ var CheckPodIsSucceededFn = func(pod kapi.Pod) bool {
 	return pod.Status.Phase == kapi.PodSucceeded
 }
 
+// CheckPodIsReadyFn returns true if the pod's ready probe determined that the pod is ready.
+var CheckPodIsReadyFn = func(pod kapi.Pod) bool {
+	if pod.Status.Phase != kapi.PodRunning {
+		return false
+	}
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type != kapi.PodReady {
+			continue
+		}
+		return cond.Status == kapi.ConditionTrue
+	}
+	return false
+}
+
 // WaitUntilPodIsGone waits until the named Pod will disappear
 func WaitUntilPodIsGone(c kclient.PodInterface, podName string, timeout time.Duration) error {
 	return wait.Poll(1*time.Second, timeout, func() (bool, error) {
@@ -903,7 +1006,7 @@ func GetDockerImageReference(c client.ImageStreamInterface, name, tag string) (s
 
 // GetPodForContainer creates a new Pod that runs specified container
 func GetPodForContainer(container kapi.Container) *kapi.Pod {
-	name := namer.GetPodName("test-pod", string(kutil.NewUUID()))
+	name := namer.GetPodName("test-pod", string(uuid.NewUUID()))
 	return &kapi.Pod{
 		TypeMeta: unversioned.TypeMeta{
 			Kind:       "Pod",
@@ -987,8 +1090,35 @@ func CleanupHostPathVolumes(c kclient.PersistentVolumeInterface, prefix string) 
 	}
 	prefix = fmt.Sprintf("%s%s-", pvPrefix, prefix)
 	for _, pv := range pvs.Items {
-		if strings.HasPrefix(pv.Name, prefix) {
-			c.Delete(pv.Name)
+		if !strings.HasPrefix(pv.Name, prefix) {
+			continue
+		}
+
+		pvInfo, err := c.Get(pv.Name)
+		if err != nil {
+			fmt.Fprintf(g.GinkgoWriter, "WARNING: couldn't get meta info for PV %s: %v\n", pv.Name, err)
+			continue
+		}
+
+		if err = c.Delete(pv.Name); err != nil {
+			fmt.Fprintf(g.GinkgoWriter, "WARNING: couldn't remove PV %s: %v\n", pv.Name, err)
+			continue
+		}
+
+		volumeDir := pvInfo.Spec.HostPath.Path
+		if err = os.RemoveAll(volumeDir); err != nil {
+			fmt.Fprintf(g.GinkgoWriter, "WARNING: couldn't remove directory %q: %v\n", volumeDir, err)
+			continue
+		}
+
+		parentDir := filepath.Dir(volumeDir)
+		if parentDir == "." || parentDir == "/" {
+			continue
+		}
+
+		if err = os.Remove(parentDir); err != nil {
+			fmt.Fprintf(g.GinkgoWriter, "WARNING: couldn't remove directory %q: %v\n", parentDir, err)
+			continue
 		}
 	}
 	return nil

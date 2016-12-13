@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package kubectl
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/kubernetes/pkg/api/resource"
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/apis/extensions"
+	"k8s.io/kubernetes/pkg/apis/storage"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
 	"k8s.io/kubernetes/pkg/client/unversioned/testclient"
@@ -56,6 +58,48 @@ func TestDescribePod(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 	if !strings.Contains(out, "bar") || !strings.Contains(out, "Status:") {
+		t.Errorf("unexpected out: %s", out)
+	}
+}
+
+func TestDescribePodTolerations(t *testing.T) {
+
+	podTolerations := []api.Toleration{{Key: "key1", Value: "value1"},
+		{Key: "key2", Value: "value2"}}
+	pt, _ := json.Marshal(podTolerations)
+	fake := testclient.NewSimpleFake(&api.Pod{
+		ObjectMeta: api.ObjectMeta{
+			Name:      "bar",
+			Namespace: "foo",
+			Annotations: map[string]string{
+				api.TolerationsAnnotationKey: string(pt),
+			},
+		},
+	})
+	c := &describeClient{T: t, Namespace: "foo", Interface: fake}
+	d := PodDescriber{c}
+	out, err := d.Describe("foo", "bar", DescriberSettings{})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "key1=value1") || !strings.Contains(out, "key2=value2") || !strings.Contains(out, "Tolerations:") {
+		t.Errorf("unexpected out: %s", out)
+	}
+}
+
+func TestDescribeNamespace(t *testing.T) {
+	fake := testclient.NewSimpleFake(&api.Namespace{
+		ObjectMeta: api.ObjectMeta{
+			Name: "myns",
+		},
+	})
+	c := &describeClient{T: t, Namespace: "", Interface: fake}
+	d := NamespaceDescriber{c}
+	out, err := d.Describe("", "myns", DescriberSettings{ShowEvents: true})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "myns") {
 		t.Errorf("unexpected out: %s", out)
 	}
 }
@@ -504,6 +548,13 @@ func TestPersistentVolumeDescriber(t *testing.T) {
 				},
 			},
 		},
+		"quobyte": {
+			Spec: api.PersistentVolumeSpec{
+				PersistentVolumeSource: api.PersistentVolumeSource{
+					Quobyte: &api.QuobyteVolumeSource{},
+				},
+			},
+		},
 	}
 
 	for name, pv := range tests {
@@ -573,11 +624,39 @@ func TestDescribeCluster(t *testing.T) {
 	}
 }
 
+func TestDescribeStorageClass(t *testing.T) {
+	f := testclient.NewSimpleFake(&storage.StorageClass{
+		ObjectMeta: api.ObjectMeta{
+			Name:            "foo",
+			ResourceVersion: "4",
+			Annotations: map[string]string{
+				"name": "foo",
+			},
+		},
+		Provisioner: "my-provisioner",
+		Parameters: map[string]string{
+			"param1": "value1",
+			"param2": "value2",
+		},
+	})
+	s := StorageClassDescriber{f}
+	out, err := s.Describe("", "foo", DescriberSettings{ShowEvents: true})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "foo") {
+		t.Errorf("unexpected out: %s", out)
+	}
+}
+
 func TestDescribeEvents(t *testing.T) {
 
 	events := &api.EventList{
 		Items: []api.Event{
 			{
+				ObjectMeta: api.ObjectMeta{
+					Namespace: "foo",
+				},
 				Source:         api.EventSource{Component: "kubelet"},
 				Message:        "Item 1",
 				FirstTimestamp: unversioned.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)),
@@ -662,6 +741,14 @@ func TestDescribeEvents(t *testing.T) {
 		},
 		"Service": &ServiceDescriber{
 			testclient.NewSimpleFake(&api.Service{
+				ObjectMeta: api.ObjectMeta{
+					Name:      "bar",
+					Namespace: "foo",
+				},
+			}, events),
+		},
+		"StorageClass": &StorageClassDescriber{
+			testclient.NewSimpleFake(&storage.StorageClass{
 				ObjectMeta: api.ObjectMeta{
 					Name:      "bar",
 					Namespace: "foo",

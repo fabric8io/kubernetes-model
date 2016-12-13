@@ -25,7 +25,7 @@ Borg increased utilization by about 20% when it started allowing use of such non
 
 ## Requests and Limits
 
-For each resource, containers can specify a resource request and limit, `0 <= request <= [Node Allocatable](../proposals/node-allocatable.md)` & `request <= limit <= Infinity`.
+For each resource, containers can specify a resource request and limit, `0 <= request <= `[`Node Allocatable`](../proposals/node-allocatable.md) & `request <= limit <= Infinity`.
 If a pod is successfully scheduled, the container is guaranteed the amount of resources requested.
 Scheduling is based on `requests` and not `limits`.
 The pods and its containers will not be allowed to exceed the specified limit.
@@ -91,8 +91,8 @@ containers:
 				cpu: 100m
 				memory: 100Mi
 			requests:
-				cpu: 10m
-				memory: 1Gi
+				cpu: 100m
+				memory: 100Mi
 ```
 
 - If `requests` and optionally `limits` are set (not equal to `0`) for one or more resources across one or more containers, and they are *not equal*, then the pod is classified as **Burstable**.
@@ -197,9 +197,10 @@ Pod OOM score configuration
 
 *Pod infra containers* or *Special Pod init process*
   - OOM_SCORE_ADJ: -998
+
 *Kubelet, Docker*
   - OOM_SCORE_ADJ: -999 (won’t be OOM killed)
-  - Hack, because these critical tasks might die if they conflict with guaranteed containers. in the future, we should place all user-pods into a separate cgroup, and set a limit on the memory they can consume.
+  - Hack, because these critical tasks might die if they conflict with guaranteed containers. In the future, we should place all user-pods into a separate cgroup, and set a limit on the memory they can consume.
 
 ## Known issues and possible improvements
 

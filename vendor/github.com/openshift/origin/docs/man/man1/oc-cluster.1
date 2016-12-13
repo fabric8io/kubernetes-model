@@ -13,25 +13,19 @@ oc cluster \- Start and stop OpenShift cluster
 
 .SH DESCRIPTION
 .PP
-Manage a local OpenShift cluster.
+Manage a local OpenShift cluster
 
 .PP
-The OpenShift cluster will run as an all\-in\-one container on a Docker host. The Docker host
-may be a local VM (ie. using docker\-machine on OS X and Windows clients), remote machine, or
-the local Unix host.
+The OpenShift cluster will run as an all\-in\-one container on a Docker host. The Docker host may be a local VM (ie. using docker\-machine on OS X and Windows clients), remote machine, or the local Unix host.
 
 .PP
-To use an existing Docker connection, ensure that Docker commands are working and that you
-can create new containers. For OS X and Windows clients, a docker\-machine with the VirtualBox
-driver can be created for you using the \-\-create\-machine option.
+To use an existing Docker connection, ensure that Docker commands are working and that you can create new containers. For OS X and Windows clients, a docker\-machine with the VirtualBox driver can be created for you using the \-\-create\-machine option.
 
 .PP
-By default, etcd data will not be preserved between container restarts. If you wish to
-preserve your data, specify a value for \-\-host\-data\-dir and the \-\-use\-existing\-config flag.
+By default, etcd data will not be preserved between container restarts. If you wish to preserve your data, specify a value for \-\-host\-data\-dir and the \-\-use\-existing\-config flag.
 
 .PP
-Default routes are setup using xip.io and the host ip of your cluster. To use a different
-routing suffix, use the \-\-routing\-suffix flag.
+Default routes are setup using xip.io and the host ip of your cluster. To use a different routing suffix, use the \-\-routing\-suffix flag.
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
@@ -41,19 +35,19 @@ routing suffix, use the \-\-routing\-suffix flag.
 
 .PP
 \fB\-\-as\fP=""
-    Username to impersonate for the operation.
+    Username to impersonate for the operation
 
 .PP
 \fB\-\-certificate\-authority\fP=""
-    Path to a cert. file for the certificate authority.
+    Path to a cert. file for the certificate authority
 
 .PP
 \fB\-\-client\-certificate\fP=""
-    Path to a client certificate file for TLS.
+    Path to a client certificate file for TLS
 
 .PP
 \fB\-\-client\-key\fP=""
-    Path to a client key file for TLS.
+    Path to a client key file for TLS
 
 .PP
 \fB\-\-cluster\fP=""
@@ -73,7 +67,7 @@ routing suffix, use the \-\-routing\-suffix flag.
 
 .PP
 \fB\-\-insecure\-skip\-tls\-verify\fP=false
-    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure.
+    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
 
 .PP
 \fB\-\-log\-flush\-frequency\fP=0
@@ -85,7 +79,11 @@ routing suffix, use the \-\-routing\-suffix flag.
 
 .PP
 \fB\-n\fP, \fB\-\-namespace\fP=""
-    If present, the namespace scope for this CLI request.
+    If present, the namespace scope for this CLI request
+
+.PP
+\fB\-\-request\-timeout\fP="0"
+    The length of time to wait before giving up on a single server request. Non\-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.
 
 .PP
 \fB\-\-server\fP=""
@@ -93,7 +91,7 @@ routing suffix, use the \-\-routing\-suffix flag.
 
 .PP
 \fB\-\-token\fP=""
-    Bearer token for authentication to the API server.
+    Bearer token for authentication to the API server
 
 .PP
 \fB\-\-user\fP=""
@@ -102,7 +100,7 @@ routing suffix, use the \-\-routing\-suffix flag.
 
 .SH SEE ALSO
 .PP
-\fBoc(1)\fP, \fBoc\-cluster\-down(1)\fP, \fBoc\-cluster\-up(1)\fP,
+\fBoc(1)\fP, \fBoc\-cluster\-down(1)\fP, \fBoc\-cluster\-status(1)\fP, \fBoc\-cluster\-up(1)\fP,
 
 
 .SH HISTORY

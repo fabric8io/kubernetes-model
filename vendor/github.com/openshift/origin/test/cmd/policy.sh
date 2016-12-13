@@ -59,28 +59,44 @@ os::cmd::expect_success_and_not_text 'oadm policy who-can create builds/custom' 
 os::cmd::expect_success_and_not_text 'oadm policy who-can create builds/source' 'namespaced-user'
 os::cmd::expect_success_and_not_text 'oadm policy who-can create builds/jenkinspipeline' 'namespaced-user'
 os::cmd::expect_success_and_text     'oadm policy who-can create builds/docker' 'system:authenticated'
-os::cmd::expect_success_and_text     'oadm policy who-can create builds/custom' 'system:authenticated'
 os::cmd::expect_success_and_text     'oadm policy who-can create builds/source' 'system:authenticated'
 os::cmd::expect_success_and_text     'oadm policy who-can create builds/jenkinspipeline' 'system:authenticated'
 # if this method for removing access to docker/custom/source/jenkinspipeline builds changes, docs need to be updated as well
-os::cmd::expect_success 'oadm policy remove-cluster-role-from-group system:build-strategy-custom system:authenticated'
 os::cmd::expect_success 'oadm policy remove-cluster-role-from-group system:build-strategy-docker system:authenticated'
 os::cmd::expect_success 'oadm policy remove-cluster-role-from-group system:build-strategy-source system:authenticated'
 os::cmd::expect_success 'oadm policy remove-cluster-role-from-group system:build-strategy-jenkinspipeline system:authenticated'
 # ensure build strategy permissions no longer exist
 os::cmd::try_until_failure           'oadm policy who-can create builds/source | grep system:authenticated'
 os::cmd::expect_success_and_not_text 'oadm policy who-can create builds/docker' 'system:authenticated'
-os::cmd::expect_success_and_not_text 'oadm policy who-can create builds/custom' 'system:authenticated'
 os::cmd::expect_success_and_not_text 'oadm policy who-can create builds/source' 'system:authenticated'
 os::cmd::expect_success_and_not_text 'oadm policy who-can create builds/jenkinspipeline' 'system:authenticated'
-os::cmd::expect_success 'oadm policy reconcile-cluster-role-bindings --confirm'
 
+# ensure system:authenticated users can not create custom builds by default, but can if explicitly granted access
+os::cmd::expect_success_and_not_text 'oadm policy who-can create builds/custom' 'system:authenticated'
+os::cmd::expect_success 'oadm policy add-cluster-role-to-group system:build-strategy-custom system:authenticated'
+os::cmd::expect_success_and_text 'oadm policy who-can create builds/custom' 'system:authenticated'
+
+os::cmd::expect_success 'oadm policy reconcile-cluster-role-bindings --confirm'
 
 os::cmd::expect_success_and_text 'oc policy can-i --list' 'get update.*imagestreams/layers'
 os::cmd::expect_success_and_text 'oc policy can-i create pods --all-namespaces' 'yes'
 os::cmd::expect_success_and_text 'oc policy can-i create pods' 'yes'
 os::cmd::expect_success_and_text 'oc policy can-i create pods --as harold' 'no'
+os::cmd::expect_failure 'oc policy can-i create pods --as harold --user harold'
+os::cmd::expect_failure 'oc policy can-i --list --as harold --user harold'
 os::cmd::expect_failure 'oc policy can-i create pods --as harold -q'
+
+os::cmd::expect_success_and_text 'oc policy can-i create pods --user system:admin' 'yes'
+os::cmd::expect_success_and_text 'oc policy can-i create pods --groups system:unauthenticated --groups system:masters' 'yes'
+os::cmd::expect_success_and_text 'oc policy can-i create pods --groups system:unauthenticated' 'no'
+os::cmd::expect_success_and_text 'oc policy can-i create pods --user harold' 'no'
+
+os::cmd::expect_success_and_text 'oc policy can-i --list --user system:admin' 'get update.*imagestreams/layers'
+os::cmd::expect_success_and_text 'oc policy can-i --list --groups system:unauthenticated --groups system:cluster-readers' 'get.*imagestreams/layers'
+os::cmd::expect_success_and_not_text 'oc policy can-i --list --groups system:unauthenticated' 'get update.*imagestreams/layers'
+os::cmd::expect_success_and_not_text 'oc policy can-i --list --user harold --groups system:authenticated' 'get update.*imagestreams/layers'
+os::cmd::expect_success_and_text 'oc policy can-i --list --user harold --groups system:authenticated' 'create get.*buildconfigs/webhooks'
+
 
 
 # adjust the cluster-admin role to check defaulting and coverage checks

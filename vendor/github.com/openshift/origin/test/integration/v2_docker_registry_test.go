@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/docker/distribution/digest"
 	"github.com/docker/distribution/manifest"
@@ -19,6 +20,7 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	"github.com/openshift/origin/pkg/cmd/dockerregistry"
+	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	"github.com/openshift/origin/pkg/cmd/util/tokencmd"
 	imageapi "github.com/openshift/origin/pkg/image/api"
 	testutil "github.com/openshift/origin/test/util"
@@ -119,6 +121,10 @@ middleware:
 
 	go dockerregistry.Execute(strings.NewReader(config))
 
+	if err := cmdutil.WaitForSuccessfulDial(false, "tcp", "127.0.0.1:5000", 100*time.Millisecond, 1*time.Second, 35); err != nil {
+		t.Fatal(err)
+	}
+
 	stream := imageapi.ImageStream{
 		ObjectMeta: kapi.ObjectMeta{
 			Namespace: testutil.Namespace(),
@@ -210,7 +216,7 @@ middleware:
 	if err != nil {
 		t.Fatalf("error getting imageStreamImage: %s", err)
 	}
-	if e, a := fmt.Sprintf("test@%s", dgst.Hex()[:7]), image.Name; e != a {
+	if e, a := fmt.Sprintf("test@%s", dgst.String()), image.Name; e != a {
 		t.Errorf("image name: expected %q, got %q", e, a)
 	}
 	if e, a := dgst.String(), image.Image.Name; e != a {

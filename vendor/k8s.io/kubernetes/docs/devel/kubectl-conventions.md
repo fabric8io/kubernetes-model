@@ -96,6 +96,9 @@ flags and separate help that is tailored for the particular usage.
 * Flag names and single-character aliases should have the same meaning across
 all commands
 
+* Flag descriptions should start with an uppercase letter and not have a
+period at the end of a sentence
+
 * Command-line flags corresponding to API fields should accept API enums
 exactly (e.g., `--restart=Always`)
 
@@ -110,6 +113,7 @@ list when adding new short flags
 
   * `-f`: Resource file
     * also used for `--follow` in `logs`, but should be deprecated in favor of `-F`
+  * `-n`: Namespace scope
   * `-l`: Label selector
     * also used for `--labels` in `expose`, but should be deprecated
   * `-L`: Label columns
@@ -204,9 +208,16 @@ resources in other commands
 an exhaustive specification
 
   * Short should contain a one-line explanation of what the command does
+    * Short descriptions should start with an uppercase case letter and not
+    have a period at the end of a sentence
+    * Short descriptions should (if possible) start with a first person
+    (singular present tense) verb
 
   * Long may contain multiple lines, including additional information about
 input, output, commonly used flags, etc.
+    * Long descriptions should use proper grammar, start with an uppercase
+    letter and have a period at the end of a sentence
+
 
   * Example should contain examples
     * Start commands with `$`
@@ -250,15 +261,17 @@ type MineConfig struct {
   mineLatest bool
 }
 
-const (
-  mineLong = `Some long description
-for my command.`
+var (
+  mineLong = dedent.Dedent(`
+        mine which is described here
+        with lots of details.`)
 
-  mineExample = `  # Run my command's first action
-  $ %[1]s first
+  mineExample = dedent.Dedent(`
+          # Run my command's first action
+          kubectl mine first_action
 
-  # Run my command's second action on latest stuff
-  $ %[1]s second --latest`
+          # Run my command's second action on latest stuff
+          kubectl mine second_action --flag`)
 )
 
 // NewCmdMine implements the kubectl mine command.

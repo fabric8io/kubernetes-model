@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -51,8 +51,9 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/registry/generic/registry"
-	pkgutil "k8s.io/kubernetes/pkg/util"
+	uexec "k8s.io/kubernetes/pkg/util/exec"
 	utilnet "k8s.io/kubernetes/pkg/util/net"
+	"k8s.io/kubernetes/pkg/util/uuid"
 	"k8s.io/kubernetes/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/version"
 	"k8s.io/kubernetes/test/e2e/framework"
@@ -84,7 +85,7 @@ const (
 	pausePodName             = "pause"
 	runJobTimeout            = 5 * time.Minute
 	busyboxImage             = "gcr.io/google_containers/busybox:1.24"
-	nginxImage               = "gcr.io/google_containers/nginx:1.7.9"
+	nginxImage               = "gcr.io/google_containers/nginx-slim:0.7"
 	kubeCtlManifestPath      = "test/e2e/testing-manifests/kubectl"
 	redisControllerFilename  = "redis-master-controller.json"
 	redisServiceFilename     = "redis-master-service.json"
@@ -117,11 +118,19 @@ var (
 	// TODO(ihmccreery): remove once we don't care about v1.1 anymore, (tentatively in v1.4).
 	deploymentsVersion = version.MustParse("v1.2.0-alpha.7.726")
 
-	// Pod probe parameters were introduced in #15967 (v1.2) so we dont expect tests that use
+	// Pod probe parameters were introduced in #15967 (v1.2) so we don't expect tests that use
 	// these probe parameters to work on clusters before that.
 	//
 	// TODO(ihmccreery): remove once we don't care about v1.1 anymore, (tentatively in v1.4).
 	podProbeParametersVersion = version.MustParse("v1.2.0-alpha.4")
+
+	// 'kubectl create quota' was introduced in #28351 (v1.4) so we don't expect tests that use
+	// 'kubectl create quota' to work on kubectl clients before that.
+	kubectlCreateQuotaVersion = version.MustParse("v1.4.0-alpha.2")
+
+	// Returning container command exit codes in kubectl run/exec was introduced in #26541 (v1.4)
+	// so we don't expect tests that verifies return code to work on kubectl clients before that.
+	kubectlContainerExitCodeVersion = version.MustParse("v1.4.0-alpha.3")
 )
 
 // Stops everything from filePath from namespace ns and checks if everything matching selectors from the given namespace is correctly stopped.
@@ -197,7 +206,7 @@ var _ = framework.KubeDescribe("Kubectl client", func() {
 	framework.KubeDescribe("Update Demo", func() {
 		var nautilus, kitten []byte
 		BeforeEach(func() {
-			updateDemoRoot := "docs/user-guide/update-demo"
+			updateDemoRoot := "test/fixtures/doc-yaml/user-guide/update-demo"
 			nautilus = framework.ReadOrDie(filepath.Join(updateDemoRoot, "nautilus-rc.yaml"))
 			kitten = framework.ReadOrDie(filepath.Join(updateDemoRoot, "kitten-rc.yaml"))
 		})
@@ -348,7 +357,52 @@ var _ = framework.KubeDescribe("Kubectl client", func() {
 			}
 		})
 
+		It("should return command exit codes", func() {
+			framework.SkipUnlessKubectlVersionGTE(kubectlContainerExitCodeVersion)
+			nsFlag := fmt.Sprintf("--namespace=%v", ns)
+
+			By("execing into a container with a successful command")
+			_, err := framework.NewKubectlCommand(nsFlag, "exec", "nginx", "--", "/bin/sh", "-c", "exit 0").Exec()
+			ExpectNoError(err)
+
+			By("execing into a container with a failing command")
+			_, err = framework.NewKubectlCommand(nsFlag, "exec", "nginx", "--", "/bin/sh", "-c", "exit 42").Exec()
+			ee, ok := err.(uexec.ExitError)
+			Expect(ok).To(Equal(true))
+			Expect(ee.ExitStatus()).To(Equal(42))
+
+			By("running a successful command")
+			_, err = framework.NewKubectlCommand(nsFlag, "run", "-i", "--image="+busyboxImage, "--restart=Never", "success", "--", "/bin/sh", "-c", "exit 0").Exec()
+			ExpectNoError(err)
+
+			By("running a failing command")
+			_, err = framework.NewKubectlCommand(nsFlag, "run", "-i", "--image="+busyboxImage, "--restart=Never", "failure-1", "--", "/bin/sh", "-c", "exit 42").Exec()
+			ee, ok = err.(uexec.ExitError)
+			Expect(ok).To(Equal(true))
+			Expect(ee.ExitStatus()).To(Equal(42))
+
+			By("running a failing command without --restart=Never")
+			_, err = framework.NewKubectlCommand(nsFlag, "run", "-i", "--image="+busyboxImage, "--restart=OnFailure", "failure-2", "--", "/bin/sh", "-c", "cat && exit 42").
+				WithStdinData("abcd1234").
+				Exec()
+			ExpectNoError(err)
+
+			By("running a failing command without --restart=Never, but with --rm")
+			_, err = framework.NewKubectlCommand(nsFlag, "run", "-i", "--image="+busyboxImage, "--restart=OnFailure", "--rm", "failure-3", "--", "/bin/sh", "-c", "cat && exit 42").
+				WithStdinData("abcd1234").
+				Exec()
+			ExpectNoError(err)
+			framework.WaitForPodToDisappear(f.Client, ns, "failure-3", labels.Everything(), 2*time.Second, wait.ForeverTestTimeout)
+
+			By("running a failing command with --leave-stdin-open")
+			_, err = framework.NewKubectlCommand(nsFlag, "run", "-i", "--image="+busyboxImage, "--restart=Never", "failure-4", "--leave-stdin-open", "--", "/bin/sh", "-c", "exit 42").
+				WithStdinData("abcd1234").
+				Exec()
+			ExpectNoError(err)
+		})
+
 		It("should support inline execution and attach", func() {
+			framework.SkipIfContainerRuntimeIs("rkt") // #23335
 			framework.SkipUnlessServerVersionGTE(jobsVersion, c)
 
 			nsFlag := fmt.Sprintf("--namespace=%v", ns)
@@ -496,24 +550,48 @@ var _ = framework.KubeDescribe("Kubectl client", func() {
 
 			By("Waiting for Redis master to start.")
 			waitForOrFailWithDebug(1)
+
 			// Pod
-			forEachPod(func(pod api.Pod) {
-				output := framework.RunKubectlOrDie("describe", "pod", pod.Name, nsFlag)
-				requiredStrings := [][]string{
-					{"Name:", "redis-master-"},
-					{"Namespace:", ns},
-					{"Node:"},
-					{"Labels:", "app=redis"},
-					{"role=master"},
-					{"Status:", "Running"},
-					{"IP:"},
-					{"Controllers:", "ReplicationController/redis-master"},
-					{"Image:", redisImage},
-					{"State:", "Running"},
-					{"QoS Tier:", "BestEffort"},
-				}
-				checkOutput(output, requiredStrings)
-			})
+			// this is terrible but we want 1.4.0 alpha to count as well
+			classVersion, err := framework.KubectlVersionGTE(version.MustParse("v1.4.0-alpha"))
+			Expect(err).NotTo(HaveOccurred())
+			if classVersion {
+				forEachPod(func(pod api.Pod) {
+					output := framework.RunKubectlOrDie("describe", "pod", pod.Name, nsFlag)
+					requiredStrings := [][]string{
+						{"Name:", "redis-master-"},
+						{"Namespace:", ns},
+						{"Node:"},
+						{"Labels:", "app=redis"},
+						{"role=master"},
+						{"Status:", "Running"},
+						{"IP:"},
+						{"Controllers:", "ReplicationController/redis-master"},
+						{"Image:", redisImage},
+						{"State:", "Running"},
+						{"QoS Class:", "BestEffort"},
+					}
+					checkOutput(output, requiredStrings)
+				})
+			} else {
+				forEachPod(func(pod api.Pod) {
+					output := framework.RunKubectlOrDie("describe", "pod", pod.Name, nsFlag)
+					requiredStrings := [][]string{
+						{"Name:", "redis-master-"},
+						{"Namespace:", ns},
+						{"Node:"},
+						{"Labels:", "app=redis"},
+						{"role=master"},
+						{"Status:", "Running"},
+						{"IP:"},
+						{"Controllers:", "ReplicationController/redis-master"},
+						{"Image:", redisImage},
+						{"State:", "Running"},
+						{"QoS Tier:", "BestEffort"},
+					}
+					checkOutput(output, requiredStrings)
+				})
+			}
 
 			// Rc
 			output := framework.RunKubectlOrDie("describe", "rc", "redis-master", nsFlag)
@@ -607,10 +685,15 @@ var _ = framework.KubeDescribe("Kubectl client", func() {
 				err := wait.Poll(framework.Poll, timeout, func() (bool, error) {
 					endpoints, err := c.Endpoints(ns).Get(name)
 					if err != nil {
-						if apierrs.IsNotFound(err) {
+						// log the real error
+						framework.Logf("Get endpoints failed (interval %v): %v", framework.Poll, err)
+
+						// if the error is API not found or could not find default credentials or TLS handshake timeout, try again
+						if apierrs.IsNotFound(err) ||
+							apierrs.IsUnauthorized(err) ||
+							apierrs.IsServerTimeout(err) {
 							err = nil
 						}
-						framework.Logf("Get endpoints failed (interval %v): %v", framework.Poll, err)
 						return false, err
 					}
 
@@ -942,7 +1025,17 @@ var _ = framework.KubeDescribe("Kubectl client", func() {
 		})
 
 		AfterEach(func() {
-			framework.RunKubectlOrDie("delete", "deployment", dName, nsFlag)
+			err := wait.Poll(framework.Poll, 2*time.Minute, func() (bool, error) {
+				out, err := framework.RunKubectl("delete", "deployment", dName, nsFlag)
+				if err != nil {
+					if strings.Contains(err.Error(), "could not find default credentials") {
+						err = nil
+					}
+					return false, fmt.Errorf("kubectl delete failed output: %s, err: %v", out, err)
+				}
+				return true, nil
+			})
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should create a deployment from an image [Conformance]", func() {
@@ -1040,12 +1133,62 @@ var _ = framework.KubeDescribe("Kubectl client", func() {
 		})
 	})
 
+	framework.KubeDescribe("Kubectl replace", func() {
+		var nsFlag string
+		var podName string
+
+		BeforeEach(func() {
+			nsFlag = fmt.Sprintf("--namespace=%v", ns)
+			podName = "e2e-test-nginx-pod"
+		})
+
+		AfterEach(func() {
+			framework.RunKubectlOrDie("delete", "pods", podName, nsFlag)
+		})
+
+		It("should update a single-container pod's image [Conformance]", func() {
+			framework.SkipUnlessServerVersionGTE(jobsVersion, c)
+
+			By("running the image " + nginxImage)
+			framework.RunKubectlOrDie("run", podName, "--generator=run-pod/v1", "--image="+nginxImage, "--labels=run="+podName, nsFlag)
+
+			By("verifying the pod " + podName + " is running")
+			label := labels.SelectorFromSet(labels.Set(map[string]string{"run": podName}))
+			err := framework.WaitForPodsWithLabelRunning(c, ns, label)
+			if err != nil {
+				framework.Failf("Failed getting pod %s: %v", podName, err)
+			}
+
+			By("verifying the pod " + podName + " was created")
+			podJson := framework.RunKubectlOrDie("get", "pod", podName, nsFlag, "-o", "json")
+			if !strings.Contains(podJson, podName) {
+				framework.Failf("Failed to find pod %s in [%s]", podName, podJson)
+			}
+
+			By("replace the image in the pod")
+			podJson = strings.Replace(podJson, nginxImage, busyboxImage, 1)
+			framework.RunKubectlOrDieInput(podJson, "replace", "-f", "-", nsFlag)
+
+			By("verifying the pod " + podName + " has the right image " + busyboxImage)
+			pod, err := c.Pods(ns).Get(podName)
+			if err != nil {
+				framework.Failf("Failed getting deployment %s: %v", podName, err)
+			}
+			containers := pod.Spec.Containers
+			if containers == nil || len(containers) != 1 || containers[0].Image != busyboxImage {
+				framework.Failf("Failed creating pod with expected image %s", busyboxImage)
+			}
+		})
+	})
+
 	framework.KubeDescribe("Kubectl run --rm job", func() {
 		jobName := "e2e-test-rm-busybox-job"
 
 		It("should create a job from an image, then delete the job [Conformance]", func() {
 			nsFlag := fmt.Sprintf("--namespace=%v", ns)
 
+			// The rkt runtime doesn't support attach, see #23335
+			framework.SkipIfContainerRuntimeIs("rkt")
 			framework.SkipUnlessServerVersionGTE(jobsVersion, c)
 
 			By("executing a command with run --rm and attach with stdin")
@@ -1118,39 +1261,90 @@ var _ = framework.KubeDescribe("Kubectl client", func() {
 
 	framework.KubeDescribe("Kubectl taint", func() {
 		It("should update the taint on a node", func() {
-			taintName := fmt.Sprintf("kubernetes.io/e2e-taint-key-%s", string(pkgutil.NewUUID()))
-			taintValue := "testing-taint-value"
-			taintEffect := fmt.Sprintf("%s", api.TaintEffectNoSchedule)
+			testTaint := api.Taint{
+				Key:    fmt.Sprintf("kubernetes.io/e2e-taint-key-%s", string(uuid.NewUUID())),
+				Value:  "testing-taint-value",
+				Effect: api.TaintEffectNoSchedule,
+			}
 
 			nodes, err := c.Nodes().List(api.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			node := nodes.Items[0]
 			nodeName := node.Name
 
-			By("adding the taint " + taintName + " with value " + taintValue + " and taint effect " + taintEffect + " to a node")
-			framework.RunKubectlOrDie("taint", "nodes", nodeName, taintName+"="+taintValue+":"+taintEffect)
-			By("verifying the node has the taint " + taintName + " with the value " + taintValue)
+			By("adding the taint " + testTaint.ToString() + " to a node")
+			framework.RunKubectlOrDie("taint", "nodes", nodeName, testTaint.ToString())
+			By("verifying the node has the taint " + testTaint.ToString())
 			output := framework.RunKubectlOrDie("describe", "node", nodeName)
 			requiredStrings := [][]string{
 				{"Name:", nodeName},
 				{"Taints:"},
-				{taintName + "=" + taintValue + ":" + taintEffect},
+				{testTaint.ToString()},
 			}
 			checkOutput(output, requiredStrings)
 
-			By("removing the taint " + taintName + " of a node")
-			framework.RunKubectlOrDie("taint", "nodes", nodeName, taintName+"-")
-			By("verifying the node doesn't have the taint " + taintName)
+			By("removing the taint " + testTaint.ToString() + " of a node")
+			framework.RunKubectlOrDie("taint", "nodes", nodeName, testTaint.Key+":"+string(testTaint.Effect)+"-")
+			By("verifying the node doesn't have the taint " + testTaint.Key)
 			output = framework.RunKubectlOrDie("describe", "node", nodeName)
-			if strings.Contains(output, taintName) {
-				framework.Failf("Failed removing taint " + taintName + " of the node " + nodeName)
+			if strings.Contains(output, testTaint.Key) {
+				framework.Failf("Failed removing taint " + testTaint.Key + " of the node " + nodeName)
 			}
 
+		})
+
+		It("should remove all the taints with the same key off a node", func() {
+			testTaint := api.Taint{
+				Key:    fmt.Sprintf("kubernetes.io/e2e-taint-key-%s", string(uuid.NewUUID())),
+				Value:  "testing-taint-value",
+				Effect: api.TaintEffectNoSchedule,
+			}
+
+			nodes, err := c.Nodes().List(api.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			node := nodes.Items[0]
+			nodeName := node.Name
+
+			By("adding the taint " + testTaint.ToString() + " to a node")
+			framework.RunKubectlOrDie("taint", "nodes", nodeName, testTaint.ToString())
+			By("verifying the node has the taint " + testTaint.ToString())
+			output := framework.RunKubectlOrDie("describe", "node", nodeName)
+			requiredStrings := [][]string{
+				{"Name:", nodeName},
+				{"Taints:"},
+				{testTaint.ToString()},
+			}
+			checkOutput(output, requiredStrings)
+
+			newTestTaint := api.Taint{
+				Key:    testTaint.Key,
+				Value:  "another-testing-taint-value",
+				Effect: api.TaintEffectPreferNoSchedule,
+			}
+			By("adding another taint " + newTestTaint.ToString() + " to the node")
+			framework.RunKubectlOrDie("taint", "nodes", nodeName, newTestTaint.ToString())
+			By("verifying the node has the taint " + newTestTaint.ToString())
+			output = framework.RunKubectlOrDie("describe", "node", nodeName)
+			requiredStrings = [][]string{
+				{"Name:", nodeName},
+				{"Taints:"},
+				{newTestTaint.ToString()},
+			}
+			checkOutput(output, requiredStrings)
+
+			By("removing all taints that have the same key " + testTaint.Key + " of the node")
+			framework.RunKubectlOrDie("taint", "nodes", nodeName, testTaint.Key+"-")
+			By("verifying the node doesn't have the taints that have the same key " + testTaint.Key)
+			output = framework.RunKubectlOrDie("describe", "node", nodeName)
+			if strings.Contains(output, testTaint.Key) {
+				framework.Failf("Failed removing taints " + testTaint.Key + " of the node " + nodeName)
+			}
 		})
 	})
 
 	framework.KubeDescribe("Kubectl create quota", func() {
 		It("should create a quota without scopes", func() {
+			framework.SkipUnlessKubectlVersionGTE(kubectlCreateQuotaVersion)
 			nsFlag := fmt.Sprintf("--namespace=%v", ns)
 			quotaName := "million"
 
@@ -1180,6 +1374,7 @@ var _ = framework.KubeDescribe("Kubectl client", func() {
 		})
 
 		It("should create a quota with scopes", func() {
+			framework.SkipUnlessKubectlVersionGTE(kubectlCreateQuotaVersion)
 			nsFlag := fmt.Sprintf("--namespace=%v", ns)
 			quotaName := "scopes"
 
@@ -1208,6 +1403,7 @@ var _ = framework.KubeDescribe("Kubectl client", func() {
 		})
 
 		It("should reject quota with invalid scopes", func() {
+			framework.SkipUnlessKubectlVersionGTE(kubectlCreateQuotaVersion)
 			nsFlag := fmt.Sprintf("--namespace=%v", ns)
 			quotaName := "scopes"
 

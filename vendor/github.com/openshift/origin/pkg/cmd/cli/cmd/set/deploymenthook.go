@@ -13,45 +13,46 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 	"k8s.io/kubernetes/pkg/runtime"
 
+	"github.com/openshift/origin/pkg/cmd/templates"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	deployapi "github.com/openshift/origin/pkg/deploy/api"
 )
 
-const (
-	deploymentHookLong = `
-Set or remove a deployment hook on a deployment config
+var (
+	deploymentHookLong = templates.LongDesc(`
+		Set or remove a deployment hook on a deployment config
 
-Deployment configs allow hooks to execute at different points in the lifecycle of the
-deployment, depending on the deployment strategy.
+		Deployment configs allow hooks to execute at different points in the lifecycle of the
+		deployment, depending on the deployment strategy.
 
-For deployments with a Recreate strategy, a Pre, Mid, and Post hook can be specified.
-The Pre hook will execute before the deployment starts. The Mid hook will execute once the
-previous deployment has been scaled down to 0, but before the new one ramps up.
-The Post hook will execute once the deployment has completed.
+		For deployments with a Recreate strategy, a Pre, Mid, and Post hook can be specified.
+		The Pre hook will execute before the deployment starts. The Mid hook will execute once the
+		previous deployment has been scaled down to 0, but before the new one ramps up.
+		The Post hook will execute once the deployment has completed.
 
-For deployments with a Rolling strategy, a Pre and Post hook can be specified.
-The Pre hook will execute before the deployment starts and the Post hook will execute once
-the deployment has completed.
+		For deployments with a Rolling strategy, a Pre and Post hook can be specified.
+		The Pre hook will execute before the deployment starts and the Post hook will execute once
+		the deployment has completed.
 
-For each hook, a new pod will be started using one of the containers in the deployment's pod
-template with a specific command to execute. Additional environment variables may be specified
-for the hook, as well as which volumes from the pod template will be mounted on the hook pod.
+		For each hook, a new pod will be started using one of the containers in the deployment's pod
+		template with a specific command to execute. Additional environment variables may be specified
+		for the hook, as well as which volumes from the pod template will be mounted on the hook pod.
 
-Each hook can have its own cancellation policy. One of: abort, retry, or ignore. Not all cancellation
-policies can be set on all hooks. For example, a Post hook on a rolling strategy does not support
-the abort policy, because at that point the deployment has already happened.
-`
+		Each hook can have its own cancellation policy. One of: abort, retry, or ignore. Not all cancellation
+		policies can be set on all hooks. For example, a Post hook on a rolling strategy does not support
+		the abort policy, because at that point the deployment has already happened.`)
 
-	deploymentHookExample = `  # Clear pre and post hooks on a deployment config
-  %[1]s deployment-hook dc/myapp --remove --pre --post
+	deploymentHookExample = templates.Examples(`
+		# Clear pre and post hooks on a deployment config
+	  %[1]s deployment-hook dc/myapp --remove --pre --post
 
-  # Set the pre deployment hook to execute a db migration command for an application
-  # using the data volume from the application
-  %[1]s deployment-hook dc/myapp --pre -v data -- /var/lib/migrate-db.sh
+	  # Set the pre deployment hook to execute a db migration command for an application
+	  # using the data volume from the application
+	  %[1]s deployment-hook dc/myapp --pre -v data -- /var/lib/migrate-db.sh
 
-  # Set a mid deployment hook along with additional environment variables
-  %[1]s deployment-hook dc/myapp --mid -v data -e VAR1=value1 -e VAR2=value2 -- /var/lib/prepare-deploy.sh`
+	  # Set a mid deployment hook along with additional environment variables
+	  %[1]s deployment-hook dc/myapp --mid -v data -e VAR1=value1 -e VAR2=value2 -- /var/lib/prepare-deploy.sh`)
 )
 
 type DeploymentHookOptions struct {
@@ -70,9 +71,10 @@ type DeploymentHookOptions struct {
 	All       bool
 
 	ShortOutput bool
+	Local       bool
 	Mapper      meta.RESTMapper
 
-	PrintObject func(runtime.Object) error
+	PrintObject func([]*resource.Info) error
 
 	Pre    bool
 	Mid    bool
@@ -121,10 +123,12 @@ func NewCmdDeploymentHook(fullName string, f *clientcmd.Factory, out, errOut io.
 	cmd.Flags().BoolVar(&options.Mid, "mid", options.Mid, "Set or remove a mid deployment hook")
 	cmd.Flags().BoolVar(&options.Post, "post", options.Post, "Set or remove a post deployment hook")
 
-	cmd.Flags().StringSliceVarP(&options.Environment, "environment", "e", options.Environment, "Environment variables to use in the deployment hook pod")
+	cmd.Flags().StringArrayVarP(&options.Environment, "environment", "e", options.Environment, "Environment variable to use in the deployment hook pod")
 	cmd.Flags().StringSliceVarP(&options.Volumes, "volumes", "v", options.Volumes, "Volumes from the pod template to use in the deployment hook pod")
 
 	cmd.Flags().String("failure-policy", "ignore", "The failure policy for the deployment hook. Valid values are: abort,retry,ignore")
+
+	cmd.Flags().BoolVar(&options.Local, "local", false, "If true, set deployment hook will NOT contact api-server but run locally.")
 
 	cmd.MarkFlagFilename("filename", "yaml", "yml", "json")
 
@@ -159,17 +163,23 @@ func (o *DeploymentHookOptions) Complete(f *clientcmd.Factory, cmd *cobra.Comman
 		ContinueOnError().
 		NamespaceParam(cmdNamespace).DefaultNamespace().
 		FilenameParam(explicit, false, o.Filenames...).
-		SelectorParam(o.Selector).
-		ResourceNames("deploymentconfigs", resources...).
 		Flatten()
+	if !o.Local {
+		o.Builder = o.Builder.
+			ResourceNames("deploymentconfigs", resources...).
+			SelectorParam(o.Selector).
+			Latest()
+		if o.All {
+			o.Builder.ResourceTypes("deploymentconfigs").SelectAllParam(o.All)
+		}
 
-	if o.All {
-		o.Builder.ResourceTypes("deploymentconfigs").SelectAllParam(o.All)
 	}
 
 	output := kcmdutil.GetFlagString(cmd, "output")
-	if len(output) != 0 {
-		o.PrintObject = func(obj runtime.Object) error { return f.PrintObject(cmd, mapper, obj, o.Out) }
+	if len(output) != 0 || o.Local {
+		o.PrintObject = func(infos []*resource.Info) error {
+			return f.PrintResourceInfos(cmd, infos, o.Out)
+		}
 	}
 
 	o.Encoder = f.JSONEncoder()
@@ -225,6 +235,9 @@ func (o *DeploymentHookOptions) Validate() error {
 	if len(o.Command) == 0 {
 		return fmt.Errorf("you must specify a command for the deployment hook")
 	}
+
+	cmdutil.WarnAboutCommaSeparation(o.Err, o.Environment, "--environment")
+
 	return nil
 }
 
@@ -253,11 +266,7 @@ func (o *DeploymentHookOptions) Run() error {
 	}
 
 	if o.PrintObject != nil {
-		object, err := resource.AsVersionedObject(infos, !singular, o.OutputVersion, kapi.Codecs.LegacyCodec(o.OutputVersion))
-		if err != nil {
-			return err
-		}
-		return o.PrintObject(object)
+		return o.PrintObject(infos)
 	}
 
 	failed := false
@@ -281,7 +290,7 @@ func (o *DeploymentHookOptions) Run() error {
 		}
 
 		info.Refresh(obj, true)
-		kcmdutil.PrintSuccess(o.Mapper, o.ShortOutput, o.Out, info.Mapping.Resource, info.Name, "updated")
+		kcmdutil.PrintSuccess(o.Mapper, o.ShortOutput, o.Out, info.Mapping.Resource, info.Name, false, "updated")
 	}
 	if failed {
 		return cmdutil.ErrExit

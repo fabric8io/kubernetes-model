@@ -14,23 +14,22 @@ function cleanup()
 	out=$?
 	docker rmi test/scratchimage
 	cleanup_openshift
-	echo "[INFO] Exiting"
+	os::log::info "Exiting"
 	return "${out}"
 }
 
 trap "exit" INT TERM
 trap "cleanup" EXIT
 
-echo "[INFO] Starting server"
+os::log::info "Starting server"
 
-os::util::environment::setup_all_server_vars "test-extended/cmd/"
 os::util::environment::use_sudo
-reset_tmp_dir
+os::util::environment::setup_all_server_vars "test-extended/cmd/"
 
-os::log::start_system_logger
+os::log::system::start
 
-configure_os_server
-start_os_server
+os::start::configure_server
+os::start::server
 
 export KUBECONFIG="${ADMIN_KUBECONFIG}"
 
@@ -38,14 +37,14 @@ oc login -u system:admin -n default
 # let everyone be able to see stuff in the default namespace
 oadm policy add-role-to-group view system:authenticated -n default
 
-install_registry
-wait_for_registry
+os::start::registry
+oc rollout status dc/docker-registry
 docker_registry="$( oc get service/docker-registry -n default -o jsonpath='{.spec.clusterIP}:{.spec.ports[0].port}' )"
 
 os::test::junit::declare_suite_start "extended/cmd"
 
 os::test::junit::declare_suite_start "extended/cmd/new-app"
-echo "[INFO] Running newapp extended tests"
+os::log::info "Running newapp extended tests"
 oc login "${MASTER_ADDR}" -u new-app -p password --certificate-authority="${MASTER_CONFIG_DIR}/ca.crt"
 oc new-project new-app
 oc delete all --all
@@ -74,11 +73,11 @@ VERBOSE=true os::cmd::expect_success "oc project new-app"
 os::cmd::expect_failure_and_text "oc new-app test/scratchimage2 -o yaml" "partial match"
 # success with exact match
 os::cmd::expect_success "oc new-app test/scratchimage"
-echo "[INFO] newapp: ok"
+os::log::info "newapp: ok"
 os::test::junit::declare_suite_end
 
 os::test::junit::declare_suite_start "extended/cmd/variable-expansion"
-echo "[INFO] Running env variable expansion tests"
+os::log::info "Running env variable expansion tests"
 VERBOSE=true os::cmd::expect_success "oc new-project envtest"
 os::cmd::expect_success "oc create -f test/extended/testdata/test-env-pod.json"
 os::cmd::try_until_text "oc get pods" "Running"
@@ -87,11 +86,11 @@ os::cmd::expect_success_and_text "oc exec test-pod env" "podname_composed=test-p
 os::cmd::expect_success_and_text "oc exec test-pod env" "var1=value1"
 os::cmd::expect_success_and_text "oc exec test-pod env" "var2=value1"
 os::cmd::expect_success_and_text "oc exec test-pod ps ax" "sleep 120"
-echo "[INFO] variable-expansion: ok"
+os::log::info "variable-expansion: ok"
 os::test::junit::declare_suite_end
 
 os::test::junit::declare_suite_start "extended/cmd/image-pull-secrets"
-echo "[INFO] Running image pull secrets tests"
+os::log::info "Running image pull secrets tests"
 VERBOSE=true os::cmd::expect_success "oc login '${MASTER_ADDR}' -u pull-secrets-user -p password --certificate-authority='${MASTER_CONFIG_DIR}/ca.crt'"
 
 # create a new project and push a busybox image in there
@@ -101,7 +100,7 @@ token="$( oc sa get-token builder )"
 os::cmd::expect_success "docker login -u imagensbuilder -p ${token} -e fake@example.org ${docker_registry}"
 os::cmd::expect_success "oc import-image busybox:latest --confirm"
 os::cmd::expect_success "docker pull busybox"
-os::cmd::expect_success "docker tag -f docker.io/busybox:latest ${docker_registry}/image-ns/busybox:latest"
+os::cmd::expect_success "docker tag docker.io/busybox:latest ${docker_registry}/image-ns/busybox:latest"
 os::cmd::expect_success "docker push ${docker_registry}/image-ns/busybox:latest"
 os::cmd::expect_success "docker rmi -f ${docker_registry}/image-ns/busybox:latest"
 
@@ -176,3 +175,15 @@ os::cmd::expect_success_and_text 'oc logs pods/centos' "Welcome to nginx"
 os::test::junit::declare_suite_end
 
 os::test::junit::declare_suite_end
+
+os::test::junit::declare_suite_start "extended/cmd/oc-on-kube"
+os::cmd::expect_success "oc login -u system:admin -n default"
+os::cmd::expect_success "oc new-project kube"
+os::cmd::expect_success "oc create -f test/testdata/kubernetes-server/apiserver.yaml"
+os::cmd::try_until_text "oc get pods/kube-apiserver -o 'jsonpath={.status.conditions[?(@.type == "Ready")].status}'" "True"
+os::cmd::try_until_text "oc get pods/kube-apiserver -o 'jsonpath={.status.podIP}'" "172"
+kube_ip="$(oc get pods/kube-apiserver -o 'jsonpath={.status.podIP}')"
+kube_kubectl="${tmp}/kube-kubeconfig"
+os::cmd::try_until_text "oc login --config ${kube_kubectl}../kube-kubeconfig https://${kube_ip}:443 --token=secret --insecure-skip-tls-verify=true --loglevel=8" ' as "secret" using the token provided.'
+os::test::junit::declare_suite_end
+

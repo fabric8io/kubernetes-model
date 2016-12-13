@@ -16,8 +16,7 @@ oc cancel\-build \- Cancel running, pending, or new builds
 Cancel running, pending, or new builds
 
 .PP
-This command requests a graceful shutdown of the build. There may be a delay between requesting
-the build and the time the build is terminated.
+This command requests a graceful shutdown of the build. There may be a delay between requesting the build and the time the build is terminated.
 
 
 .SH OPTIONS
@@ -41,19 +40,19 @@ the build and the time the build is terminated.
 
 .PP
 \fB\-\-as\fP=""
-    Username to impersonate for the operation.
+    Username to impersonate for the operation
 
 .PP
 \fB\-\-certificate\-authority\fP=""
-    Path to a cert. file for the certificate authority.
+    Path to a cert. file for the certificate authority
 
 .PP
 \fB\-\-client\-certificate\fP=""
-    Path to a client certificate file for TLS.
+    Path to a client certificate file for TLS
 
 .PP
 \fB\-\-client\-key\fP=""
-    Path to a client key file for TLS.
+    Path to a client key file for TLS
 
 .PP
 \fB\-\-cluster\fP=""
@@ -73,7 +72,7 @@ the build and the time the build is terminated.
 
 .PP
 \fB\-\-insecure\-skip\-tls\-verify\fP=false
-    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure.
+    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
 
 .PP
 \fB\-\-log\-flush\-frequency\fP=0
@@ -85,7 +84,11 @@ the build and the time the build is terminated.
 
 .PP
 \fB\-n\fP, \fB\-\-namespace\fP=""
-    If present, the namespace scope for this CLI request.
+    If present, the namespace scope for this CLI request
+
+.PP
+\fB\-\-request\-timeout\fP="0"
+    The length of time to wait before giving up on a single server request. Non\-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.
 
 .PP
 \fB\-\-server\fP=""
@@ -93,7 +96,7 @@ the build and the time the build is terminated.
 
 .PP
 \fB\-\-token\fP=""
-    Bearer token for authentication to the API server.
+    Bearer token for authentication to the API server
 
 .PP
 \fB\-\-user\fP=""
@@ -107,16 +110,16 @@ the build and the time the build is terminated.
 .nf
   # Cancel the build with the given name
   oc cancel\-build ruby\-build\-2
-
+  
   # Cancel the named build and print the build logs
   oc cancel\-build ruby\-build\-2 \-\-dump\-logs
-
+  
   # Cancel the named build and create a new one with the same parameters
   oc cancel\-build ruby\-build\-2 \-\-restart
-
+  
   # Cancel multiple builds
   oc cancel\-build ruby\-build\-1 ruby\-build\-2 ruby\-build\-3
-
+  
   # Cancel all builds created from 'ruby\-build' build configuration that are in 'new' state
   oc cancel\-build bc/ruby\-build \-\-state=new
 

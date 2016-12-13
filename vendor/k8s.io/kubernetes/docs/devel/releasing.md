@@ -124,7 +124,7 @@ Then, run
 
 This will do a dry run of the release.  It will give you instructions at the
 end for `pushd`ing into the dry-run directory and having a look around.
-`pushd` into the directory and make sure everythig looks as you expect:
+`pushd` into the directory and make sure everything looks as you expect:
 
 ```console
 git log "${RELEASE_VERSION}"  # do you see the commit you expect?
@@ -228,9 +228,11 @@ been automated that need to happen after the branch has been cut:
 *Please note that this information may be out of date.  The scripts are the
 authoritative source on how version injection works.*
 
-Kubernetes may be built from either a git tree (using `hack/build-go.sh`) or
-from a tarball (using either `hack/build-go.sh` or `go install`) or directly by
-the Go native build system (using `go get`).
+Kubernetes may be built from either a git tree or from a tarball.  We use
+`make` to encapsulate a number of build steps into a single command.  This
+includes generating code, which means that tools like `go build` might work
+(once files are generated) but might be using stale generated code.  `make` is
+the supported way to build.
 
 When building from git, we want to be able to insert specific information about
 the build tree at build time. In particular, we want to use the output of `git
@@ -265,7 +267,7 @@ yield binaries that will identify themselves as `v0.4-dev` and will not be able
 to provide you with a SHA1.
 
 To add the extra versioning information when building from git, the
-`hack/build-go.sh` script will gather that information (using `git describe` and
+`make` build will gather that information (using `git describe` and
 `git rev-parse`) and then create a `-ldflags` string to pass to `go install` and
 tell the Go linker to override the contents of those variables at build time. It
 can, for instance, tell it to override `gitVersion` and set it to

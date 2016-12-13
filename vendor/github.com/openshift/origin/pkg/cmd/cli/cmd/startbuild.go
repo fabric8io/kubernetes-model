@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
@@ -26,9 +25,11 @@ import (
 	kclientcmd "k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
 	"k8s.io/kubernetes/pkg/fields"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
+	"k8s.io/kubernetes/third_party/forked/golang/netutil"
 
 	buildapi "github.com/openshift/origin/pkg/build/api"
 	osclient "github.com/openshift/origin/pkg/client"
+	"github.com/openshift/origin/pkg/cmd/templates"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/generate/git"
@@ -36,45 +37,45 @@ import (
 	"github.com/openshift/source-to-image/pkg/tar"
 )
 
-const (
-	startBuildLong = `
-Start a build
+var (
+	startBuildLong = templates.LongDesc(`
+		Start a build
 
-This command starts a new build for the provided build config or copies an existing build using
---from-build=<name>. Pass the --follow flag to see output from the build.
+		This command starts a new build for the provided build config or copies an existing build using
+		--from-build=<name>. Pass the --follow flag to see output from the build.
 
-In addition, you can pass a file, directory, or source code repository with the --from-file,
---from-dir, or --from-repo flags directly to the build. The contents will be streamed to the build
-and override the current build source settings. When using --from-repo, the --commit flag can be
-used to control which branch, tag, or commit is sent to the server. If you pass --from-file, the
-file is placed in the root of an empty directory with the same filename. Note that builds
-triggered from binary input will not preserve the source on the server, so rebuilds triggered by
-base image changes will use the source specified on the build config.
-`
+		In addition, you can pass a file, directory, or source code repository with the --from-file,
+		--from-dir, or --from-repo flags directly to the build. The contents will be streamed to the build
+		and override the current build source settings. When using --from-repo, the --commit flag can be
+		used to control which branch, tag, or commit is sent to the server. If you pass --from-file, the
+		file is placed in the root of an empty directory with the same filename. Note that builds
+		triggered from binary input will not preserve the source on the server, so rebuilds triggered by
+		base image changes will use the source specified on the build config.`)
 
-	startBuildExample = `  # Starts build from build config "hello-world"
-  %[1]s start-build hello-world
+	startBuildExample = templates.Examples(`
+		# Starts build from build config "hello-world"
+	  %[1]s start-build hello-world
 
-  # Starts build from a previous build "hello-world-1"
-  %[1]s start-build --from-build=hello-world-1
+	  # Starts build from a previous build "hello-world-1"
+	  %[1]s start-build --from-build=hello-world-1
 
-  # Use the contents of a directory as build input
-  %[1]s start-build hello-world --from-dir=src/
+	  # Use the contents of a directory as build input
+	  %[1]s start-build hello-world --from-dir=src/
 
-  # Send the contents of a Git repository to the server from tag 'v2'
-  %[1]s start-build hello-world --from-repo=../hello-world --commit=v2
+	  # Send the contents of a Git repository to the server from tag 'v2'
+	  %[1]s start-build hello-world --from-repo=../hello-world --commit=v2
 
-  # Start a new build for build config "hello-world" and watch the logs until the build
-  # completes or fails.
-  %[1]s start-build hello-world --follow
+	  # Start a new build for build config "hello-world" and watch the logs until the build
+	  # completes or fails.
+	  %[1]s start-build hello-world --follow
 
-  # Start a new build for build config "hello-world" and wait until the build completes. It
-  # exits with a non-zero return code if the build fails.
-  %[1]s start-build hello-world --wait`
+	  # Start a new build for build config "hello-world" and wait until the build completes. It
+	  # exits with a non-zero return code if the build fails.
+	  %[1]s start-build hello-world --wait`)
 )
 
 // NewCmdStartBuild implements the OpenShift cli start-build command
-func NewCmdStartBuild(fullName string, f *clientcmd.Factory, in io.Reader, out io.Writer) *cobra.Command {
+func NewCmdStartBuild(fullName string, f *clientcmd.Factory, in io.Reader, out, errout io.Writer) *cobra.Command {
 	o := &StartBuildOptions{}
 
 	cmd := &cobra.Command{
@@ -84,12 +85,12 @@ func NewCmdStartBuild(fullName string, f *clientcmd.Factory, in io.Reader, out i
 		Example:    fmt.Sprintf(startBuildExample, fullName),
 		SuggestFor: []string{"build", "builds"},
 		Run: func(cmd *cobra.Command, args []string) {
-			kcmdutil.CheckErr(o.Complete(f, in, out, cmd, fullName, args))
+			kcmdutil.CheckErr(o.Complete(f, in, out, errout, cmd, fullName, args))
 			kcmdutil.CheckErr(o.Run())
 		},
 	}
 	cmd.Flags().StringVar(&o.LogLevel, "build-loglevel", o.LogLevel, "Specify the log level for the build log output")
-	cmd.Flags().StringSliceVarP(&o.Env, "env", "e", o.Env, "Specify key value pairs of environment variables to set for the build container.")
+	cmd.Flags().StringArrayVarP(&o.Env, "env", "e", o.Env, "Specify a key-value pair for an environment variable to set for the build container.")
 	cmd.Flags().StringVar(&o.FromBuild, "from-build", o.FromBuild, "Specify the name of a build which should be re-run")
 
 	cmd.Flags().BoolVarP(&o.Follow, "follow", "F", o.Follow, "Start a build and watch its logs until it completes or fails")
@@ -101,7 +102,7 @@ func NewCmdStartBuild(fullName string, f *clientcmd.Factory, in io.Reader, out i
 	cmd.Flags().StringVar(&o.Commit, "commit", o.Commit, "Specify the source code commit identifier the build should use; requires a build based on a Git repository")
 
 	cmd.Flags().StringVar(&o.ListWebhooks, "list-webhooks", o.ListWebhooks, "List the webhooks for the specified build config or build; accepts 'all', 'generic', or 'github'")
-	cmd.Flags().StringVar(&o.FromWebhook, "from-webhook", o.FromWebhook, "Specify a webhook URL for an existing build config to trigger")
+	cmd.Flags().StringVar(&o.FromWebhook, "from-webhook", o.FromWebhook, "Specify a generic webhook URL for an existing build config to trigger")
 
 	cmd.Flags().StringVar(&o.GitPostReceive, "git-post-receive", o.GitPostReceive, "The contents of the post-receive hook to trigger a build")
 	cmd.Flags().StringVar(&o.GitRepository, "git-repository", o.GitRepository, "The path to the git repository for post-receive; defaults to the current directory")
@@ -144,10 +145,10 @@ type StartBuildOptions struct {
 	Namespace   string
 }
 
-func (o *StartBuildOptions) Complete(f *clientcmd.Factory, in io.Reader, out io.Writer, cmd *cobra.Command, cmdFullName string, args []string) error {
+func (o *StartBuildOptions) Complete(f *clientcmd.Factory, in io.Reader, out, errout io.Writer, cmd *cobra.Command, cmdFullName string, args []string) error {
 	o.In = in
 	o.Out = out
-	o.ErrOut = cmd.OutOrStderr()
+	o.ErrOut = errout
 	o.Git = git.NewRepository()
 	o.ClientConfig = f.OpenShiftClientConfig
 	o.Mapper, _ = f.Object(false)
@@ -169,6 +170,9 @@ func (o *StartBuildOptions) Complete(f *clientcmd.Factory, in io.Reader, out io.
 	case len(webhook) > 0:
 		if len(args) > 0 || len(buildName) > 0 || len(fromFile) > 0 || len(fromDir) > 0 || len(fromRepo) > 0 {
 			return kcmdutil.UsageError(cmd, "The '--from-webhook' flag is incompatible with arguments and all '--from-*' flags")
+		}
+		if !strings.HasSuffix(webhook, "/generic") {
+			fmt.Fprintf(errout, "warning: the '--from-webhook' flag should be called with a generic webhook URL.\n")
 		}
 		return nil
 
@@ -239,6 +243,7 @@ func (o *StartBuildOptions) Complete(f *clientcmd.Factory, in io.Reader, out io.
 	o.Namespace = namespace
 	o.Name = name
 
+	cmdutil.WarnAboutCommaSeparation(o.ErrOut, o.Env, "--env")
 	env, _, err := cmdutil.ParseEnv(o.Env, in)
 	if err != nil {
 		return err
@@ -264,7 +269,7 @@ func (o *StartBuildOptions) Run() error {
 	request := &buildapi.BuildRequest{
 		TriggeredBy: append(buildRequestCauses,
 			buildapi.BuildTriggerCause{
-				Message: "Manually triggered",
+				Message: buildapi.BuildTriggerCauseManualMsg,
 			},
 		),
 		ObjectMeta: kapi.ObjectMeta{Name: o.Name},
@@ -313,60 +318,38 @@ func (o *StartBuildOptions) Run() error {
 		}
 	}
 
-	kcmdutil.PrintSuccess(o.Mapper, o.ShortOutput, o.Out, "build", newBuild.Name, "started")
-
-	var (
-		wg      sync.WaitGroup
-		exitErr error
-	)
-
-	// Wait for the build to complete
-	if o.WaitForComplete {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			exitErr = WaitForBuildComplete(o.Client.Builds(o.Namespace), newBuild.Name)
-		}()
-	}
+	kcmdutil.PrintSuccess(o.Mapper, o.ShortOutput, o.Out, "build", newBuild.Name, false, "started")
 
 	// Stream the logs from the build
 	if o.Follow {
-		wg.Add(1)
-		go func() {
-			// if --wait option is set, then don't wait for logs to finish streaming
-			// but wait for the build to reach its final state
-			if o.WaitForComplete {
-				wg.Done()
-			} else {
-				defer wg.Done()
-			}
-			opts := buildapi.BuildLogOptions{
-				Follow: true,
-				NoWait: false,
-			}
-			for {
-				rd, err := o.Client.BuildLogs(o.Namespace).Get(newBuild.Name, opts).Stream()
-				if err != nil {
-					// if --wait options is set, then retry the connection to build logs
-					// when we hit the timeout.
-					if o.WaitForComplete && oerrors.IsTimeoutErr(err) {
-						continue
-					}
-					fmt.Fprintf(o.ErrOut, "error getting logs: %v\n", err)
-					return
+		opts := buildapi.BuildLogOptions{
+			Follow: true,
+			NoWait: false,
+		}
+		for {
+			rd, err := o.Client.BuildLogs(o.Namespace).Get(newBuild.Name, opts).Stream()
+			if err != nil {
+				// retry the connection to build logs when we hit the timeout.
+				if oerrors.IsTimeoutErr(err) {
+					fmt.Fprintf(o.ErrOut, "timed out getting logs, retrying\n")
+					continue
 				}
-				defer rd.Close()
-				if _, err = io.Copy(o.Out, rd); err != nil {
-					fmt.Fprintf(o.ErrOut, "error streaming logs: %v\n", err)
-				}
+				fmt.Fprintf(o.ErrOut, "error getting logs (%v), waiting for build to complete\n", err)
 				break
 			}
-		}()
+			defer rd.Close()
+			if _, err = io.Copy(o.Out, rd); err != nil {
+				fmt.Fprintf(o.ErrOut, "error streaming logs (%v), waiting for build to complete\n", err)
+			}
+			break
+		}
 	}
 
-	wg.Wait()
+	if o.Follow || o.WaitForComplete {
+		return WaitForBuildComplete(o.Client.Builds(o.Namespace), newBuild.Name)
+	}
 
-	return exitErr
+	return nil
 }
 
 // RunListBuildWebHooks prints the webhooks for the provided build config.
@@ -476,7 +459,9 @@ func streamPathToBuild(repo git.Repository, in io.Reader, out io.Writer, client 
 			if len(options.Commit) > 0 {
 				commit = options.Commit
 			}
-			info, gitErr := gitRefInfo(repo, clean, commit)
+
+			info, gitErr := gitRefInfo(repo, path, commit)
+
 			if gitErr == nil {
 				options.Commit = info.GitSourceRevision.Commit
 				options.Message = info.GitSourceRevision.Message
@@ -488,36 +473,75 @@ func streamPathToBuild(repo git.Repository, in io.Reader, out io.Writer, client 
 				glog.V(6).Infof("Unable to read Git info from %q: %v", clean, gitErr)
 			}
 
+			// NOTE: It's important that this stays false unless we change the
+			// path to something else, otherwise we will delete whatever path the
+			// user provided.
+			var usedTempDir bool = false
+			var tempDirectory string = ""
+
 			if asRepo {
+
+				var contextDir string = ""
 				fmt.Fprintf(out, "Uploading %q at commit %q as binary input for the build ...\n", clean, commit)
 				if gitErr != nil {
 					return nil, fmt.Errorf("the directory %q is not a valid Git repository: %v", clean, gitErr)
 				}
-				pr, pw := io.Pipe()
-				go func() {
-					if err := repo.Archive(clean, options.Commit, "tar.gz", pw); err != nil {
-						pw.CloseWithError(fmt.Errorf("unable to create Git archive of %q for build: %v", clean, err))
-					} else {
-						pw.CloseWithError(io.EOF)
-					}
-				}()
-				r = pr
+
+				// If the user doesn't give us the root directory of the Git repo,
+				// we still want the command to work. However, as this may be
+				// unintended, we warn them.
+				if gitRootDir, err := repo.GetRootDir(path); filepath.Clean(gitRootDir) != filepath.Clean(path) && err == nil {
+					fmt.Fprintf(out, "WARNING: Using root dir %s for Git repository\n", gitRootDir)
+					contextDir, _ = filepath.Rel(gitRootDir, path)
+					path = gitRootDir
+				}
+
+				// Create a temp directory to move the repo contents to
+				tempDirectory, err := ioutil.TempDir(os.TempDir(), "oc_cloning_"+options.Commit)
+				if err != nil {
+					return nil, err
+				}
+
+				// We only want to grab the contents of the specified commit, with
+				// submodules included
+				cloneOptions := []string{"--recursive"}
+				if verbose := glog.V(3); !verbose {
+					cloneOptions = append(cloneOptions, "--quiet")
+				}
+
+				// Clone the repository to a temp directory for future tar-ing
+				if err := repo.CloneWithOptions(tempDirectory, path, cloneOptions...); err != nil {
+					return nil, err
+				}
+				if err := repo.Checkout(tempDirectory, commit); err != nil {
+					return nil, err
+				}
+
+				// We'll continue to use tar on the temp directory
+				path = filepath.Join(tempDirectory, contextDir)
+
+				usedTempDir = true
 
 			} else {
 				fmt.Fprintf(out, "Uploading directory %q as binary input for the build ...\n", clean)
-
-				pr, pw := io.Pipe()
-				go func() {
-					w := gzip.NewWriter(pw)
-					if err := tar.New().CreateTarStream(path, false, w); err != nil {
-						pw.CloseWithError(err)
-					} else {
-						w.Close()
-						pw.CloseWithError(io.EOF)
-					}
-				}()
-				r = pr
 			}
+
+			pr, pw := io.Pipe()
+			go func() {
+				w := gzip.NewWriter(pw)
+				if err := tar.New().CreateTarStream(path, false, w); err != nil {
+					pw.CloseWithError(err)
+				} else {
+					w.Close()
+					pw.CloseWithError(io.EOF)
+				}
+
+				if usedTempDir {
+					os.RemoveAll(tempDirectory)
+				}
+			}()
+			r = pr
+
 		} else {
 			f, err := os.Open(path)
 			if err != nil {
@@ -598,7 +622,7 @@ func (o *StartBuildOptions) RunStartBuildWebHook() error {
 		config, err := o.ClientConfig.ClientConfig()
 		if err == nil {
 			if url, _, err := restclient.DefaultServerURL(config.Host, "", unversioned.GroupVersion{}, true); err == nil {
-				if url.Host == hook.Host && url.Scheme == hook.Scheme {
+				if netutil.CanonicalAddr(url) == netutil.CanonicalAddr(hook) && url.Scheme == hook.Scheme {
 					if rt, err := restclient.TransportFor(config); err == nil {
 						httpClient = &http.Client{Transport: rt}
 					}

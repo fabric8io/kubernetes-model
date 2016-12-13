@@ -7,7 +7,10 @@ import (
 	"k8s.io/kubernetes/pkg/apis/apps"
 	"k8s.io/kubernetes/pkg/apis/autoscaling"
 	"k8s.io/kubernetes/pkg/apis/batch"
+	"k8s.io/kubernetes/pkg/apis/certificates"
 	"k8s.io/kubernetes/pkg/apis/extensions"
+	"k8s.io/kubernetes/pkg/apis/policy"
+	"k8s.io/kubernetes/pkg/apis/storage"
 	"k8s.io/kubernetes/pkg/util/sets"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
@@ -20,6 +23,7 @@ import (
 	quotaapi "github.com/openshift/origin/pkg/quota/api"
 	routeapi "github.com/openshift/origin/pkg/route/api"
 	sdnapi "github.com/openshift/origin/pkg/sdn/api"
+	securityapi "github.com/openshift/origin/pkg/security/api"
 	templateapi "github.com/openshift/origin/pkg/template/api"
 	userapi "github.com/openshift/origin/pkg/user/api"
 )
@@ -28,22 +32,26 @@ var (
 	readWrite = []string{"get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"}
 	read      = []string{"get", "list", "watch"}
 
-	kapiGroup        = kapi.GroupName
-	appsGroup        = apps.GroupName
-	autoscalingGroup = autoscaling.GroupName
-	batchGroup       = batch.GroupName
-	extensionsGroup  = extensions.GroupName
-	authzGroup       = authorizationapi.GroupName
-	buildGroup       = buildapi.GroupName
-	deployGroup      = deployapi.GroupName
-	imageGroup       = imageapi.GroupName
-	projectGroup     = projectapi.GroupName
-	quotaGroup       = quotaapi.GroupName
-	routeGroup       = routeapi.GroupName
-	templateGroup    = templateapi.GroupName
-	userGroup        = userapi.GroupName
-	oauthGroup       = oauthapi.GroupName
-	sdnGroup         = sdnapi.GroupName
+	kapiGroup         = kapi.GroupName
+	appsGroup         = apps.GroupName
+	autoscalingGroup  = autoscaling.GroupName
+	batchGroup        = batch.GroupName
+	certificatesGroup = certificates.GroupName
+	extensionsGroup   = extensions.GroupName
+	policyGroup       = policy.GroupName
+	securityGroup     = securityapi.GroupName
+	storageGroup      = storage.GroupName
+	authzGroup        = authorizationapi.GroupName
+	buildGroup        = buildapi.GroupName
+	deployGroup       = deployapi.GroupName
+	imageGroup        = imageapi.GroupName
+	projectGroup      = projectapi.GroupName
+	quotaGroup        = quotaapi.GroupName
+	routeGroup        = routeapi.GroupName
+	templateGroup     = templateapi.GroupName
+	userGroup         = userapi.GroupName
+	oauthGroup        = oauthapi.GroupName
+	sdnGroup          = sdnapi.GroupName
 )
 
 func GetBootstrapOpenshiftRoles(openshiftNamespace string) []authorizationapi.Role {
@@ -107,7 +115,7 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 			Rules: []authorizationapi.PolicyRule{
 				authorizationapi.NewRule(read...).Groups(kapiGroup).Resources("bindings", "componentstatuses", "configmaps", "egressnetworkpolicies", "endpoints", "events", "limitranges",
 					"namespaces", "namespaces/status", "nodes", "nodes/status", "persistentvolumeclaims", "persistentvolumeclaims/status", "persistentvolumes",
-					"persistentvolumes/status", "pods", "pods/binding", "pods/log", "pods/status", "podtemplates", "replicationcontrollers", "replicationcontrollers/scale",
+					"persistentvolumes/status", "pods", "pods/binding", "pods/eviction", "pods/log", "pods/status", "podtemplates", "replicationcontrollers", "replicationcontrollers/scale",
 					"replicationcontrollers/status", "resourcequotas", "resourcequotas/status", "securitycontextconstraints", "serviceaccounts", "services",
 					"services/status").RuleOrDie(),
 
@@ -115,12 +123,18 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 
 				authorizationapi.NewRule(read...).Groups(autoscalingGroup).Resources("horizontalpodautoscalers", "horizontalpodautoscalers/status").RuleOrDie(),
 
-				authorizationapi.NewRule(read...).Groups(batchGroup).Resources("jobs", "jobs/status").RuleOrDie(),
+				authorizationapi.NewRule(read...).Groups(batchGroup).Resources("jobs", "jobs/status", "scheduledjobs", "scheduledjobs/status").RuleOrDie(),
 
 				authorizationapi.NewRule(read...).Groups(extensionsGroup).Resources("daemonsets", "daemonsets/status", "deployments", "deployments/scale",
 					"deployments/status", "horizontalpodautoscalers", "horizontalpodautoscalers/status", "ingresses", "ingresses/status", "jobs", "jobs/status",
 					"networkpolicies", "podsecuritypolicies", "replicasets", "replicasets/scale", "replicasets/status", "replicationcontrollers",
-					"replicationcontrollers/scale", "thirdpartyresources").RuleOrDie(),
+					"replicationcontrollers/scale", "storageclasses", "thirdpartyresources").RuleOrDie(),
+
+				authorizationapi.NewRule(read...).Groups(policyGroup).Resources("poddisruptionbudgets", "poddisruptionbudgets/status").RuleOrDie(),
+
+				authorizationapi.NewRule(read...).Groups(storageGroup).Resources("storageclasses").RuleOrDie(),
+
+				authorizationapi.NewRule(read...).Groups(certificatesGroup).Resources("certificatesigningrequests", "certificatesigningrequests/approval", "certificatesigningrequests/status").RuleOrDie(),
 
 				authorizationapi.NewRule(read...).Groups(authzGroup).Resources("clusterpolicies", "clusterpolicybindings", "clusterroles", "clusterrolebindings",
 					"policies", "policybindings", "roles", "rolebindings").RuleOrDie(),
@@ -151,10 +165,12 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 
 				// permissions to check access.  These creates are non-mutating
 				authorizationapi.NewRule("create").Groups(authzGroup).Resources("localresourceaccessreviews", "localsubjectaccessreviews", "resourceaccessreviews",
-					"selfsubjectrulesreviews", "subjectaccessreviews").RuleOrDie(),
+					"selfsubjectrulesreviews", "subjectrulesreviews", "subjectaccessreviews").RuleOrDie(),
 				authorizationapi.NewRule("create").Groups("authentication.k8s.io").Resources("tokenreviews").RuleOrDie(),
+				// permissions to check PSP, these creates are non-mutating
+				authorizationapi.NewRule("create").Groups(securityGroup).Resources("podsecuritypolicysubjectreviews", "podsecuritypolicyselfsubjectreviews", "podsecuritypolicyreviews").RuleOrDie(),
 				// Allow read access to node metrics
-				authorizationapi.NewRule("get").Groups(kapiGroup).Resources(authorizationapi.NodeMetricsResource).RuleOrDie(),
+				authorizationapi.NewRule("get").Groups(kapiGroup).Resources(authorizationapi.NodeMetricsResource, authorizationapi.NodeSpecResource).RuleOrDie(),
 				// Allow read access to stats
 				// Node stats requests are submitted as POSTs.  These creates are non-mutating
 				authorizationapi.NewRule("get", "create").Groups(kapiGroup).Resources(authorizationapi.NodeStatsResource).RuleOrDie(),
@@ -201,7 +217,16 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				authorizationapi.NewRule("create").Groups(buildGroup).Resources(authorizationapi.JenkinsPipelineBuildResource).RuleOrDie(),
 			},
 		},
-
+		{
+			ObjectMeta: kapi.ObjectMeta{
+				Name: StorageAdminRoleName,
+			},
+			Rules: []authorizationapi.PolicyRule{
+				authorizationapi.NewRule(readWrite...).Groups(kapiGroup).Resources("persistentvolumes").RuleOrDie(),
+				authorizationapi.NewRule(readWrite...).Groups(storageGroup).Resources("storageclasses").RuleOrDie(),
+				authorizationapi.NewRule(read...).Groups(kapiGroup).Resources("persistentvolumeclaims", "events").RuleOrDie(),
+			},
+		},
 		{
 			ObjectMeta: kapi.ObjectMeta{
 				Name: AdminRoleName,
@@ -216,16 +241,18 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 
 				authorizationapi.NewRule(readWrite...).Groups(autoscalingGroup).Resources("horizontalpodautoscalers").RuleOrDie(),
 
-				authorizationapi.NewRule(readWrite...).Groups(batchGroup).Resources("jobs").RuleOrDie(),
+				authorizationapi.NewRule(readWrite...).Groups(batchGroup).Resources("jobs", "scheduledjobs").RuleOrDie(),
 
 				authorizationapi.NewRule(readWrite...).Groups(extensionsGroup).Resources("jobs", "horizontalpodautoscalers", "replicationcontrollers/scale",
-					"replicasets", "replicasets/scale", "deployments", "deployments/scale").RuleOrDie(),
+					"replicasets", "replicasets/scale", "deployments", "deployments/scale", "deployments/rollback").RuleOrDie(),
 				authorizationapi.NewRule(read...).Groups(extensionsGroup).Resources("daemonsets").RuleOrDie(),
 
 				authorizationapi.NewRule(readWrite...).Groups(appsGroup).Resources("petsets").RuleOrDie(),
 
 				authorizationapi.NewRule(readWrite...).Groups(authzGroup).Resources("roles", "rolebindings").RuleOrDie(),
-				authorizationapi.NewRule("create").Groups(authzGroup).Resources("localresourceaccessreviews", "localsubjectaccessreviews").RuleOrDie(),
+				authorizationapi.NewRule("create").Groups(authzGroup).Resources("localresourceaccessreviews", "localsubjectaccessreviews", "subjectrulesreviews").RuleOrDie(),
+				authorizationapi.NewRule("create").Groups(securityGroup).Resources("podsecuritypolicysubjectreviews", "podsecuritypolicyselfsubjectreviews", "podsecuritypolicyreviews").RuleOrDie(),
+
 				authorizationapi.NewRule(read...).Groups(authzGroup).Resources("policies", "policybindings").RuleOrDie(),
 
 				authorizationapi.NewRule(readWrite...).Groups(buildGroup).Resources("builds", "buildconfigs", "buildconfigs/webhooks").RuleOrDie(),
@@ -234,7 +261,8 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				// access to jenkins.  multiple values to ensure that covers relationships
 				authorizationapi.NewRule("admin", "edit", "view").Groups(buildapi.FutureGroupName).Resources("jenkins").RuleOrDie(),
 
-				authorizationapi.NewRule(readWrite...).Groups(deployGroup).Resources("deploymentconfigs", "generatedeploymentconfigs", "deploymentconfigrollbacks", "deploymentconfigs/rollback", "deploymentconfigs/scale").RuleOrDie(),
+				authorizationapi.NewRule(readWrite...).Groups(deployGroup).Resources("deploymentconfigs", "generatedeploymentconfigs", "deploymentconfigs/scale").RuleOrDie(),
+				authorizationapi.NewRule("create").Groups(deployGroup).Resources("deploymentconfigrollbacks", "deploymentconfigs/rollback", "deploymentconfigs/instantiate").RuleOrDie(),
 				authorizationapi.NewRule(read...).Groups(deployGroup).Resources("deploymentconfigs/log", "deploymentconfigs/status").RuleOrDie(),
 
 				authorizationapi.NewRule(readWrite...).Groups(imageGroup).Resources("imagestreams", "imagestreammappings", "imagestreamtags", "imagestreamimages", "imagestreams/secrets").RuleOrDie(),
@@ -274,10 +302,10 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 
 				authorizationapi.NewRule(readWrite...).Groups(autoscalingGroup).Resources("horizontalpodautoscalers").RuleOrDie(),
 
-				authorizationapi.NewRule(readWrite...).Groups(batchGroup).Resources("jobs").RuleOrDie(),
+				authorizationapi.NewRule(readWrite...).Groups(batchGroup).Resources("jobs", "scheduledjobs").RuleOrDie(),
 
 				authorizationapi.NewRule(readWrite...).Groups(extensionsGroup).Resources("jobs", "horizontalpodautoscalers", "replicationcontrollers/scale",
-					"replicasets", "replicasets/scale", "deployments", "deployments/scale").RuleOrDie(),
+					"replicasets", "replicasets/scale", "deployments", "deployments/scale", "deployments/rollback").RuleOrDie(),
 				authorizationapi.NewRule(read...).Groups(extensionsGroup).Resources("daemonsets").RuleOrDie(),
 
 				authorizationapi.NewRule(readWrite...).Groups(appsGroup).Resources("petsets").RuleOrDie(),
@@ -288,7 +316,8 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				// access to jenkins.  multiple values to ensure that covers relationships
 				authorizationapi.NewRule("edit", "view").Groups(buildapi.FutureGroupName).Resources("jenkins").RuleOrDie(),
 
-				authorizationapi.NewRule(readWrite...).Groups(deployGroup).Resources("deploymentconfigs", "generatedeploymentconfigs", "deploymentconfigrollbacks", "deploymentconfigs/rollback", "deploymentconfigs/scale").RuleOrDie(),
+				authorizationapi.NewRule(readWrite...).Groups(deployGroup).Resources("deploymentconfigs", "generatedeploymentconfigs", "deploymentconfigs/scale").RuleOrDie(),
+				authorizationapi.NewRule("create").Groups(deployGroup).Resources("deploymentconfigrollbacks", "deploymentconfigs/rollback", "deploymentconfigs/instantiate").RuleOrDie(),
 				authorizationapi.NewRule(read...).Groups(deployGroup).Resources("deploymentconfigs/log", "deploymentconfigs/status").RuleOrDie(),
 
 				authorizationapi.NewRule(readWrite...).Groups(imageGroup).Resources("imagestreams", "imagestreammappings", "imagestreamtags", "imagestreamimages", "imagestreams/secrets").RuleOrDie(),
@@ -324,7 +353,7 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 
 				authorizationapi.NewRule(read...).Groups(autoscalingGroup).Resources("horizontalpodautoscalers").RuleOrDie(),
 
-				authorizationapi.NewRule(read...).Groups(batchGroup).Resources("jobs").RuleOrDie(),
+				authorizationapi.NewRule(read...).Groups(batchGroup).Resources("jobs", "scheduledjobs").RuleOrDie(),
 
 				authorizationapi.NewRule(read...).Groups(extensionsGroup).Resources("jobs", "horizontalpodautoscalers", "replicasets", "replicasets/scale",
 					"deployments", "deployments/scale").RuleOrDie(),
@@ -368,6 +397,7 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				authorizationapi.NewRule("get").Groups(userGroup).Resources("users").Names("~").RuleOrDie(),
 				authorizationapi.NewRule("list").Groups(projectGroup).Resources("projectrequests").RuleOrDie(),
 				authorizationapi.NewRule("get", "list").Groups(authzGroup).Resources("clusterroles").RuleOrDie(),
+				authorizationapi.NewRule("list").Groups(storageGroup).Resources("storageclasses").RuleOrDie(),
 				authorizationapi.NewRule("list", "watch").Groups(projectGroup).Resources("projects").RuleOrDie(),
 				authorizationapi.NewRule("create").Groups(authzGroup).Resources("selfsubjectrulesreviews").RuleOrDie(),
 				{Verbs: sets.NewString("create"), APIGroups: []string{authzGroup}, Resources: sets.NewString("subjectaccessreviews", "localsubjectaccessreviews"), AttributeRestrictions: &authorizationapi.IsPersonalSubjectAccessReview{}},
@@ -476,10 +506,10 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				Name: DeployerRoleName,
 			},
 			Rules: []authorizationapi.PolicyRule{
-				authorizationapi.NewRule("get", "list", "update").Groups(kapiGroup).Resources("replicationcontrollers").RuleOrDie(),
+				authorizationapi.NewRule("get", "list", "watch", "update").Groups(kapiGroup).Resources("replicationcontrollers").RuleOrDie(),
 				authorizationapi.NewRule("get", "list", "watch", "create").Groups(kapiGroup).Resources("pods").RuleOrDie(),
 				authorizationapi.NewRule("get").Groups(kapiGroup).Resources("pods/log").RuleOrDie(),
-				authorizationapi.NewRule("create").Groups(kapiGroup).Resources("events").RuleOrDie(),
+				authorizationapi.NewRule("create", "list").Groups(kapiGroup).Resources("events").RuleOrDie(),
 
 				authorizationapi.NewRule("update").Groups(imageGroup).Resources("imagestreamtags").RuleOrDie(),
 			},
@@ -490,6 +520,10 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 			},
 			Rules: []authorizationapi.PolicyRule{
 				authorizationapi.NewRule("*").Groups("*").Resources("*").RuleOrDie(),
+				{
+					Verbs:           sets.NewString(authorizationapi.VerbAll),
+					NonResourceURLs: sets.NewString(authorizationapi.NonResourceAll),
+				},
 			},
 		},
 		{
@@ -543,7 +577,7 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				authorizationapi.NewRule(read...).Groups(kapiGroup).Resources("nodes").RuleOrDie(),
 				// Allow all API calls to the nodes
 				authorizationapi.NewRule("proxy").Groups(kapiGroup).Resources("nodes").RuleOrDie(),
-				authorizationapi.NewRule("*").Groups(kapiGroup).Resources("nodes/proxy", authorizationapi.NodeMetricsResource, authorizationapi.NodeStatsResource, authorizationapi.NodeLogResource).RuleOrDie(),
+				authorizationapi.NewRule("*").Groups(kapiGroup).Resources("nodes/proxy", authorizationapi.NodeMetricsResource, authorizationapi.NodeSpecResource, authorizationapi.NodeStatsResource, authorizationapi.NodeLogResource).RuleOrDie(),
 			},
 		},
 		{
@@ -554,7 +588,7 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				// Allow read-only access to the API objects
 				authorizationapi.NewRule(read...).Groups(kapiGroup).Resources("nodes").RuleOrDie(),
 				// Allow read access to node metrics
-				authorizationapi.NewRule("get").Groups(kapiGroup).Resources(authorizationapi.NodeMetricsResource).RuleOrDie(),
+				authorizationapi.NewRule("get").Groups(kapiGroup).Resources(authorizationapi.NodeMetricsResource, authorizationapi.NodeSpecResource).RuleOrDie(),
 				// Allow read access to stats
 				// Node stats requests are submitted as POSTs.  These creates are non-mutating
 				authorizationapi.NewRule("get", "create").Groups(kapiGroup).Resources(authorizationapi.NodeStatsResource).RuleOrDie(),
@@ -656,7 +690,7 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				authorizationapi.NewRule("create").Groups(imageGroup).Resources("imagestreamimports").RuleOrDie(),
 				authorizationapi.NewRule("get", "update").Groups(imageGroup).Resources("imagestreams/layers").RuleOrDie(),
 				authorizationapi.NewRule(readWrite...).Groups(authzGroup).Resources("rolebindings", "roles").RuleOrDie(),
-				authorizationapi.NewRule("create").Groups(authzGroup).Resources("localresourceaccessreviews", "localsubjectaccessreviews").RuleOrDie(),
+				authorizationapi.NewRule("create").Groups(authzGroup).Resources("localresourceaccessreviews", "localsubjectaccessreviews", "subjectrulesreviews").RuleOrDie(),
 				authorizationapi.NewRule(read...).Groups(authzGroup).Resources("policies", "policybindings").RuleOrDie(),
 
 				authorizationapi.NewRule("get").Groups(kapiGroup).Resources("namespaces").RuleOrDie(),
@@ -922,11 +956,6 @@ func GetBootstrapClusterRoleBindings() []authorizationapi.ClusterRoleBinding {
 		{
 			ObjectMeta: kapi.ObjectMeta{Name: BuildStrategyDockerRoleBindingName},
 			RoleRef:    kapi.ObjectReference{Name: BuildStrategyDockerRoleName},
-			Subjects:   []kapi.ObjectReference{{Kind: authorizationapi.SystemGroupKind, Name: AuthenticatedGroup}},
-		},
-		{
-			ObjectMeta: kapi.ObjectMeta{Name: BuildStrategyCustomRoleBindingName},
-			RoleRef:    kapi.ObjectReference{Name: BuildStrategyCustomRoleName},
 			Subjects:   []kapi.ObjectReference{{Kind: authorizationapi.SystemGroupKind, Name: AuthenticatedGroup}},
 		},
 		{

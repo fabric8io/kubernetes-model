@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors All rights reserved.
+Copyright 2014 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,8 +19,12 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"os"
+
+	"github.com/renstrom/dedent"
 
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/meta"
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/apimachinery/registered"
 	"k8s.io/kubernetes/pkg/kubectl"
@@ -31,27 +35,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	convert_long = `Convert config files between different API versions. Both YAML
-and JSON formats are accepted.
+var (
+	convert_long = dedent.Dedent(`
+		Convert config files between different API versions. Both YAML
+		and JSON formats are accepted.
 
-The command takes filename, directory, or URL as input, and convert it into format
-of version specified by --output-version flag. If target version is not specified or
-not supported, convert to latest version.
+		The command takes filename, directory, or URL as input, and convert it into format
+		of version specified by --output-version flag. If target version is not specified or
+		not supported, convert to latest version.
 
-The default output will be printed to stdout in YAML format. One can use -o option
-to change to output destination.
-`
-	convert_example = `# Convert 'pod.yaml' to latest version and print to stdout.
-kubectl convert -f pod.yaml
+		The default output will be printed to stdout in YAML format. One can use -o option
+		to change to output destination.
+		`)
 
-# Convert the live state of the resource specified by 'pod.yaml' to the latest version
-# and print to stdout in json format.
-kubectl convert -f pod.yaml --local -o json
+	convert_example = dedent.Dedent(`
+		# Convert 'pod.yaml' to latest version and print to stdout.
+		kubectl convert -f pod.yaml
 
-# Convert all files under current directory to latest version and create them all.
-kubectl convert -f . | kubectl create -f -
-`
+		# Convert the live state of the resource specified by 'pod.yaml' to the latest version
+		# and print to stdout in json format.
+		kubectl convert -f pod.yaml --local -o json
+
+		# Convert all files under current directory to latest version and create them all.
+		kubectl convert -f . | kubectl create -f -
+		`)
 )
 
 // NewCmdConvert creates a command object for the generic "convert" action, which
@@ -113,7 +120,7 @@ func (o *ConvertOptions) Complete(f *cmdutil.Factory, out io.Writer, cmd *cobra.
 	clientMapper := resource.ClientMapperFunc(f.ClientForMapping)
 
 	if o.local {
-		fmt.Fprintln(out, "running in local mode...")
+		fmt.Fprintln(os.Stderr, "running in local mode...")
 		o.builder = resource.NewBuilder(mapper, typer, resource.DisabledClientForMapping{ClientMapper: clientMapper}, f.Decoder(true))
 	} else {
 		o.builder = resource.NewBuilder(mapper, typer, clientMapper, f.Decoder(true))
@@ -144,7 +151,7 @@ func (o *ConvertOptions) Complete(f *cmdutil.Factory, out io.Writer, cmd *cobra.
 		}
 	}
 	o.encoder = f.JSONEncoder()
-	o.printer, _, err = kubectl.GetPrinter(outputFormat, templateFile)
+	o.printer, _, err = kubectl.GetPrinter(outputFormat, templateFile, false)
 	if err != nil {
 		return err
 	}
@@ -160,26 +167,32 @@ func (o *ConvertOptions) RunConvert() error {
 		return err
 	}
 
-	count := 0
-	err = r.Visit(func(info *resource.Info, err error) error {
-		if err != nil {
-			return err
-		}
-
-		infos := []*resource.Info{info}
-		objects, err := resource.AsVersionedObject(infos, false, o.outputVersion, o.encoder)
-		if err != nil {
-			return err
-		}
-
-		count++
-		return o.printer.PrintObj(objects, o.out)
-	})
+	singular := false
+	infos, err := r.IntoSingular(&singular).Infos()
 	if err != nil {
 		return err
 	}
-	if count == 0 {
+
+	if len(infos) == 0 {
 		return fmt.Errorf("no objects passed to convert")
 	}
-	return nil
+
+	objects, err := resource.AsVersionedObject(infos, !singular, o.outputVersion, o.encoder)
+	if err != nil {
+		return err
+	}
+
+	if meta.IsListType(objects) {
+		_, items, err := cmdutil.FilterResourceList(objects, nil, nil)
+		if err != nil {
+			return err
+		}
+		filteredObj, err := cmdutil.ObjectListToVersionedObject(items, o.outputVersion)
+		if err != nil {
+			return err
+		}
+		return o.printer.PrintObj(filteredObj, o.out)
+	}
+
+	return o.printer.PrintObj(objects, o.out)
 }

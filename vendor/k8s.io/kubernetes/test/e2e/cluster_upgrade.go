@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors All rights reserved.
+Copyright 2016 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ var _ = framework.KubeDescribe("Upgrade [Feature:Upgrade]", func() {
 			cm := chaosmonkey.New(func() {
 				v, err := realVersion(framework.TestContext.UpgradeTarget)
 				framework.ExpectNoError(err)
-				framework.ExpectNoError(framework.NodeUpgrade(f, v))
+				framework.ExpectNoError(framework.NodeUpgrade(f, v, framework.TestContext.UpgradeImage))
 				framework.ExpectNoError(checkNodesVersions(f.Client, v))
 			})
 			cm.Register(func(sem *chaosmonkey.Semaphore) {
@@ -72,7 +72,7 @@ var _ = framework.KubeDescribe("Upgrade [Feature:Upgrade]", func() {
 			cm := chaosmonkey.New(func() {
 				v, err := realVersion(framework.TestContext.UpgradeTarget)
 				framework.ExpectNoError(err)
-				framework.ExpectNoError(framework.NodeUpgrade(f, v))
+				framework.ExpectNoError(framework.NodeUpgrade(f, v, framework.TestContext.UpgradeImage))
 				framework.ExpectNoError(checkNodesVersions(f.Client, v))
 			})
 			cm.Register(func(sem *chaosmonkey.Semaphore) {
@@ -90,7 +90,7 @@ var _ = framework.KubeDescribe("Upgrade [Feature:Upgrade]", func() {
 				framework.ExpectNoError(err)
 				framework.ExpectNoError(framework.MasterUpgrade(v))
 				framework.ExpectNoError(checkMasterVersion(f.Client, v))
-				framework.ExpectNoError(framework.NodeUpgrade(f, v))
+				framework.ExpectNoError(framework.NodeUpgrade(f, v, framework.TestContext.UpgradeImage))
 				framework.ExpectNoError(checkNodesVersions(f.Client, v))
 			})
 			cm.Register(func(sem *chaosmonkey.Semaphore) {
@@ -106,7 +106,7 @@ var _ = framework.KubeDescribe("Upgrade [Feature:Upgrade]", func() {
 				framework.ExpectNoError(err)
 				framework.ExpectNoError(framework.MasterUpgrade(v))
 				framework.ExpectNoError(checkMasterVersion(f.Client, v))
-				framework.ExpectNoError(framework.NodeUpgrade(f, v))
+				framework.ExpectNoError(framework.NodeUpgrade(f, v, framework.TestContext.UpgradeImage))
 				framework.ExpectNoError(checkNodesVersions(f.Client, v))
 			})
 			cm.Register(func(sem *chaosmonkey.Semaphore) {
@@ -155,7 +155,7 @@ func testService(f *framework.Framework, sem *chaosmonkey.Semaphore, testDuringD
 	tcpService := jig.CreateTCPServiceOrFail(f.Namespace.Name, func(s *api.Service) {
 		s.Spec.Type = api.ServiceTypeLoadBalancer
 	})
-	tcpService = jig.WaitForLoadBalancerOrFail(f.Namespace.Name, tcpService.Name)
+	tcpService = jig.WaitForLoadBalancerOrFail(f.Namespace.Name, tcpService.Name, loadBalancerCreateTimeoutDefault)
 	jig.SanityCheckService(tcpService, api.ServiceTypeLoadBalancer)
 
 	// Get info to hit it with

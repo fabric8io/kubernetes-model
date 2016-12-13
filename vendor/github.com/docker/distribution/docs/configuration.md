@@ -55,8 +55,6 @@ information about each option that appears later in this page.
 
     version: 0.1
     log:
-      accesslog:
-        disabled: true
       level: debug
       formatter: text
       fields:
@@ -101,9 +99,6 @@ information about each option that appears later in this page.
         secure: true
         v4auth: true
         chunksize: 5242880
-        multipartcopychunksize: 33554432
-        multipartcopymaxconcurrency: 100
-        multipartcopythresholdsize: 33554432
         rootdirectory: /s3/object/name/prefix
       swift:
         username: username
@@ -203,8 +198,6 @@ information about each option that appears later in this page.
         addr: localhost:5001
       headers:
         X-Content-Type-Options: [nosniff]
-      http2:
-        disabled: false
     notifications:
       endpoints:
         - name: alistener
@@ -253,14 +246,6 @@ information about each option that appears later in this page.
     compatibility:
       schema1:
         signingkeyfile: /etc/registry/key.json
-    validation:
-      enabled: true
-      manifests:
-        urls:
-          allow:
-            - ^https?://([^/]+\.)*example\.com/
-          deny:
-            - ^https?://www\.example\.com/
 
 In some instances a configuration option is **optional** but it contains child
 options marked as **required**. This indicates that you can omit the parent with
@@ -282,8 +267,6 @@ system outputs everything to stdout. You can adjust the granularity and format
 with this configuration section.
 
     log:
-      accesslog:
-        disabled: true
       level: debug
       formatter: text
       fields:
@@ -322,7 +305,7 @@ with this configuration section.
       <code>logstash</code>. The default is <code>text</code>.
     </td>
   </tr>
-  <tr>
+    <tr>
     <td>
       <code>fields</code>
     </td>
@@ -334,18 +317,7 @@ with this configuration section.
       the context. This is useful for identifying log messages source after
       being mixed in other systems.
     </td>
-  </tr>
 </table>
-
-### accesslog
-
-    accesslog:
-      disabled: true
-
-Within `log`, `accesslog` configures the behavior of the access logging
-system. By default, the access logging system outputs to stdout in
-[Combined Log Format](https://httpd.apache.org/docs/2.4/logs.html#combined).
-Access logging can be disabled by setting the boolean flag `disabled` to `true`.
 
 ## hooks
 
@@ -400,9 +372,6 @@ Permitted values are `error`, `warn`, `info` and `debug`. The default is
         secure: true
         v4auth: true
         chunksize: 5242880
-        multipartcopychunksize: 33554432
-        multipartcopymaxconcurrency: 100
-        multipartcopythresholdsize: 33554432
         rootdirectory: /s3/object/name/prefix
       swift:
         username: username
@@ -933,8 +902,6 @@ configuration may contain both.
         addr: localhost:5001
       headers:
         X-Content-Type-Options: [nosniff]
-      http2:
-        disabled: false
 
 The `http` option details the configuration for the HTTP server that hosts the registry.
 
@@ -1081,11 +1048,6 @@ and proxy connections to the registry server.
 The `letsencrypt` struct within `tls` is **optional**. Use this to configure TLS
 certificates provided by [Let's Encrypt](https://letsencrypt.org/how-it-works/).
 
->**NOTE**: When using Let's Encrypt ensure that the outward facing address is
-> accessible on port `443`. The registry defaults to listening on `5000`, if
-> run as a container consider adding the flag `-p 443:5000` to the `docker run`
-> command or similar setting in cloud configuration.
-
 <table>
   <tr>
     <th>Parameter</th>
@@ -1142,29 +1104,6 @@ Including `X-Content-Type-Options: [nosniff]` is recommended, so that browsers
 will not interpret content as HTML if they are directed to load a page from the
 registry. This header is included in the example configuration files.
 
-### http2
-
-The `http2` struct within `http` is **optional**. Use this to control http2
-settings for the registry.
-
-<table>
-  <tr>
-    <th>Parameter</th>
-    <th>Required</th>
-    <th>Description</th>
-  </tr>
-  <tr>
-    <td>
-      <code>disabled</code>
-    </td>
-    <td>
-      no
-    </td>
-    <td>
-       A boolean that determines if http2 support should be disabled
-    </td>
-  </tr>
-</table>
 
 ## notifications
 
@@ -1832,7 +1771,7 @@ To enable pulling private repositories (e.g. `batman/robin`) a username and pass
         signingkeyfile: /etc/registry/key.json
 
 Configure handling of older and deprecated features. Each subsection
-defines such a feature with configurable behavior.
+defines a such a feature with configurable behavior.
 
 ### Schema1
 
@@ -1856,39 +1795,6 @@ defines such a feature with configurable behavior.
     </td>
   </tr>
 </table>
-
-## Validation
-
-    validation:
-      enabled: true
-      manifests:
-        urls:
-          allow:
-            - ^https?://([^/]+\.)*example\.com/
-          deny:
-            - ^https?://www\.example\.com/
-
-### Enabled
-
-Use the `enabled` flag to enable the other options in the `validation`
-section. They are disabled by default.
-
-### Manifests
-
-Use the `manifest` subsection to configure manifest validation.
-
-#### URLs
-
-The `allow` and `deny` options are both lists of
-[regular expressions](https://godoc.org/regexp/syntax) that restrict the URLs in
-pushed manifests.
-
-If `allow` is unset, pushing a manifest containing URLs will fail.
-
-If `allow` is set, pushing a manifest will succeed only if all URLs within match
-one of the `allow` regular expressions and one of the following holds:
-1. `deny` is unset.
-2. `deny` is set but no URLs within the manifest match any of the `deny` regular expressions.
 
 ## Example: Development configuration
 

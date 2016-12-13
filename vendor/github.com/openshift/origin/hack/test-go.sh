@@ -44,27 +44,27 @@ os::util::environment::setup_tmpdir_vars "test-go"
 # TODO(skuznets): remove these once we've migrated all tools to the new vars
 if [[ -n "${KUBE_TIMEOUT+x}" ]]; then
     TIMEOUT="${KUBE_TIMEOUT}"
-    echo "[WARNING] The flag \$KUBE_TIMEOUT for $0 is deprecated, use \$TIMEOUT instead."
+    os::log::warn "The flag \$KUBE_TIMEOUT for $0 is deprecated, use \$TIMEOUT instead."
 fi
 
 if [[ -n "${KUBE_COVER+x}" ]]; then
     COVERAGE_SPEC="${KUBE_COVER}"
-    echo "[WARNING] The flag \$KUBE_COVER for $0 is deprecated, use \$COVERAGE_SPEC instead."
+    os::log::warn "The flag \$KUBE_COVER for $0 is deprecated, use \$COVERAGE_SPEC instead."
 fi
 
 if [[ -n "${OUTPUT_COVERAGE+x}" ]]; then
     COVERAGE_OUTPUT_DIR="${OUTPUT_COVERAGE}"
-    echo "[WARNING] The flag \$OUTPUT_COVERAGE for $0 is deprecated, use \$COVERAGE_OUTPUT_DIR instead."
+    os::log::warn "The flag \$OUTPUT_COVERAGE for $0 is deprecated, use \$COVERAGE_OUTPUT_DIR instead."
 fi
 
 if [[ -n "${KUBE_RACE+x}" ]]; then
     DETECT_RACES="${KUBE_RACE}"
-    echo "[WARNING] The flag \$KUBE_RACE for $0 is deprecated, use \$DETECT_RACES instead."
+    os::log::warn "The flag \$KUBE_RACE for $0 is deprecated, use \$DETECT_RACES instead."
 fi
 
 if [[ -n "${PRINT_PACKAGES+x}" ]]; then
     DRY_RUN="${PRINT_PACKAGES}"
-    echo "[WARNING] The flag \$PRINT_PACKAGES for $0 is deprecated, use \$DRY_RUN instead."
+    os::log::warn "The flag \$PRINT_PACKAGES for $0 is deprecated, use \$DRY_RUN instead."
 fi
 
 # Internalize environment variables we consume and default if they're not set
@@ -215,7 +215,7 @@ if [[ -n "${junit_report}" ]]; then
     test_error_file="${LOG_DIR}/test-go-err.log"
     junit_report_file="${ARTIFACT_DIR}/report.xml"
 
-    echo "[INFO] Running \`go test\`..."
+    os::log::info "Running \`go test\`..."
     # we don't care if the `go test` fails in this pipe, as we want to generate the report and summarize the output anyway
     set +o pipefail
 
@@ -237,29 +237,29 @@ if [[ -n "${junit_report}" ]]; then
 
     if echo "${summary}" | grep -q ', 0 failed,'; then
         if [[ "${test_return_code}" -ne "0" ]]; then
-            echo "[WARNING] While the jUnit report found no failed tests, the \`go test\` process failed."
-            echo "[WARNING] This usually means that the unit test suite failed to compile."
+            os::log::warn "While the jUnit report found no failed tests, the \`go test\` process failed."
+            os::log::warn "This usually means that the unit test suite failed to compile."
         fi
     fi
 
     if [[ -s "${test_error_file}" ]]; then
-        echo "[WARNING] \`go test\` had the following output to stderr:"
+        os::log::warn "\`go test\` had the following output to stderr:"
         cat "${test_error_file}"
     fi
 
     if grep -q 'WARNING: DATA RACE' "${test_output_file}"; then
         locations=( $( sed -n '/WARNING: DATA RACE/=' "${test_output_file}") )
         if [[ "${#locations[@]}" -gt 1 ]]; then
-            echo "[WARNING] \`go test\` detected data races."
-            echo "[WARNING] Details can be found in the full output file at lines ${locations[*]}."
+            os::log::warn "\`go test\` detected data races."
+            os::log::warn "Details can be found in the full output file at lines ${locations[*]}."
         else
-            echo "[WARNING] \`go test\` detected a data race."
-            echo "[WARNING] Details can be found in the full output file at line ${locations[*]}."
+            os::log::warn "\`go test\` detected a data race."
+            os::log::warn "Details can be found in the full output file at line ${locations[*]}."
         fi
     fi
 
-    echo "[INFO] Full output from \`go test\` logged at ${test_output_file}"
-    echo "[INFO] jUnit XML report placed at ${junit_report_file}"
+    os::log::info "Full output from \`go test\` logged at ${test_output_file}"
+    os::log::info "jUnit XML report placed at ${junit_report_file}"
     exit "${test_return_code}"
 
 elif [[ -n "${coverage_output_dir}" ]]; then
@@ -276,7 +276,7 @@ elif [[ -n "${coverage_output_dir}" ]]; then
     find "${coverage_output_dir}" -name profile.out | xargs sed '/^mode: atomic$/d' >> "${coverage_output_dir}/profiles.out"
 
     go tool cover "-html=${coverage_output_dir}/profiles.out" -o "${coverage_output_dir}/coverage.html"
-    echo "[INFO] Coverage profile written to ${coverage_output_dir}/coverage.html"
+    os::log::info "Coverage profile written to ${coverage_output_dir}/coverage.html"
 
     # clean up all of the individual coverage reports as they have been subsumed into the report at ${coverage_output_dir}/coverage.html
     # we can clean up all of the coverage reports at once as they all exist in subdirectories of ${coverage_output_dir}/${OS_GO_PACKAGE}

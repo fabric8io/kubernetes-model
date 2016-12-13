@@ -16,12 +16,14 @@ openshift cli expose \- Expose a replicated application as a service or route
 Expose containers internally as services or externally via routes
 
 .PP
-There is also the ability to expose a deployment configuration, replication controller, service, or pod
-as a new service on a specified port. If no labels are specified, the new object will re\-use the
-labels from the object it exposes.
+There is also the ability to expose a deployment configuration, replication controller, service, or pod as a new service on a specified port. If no labels are specified, the new object will re\-use the labels from the object it exposes.
 
 
 .SH OPTIONS
+.PP
+\fB\-\-cluster\-ip\fP=""
+    ClusterIP to be assigned to the service. Leave empty to auto\-allocate, or set to 'None' to create a headless service.
+
 .PP
 \fB\-\-container\-port\fP=""
     Synonym for \-\-target\-port
@@ -56,7 +58,7 @@ labels from the object it exposes.
 
 .PP
 \fB\-\-load\-balancer\-ip\fP=""
-    IP to assign to to the Load Balancer. If empty, an ephemeral IP will be created and used (cloud\-provider specific).
+    IP to assign to the Load Balancer. If empty, an ephemeral IP will be created and used (cloud\-provider specific).
 
 .PP
 \fB\-\-name\fP=""
@@ -64,13 +66,14 @@ labels from the object it exposes.
 
 .PP
 \fB\-\-no\-headers\fP=false
-    When using the default output, don't print headers.
+    When using the default or custom\-column output format, don't print headers.
 
 .PP
 \fB\-o\fP, \fB\-\-output\fP=""
-    Output format. One of: json|yaml|wide|name|go\-template=...|go\-template\-file=...|jsonpath=...|jsonpath\-file=... See golang template [
+    Output format. One of: json|yaml|wide|name|custom\-columns=...|custom\-columns\-file=...|go\-template=...|go\-template\-file=...|jsonpath=...|jsonpath\-file=... See custom columns [
+\[la]http://kubernetes.io/docs/user-guide/kubectl-overview/#custom-columns\[ra]], golang template [
 \[la]http://golang.org/pkg/text/template/#pkg-overview\[ra]] and jsonpath template [
-\[la]http://releases.k8s.io/release-1.3/docs/user-guide/jsonpath.md\[ra]].
+\[la]http://kubernetes.io/docs/user-guide/jsonpath\[ra]].
 
 .PP
 \fB\-\-output\-version\fP=""
@@ -145,19 +148,19 @@ labels from the object it exposes.
 
 .PP
 \fB\-\-as\fP=""
-    Username to impersonate for the operation.
+    Username to impersonate for the operation
 
 .PP
 \fB\-\-certificate\-authority\fP=""
-    Path to a cert. file for the certificate authority.
+    Path to a cert. file for the certificate authority
 
 .PP
 \fB\-\-client\-certificate\fP=""
-    Path to a client certificate file for TLS.
+    Path to a client certificate file for TLS
 
 .PP
 \fB\-\-client\-key\fP=""
-    Path to a client key file for TLS.
+    Path to a client key file for TLS
 
 .PP
 \fB\-\-cluster\fP=""
@@ -177,7 +180,7 @@ labels from the object it exposes.
 
 .PP
 \fB\-\-insecure\-skip\-tls\-verify\fP=false
-    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure.
+    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
 
 .PP
 \fB\-\-log\-flush\-frequency\fP=0
@@ -189,7 +192,11 @@ labels from the object it exposes.
 
 .PP
 \fB\-n\fP, \fB\-\-namespace\fP=""
-    If present, the namespace scope for this CLI request.
+    If present, the namespace scope for this CLI request
+
+.PP
+\fB\-\-request\-timeout\fP="0"
+    The length of time to wait before giving up on a single server request. Non\-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.
 
 .PP
 \fB\-\-server\fP=""
@@ -197,7 +204,7 @@ labels from the object it exposes.
 
 .PP
 \fB\-\-token\fP=""
-    Bearer token for authentication to the API server.
+    Bearer token for authentication to the API server
 
 .PP
 \fB\-\-user\fP=""
@@ -211,16 +218,16 @@ labels from the object it exposes.
 .nf
   # Create a route based on service nginx. The new route will re\-use nginx's labels
   openshift cli expose service nginx
-
+  
   # Create a route and specify your own label and route name
   openshift cli expose service nginx \-l name=myroute \-\-name=fromdowntown
-
+  
   # Create a route and specify a hostname
   openshift cli expose service nginx \-\-hostname=www.example.com
-
+  
   # Expose a deployment configuration as a service and use the specified port
   openshift cli expose dc ruby\-hello\-world \-\-port=8080
-
+  
   # Expose a service as a route in the specified path
   openshift cli expose service nginx \-\-path=/nginx
 

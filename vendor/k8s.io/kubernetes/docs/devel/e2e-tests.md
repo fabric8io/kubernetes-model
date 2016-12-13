@@ -27,6 +27,7 @@ Updated: 5/3/2016
     - [Debugging clusters](#debugging-clusters)
     - [Local clusters](#local-clusters)
       - [Testing against local clusters](#testing-against-local-clusters)
+    - [Version-skewed and upgrade testing](#version-skewed-and-upgrade-testing)
   - [Kinds of tests](#kinds-of-tests)
     - [Conformance tests](#conformance-tests)
     - [Defining Conformance Subset](#defining-conformance-subset)
@@ -107,16 +108,16 @@ go run hack/e2e.go -v --pushup
 go run hack/e2e.go -v --test
 
 # Run tests matching the regex "\[Feature:Performance\]"
-go run hack/e2e.go -v -test --test_args="--ginkgo.focus=\[Feature:Performance\]"
+go run hack/e2e.go -v --test --test_args="--ginkgo.focus=\[Feature:Performance\]"
 
 # Conversely, exclude tests that match the regex "Pods.*env"
-go run hack/e2e.go -v -test --test_args="--ginkgo.focus=Pods.*env"
+go run hack/e2e.go -v --test --test_args="--ginkgo.skip=Pods.*env"
 
 # Run tests in parallel, skip any that must be run serially
 GINKGO_PARALLEL=y go run hack/e2e.go --v --test --test_args="--ginkgo.skip=\[Serial\]"
 
 # Flags can be combined, and their actions will take place in this order:
-# --build, --push|--up|--pushup, --test|--tests=..., --down
+# --build, --push|--up|--pushup, --test, --down
 #
 # You can also specify an alternative provider, such as 'aws'
 #
@@ -155,38 +156,38 @@ arguments into Ginkgo using `--test_args` (e.g. see above). For the purposes of
 brevity, we will look at a subset of the options, which are listed below:
 
 ```
--ginkgo.dryRun=false: If set, ginkgo will walk the test hierarchy without
+--ginkgo.dryRun=false: If set, ginkgo will walk the test hierarchy without
 actually running anything. Best paired with -v.
 
--ginkgo.failFast=false: If set, ginkgo will stop running a test suite after a
+--ginkgo.failFast=false: If set, ginkgo will stop running a test suite after a
 failure occurs.
 
--ginkgo.failOnPending=false: If set, ginkgo will mark the test suite as failed
+--ginkgo.failOnPending=false: If set, ginkgo will mark the test suite as failed
 if any specs are pending.
 
--ginkgo.focus="": If set, ginkgo will only run specs that match this regular
+--ginkgo.focus="": If set, ginkgo will only run specs that match this regular
 expression.
 
--ginkgo.skip="": If set, ginkgo will only run specs that do not match this
+--ginkgo.skip="": If set, ginkgo will only run specs that do not match this
 regular expression.
 
--ginkgo.trace=false: If set, default reporter prints out the full stack trace
+--ginkgo.trace=false: If set, default reporter prints out the full stack trace
 when a failure occurs
 
--ginkgo.v=false: If set, default reporter print out all specs as they begin.
+--ginkgo.v=false: If set, default reporter print out all specs as they begin.
 
--host="": The host, or api-server, to connect to
+--host="": The host, or api-server, to connect to
 
--kubeconfig="": Path to kubeconfig containing embedded authinfo.
+--kubeconfig="": Path to kubeconfig containing embedded authinfo.
 
--prom-push-gateway="": The URL to prometheus gateway, so that metrics can be
+--prom-push-gateway="": The URL to prometheus gateway, so that metrics can be
 pushed during e2es and scraped by prometheus. Typically something like
 127.0.0.1:9091.
 
--provider="": The name of the Kubernetes provider (gce, gke, local, vagrant,
+--provider="": The name of the Kubernetes provider (gce, gke, local, vagrant,
 etc.)
 
--repo-root="../../": Root directory of kubernetes repository, for finding test
+--repo-root="../../": Root directory of kubernetes repository, for finding test
 files.
 ```
 
@@ -267,7 +268,7 @@ Next, specify the docker repository where your ci images will be pushed.
 	* `${FEDERATION_PUSH_REPO_BASE}/federation-controller-manager`
 
 	These repositories must allow public read access, as the e2e node docker daemons will not have any credentials. If you're using
-	gce/gke as your provider, the repositories will have read-access by default.
+	GCE/GKE as your provider, the repositories will have read-access by default.
 
 #### Build
 
@@ -289,7 +290,7 @@ The following command will create the underlying Kubernetes clusters in each of 
 federation control plane in the cluster occupying the last zone in the `E2E_ZONES` list.
 
 ```sh
-$ go run hack/e2e.go -v -up
+$ go run hack/e2e.go -v --up
 ```
 
 #### Run the Tests
@@ -297,13 +298,13 @@ $ go run hack/e2e.go -v -up
 This will run only the `Feature:Federation` e2e tests. You can omit the `ginkgo.focus` argument to run the entire e2e suite.
 
 ```sh
-$ go run hack/e2e.go -v -test --test_args="--ginkgo.focus=\[Feature:Federation\]"
+$ go run hack/e2e.go -v --test --test_args="--ginkgo.focus=\[Feature:Federation\]"
 ```
 
 #### Teardown
 
 ```sh
-$ go run hack/e2e.go -v -down
+$ go run hack/e2e.go -v --down
 ```
 
 #### Shortcuts for test developers
@@ -368,13 +369,77 @@ at a custom host directly:
 
 ```sh
 export KUBECONFIG=/path/to/kubeconfig
-go run hack/e2e.go -v --test_args="--host=http://127.0.0.1:8080"
+go run hack/e2e.go -v --test --check_node_count=false --test_args="--host=http://127.0.0.1:8080"
 ```
 
 To control the tests that are run:
 
 ```sh
-go run hack/e2e.go -v --test_args="--host=http://127.0.0.1:8080" --ginkgo.focus="Secrets"
+go run hack/e2e.go -v --test --check_node_count=false --test_args="--host=http://127.0.0.1:8080" --ginkgo.focus="Secrets"
+```
+
+### Version-skewed and upgrade testing
+
+We run version-skewed tests to check that newer versions of Kubernetes work
+similarly enough to older versions.  The general strategy is to cover the following cases:
+
+1. One version of `kubectl` with another version of the cluster and tests (e.g.
+   that v1.2 and v1.4 `kubectl` doesn't break v1.3 tests running against a v1.3
+   cluster).
+1. A newer version of the Kubernetes master with older nodes and tests (e.g.
+   that upgrading a master to v1.3 with nodes at v1.2 still passes v1.2 tests).
+1. A newer version of the whole cluster with older tests (e.g. that a cluster
+   upgraded---master and nodes---to v1.3 still passes v1.2 tests).
+1. That an upgraded cluster functions the same as a brand-new cluster of the
+   same version (e.g. a cluster upgraded to v1.3 passes the same v1.3 tests as
+   a newly-created v1.3 cluster).
+
+[hack/e2e-runner.sh](http://releases.k8s.io/release-1.4/hack/jenkins/e2e-runner.sh) is
+the authoritative source on how to run version-skewed tests, but below is a
+quick-and-dirty tutorial.
+
+```sh
+# Assume you have two copies of the Kubernetes repository checked out, at
+# ./kubernetes and ./kubernetes_old
+
+# If using GKE:
+export KUBERNETES_PROVIDER=gke
+export CLUSTER_API_VERSION=${OLD_VERSION}
+
+# Deploy a cluster at the old version; see above for more details
+cd ./kubernetes_old
+go run ./hack/e2e.go -v --up
+
+# Upgrade the cluster to the new version
+#
+# If using GKE, add --upgrade-target=${NEW_VERSION}
+#
+# You can target Feature:MasterUpgrade or Feature:ClusterUpgrade
+cd ../kubernetes
+go run ./hack/e2e.go -v --test --check_version_skew=false --test_args="--ginkgo.focus=\[Feature:MasterUpgrade\]"
+
+# Run old tests with new kubectl
+cd ../kubernetes_old
+go run ./hack/e2e.go -v --test --test_args="--kubectl-path=$(pwd)/../kubernetes/cluster/kubectl.sh"
+```
+
+If you are just testing version-skew, you may want to just deploy at one
+version and then test at another version, instead of going through the whole
+upgrade process:
+
+```sh
+# With the same setup as above
+
+# Deploy a cluster at the new version
+cd ./kubernetes
+go run ./hack/e2e.go -v --up
+
+# Run new tests with old kubectl
+go run ./hack/e2e.go -v --test --test_args="--kubectl-path=$(pwd)/../kubernetes_old/cluster/kubectl.sh"
+
+# Run old tests with new kubectl
+cd ../kubernetes_old
+go run ./hack/e2e.go -v --test --test_args="--kubectl-path=$(pwd)/../kubernetes/cluster/kubectl.sh"
 ```
 
 ## Kinds of tests
@@ -456,10 +521,10 @@ export KUBERNETES_PROVIDER=skeleton
 go run hack/e2e.go -v --test --test_args="--ginkgo.focus=\[Conformance\]"
 
 # run all parallel-safe conformance tests in parallel
-GINKGO_PARALLEL=y go run hack/e2e.go --v --test --test_args="--ginkgo.focus=\[Conformance\] --ginkgo.skip=\[Serial\]"
+GINKGO_PARALLEL=y go run hack/e2e.go -v --test --test_args="--ginkgo.focus=\[Conformance\] --ginkgo.skip=\[Serial\]"
 
 # ... and finish up with remaining tests in serial
-go run hack/e2e.go --v --test --test_args="--ginkgo.focus=\[Serial\].*\[Conformance\]"
+go run hack/e2e.go -v --test --test_args="--ginkgo.focus=\[Serial\].*\[Conformance\]"
 ```
 
 ### Defining Conformance Subset

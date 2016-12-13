@@ -9,7 +9,6 @@ import (
 	"k8s.io/kubernetes/pkg/util/sets"
 
 	// Admission control plug-ins used by OpenShift
-	_ "github.com/openshift/origin/pkg/api/admission/ownerref"
 	_ "github.com/openshift/origin/pkg/build/admission/defaults"
 	_ "github.com/openshift/origin/pkg/build/admission/jenkinsbootstrapper"
 	_ "github.com/openshift/origin/pkg/build/admission/overrides"
@@ -35,6 +34,8 @@ import (
 	_ "k8s.io/kubernetes/plugin/pkg/admission/resourcequota"
 	_ "k8s.io/kubernetes/plugin/pkg/admission/serviceaccount"
 
+	storageclassdefaultadmission "k8s.io/kubernetes/plugin/pkg/admission/storageclass/default"
+
 	imageadmission "github.com/openshift/origin/pkg/image/admission"
 	imagepolicy "github.com/openshift/origin/pkg/image/admission/imagepolicy/api"
 	overrideapi "github.com/openshift/origin/pkg/quota/admission/clusterresourceoverride/api"
@@ -50,9 +51,7 @@ var (
 		"OriginNamespaceLifecycle",
 		"openshift.io/JenkinsBootstrapper",
 		"BuildByStrategy",
-		// TODO: remove the log setting logic from the build defaulter and make this
-		// default off again.
-		"BuildDefaults",
+		storageclassdefaultadmission.PluginName,
 		imageadmission.PluginName,
 		lifecycle.PluginName,
 		"OriginPodNodeEnvironment",
@@ -64,7 +63,8 @@ var (
 		"LimitPodHardAntiAffinityTopology",
 		"SCCExecRestrictions",
 		"PersistentVolumeLabel",
-		"openshift.io/OwnerReference",
+		"DefaultStorageClass",
+		"OwnerReferencesPermissionEnforcement",
 		quotaadmission.PluginName,
 		"openshift.io/ClusterResourceQuota",
 	)
@@ -77,8 +77,8 @@ var (
 		"PodNodeConstraints",
 		overrideapi.PluginName,
 		imagepolicy.PluginName,
-		"BuildOverrides",
 		"AlwaysPullImages",
+		"ImagePolicyWebhook",
 	)
 )
 

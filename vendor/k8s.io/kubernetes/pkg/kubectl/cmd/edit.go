@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import (
 	gruntime "runtime"
 	"strings"
 
+	"github.com/renstrom/dedent"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/errors"
 	"k8s.io/kubernetes/pkg/api/meta"
@@ -45,35 +46,37 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	editLong = `Edit a resource from the default editor.
+var (
+	editLong = dedent.Dedent(`
+		Edit a resource from the default editor.
 
-The edit command allows you to directly edit any API resource you can retrieve via the
-command line tools. It will open the editor defined by your KUBE_EDITOR, or EDITOR
-environment variables, or fall back to 'vi' for Linux or 'notepad' for Windows.
-You can edit multiple objects, although changes are applied one at a time. The command
-accepts filenames as well as command line arguments, although the files you point to must
-be previously saved versions of resources.
+		The edit command allows you to directly edit any API resource you can retrieve via the
+		command line tools. It will open the editor defined by your KUBE_EDITOR, or EDITOR
+		environment variables, or fall back to 'vi' for Linux or 'notepad' for Windows.
+		You can edit multiple objects, although changes are applied one at a time. The command
+		accepts filenames as well as command line arguments, although the files you point to must
+		be previously saved versions of resources.
 
-The files to edit will be output in the default API version, or a version specified
-by --output-version. The default format is YAML - if you would like to edit in JSON
-pass -o json. The flag --windows-line-endings can be used to force Windows line endings,
-otherwise the default for your operating system will be used.
+		The files to edit will be output in the default API version, or a version specified
+		by --output-version. The default format is YAML - if you would like to edit in JSON
+		pass -o json. The flag --windows-line-endings can be used to force Windows line endings,
+		otherwise the default for your operating system will be used.
 
-In the event an error occurs while updating, a temporary file will be created on disk
-that contains your unapplied changes. The most common error when updating a resource
-is another editor changing the resource on the server. When this occurs, you will have
-to apply your changes to the newer version of the resource, or update your temporary
-saved copy to include the latest resource version.`
+		In the event an error occurs while updating, a temporary file will be created on disk
+		that contains your unapplied changes. The most common error when updating a resource
+		is another editor changing the resource on the server. When this occurs, you will have
+		to apply your changes to the newer version of the resource, or update your temporary
+		saved copy to include the latest resource version.`)
 
-	editExample = `  # Edit the service named 'docker-registry':
-  kubectl edit svc/docker-registry
+	editExample = dedent.Dedent(`
+		  # Edit the service named 'docker-registry':
+		  kubectl edit svc/docker-registry
 
-  # Use an alternative editor
-  KUBE_EDITOR="nano" kubectl edit svc/docker-registry
+		  # Use an alternative editor
+		  KUBE_EDITOR="nano" kubectl edit svc/docker-registry
 
-  # Edit the service 'docker-registry' in JSON using the v1 API format:
-  kubectl edit svc/docker-registry --output-version=v1 -o json`
+		  # Edit the service 'docker-registry' in JSON using the v1 API format:
+		  kubectl edit svc/docker-registry --output-version=v1 -o json`)
 )
 
 // EditOptions is the start of the data required to perform the operation.  As new fields are added, add them here instead of
@@ -90,7 +93,9 @@ func NewCmdEdit(f *cmdutil.Factory, out, errOut io.Writer) *cobra.Command {
 
 	// retrieve a list of handled resources from printer as valid args
 	validArgs, argAliases := []string{}, []string{}
-	p, err := f.Printer(nil, nil)
+	p, err := f.Printer(nil, kubectl.PrintOptions{
+		ColumnLabels: []string{},
+	})
 	cmdutil.CheckErr(err)
 	if p != nil {
 		validArgs = p.HandledResources()
@@ -115,6 +120,7 @@ func NewCmdEdit(f *cmdutil.Factory, out, errOut io.Writer) *cobra.Command {
 	usage := "Filename, directory, or URL to file to use to edit the resource"
 	kubectl.AddJsonFilenameFlag(cmd, &options.Filenames, usage)
 	cmdutil.AddRecursiveFlag(cmd, &options.Recursive)
+	cmdutil.AddValidateFlags(cmd)
 	cmd.Flags().StringP("output", "o", "yaml", "Output format. One of: yaml|json.")
 	cmd.Flags().String("output-version", "", "Output the formatted object with the given group version (for ex: 'extensions/v1beta1').")
 	cmd.Flags().Bool("windows-line-endings", gruntime.GOOS == "windows", "Use Windows line-endings (default Unix line-endings)")
@@ -127,13 +133,16 @@ func NewCmdEdit(f *cmdutil.Factory, out, errOut io.Writer) *cobra.Command {
 func RunEdit(f *cmdutil.Factory, out, errOut io.Writer, cmd *cobra.Command, args []string, options *EditOptions) error {
 	var printer kubectl.ResourcePrinter
 	var ext string
+	var addHeader bool
 	switch format := cmdutil.GetFlagString(cmd, "output"); format {
 	case "json":
 		printer = &kubectl.JSONPrinter{}
 		ext = ".json"
+		addHeader = false
 	case "yaml":
 		printer = &kubectl.YAMLPrinter{}
 		ext = ".yaml"
+		addHeader = true
 	default:
 		return cmdutil.UsageError(cmd, "The flag 'output' must be one of yaml|json")
 	}
@@ -161,15 +170,11 @@ func RunEdit(f *cmdutil.Factory, out, errOut io.Writer, cmd *cobra.Command, args
 		NamespaceParam(cmdNamespace).DefaultNamespace().
 		FilenameParam(enforceNamespace, options.Recursive, options.Filenames...).
 		ResourceTypeOrNameArgs(true, args...).
+		ContinueOnError().
 		Flatten().
 		Latest().
 		Do()
 	err = r.Err()
-	if err != nil {
-		return err
-	}
-
-	infos, err := r.Infos()
 	if err != nil {
 		return err
 	}
@@ -184,7 +189,8 @@ func RunEdit(f *cmdutil.Factory, out, errOut io.Writer, cmd *cobra.Command, args
 	if err != nil {
 		return err
 	}
-	originalObj, err := resource.AsVersionedObject(infos, false, defaultVersion, encoder)
+
+	infos, err := r.Infos()
 	if err != nil {
 		return err
 	}
@@ -201,12 +207,12 @@ func RunEdit(f *cmdutil.Factory, out, errOut io.Writer, cmd *cobra.Command, args
 	containsError := false
 
 	for {
-		// infos mutates over time to be the list of things we've tried and failed to edit
-		// this means that our overall list changes over time.
-		objToEdit, err := resource.AsVersionedObject(infos, false, defaultVersion, encoder)
+		originalObj, err := resource.AsVersionedObject(infos, false, defaultVersion, encoder)
 		if err != nil {
 			return err
 		}
+
+		objToEdit := originalObj
 
 		// generate the file to edit
 		buf := &bytes.Buffer{}
@@ -214,9 +220,11 @@ func RunEdit(f *cmdutil.Factory, out, errOut io.Writer, cmd *cobra.Command, args
 		if windowsLineEndings {
 			w = crlf.NewCRLFWriter(w)
 		}
-		if err := results.header.writeTo(w); err != nil {
-			return preservedFile(err, results.file, errOut)
+
+		if addHeader {
+			results.header.writeTo(w)
 		}
+
 		if !containsError {
 			if err := printer.PrintObj(objToEdit, w); err != nil {
 				return preservedFile(err, results.file, errOut)
@@ -250,6 +258,16 @@ func RunEdit(f *cmdutil.Factory, out, errOut io.Writer, cmd *cobra.Command, args
 			os.Remove(results.file)
 		}
 		glog.V(4).Infof("User edited:\n%s", string(edited))
+
+		// Apply validation
+		schema, err := f.Validator(cmdutil.GetFlagBool(cmd, "validate"), cmdutil.GetFlagString(cmd, "schema-cache-dir"))
+		if err != nil {
+			return preservedFile(err, file, errOut)
+		}
+		err = schema.ValidateBytes(stripComments(edited))
+		if err != nil {
+			return preservedFile(err, file, errOut)
+		}
 
 		// Compare content without comments
 		if bytes.Equal(stripComments(original), stripComments(edited)) {
@@ -370,7 +388,7 @@ func RunEdit(f *cmdutil.Factory, out, errOut io.Writer, cmd *cobra.Command, args
 
 			if reflect.DeepEqual(originalJS, editedJS) {
 				// no edit, so just skip it.
-				cmdutil.PrintSuccess(mapper, false, out, info.Mapping.Resource, info.Name, "skipped")
+				cmdutil.PrintSuccess(mapper, false, out, info.Mapping.Resource, info.Name, false, "skipped")
 				return nil
 			}
 
@@ -399,7 +417,7 @@ func RunEdit(f *cmdutil.Factory, out, errOut io.Writer, cmd *cobra.Command, args
 				return nil
 			}
 			info.Refresh(patched, true)
-			cmdutil.PrintSuccess(mapper, false, out, info.Mapping.Resource, info.Name, "edited")
+			cmdutil.PrintSuccess(mapper, false, out, info.Mapping.Resource, info.Name, false, "edited")
 			return nil
 		})
 		if err != nil {
@@ -432,6 +450,7 @@ func RunEdit(f *cmdutil.Factory, out, errOut io.Writer, cmd *cobra.Command, args
 		// loop again and edit the remaining items
 		infos = results.edit
 	}
+	return nil
 }
 
 // editReason preserves a message about the reason this file must be edited again

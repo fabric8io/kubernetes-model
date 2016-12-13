@@ -26,6 +26,10 @@ DEPRECATED: This command has been moved to "openshift cli set volume"
     select all resources in the namespace of the specified resource types
 
 .PP
+\fB\-\-claim\-class\fP=""
+    StorageClass to use for the persistent volume claim
+
+.PP
 \fB\-\-claim\-mode\fP="ReadWriteOnce"
     Set the access mode of the claim to be created. Valid values are ReadWriteOnce (rwo), ReadWriteMany (rwm), or ReadOnlyMany (rom)
 
@@ -66,12 +70,19 @@ DEPRECATED: This command has been moved to "openshift cli set volume"
     Name of the volume. If empty, auto generated for add operation
 
 .PP
+\fB\-\-no\-headers\fP=false
+    When using the default or custom\-column output format, don't print headers.
+
+.PP
 \fB\-o\fP, \fB\-\-output\fP=""
-    Display the changed objects instead of updating them. One of: json|yaml
+    Output format. One of: json|yaml|wide|name|custom\-columns=...|custom\-columns\-file=...|go\-template=...|go\-template\-file=...|jsonpath=...|jsonpath\-file=... See custom columns [
+\[la]http://kubernetes.io/docs/user-guide/kubectl-overview/#custom-columns\[ra]], golang template [
+\[la]http://golang.org/pkg/text/template/#pkg-overview\[ra]] and jsonpath template [
+\[la]http://kubernetes.io/docs/user-guide/jsonpath\[ra]].
 
 .PP
 \fB\-\-output\-version\fP=""
-    Output the changed objects with the given version (default api\-version).
+    Output the formatted object with the given group version (for ex: 'extensions/v1beta1').
 
 .PP
 \fB\-\-overwrite\fP=false
@@ -94,8 +105,25 @@ DEPRECATED: This command has been moved to "openshift cli set volume"
     Selector (label query) to filter on
 
 .PP
+\fB\-a\fP, \fB\-\-show\-all\fP=true
+    When printing, show all resources (false means hide terminated pods.)
+
+.PP
+\fB\-\-show\-labels\fP=false
+    When printing, show all labels as the last column (default hide labels column)
+
+.PP
+\fB\-\-sort\-by\fP=""
+    If non\-empty, sort list types using this field specification.  The field specification is expressed as a JSONPath expression (e.g. '{.metadata.name}'). The field in the API resource specified by this JSONPath expression must be an integer or a string.
+
+.PP
 \fB\-\-source\fP=""
     Details of volume source as json string. This can be used if the required volume type is not supported by \-\-type option. (e.g.: '{"gitRepo": {"repository": <git-url>, "revision": <commit-hash>}}')
+
+.PP
+\fB\-\-template\fP=""
+    Template string or path to template file to use when \-o=go\-template, \-o=go\-template\-file. The template format is golang templates [
+\[la]http://golang.org/pkg/text/template/#pkg-overview\[ra]].
 
 .PP
 \fB\-t\fP, \fB\-\-type\fP=""
@@ -109,19 +137,19 @@ DEPRECATED: This command has been moved to "openshift cli set volume"
 
 .PP
 \fB\-\-as\fP=""
-    Username to impersonate for the operation.
+    Username to impersonate for the operation
 
 .PP
 \fB\-\-certificate\-authority\fP=""
-    Path to a cert. file for the certificate authority.
+    Path to a cert. file for the certificate authority
 
 .PP
 \fB\-\-client\-certificate\fP=""
-    Path to a client certificate file for TLS.
+    Path to a client certificate file for TLS
 
 .PP
 \fB\-\-client\-key\fP=""
-    Path to a client key file for TLS.
+    Path to a client key file for TLS
 
 .PP
 \fB\-\-cluster\fP=""
@@ -141,7 +169,7 @@ DEPRECATED: This command has been moved to "openshift cli set volume"
 
 .PP
 \fB\-\-insecure\-skip\-tls\-verify\fP=false
-    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure.
+    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
 
 .PP
 \fB\-\-log\-flush\-frequency\fP=0
@@ -153,7 +181,11 @@ DEPRECATED: This command has been moved to "openshift cli set volume"
 
 .PP
 \fB\-n\fP, \fB\-\-namespace\fP=""
-    If present, the namespace scope for this CLI request.
+    If present, the namespace scope for this CLI request
+
+.PP
+\fB\-\-request\-timeout\fP="0"
+    The length of time to wait before giving up on a single server request. Non\-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.
 
 .PP
 \fB\-\-server\fP=""
@@ -161,7 +193,7 @@ DEPRECATED: This command has been moved to "openshift cli set volume"
 
 .PP
 \fB\-\-token\fP=""
-    Bearer token for authentication to the API server.
+    Bearer token for authentication to the API server
 
 .PP
 \fB\-\-user\fP=""
@@ -175,27 +207,27 @@ DEPRECATED: This command has been moved to "openshift cli set volume"
 .nf
   # List volumes defined on all deployment configs in the current project
   openshift cli volume dc \-\-all
-
+  
   # Add a new empty dir volume to deployment config (dc) 'registry' mounted under
   # /var/lib/registry
   openshift cli volume dc/registry \-\-add \-\-mount\-path=/var/lib/registry
-
+  
   # Use an existing persistent volume claim (pvc) to overwrite an existing volume 'v1'
   openshift cli volume dc/registry \-\-add \-\-name=v1 \-t pvc \-\-claim\-name=pvc1 \-\-overwrite
-
+  
   # Remove volume 'v1' from deployment config 'registry'
   openshift cli volume dc/registry \-\-remove \-\-name=v1
-
+  
   # Create a new persistent volume claim that overwrites an existing volume 'v1'
   openshift cli volume dc/registry \-\-add \-\-name=v1 \-t pvc \-\-claim\-size=1G \-\-overwrite
-
+  
   # Change the mount point for volume 'v1' to /data
   openshift cli volume dc/registry \-\-add \-\-name=v1 \-m /data \-\-overwrite
-
+  
   # Modify the deployment config by removing volume mount "v1" from container "c1"
   # (and by removing the volume "v1" if no other containers have volume mounts that reference it)
   openshift cli volume dc/registry \-\-remove \-\-name=v1 \-\-containers=c1
-
+  
   # Add new volume based on a more complex volume source (Git repo, AWS EBS, GCE PD,
   # Ceph, Gluster, NFS, ISCSI, ...)
   openshift cli volume dc/registry \-\-add \-m /repo \-\-source=<json\-string>

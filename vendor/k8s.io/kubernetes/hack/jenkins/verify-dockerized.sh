@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2016 The Kubernetes Authors All rights reserved.
+# Copyright 2016 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,10 +32,11 @@ retry() {
 export PATH=${GOPATH}/bin:${PWD}/third_party/etcd:/usr/local/go/bin:${PATH}
 
 retry go get github.com/tools/godep && godep version
+retry go get github.com/jteeuwen/go-bindata/go-bindata
 
 export LOG_LEVEL=4
 
 cd /go/src/k8s.io/kubernetes
 
 ./hack/install-etcd.sh
-./hack/verify-all.sh -v
+make verify

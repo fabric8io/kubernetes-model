@@ -1,5 +1,5 @@
 /*
-Copyright 2015 The Kubernetes Authors All rights reserved.
+Copyright 2015 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -67,7 +67,9 @@ type metricPoint struct {
 type testCase struct {
 	replicas              int
 	desiredValue          float64
+	desiredRequest        *float64
 	desiredError          error
+	desiredRunningPods    int
 	targetResource        string
 	targetTimestamp       int
 	reportedMetricsPoints [][]metricPoint
@@ -94,7 +96,7 @@ func (tc *testCase) prepareTestClient(t *testing.T) *fake.Clientset {
 		obj := &api.PodList{}
 		for i := 0; i < tc.replicas; i++ {
 			podName := fmt.Sprintf("%s-%d", podNamePrefix, i)
-			pod := buildPod(namespace, podName, podLabels, api.PodRunning)
+			pod := buildPod(namespace, podName, podLabels, api.PodRunning, "1024")
 			obj.Items = append(obj.Items, pod)
 		}
 		return true, obj, nil
@@ -102,9 +104,9 @@ func (tc *testCase) prepareTestClient(t *testing.T) *fake.Clientset {
 
 	if tc.useMetricsApi {
 		fakeClient.AddProxyReactor("services", func(action core.Action) (handled bool, ret restclient.ResponseWrapper, err error) {
-			metrics := []*metrics_api.PodMetrics{}
+			metrics := metrics_api.PodMetricsList{}
 			for i, containers := range tc.reportedPodMetrics {
-				metric := &metrics_api.PodMetrics{
+				metric := metrics_api.PodMetrics{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      fmt.Sprintf("%s-%d", podNamePrefix, i),
 						Namespace: namespace,
@@ -126,7 +128,7 @@ func (tc *testCase) prepareTestClient(t *testing.T) *fake.Clientset {
 					}
 					metric.Containers = append(metric.Containers, cm)
 				}
-				metrics = append(metrics, metric)
+				metrics.Items = append(metrics.Items, metric)
 			}
 			heapsterRawMemResponse, _ := json.Marshal(&metrics)
 			return true, newFakeResponseWrapper(heapsterRawMemResponse), nil
@@ -159,7 +161,7 @@ func (tc *testCase) prepareTestClient(t *testing.T) *fake.Clientset {
 	return fakeClient
 }
 
-func buildPod(namespace, podName string, podLabels map[string]string, phase api.PodPhase) api.Pod {
+func buildPod(namespace, podName string, podLabels map[string]string, phase api.PodPhase, request string) api.Pod {
 	return api.Pod{
 		ObjectMeta: api.ObjectMeta{
 			Name:      podName,
@@ -171,7 +173,7 @@ func buildPod(namespace, podName string, podLabels map[string]string, phase api.
 				{
 					Resources: api.ResourceRequirements{
 						Requests: api.ResourceList{
-							api.ResourceCPU: resource.MustParse("10"),
+							api.ResourceCPU: resource.MustParse(request),
 						},
 					},
 				},
@@ -183,14 +185,22 @@ func buildPod(namespace, podName string, podLabels map[string]string, phase api.
 	}
 }
 
-func (tc *testCase) verifyResults(t *testing.T, val *float64, timestamp time.Time, err error) {
-	assert.Equal(t, tc.desiredError, err)
+func (tc *testCase) verifyResults(t *testing.T, val *float64, req *float64, pods int, timestamp time.Time, err error) {
 	if tc.desiredError != nil {
+		assert.Error(t, err)
+		assert.Contains(t, fmt.Sprintf("%v", err), fmt.Sprintf("%v", tc.desiredError))
 		return
 	}
+	assert.NoError(t, err)
 	assert.NotNil(t, val)
 	assert.True(t, tc.desiredValue-0.001 < *val)
 	assert.True(t, tc.desiredValue+0.001 > *val)
+	assert.Equal(t, tc.desiredRunningPods, pods)
+
+	if tc.desiredRequest != nil {
+		assert.True(t, *tc.desiredRequest-0.001 < *req)
+		assert.True(t, *tc.desiredRequest+0.001 > *req)
+	}
 
 	targetTimestamp := fixedTimestamp.Add(time.Duration(tc.targetTimestamp) * time.Minute)
 	assert.True(t, targetTimestamp.Equal(timestamp))
@@ -200,12 +210,13 @@ func (tc *testCase) runTest(t *testing.T) {
 	testClient := tc.prepareTestClient(t)
 	metricsClient := NewHeapsterMetricsClient(testClient, DefaultHeapsterNamespace, DefaultHeapsterScheme, DefaultHeapsterService, DefaultHeapsterPort)
 	if tc.targetResource == "cpu-usage" {
-		val, _, timestamp, err := metricsClient.GetCpuConsumptionAndRequestInMillis(tc.namespace, tc.selector)
+		val, req, pods, timestamp, err := metricsClient.GetCpuConsumptionAndRequestInMillis(tc.namespace, tc.selector)
 		fval := float64(val)
-		tc.verifyResults(t, &fval, timestamp, err)
+		freq := float64(req)
+		tc.verifyResults(t, &fval, &freq, pods, timestamp, err)
 	} else {
 		val, timestamp, err := metricsClient.GetCustomMetric(tc.targetResource, tc.namespace, tc.selector)
-		tc.verifyResults(t, val, timestamp, err)
+		tc.verifyResults(t, val, nil, 0, timestamp, err)
 	}
 }
 
@@ -213,6 +224,7 @@ func TestCPU(t *testing.T) {
 	tc := testCase{
 		replicas:           3,
 		desiredValue:       5000,
+		desiredRunningPods: 3,
 		targetResource:     "cpu-usage",
 		targetTimestamp:    1,
 		reportedPodMetrics: [][]int64{{5000}, {5000}, {5000}},
@@ -222,9 +234,12 @@ func TestCPU(t *testing.T) {
 }
 
 func TestCPUPending(t *testing.T) {
+	desiredRequest := float64(2048 * 1000)
 	tc := testCase{
-		replicas:           4,
+		replicas:           5,
 		desiredValue:       5000,
+		desiredRequest:     &desiredRequest,
+		desiredRunningPods: 3,
 		targetResource:     "cpu-usage",
 		targetTimestamp:    1,
 		reportedPodMetrics: [][]int64{{5000}, {5000}, {5000}},
@@ -235,12 +250,14 @@ func TestCPUPending(t *testing.T) {
 	namespace := "test-namespace"
 	podNamePrefix := "test-pod"
 	podLabels := map[string]string{"name": podNamePrefix}
+	podRequest := []string{"1024", "2048", "3072", "200", "100"}
 	for i := 0; i < tc.replicas; i++ {
 		podName := fmt.Sprintf("%s-%d", podNamePrefix, i)
-		pod := buildPod(namespace, podName, podLabels, api.PodRunning)
+		pod := buildPod(namespace, podName, podLabels, api.PodRunning, podRequest[i])
 		tc.podListOverride.Items = append(tc.podListOverride.Items, pod)
 	}
 	tc.podListOverride.Items[3].Status.Phase = api.PodPending
+	tc.podListOverride.Items[4].Status.Phase = api.PodFailed
 
 	tc.runTest(t)
 }
@@ -261,7 +278,7 @@ func TestCPUAllPending(t *testing.T) {
 	podLabels := map[string]string{"name": podNamePrefix}
 	for i := 0; i < tc.replicas; i++ {
 		podName := fmt.Sprintf("%s-%d", podNamePrefix, i)
-		pod := buildPod(namespace, podName, podLabels, api.PodPending)
+		pod := buildPod(namespace, podName, podLabels, api.PodPending, "2048")
 		tc.podListOverride.Items = append(tc.podListOverride.Items, pod)
 	}
 	tc.runTest(t)
@@ -293,7 +310,7 @@ func TestQPSPending(t *testing.T) {
 	podLabels := map[string]string{"name": podNamePrefix}
 	for i := 0; i < tc.replicas; i++ {
 		podName := fmt.Sprintf("%s-%d", podNamePrefix, i)
-		pod := buildPod(namespace, podName, podLabels, api.PodRunning)
+		pod := buildPod(namespace, podName, podLabels, api.PodRunning, "256")
 		tc.podListOverride.Items = append(tc.podListOverride.Items, pod)
 	}
 	tc.podListOverride.Items[0].Status.Phase = api.PodPending
@@ -315,7 +332,7 @@ func TestQPSAllPending(t *testing.T) {
 	podLabels := map[string]string{"name": podNamePrefix}
 	for i := 0; i < tc.replicas; i++ {
 		podName := fmt.Sprintf("%s-%d", podNamePrefix, i)
-		pod := buildPod(namespace, podName, podLabels, api.PodPending)
+		pod := buildPod(namespace, podName, podLabels, api.PodPending, "512")
 		tc.podListOverride.Items = append(tc.podListOverride.Items, pod)
 	}
 	tc.podListOverride.Items[0].Status.Phase = api.PodPending
@@ -326,6 +343,7 @@ func TestCPUSumEqualZero(t *testing.T) {
 	tc := testCase{
 		replicas:           3,
 		desiredValue:       0,
+		desiredRunningPods: 3,
 		targetResource:     "cpu-usage",
 		targetTimestamp:    0,
 		reportedPodMetrics: [][]int64{{0}, {0}, {0}},
@@ -349,6 +367,7 @@ func TestCPUMoreMetrics(t *testing.T) {
 	tc := testCase{
 		replicas:           5,
 		desiredValue:       5000,
+		desiredRunningPods: 5,
 		targetResource:     "cpu-usage",
 		targetTimestamp:    10,
 		reportedPodMetrics: [][]int64{{1000, 2000, 2000}, {5000}, {1000, 1000, 1000, 2000}, {4000, 1000}, {5000}},
@@ -426,7 +445,7 @@ func TestCPUEmptyMetricsForOnePod(t *testing.T) {
 	tc := testCase{
 		replicas:           3,
 		targetResource:     "cpu-usage",
-		desiredError:       fmt.Errorf("metrics obtained for 2/3 of pods"),
+		desiredError:       fmt.Errorf("metrics obtained for 2/3 of pods (sample missing pod: test-namespace/test-pod-2)"),
 		reportedPodMetrics: [][]int64{{100}, {300, 400}},
 		useMetricsApi:      true,
 	}
@@ -440,9 +459,9 @@ func TestAggregateSum(t *testing.T) {
 		Items: []heapster.MetricResult{
 			{
 				Metrics: []heapster.MetricPoint{
-					{now, 50, nil},
-					{now.Add(-15 * time.Second), 100, nil},
-					{now.Add(-60 * time.Second), 100000, nil}},
+					{Timestamp: now, Value: 50, FloatValue: nil},
+					{Timestamp: now.Add(-15 * time.Second), Value: 100, FloatValue: nil},
+					{Timestamp: now.Add(-60 * time.Second), Value: 100000, FloatValue: nil}},
 				LatestTimestamp: now,
 			},
 		},
@@ -459,8 +478,8 @@ func TestAggregateSumSingle(t *testing.T) {
 		Items: []heapster.MetricResult{
 			{
 				Metrics: []heapster.MetricPoint{
-					{now, 50, nil},
-					{now.Add(-65 * time.Second), 100000, nil}},
+					{Timestamp: now, Value: 50, FloatValue: nil},
+					{Timestamp: now.Add(-65 * time.Second), Value: 100000, FloatValue: nil}},
 				LatestTimestamp: now,
 			},
 		},

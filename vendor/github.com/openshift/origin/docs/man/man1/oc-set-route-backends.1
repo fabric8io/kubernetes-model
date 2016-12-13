@@ -16,34 +16,19 @@ oc set route\-backends \- Update the backends for a route
 Set and adjust route backends
 
 .PP
-Routes may have one or more optional backend services with weights controlling how much
-traffic flows to each service. Traffic is assigned proportional to the combined weights
-of each backend. A weight of zero means that the backend will receive no traffic. If all
-weights are zero the route will not send traffic to any backends.
+Routes may have one or more optional backend services with weights controlling how much traffic flows to each service. Traffic is assigned proportional to the combined weights of each backend. A weight of zero means that the backend will receive no traffic. If all weights are zero the route will not send traffic to any backends.
 
 .PP
-When setting backends, the first backend is the primary and the other backends are
-considered alternates. For example:
+When setting backends, the first backend is the primary and the other backends are considered alternates. For example:
 
 .PP
-.RS
-
-.nf
 $ oc set route\-backends web prod=99 canary=1
 
-.fi
-.RE
+.PP
+will set the primary backend to service "prod" with a weight of 99 and the first alternate backend to service "canary" with a weight of 1. This means 99% of traffic will be sent to the service "prod".
 
 .PP
-will set the primary backend to service "prod" with a weight of 99 and the first
-alternate backend to service "canary" with a weight of 1. This means 99% of traffic will
-be sent to the service "prod".
-
-.PP
-The \-\-adjust flag allows you to alter the weight of an individual service relative to
-itself or to the primary backend. Specifying a percentage will adjust the backend
-relative to either the primary or the first alternate (if you specify the primary).
-If there are other backends their weights will be kept proportional to the changed.
+The \-\-adjust flag allows you to alter the weight of an individual service relative to itself or to the primary backend. Specifying a percentage will adjust the backend relative to either the primary or the first alternate (if you specify the primary). If there are other backends their weights will be kept proportional to the changed.
 
 .PP
 Not all routers may support multiple or weighted backends.
@@ -68,13 +53,14 @@ Not all routers may support multiple or weighted backends.
 
 .PP
 \fB\-\-no\-headers\fP=false
-    When using the default output, don't print headers.
+    When using the default or custom\-column output format, don't print headers.
 
 .PP
 \fB\-o\fP, \fB\-\-output\fP=""
-    Output format. One of: json|yaml|wide|name|go\-template=...|go\-template\-file=...|jsonpath=...|jsonpath\-file=... See golang template [
+    Output format. One of: json|yaml|wide|name|custom\-columns=...|custom\-columns\-file=...|go\-template=...|go\-template\-file=...|jsonpath=...|jsonpath\-file=... See custom columns [
+\[la]http://kubernetes.io/docs/user-guide/kubectl-overview/#custom-columns\[ra]], golang template [
 \[la]http://golang.org/pkg/text/template/#pkg-overview\[ra]] and jsonpath template [
-\[la]http://releases.k8s.io/release-1.3/docs/user-guide/jsonpath.md\[ra]].
+\[la]http://kubernetes.io/docs/user-guide/jsonpath\[ra]].
 
 .PP
 \fB\-\-output\-version\fP=""
@@ -113,19 +99,19 @@ Not all routers may support multiple or weighted backends.
 
 .PP
 \fB\-\-as\fP=""
-    Username to impersonate for the operation.
+    Username to impersonate for the operation
 
 .PP
 \fB\-\-certificate\-authority\fP=""
-    Path to a cert. file for the certificate authority.
+    Path to a cert. file for the certificate authority
 
 .PP
 \fB\-\-client\-certificate\fP=""
-    Path to a client certificate file for TLS.
+    Path to a client certificate file for TLS
 
 .PP
 \fB\-\-client\-key\fP=""
-    Path to a client key file for TLS.
+    Path to a client key file for TLS
 
 .PP
 \fB\-\-cluster\fP=""
@@ -145,7 +131,7 @@ Not all routers may support multiple or weighted backends.
 
 .PP
 \fB\-\-insecure\-skip\-tls\-verify\fP=false
-    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure.
+    If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
 
 .PP
 \fB\-\-log\-flush\-frequency\fP=0
@@ -157,7 +143,11 @@ Not all routers may support multiple or weighted backends.
 
 .PP
 \fB\-n\fP, \fB\-\-namespace\fP=""
-    If present, the namespace scope for this CLI request.
+    If present, the namespace scope for this CLI request
+
+.PP
+\fB\-\-request\-timeout\fP="0"
+    The length of time to wait before giving up on a single server request. Non\-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.
 
 .PP
 \fB\-\-server\fP=""
@@ -165,7 +155,7 @@ Not all routers may support multiple or weighted backends.
 
 .PP
 \fB\-\-token\fP=""
-    Bearer token for authentication to the API server.
+    Bearer token for authentication to the API server
 
 .PP
 \fB\-\-user\fP=""
@@ -179,19 +169,19 @@ Not all routers may support multiple or weighted backends.
 .nf
   # Print the backends on the route 'web'
   oc set route\-backends web
-
+  
   # Set two backend services on route 'web' with 2/3rds of traffic going to 'a'
   oc set route\-backends web a=2 b=1
-
+  
   # Increase the traffic percentage going to b by 10% relative to a
   oc set route\-backends web \-\-adjust b=+10%
-
+  
   # Set traffic percentage going to b to 10% of the traffic going to a
   oc set route\-backends web \-\-adjust b=10%
-
+  
   # Set weight of b to 10
   oc set route\-backends web \-\-adjust b=10
-
+  
   # Set the weight to all backends to zero
   oc set route\-backends web \-\-zero
 

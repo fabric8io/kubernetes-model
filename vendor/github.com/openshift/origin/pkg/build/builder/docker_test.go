@@ -1,14 +1,14 @@
 package builder
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/builder/parser"
+	"github.com/docker/docker/builder/dockerfile/parser"
 	"github.com/fsouza/go-dockerclient"
 	kapi "k8s.io/kubernetes/pkg/api"
 
@@ -63,8 +63,7 @@ RUN echo "hello world"
 ENV "PATH"="/bin" "GOPATH"="/go" "PATH"="/go/bin:$PATH"
 FROM busybox
 ENV "PATH"="/bin" "GOPATH"="/go" "PATH"="/go/bin:$PATH"
-RUN echo "hello world"
-`},
+RUN echo "hello world"`},
 	}
 	for name, test := range tests {
 		got, err := parser.Parse(strings.NewReader(test.original))
@@ -78,7 +77,7 @@ RUN echo "hello world"
 			continue
 		}
 		insertEnvAfterFrom(got, test.env)
-		if !reflect.DeepEqual(got, want) {
+		if !bytes.Equal(dockerfile.ParseTreeToDockerfile(got), dockerfile.ParseTreeToDockerfile(want)) {
 			t.Errorf("%s: insertEnvAfterFrom(node, %+v) = %+v; want %+v", name, test.env, got, want)
 			t.Logf("resulting Dockerfile:\n%s", dockerfile.ParseTreeToDockerfile(got))
 		}
@@ -130,7 +129,7 @@ RUN echo "hello world"
 			continue
 		}
 		replaceLastFrom(got, test.image)
-		if !reflect.DeepEqual(got, want) {
+		if !bytes.Equal(dockerfile.ParseTreeToDockerfile(got), dockerfile.ParseTreeToDockerfile(want)) {
 			t.Errorf("test[%d]: replaceLastFrom(node, %+v) = %+v; want %+v", i, test.image, got, want)
 			t.Logf("resulting Dockerfile:\n%s", dockerfile.ParseTreeToDockerfile(got))
 		}
@@ -282,6 +281,61 @@ func TestEmptySource(t *testing.T) {
 	} else {
 		if !strings.Contains(err.Error(), "must provide a value for at least one of source, binary, images, or dockerfile") {
 			t.Errorf("Did not receive correct error: %v", err)
+		}
+	}
+}
+func TestGetDockerfileFrom(t *testing.T) {
+	tests := map[string]struct {
+		dockerfileContent string
+		want              []string
+	}{
+		"no FROM instruction": {
+			dockerfileContent: `RUN echo "invalid Dockerfile"
+`,
+			want: []string{},
+		},
+		"single FROM instruction": {
+			dockerfileContent: `FROM scratch
+RUN echo "hello world"
+`,
+			want: []string{"scratch"},
+		},
+		"multi FROM instruction": {
+			dockerfileContent: `FROM scratch
+FROM busybox
+RUN echo "hello world"
+`,
+			want: []string{"scratch", "busybox"},
+		},
+	}
+	for i, test := range tests {
+		buildDir, err := ioutil.TempDir("", "dockerfile-path")
+		if err != nil {
+			t.Errorf("failed to create tmpdir: %v", err)
+			continue
+		}
+		dockerfilePath := filepath.Join(buildDir, defaultDockerfilePath)
+		dockerfileContent := test.dockerfileContent
+		if err = os.MkdirAll(filepath.Dir(dockerfilePath), os.FileMode(0750)); err != nil {
+			t.Errorf("failed to create directory %s: %v", filepath.Dir(dockerfilePath), err)
+			continue
+		}
+		if err = ioutil.WriteFile(dockerfilePath, []byte(dockerfileContent), os.FileMode(0644)); err != nil {
+			t.Errorf("failed to write dockerfile to %s: %v", dockerfilePath, err)
+			continue
+		}
+		froms := getDockerfileFrom(dockerfilePath)
+		if len(froms) != len(test.want) {
+			t.Errorf("test[%s]: getDockerfileFrom(dockerfilepath, %s) = %+v; want %+v", i, dockerfilePath, froms, test.want)
+			t.Logf("Dockerfile froms::\n%v", froms)
+			continue
+		}
+		for fi := range froms {
+			if froms[fi] != test.want[fi] {
+				t.Errorf("test[%s]: getDockerfileFrom(dockerfilepath, %s) = %+v; want %+v", i, dockerfilePath, froms, test.want)
+				t.Logf("Dockerfile froms::\n%v", froms)
+				break
+			}
 		}
 	}
 }

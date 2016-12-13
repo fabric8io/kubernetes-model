@@ -10,8 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/docker/docker/pkg/parsers"
-	"github.com/docker/docker/pkg/units"
+	units "github.com/docker/go-units"
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	kerrs "k8s.io/kubernetes/pkg/api/errors"
@@ -39,7 +38,7 @@ import (
 func describerMap(c *client.Client, kclient kclient.Interface, host string) map[unversioned.GroupKind]kctl.Describer {
 	m := map[unversioned.GroupKind]kctl.Describer{
 		buildapi.Kind("Build"):                        &BuildDescriber{c, kclient},
-		buildapi.Kind("BuildConfig"):                  &BuildConfigDescriber{c, host},
+		buildapi.Kind("BuildConfig"):                  &BuildConfigDescriber{c, kclient, host},
 		deployapi.Kind("DeploymentConfig"):            &DeploymentConfigDescriber{c, kclient, nil},
 		authorizationapi.Kind("Identity"):             &IdentityDescriber{c},
 		imageapi.Kind("Image"):                        &ImageDescriber{c},
@@ -172,7 +171,8 @@ func describeBuildDuration(build *buildapi.Build) string {
 // BuildConfigDescriber generates information about a buildConfig
 type BuildConfigDescriber struct {
 	client.Interface
-	host string
+	kubeClient kclient.Interface
+	host       string
 }
 
 func nameAndNamespace(ns, name string) string {
@@ -440,23 +440,31 @@ func (d *BuildConfigDescriber) Describe(namespace, name string, settings kctl.De
 		describeCommonSpec(buildConfig.Spec.CommonSpec, out)
 		formatString(out, "\nBuild Run Policy", string(buildConfig.Spec.RunPolicy))
 		d.DescribeTriggers(buildConfig, out)
-		if len(buildList.Items) == 0 {
-			return nil
+
+		if len(buildList.Items) > 0 {
+			fmt.Fprintf(out, "\nBuild\tStatus\tDuration\tCreation Time\n")
+
+			builds := buildList.Items
+			sort.Sort(sort.Reverse(buildapi.BuildSliceByCreationTimestamp(builds)))
+
+			for i, build := range builds {
+				fmt.Fprintf(out, "%s \t%s \t%v \t%v\n",
+					build.Name,
+					strings.ToLower(string(build.Status.Phase)),
+					describeBuildDuration(&build),
+					build.CreationTimestamp.Rfc3339Copy().Time)
+				// only print the 10 most recent builds.
+				if i == 9 {
+					break
+				}
+			}
 		}
-		fmt.Fprintf(out, "\nBuild\tStatus\tDuration\tCreation Time\n")
 
-		builds := buildList.Items
-		sort.Sort(sort.Reverse(buildapi.BuildSliceByCreationTimestamp(builds)))
-
-		for i, build := range builds {
-			fmt.Fprintf(out, "%s \t%s \t%v \t%v\n",
-				build.Name,
-				strings.ToLower(string(build.Status.Phase)),
-				describeBuildDuration(&build),
-				build.CreationTimestamp.Rfc3339Copy().Time)
-			// only print the 10 most recent builds.
-			if i == 9 {
-				break
+		if settings.ShowEvents {
+			events, _ := d.kubeClient.Events(namespace).Search(buildConfig)
+			if events != nil {
+				fmt.Fprint(out, "\n")
+				kctl.DescribeEvents(events, out)
 			}
 		}
 		return nil
@@ -598,8 +606,11 @@ type ImageStreamTagDescriber struct {
 // Describe returns the description of an imageStreamTag
 func (d *ImageStreamTagDescriber) Describe(namespace, name string, settings kctl.DescriberSettings) (string, error) {
 	c := d.ImageStreamTags(namespace)
-	repo, tag := parsers.ParseRepositoryTag(name)
-	if tag == "" {
+	repo, tag, err := imageapi.ParseImageStreamTagName(name)
+	if err != nil {
+		return "", err
+	}
+	if len(tag) == 0 {
 		// TODO use repo's preferred default, when that's coded
 		tag = imageapi.DefaultImageTag
 	}
@@ -619,7 +630,10 @@ type ImageStreamImageDescriber struct {
 // Describe returns the description of an imageStreamImage
 func (d *ImageStreamImageDescriber) Describe(namespace, name string, settings kctl.DescriberSettings) (string, error) {
 	c := d.ImageStreamImages(namespace)
-	repo, id := parsers.ParseRepositoryTag(name)
+	repo, id, err := imageapi.ParseImageStreamImageName(name)
+	if err != nil {
+		return "", err
+	}
 	imageStreamImage, err := c.Get(repo, id)
 	if err != nil {
 		return "", err
@@ -1203,7 +1217,7 @@ func DescribePolicyRule(out *tabwriter.Writer, rule authorizationapi.PolicyRule,
 
 		buffer := new(bytes.Buffer)
 
-		printer := NewHumanReadablePrinter(&kctl.PrintOptions{NoHeaders: true})
+		printer := NewHumanReadablePrinter(kctl.PrintOptions{NoHeaders: true})
 		if err := printer.PrintObj(rule.AttributeRestrictions, buffer); err == nil {
 			extensionString = strings.TrimSpace(buffer.String())
 		}
