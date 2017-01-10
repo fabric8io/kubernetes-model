@@ -147,6 +147,10 @@
               io.fabric8.openshift.api.model,
               io.fabric8.kubernetes.api.model.validators
             </Export-Package>
+            <Import-Package>
+              com.fasterxml.jackson*;version="[${jackson2.bundle.version},3)",
+              *
+            </Import-Package>
           </instructions>
         </configuration>
       </plugin>
