@@ -21,11 +21,11 @@ all: push
 container: image
 
 image:
-	docker build -t $(PREFIX)/${IMAGE} . # Build new image and automatically tag it as latest
+	docker build --pull -t $(PREFIX)/${IMAGE} . # Build new image and automatically tag it as latest
 	docker tag $(PREFIX)/${IMAGE} $(PREFIX)/${IMAGE}:$(TAG) # Add the version tag to the latest image
 
 push: image
-	gcloud docker push $(PREFIX)/${IMAGE} # Push image tagged as latest to repository
-	gcloud docker push $(PREFIX)/${IMAGE}:$(TAG) # Push version tagged image to repository (since this image is already pushed it will simply create or update version tag)
+	gcloud docker -- push $(PREFIX)/${IMAGE} # Push image tagged as latest to repository
+	gcloud docker -- push $(PREFIX)/${IMAGE}:$(TAG) # Push version tagged image to repository (since this image is already pushed it will simply create or update version tag)
 
 clean:

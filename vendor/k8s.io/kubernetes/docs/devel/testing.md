@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Testing guide
 
 Updated: 5/21/2016
@@ -182,12 +177,12 @@ includes a script to help install etcd on your machine.
 
 # Option a) install inside kubernetes root
 hack/install-etcd.sh  # Installs in ./third_party/etcd
-echo export PATH="$PATH:$(pwd)/third_party/etcd" >> ~/.profile  # Add to PATH
+echo export PATH="\$PATH:$(pwd)/third_party/etcd" >> ~/.profile  # Add to PATH
 
 # Option b) install manually
 grep -E "image.*etcd" cluster/saltbase/etcd/etcd.manifest  # Find version
 # Install that version using yum/apt-get/etc
-echo export PATH="$PATH:<LOCATION>" >> ~/.profile  # Add to PATH
+echo export PATH="\$PATH:<LOCATION>" >> ~/.profile  # Add to PATH
 ```
 
 ### Etcd test data
@@ -229,13 +224,6 @@ version and the watch cache test is skipped.
 ## End-to-End tests
 
 Please refer to [End-to-End Testing in Kubernetes](e2e-tests.md).
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
-
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
 [![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/docs/devel/testing.md?pixel)]()

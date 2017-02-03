@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Kubernetes Cluster Federation (previously nicknamed "Ubernetes")
 
 ## Cross-cluster Load Balancing and Service Discovery
@@ -515,13 +510,6 @@ Federation API server/etcd
 state, and apply changes to the underlying kubernetes clusters accordingly. They
 also have the anti-entropy mechanism for reconciling Cluster Federation "desired desired"
 state against kubernetes "actual desired" state.
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

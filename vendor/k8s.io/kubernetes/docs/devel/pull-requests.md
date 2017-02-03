@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 <!-- BEGIN MUNGE: GENERATED_TOC -->
 
 - [Pull Request Process](#pull-request-process)
@@ -103,13 +98,6 @@ request that subsequently needs to be reopened. We want to limit the total numbe
 
 We use a variety of automation to manage pull requests.  This automation is described in detail
 [elsewhere.](automation.md)
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

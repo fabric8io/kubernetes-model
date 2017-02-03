@@ -83,7 +83,7 @@ func NewCmdStatus(name, baseCLIName, fullName string, f *clientcmd.Factory, out 
 
 	cmd.Flags().StringVarP(&opts.outputFormat, "output", "o", opts.outputFormat, "Output format. One of: dot.")
 	cmd.Flags().BoolVarP(&opts.verbose, "verbose", "v", opts.verbose, "See details for resolving issues.")
-	cmd.Flags().BoolVar(&opts.allNamespaces, "all-namespaces", false, "Display status for all namespaces (must have cluster admin)")
+	cmd.Flags().BoolVar(&opts.allNamespaces, "all-namespaces", false, "If true, display status for all namespaces (must have cluster admin)")
 
 	return cmd
 }
@@ -98,12 +98,12 @@ func (o *StatusOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, baseC
 	o.securityPolicyCommandFormat = "oadm policy add-scc-to-user anyuid -n %s -z %s"
 	o.setProbeCommandName = fmt.Sprintf("%s set probe", cmd.Parent().CommandPath())
 
-	client, kclient, err := f.Clients()
+	client, kclientset, err := f.Clients()
 	if err != nil {
 		return err
 	}
 
-	config, err := f.OpenShiftClientConfig.ClientConfig()
+	config, err := f.OpenShiftClientConfig().ClientConfig()
 	if err != nil {
 		return err
 	}
@@ -123,12 +123,14 @@ func (o *StatusOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, baseC
 	}
 
 	o.describer = &describe.ProjectStatusDescriber{
-		K:       kclient,
+		K:       kclientset,
 		C:       client,
 		Server:  config.Host,
 		Suggest: o.verbose,
 
 		CommandBaseName: baseCLIName,
+
+		Config: config,
 
 		// TODO: Remove these and reference them inside the markers using constants.
 		LogsCommandName:             o.logsCommandName,

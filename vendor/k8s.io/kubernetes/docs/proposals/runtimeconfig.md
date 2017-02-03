@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Overview
 
 Proposes adding a `--feature-config` to core kube system components:
@@ -53,7 +48,7 @@ feature's owner(s). The following are suggested conventions:
   in each component to toggle on/off.
 - Alpha features should be disabled by default. Beta features may
   be enabled by default. Refer to docs/devel/api_changes.md#alpha-beta-and-stable-versions
-  for more detailed guidance on alpha vs beta.
+  for more detailed guidance on alpha vs. beta.
 
 ## Upgrade support
 
@@ -68,13 +63,6 @@ not be altered in a running cluster.
 APIs and not flags (#12245). When that is added, toggling of features
 could be handled by versioned component config and the component flags
 deprecated.
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
-
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
 [![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/docs/proposals/runtimeconfig.md?pixel)]()

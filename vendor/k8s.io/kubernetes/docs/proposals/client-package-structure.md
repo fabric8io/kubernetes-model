@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 <!-- BEGIN MUNGE: GENERATED_TOC -->
 
 - [Client: layering and package structure](#client-layering-and-package-structure)
@@ -314,13 +309,6 @@ Once we release a clientset, we will not make interface changes to it. Users of
 that client will not have to change their code until they are deliberately
 upgrading their import. We probably will want to generate some sort of stub test
 with a clientset, to ensure that we don't change the interface.
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

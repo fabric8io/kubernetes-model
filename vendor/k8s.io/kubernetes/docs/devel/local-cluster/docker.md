@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 **Stop. This guide has been superseded by [Minikube](https://github.com/kubernetes/minikube) which is the recommended method of running Kubernetes on your local machine.**
 
 
@@ -267,13 +262,6 @@ Docker Single Node   | custom       | N/A    | local       |          | Project 
 
 Please see the [Kubernetes docs](http://kubernetes.io/docs) for more details on administering
 and using a Kubernetes cluster.
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

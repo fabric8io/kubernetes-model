@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Using godep to manage dependencies
 
 This document is intended to show a way for managing `vendor/` tree dependencies
@@ -91,7 +86,7 @@ godep get $DEP/...
 rm -rf Godeps
 rm -rf vendor
 ./hack/godep-save.sh
-git co -- $(git st -s | grep "^ D" | awk '{print $2}' | grep ^Godeps)
+git checkout -- $(git status -s | grep "^ D" | awk '{print $2}' | grep ^Godeps)
 ```
 
 _If `go get -u path/to/dependency` fails with compilation errors, instead try
@@ -121,13 +116,6 @@ with `hack/verify-godeps.sh`. This must pass for every PR.
 `hack/update-godep-licenses.sh`.
 
 
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

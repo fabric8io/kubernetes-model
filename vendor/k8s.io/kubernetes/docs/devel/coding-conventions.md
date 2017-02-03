@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Coding Conventions
 
 Updated: 5/3/2016
@@ -145,13 +140,6 @@ using the system](../user-guide/config-best-practices.md)
   - Go
 
     - [Go landmines](https://gist.github.com/lavalamp/4bd23295a9f32706a48f)
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 <!-- BEGIN MUNGE: GENERATED_TOC -->
 
 - [Overview](#overview)
@@ -118,7 +113,7 @@ Ubuntu system. The profiles can be found at `{securityfs}/apparmor/profiles`
 
 ## API Changes
 
-The intial alpha support of AppArmor will follow the pattern
+The initial alpha support of AppArmor will follow the pattern
 [used by seccomp](https://github.com/kubernetes/kubernetes/pull/25324) and specify profiles through
 annotations. Profiles can be specified per-container through pod annotations. The annotation format
 is a key matching the container, and a profile name value:
@@ -309,13 +304,6 @@ documentation for following this process in a Kubernetes environment.
   ```
   $ apparmor_parser --remove /path/to/profile
   ```
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
-
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
 [![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/docs/proposals/apparmor.md?pixel)]()

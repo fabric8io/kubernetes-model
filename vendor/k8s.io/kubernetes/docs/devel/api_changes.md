@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 *This document is oriented at developers who want to change existing APIs.
 A set of API conventions, which applies to new APIs and to changes, can be
 found at [API Conventions](api-conventions.md).
@@ -100,8 +95,11 @@ backward-compatibly.
 ## On compatibility
 
 Before talking about how to make API changes, it is worthwhile to clarify what
-we mean by API compatibility.  An API change is considered backward-compatible
-if it:
+we mean by API compatibility.  Kubernetes considers forwards and backwards
+compatibility of its APIs a top priority.
+
+An API change is considered forward and backward-compatible if it:
+
    * adds new functionality that is not required for correct behavior (e.g.,
 does not add a new required field)
    * does not change existing semantics, including:
@@ -121,7 +119,8 @@ versions and back) with no loss of information.
 continue to function as they did previously, even when your change is utilized.
 
 If your change does not meet these criteria, it is not considered strictly
-compatible.
+compatible, and may break older clients, or result in newer clients causing
+undefined behavior.
 
 Let's consider some examples. In a hypothetical API (assume we're at version
 v6), the `Frobber` struct looks something like this:
@@ -490,7 +489,7 @@ hack/update-codecgen.sh
 This section is under construction, as we make the tooling completely generic.
 
 At the moment, you'll have to make a new directory under `pkg/apis/`; copy the
-directory structure from `pkg/apis/extensions`. Add the new group/version to all
+directory structure from `pkg/apis/authentication`. Add the new group/version to all
 of the `hack/{verify,update}-generated-{deep-copy,conversions,swagger}.sh` files
 in the appropriate places--it should just require adding your new group/version
 to a bash array.  See [docs on adding an API group](adding-an-APIGroup.md) for
@@ -561,10 +560,11 @@ out. Put `grep` or `ack` to good use.
 If you added functionality, you should consider documenting it and/or writing
 an example to illustrate your change.
 
-Make sure you update the swagger API spec by running:
+Make sure you update the swagger and OpenAPI spec by running:
 
 ```sh
 hack/update-swagger-spec.sh
+hack/update-openapi-spec.sh
 ```
 
 The API spec changes should be in a commit separate from your other changes.
@@ -726,13 +726,6 @@ client which uses the other version. Therefore, this is not a preferred option.
 A related issue is how a cluster manager can roll back from a new version
 with a new feature, that is already being used by users. See
 https://github.com/kubernetes/kubernetes/issues/4855.
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
-
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
 [![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/docs/devel/api_changes.md?pixel)]()

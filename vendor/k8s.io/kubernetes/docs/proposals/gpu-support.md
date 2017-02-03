@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 <!-- BEGIN MUNGE: GENERATED_TOC -->
 
 - [GPU support](#gpu-support)
@@ -278,13 +273,6 @@ There should be knobs for the cluster administrator to only allow certain users
 or roles to schedule GPU workloads. Overcommitting or sharing the same device
 across different pods is not considered safe. It should be possible to segregate
 such GPU-sharing pods by user, namespace or a combination thereof.
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
-
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
 [![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/docs/proposals/gpu-support.md?pixel)]()

@@ -22,7 +22,8 @@ import (
 	"github.com/docker/libtrust"
 
 	kapi "k8s.io/kubernetes/pkg/api"
-	ktestclient "k8s.io/kubernetes/pkg/client/unversioned/testclient"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
+	"k8s.io/kubernetes/pkg/client/testing/core"
 	"k8s.io/kubernetes/pkg/util/diff"
 
 	"github.com/openshift/origin/pkg/client"
@@ -692,7 +693,7 @@ func (r *testRegistry) Repository(ctx context.Context, ref reference.Named) (dis
 		return nil, err
 	}
 
-	kFakeClient := ktestclient.NewSimpleFake()
+	kFakeClient := fake.NewSimpleClientset()
 
 	parts := strings.SplitN(ref.Name(), "/", 3)
 	if len(parts) != 2 {
@@ -703,8 +704,8 @@ func (r *testRegistry) Repository(ctx context.Context, ref reference.Named) (dis
 		Repository: repo,
 
 		ctx:              ctx,
-		quotaClient:      kFakeClient,
-		limitClient:      kFakeClient,
+		quotaClient:      kFakeClient.Core(),
+		limitClient:      kFakeClient.Core(),
 		registryOSClient: r.osClient,
 		registryAddr:     "localhost:5000",
 		namespace:        parts[0],
@@ -723,7 +724,7 @@ func testNewDescriptorForLayer(layer imageapi.ImageLayer) distribution.Descripto
 	}
 }
 
-func compareActions(t *testing.T, testCaseName string, actions []ktestclient.Action, expectedActions []clientAction) {
+func compareActions(t *testing.T, testCaseName string, actions []core.Action, expectedActions []clientAction) {
 	for i, action := range actions {
 		if i >= len(expectedActions) {
 			t.Errorf("[%s] got unexpected client action: %#+v", testCaseName, action)

@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Ubernetes Design Spec (phase one)
 
 **Huawei PaaS Team**
@@ -405,13 +400,6 @@ This part has been included in the section “Federated Service” of
 document
 “[Federated Cross-cluster Load Balancing and Service Discovery Requirements and System Design](federated-services.md))”.
 Please refer to that document for details.
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

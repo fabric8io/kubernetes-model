@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Scheduler Algorithm in Kubernetes
 
 For each unscheduled Pod, the Kubernetes scheduler tries to find a node across the cluster according to a set of rules. A general introduction to the Kubernetes scheduler can be found at [scheduler.md](scheduler.md). In this document, the algorithm of how to select a node for the Pod is explained. There are two steps before a destination node of a Pod is chosen. The first step is filtering all the nodes and the second is ranking the remaining nodes to find a best fit for the Pod.
@@ -22,7 +17,7 @@ The purpose of filtering the nodes is to filter out the nodes that do not meet c
 - `CheckNodeMemoryPressure`: Check if a pod can be scheduled on a node reporting memory pressure condition. Currently, no ``BestEffort`` should be placed on a node under memory pressure as it gets automatically evicted by kubelet.
 - `CheckNodeDiskPressure`: Check if a pod can be scheduled on a node reporting disk pressure condition. Currently, no pods should be placed on a node under disk pressure as it gets automatically evicted by kubelet.
 
-The details of the above predicates can be found in [plugin/pkg/scheduler/algorithm/predicates/predicates.go](http://releases.k8s.io/release-1.4/plugin/pkg/scheduler/algorithm/predicates/predicates.go). All predicates mentioned above can be used in combination to perform a sophisticated filtering policy. Kubernetes uses some, but not all, of these predicates by default. You can see which ones are used by default in [plugin/pkg/scheduler/algorithmprovider/defaults/defaults.go](http://releases.k8s.io/release-1.4/plugin/pkg/scheduler/algorithmprovider/defaults/defaults.go).
+The details of the above predicates can be found in [plugin/pkg/scheduler/algorithm/predicates/predicates.go](http://releases.k8s.io/HEAD/plugin/pkg/scheduler/algorithm/predicates/predicates.go). All predicates mentioned above can be used in combination to perform a sophisticated filtering policy. Kubernetes uses some, but not all, of these predicates by default. You can see which ones are used by default in [plugin/pkg/scheduler/algorithmprovider/defaults/defaults.go](http://releases.k8s.io/HEAD/plugin/pkg/scheduler/algorithmprovider/defaults/defaults.go).
 
 ## Ranking the nodes
 
@@ -41,14 +36,7 @@ Currently, Kubernetes scheduler provides some practical priority functions, incl
 - `ImageLocalityPriority`: Nodes are prioritized based on locality of images requested by a pod. Nodes with larger size of already-installed packages required by the pod will be preferred over nodes with no already-installed packages required by the pod or a small total size of already-installed packages required by the pod.
 - `NodeAffinityPriority`: (Kubernetes v1.2) Implements `preferredDuringSchedulingIgnoredDuringExecution` node affinity; see [here](../user-guide/node-selection/) for more details.
 
-The details of the above priority functions can be found in [plugin/pkg/scheduler/algorithm/priorities](http://releases.k8s.io/release-1.4/plugin/pkg/scheduler/algorithm/priorities/). Kubernetes uses some, but not all, of these priority functions by default. You can see which ones are used by default in [plugin/pkg/scheduler/algorithmprovider/defaults/defaults.go](http://releases.k8s.io/release-1.4/plugin/pkg/scheduler/algorithmprovider/defaults/defaults.go). Similar as predicates, you can combine the above priority functions and assign weight factors (positive number) to them as you want (check [scheduler.md](scheduler.md) for how to customize).
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
+The details of the above priority functions can be found in [plugin/pkg/scheduler/algorithm/priorities](http://releases.k8s.io/HEAD/plugin/pkg/scheduler/algorithm/priorities/). Kubernetes uses some, but not all, of these priority functions by default. You can see which ones are used by default in [plugin/pkg/scheduler/algorithmprovider/defaults/defaults.go](http://releases.k8s.io/HEAD/plugin/pkg/scheduler/algorithmprovider/defaults/defaults.go). Similar as predicates, you can combine the above priority functions and assign weight factors (positive number) to them as you want (check [scheduler.md](scheduler.md) for how to customize).
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

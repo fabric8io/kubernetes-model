@@ -30,7 +30,6 @@ import (
 	"github.com/openshift/origin/pkg/cmd/templates"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	"github.com/openshift/origin/pkg/cmd/util/term"
 )
 
 var (
@@ -48,7 +47,7 @@ var (
 func CommandFor(basename string) *cobra.Command {
 	var cmd *cobra.Command
 
-	in, out, errout := os.Stdin, term.NewResponsiveWriter(os.Stdout), os.Stderr
+	in, out, errout := os.Stdin, os.Stdout, os.Stderr
 
 	// Make case-insensitive and strip executable suffix if present
 	if runtime.GOOS == "windows" {
@@ -87,7 +86,7 @@ func CommandFor(basename string) *cobra.Command {
 		cmd = kubernetes.NewSchedulerCommand(basename, basename, out)
 	case "kubernetes":
 		cmd = kubernetes.NewCommand(basename, basename, out, errout)
-	case "origin", "atomic-enterprise":
+	case "origin":
 		cmd = NewCommandOpenShift(basename)
 	default:
 		cmd = NewCommandOpenShift("openshift")
@@ -103,7 +102,7 @@ func CommandFor(basename string) *cobra.Command {
 
 // NewCommandOpenShift creates the standard OpenShift command
 func NewCommandOpenShift(name string) *cobra.Command {
-	in, out, errout := os.Stdin, term.NewResponsiveWriter(os.Stdout), os.Stderr
+	in, out, errout := os.Stdin, os.Stdout, os.Stderr
 
 	root := &cobra.Command{
 		Use:   name,

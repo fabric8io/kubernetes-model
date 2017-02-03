@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 Running Kubernetes with Vagrant (and VirtualBox) is an easy way to run/test/develop on your local machine (Linux, Mac OS X).
 
 ### Prerequisites
@@ -395,13 +390,6 @@ You can ensure that vagrant uses nfs to sync folders with virtual machines by se
 ```sh
 export KUBERNETES_VAGRANT_USE_NFS=true
 ```
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

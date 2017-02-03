@@ -62,7 +62,7 @@ go get -u github.com/tools/godep 2>/dev/null || true
 GODEP="${GOPATH}/bin/godep"
 
 # Use to following if we ever need to pin godep to a specific version again
-pin-godep 'v63'
+pin-godep 'v75'
 
 # preload any odd-ball remotes
 preload-remote "github.com/openshift" "origin" "github.com/openshift" "origin" # this looks goofy, but if you are not in GOPATH you need to pull origin explicitly
@@ -74,7 +74,6 @@ preload-remote "github.com/emicklei" "go-restful" "github.com/openshift" "go-res
 preload-remote "github.com/golang" "glog" "github.com/openshift" "glog"
 preload-remote "github.com/cloudflare" "cfssl" "github.com/openshift" "cfssl"
 preload-remote "github.com/google" "certificate-transparency" "github.com/openshift" "certificate-transparency"
-preload-remote "github.com/RangelReale" "osin" "github.com/openshift" "osin"
 preload-remote "github.com/google" "cadvisor" "github.com/openshift" "cadvisor"
 
 # preload any odd-ball commits
@@ -82,6 +81,8 @@ preload-remote "github.com/google" "cadvisor" "github.com/openshift" "cadvisor"
 preload-dep "github.com/elazarl"     "goproxy" "$( go run "${OS_ROOT}/tools/godepversion/godepversion.go" "${OS_ROOT}/Godeps/Godeps.json" "github.com/elazarl/goproxy" )"
 # rkt test dep
 preload-dep "github.com/golang/mock" "gomock"  "$( go run "${OS_ROOT}/tools/godepversion/godepversion.go" "${OS_ROOT}/Godeps/Godeps.json" "github.com/golang/mock/gomock" )"
+# docker storage dep
+preload-dep "google.golang.org" "cloud"  "$( go run "${OS_ROOT}/tools/godepversion/godepversion.go" "${OS_ROOT}/Godeps/Godeps.json" "google.golang.org/cloud" )"
 
 # fill out that nice clean place with the origin godeps
 echo "Starting to download all godeps. This takes a while"

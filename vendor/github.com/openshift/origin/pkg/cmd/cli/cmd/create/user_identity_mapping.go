@@ -86,7 +86,7 @@ func (o *CreateUserIdentityMappingOptions) Complete(cmd *cobra.Command, f *clien
 	}
 	o.UserIdentityMappingClient = client.UserIdentityMappings()
 
-	o.Mapper, _ = f.Object(false)
+	o.Mapper, _ = f.Object()
 	o.OutputFormat = cmdutil.GetFlagString(cmd, "output")
 
 	o.Printer = func(obj runtime.Object, out io.Writer) error {

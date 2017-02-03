@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 
 # Overview
 
@@ -32,7 +27,7 @@ Non-goals include:
   * A third-party implementation of an image policy checker could optionally use ThirdPartyResource to store its policy.
 * Kubernetes core code dealing with concepts of image layers, build processes, source repositories, etc.
   * We expect there will be multiple PaaSes and/or de-facto programming environments, each with different takes on
-    these concepts.  At any rate, Kuberenetes is not ready to be opinionated on these concepts.
+    these concepts.  At any rate, Kubernetes is not ready to be opinionated on these concepts.
 * Sending more information than strictly needed to a third-party service.
   * Information sent by Kubernetes to a third-party service constitutes an API of Kubernetes, and we want to
     avoid making these broader than necessary, as it restricts future evolution of Kubernetes, and makes
@@ -57,7 +52,7 @@ The admission controller code will go in `plugin/pkg/admission/imagepolicy`.
 There will be a cache of decisions in the admission controller.
 
 If the apiserver cannot reach the webhook backend, it will log a warning and either admit or deny the pod.
-A flag will control whether it admits or denys on failure.
+A flag will control whether it admits or denies on failure.
 The rationale for deny is that an attacker could DoS the backend or wait for it to be down, and then sneak a
 bad pod into the system.  The rationale for allow here is that, if the cluster admin also does
 after-the-fact auditing of what images were run (which we think will be common), this will catch
@@ -170,7 +165,7 @@ due to a CVE that just came out (fictional scenario).  In this scenario:
   up and not scale down the old one.
 - an existing replicaSet will be unable to create Pods that replace ones which are terminated.  If this is due to
   slow loss of nodes, then there should be time to react before significant loss of capacity.
-- For non-replicated things (size 1 ReplicaSet, PetSet), a single node failure may disable it.
+- For non-replicated things (size 1 ReplicaSet, StatefulSet), a single node failure may disable it.
 - a node rolling update will eventually check for liveness of replacements, and would be throttled if
   in the case when the image was no longer allowed and so replacements could not be started.
 - rapid node restarts will cause existing pod objects to be restarted by kubelet.
@@ -329,13 +324,6 @@ Additionally, just sending all the fields of just the Pod kind also has problems
 - because we do not know which fields of an object are inspected by the backend, caching of decisions is not effective. Sending fewer fields allows caching.
 - sending fewer fields makes it possible to rev the version of the webhook request slower than the version of our internal obejcts (e.g. pod v2 could still use imageReview v1.)
 probably lots more reasons.
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

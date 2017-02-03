@@ -10,7 +10,7 @@ import (
 
 	"github.com/golang/glog"
 
-	kclient "k8s.io/kubernetes/pkg/client/unversioned"
+	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	knetwork "k8s.io/kubernetes/pkg/kubelet/network"
 	kubehostport "k8s.io/kubernetes/pkg/kubelet/network/hostport"
 
@@ -18,7 +18,7 @@ import (
 )
 
 type podHandler interface {
-	setup(req *cniserver.PodRequest) (*cnitypes.Result, *kubehostport.RunningPod, error)
+	setup(req *cniserver.PodRequest) (*cnitypes.Result, *kubehostport.ActivePod, error)
 	update(req *cniserver.PodRequest) error
 	teardown(req *cniserver.PodRequest) error
 }
@@ -30,12 +30,11 @@ type podManager struct {
 	// Request queue for pod operations incoming from the CNIServer
 	requests chan (*cniserver.PodRequest)
 	// Tracks pod :: IP address for hostport handling
-	runningPods map[string]*kubehostport.RunningPod
+	runningPods map[string]*kubehostport.ActivePod
 
 	// Live pod setup/teardown stuff not used in testing code
-	multitenant     bool
-	kClient         *kclient.Client
-	vnids           *nodeVNIDMap
+	kClient         *kclientset.Clientset
+	policy          osdnPolicy
 	ipamConfig      []byte
 	mtu             uint32
 	hostportHandler kubehostport.HostportHandler
@@ -43,11 +42,10 @@ type podManager struct {
 }
 
 // Creates a new live podManager; used by node code
-func newPodManager(host knetwork.Host, multitenant bool, localSubnetCIDR string, netInfo *NetworkInfo, kClient *kclient.Client, vnids *nodeVNIDMap, mtu uint32) (*podManager, error) {
+func newPodManager(host knetwork.Host, localSubnetCIDR string, netInfo *NetworkInfo, kClient *kclientset.Clientset, policy osdnPolicy, mtu uint32) (*podManager, error) {
 	pm := newDefaultPodManager(host)
-	pm.multitenant = multitenant
 	pm.kClient = kClient
-	pm.vnids = vnids
+	pm.policy = policy
 	pm.mtu = mtu
 	pm.hostportHandler = kubehostport.NewHostportHandler()
 	pm.podHandler = pm
@@ -64,7 +62,7 @@ func newPodManager(host knetwork.Host, multitenant bool, localSubnetCIDR string,
 // Creates a new basic podManager; used by testcases
 func newDefaultPodManager(host knetwork.Host) *podManager {
 	return &podManager{
-		runningPods: make(map[string]*kubehostport.RunningPod),
+		runningPods: make(map[string]*kubehostport.ActivePod),
 		requests:    make(chan *cniserver.PodRequest, 20),
 		host:        host,
 	}
@@ -127,13 +125,13 @@ func getPodKey(request *cniserver.PodRequest) string {
 	return fmt.Sprintf("%s/%s", request.PodNamespace, request.PodName)
 }
 
-func (m *podManager) getPod(request *cniserver.PodRequest) *kubehostport.RunningPod {
+func (m *podManager) getPod(request *cniserver.PodRequest) *kubehostport.ActivePod {
 	return m.runningPods[getPodKey(request)]
 }
 
 // Return a list of Kubernetes RunningPod objects for hostport operations
-func (m *podManager) getRunningPods() []*kubehostport.RunningPod {
-	pods := make([]*kubehostport.RunningPod, 0)
+func (m *podManager) getRunningPods() []*kubehostport.ActivePod {
+	pods := make([]*kubehostport.ActivePod, 0)
 	for _, runningPod := range m.runningPods {
 		pods = append(pods, runningPod)
 	}

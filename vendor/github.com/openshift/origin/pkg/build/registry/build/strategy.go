@@ -2,14 +2,15 @@ package build
 
 import (
 	"fmt"
+	"reflect"
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/errors"
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/registry/generic"
 	"k8s.io/kubernetes/pkg/runtime"
+	kstorage "k8s.io/kubernetes/pkg/storage"
 	"k8s.io/kubernetes/pkg/util/validation/field"
 
 	"github.com/openshift/origin/pkg/build/api"
@@ -24,21 +25,30 @@ type strategy struct {
 
 // Decorator is used to compute duration of a build since its not stored in etcd yet
 var Decorator = func(obj runtime.Object) error {
-	build, ok := obj.(*api.Build)
-	if !ok {
-		return errors.NewBadRequest(fmt.Sprintf("not a build: %v", build))
-	}
-	if build.Status.StartTimestamp == nil {
-		build.Status.Duration = 0
-	} else {
-		completionTimestamp := build.Status.CompletionTimestamp
-		if completionTimestamp == nil {
-			dummy := unversioned.Now()
-			completionTimestamp = &dummy
+	switch t := obj.(type) {
+	case *api.Build:
+		setBuildDuration(t)
+	case *api.BuildList:
+		for i := range t.Items {
+			setBuildDuration(&t.Items[i])
 		}
-		build.Status.Duration = completionTimestamp.Rfc3339Copy().Time.Sub(build.Status.StartTimestamp.Rfc3339Copy().Time)
+	default:
+		return errors.NewBadRequest(fmt.Sprintf("not a Build nor BuildList: %v", obj))
 	}
 	return nil
+}
+
+func setBuildDuration(build *api.Build) {
+	if build.Status.StartTimestamp == nil {
+		build.Status.Duration = 0
+		return
+	}
+	completionTimestamp := build.Status.CompletionTimestamp
+	if completionTimestamp == nil {
+		dummy := unversioned.Now()
+		completionTimestamp = &dummy
+		build.Status.Duration = completionTimestamp.Rfc3339Copy().Time.Sub(build.Status.StartTimestamp.Rfc3339Copy().Time)
+	}
 }
 
 // Strategy is the default logic that applies when creating and updating Build objects.
@@ -90,8 +100,8 @@ func (strategy) CheckGracefulDelete(obj runtime.Object, options *kapi.DeleteOpti
 }
 
 // Matcher returns a generic matcher for a given label and field selector.
-func Matcher(label labels.Selector, field fields.Selector) *generic.SelectionPredicate {
-	return &generic.SelectionPredicate{
+func Matcher(label labels.Selector, field fields.Selector) kstorage.SelectionPredicate {
+	return kstorage.SelectionPredicate{
 		Label: label,
 		Field: field,
 		GetAttrs: func(obj runtime.Object) (labels.Set, fields.Set, error) {
@@ -109,26 +119,34 @@ type detailsStrategy struct {
 }
 
 // Prepares a build for update by only allowing an update to build details.
-// For now, this is the Spec.Revision field
+// Build details currently consists of: Spec.Revision, Status.Reason, and
+// Status.Message, all of which are updated from within the build pod
 func (detailsStrategy) PrepareForUpdate(ctx kapi.Context, obj, old runtime.Object) {
 	newBuild := obj.(*api.Build)
 	oldBuild := old.(*api.Build)
 	revision := newBuild.Spec.Revision
+	message := newBuild.Status.Message
+	reason := newBuild.Status.Reason
 	*newBuild = *oldBuild
 	newBuild.Spec.Revision = revision
+	newBuild.Status.Reason = reason
+	newBuild.Status.Message = message
 }
 
 // Validates that an update is valid by ensuring that no Revision exists and that it's not getting updated to blank
 func (detailsStrategy) ValidateUpdate(ctx kapi.Context, obj, old runtime.Object) field.ErrorList {
 	newBuild := obj.(*api.Build)
 	oldBuild := old.(*api.Build)
+	oldRevision := oldBuild.Spec.Revision
+	newRevision := newBuild.Spec.Revision
 	errors := field.ErrorList{}
-	if oldBuild.Spec.Revision != nil {
-		// If there was already a revision, then return an error
-		errors = append(errors, field.Duplicate(field.NewPath("status", "revision"), oldBuild.Spec.Revision))
+
+	if newRevision == nil && oldRevision != nil {
+		errors = append(errors, field.Invalid(field.NewPath("spec", "revision"), nil, "cannot set an empty revision in build spec"))
 	}
-	if newBuild.Spec.Revision == nil {
-		errors = append(errors, field.Invalid(field.NewPath("status", "revision"), nil, "cannot set an empty revision in build status"))
+	if !reflect.DeepEqual(oldRevision, newRevision) && oldRevision != nil {
+		// If there was already a revision, then return an error
+		errors = append(errors, field.Duplicate(field.NewPath("spec", "revision"), oldBuild.Spec.Revision))
 	}
 	return errors
 }

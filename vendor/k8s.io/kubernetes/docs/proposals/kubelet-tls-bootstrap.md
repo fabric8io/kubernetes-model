@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Kubelet TLS bootstrap
 
 Author: George Tankersley (george.tankersley@coreos.com)
@@ -241,13 +236,6 @@ auth.
 - revocation UI in kubectl and CRL support at the apiserver
 - supplemental policy (e.g. cluster CA only issues 30-day certs for hostnames *.k8s.example.com, each new cert must have fresh keys, ...)
 - fully automated provisioning (using a handshake protocol or external list of authorized machines)
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

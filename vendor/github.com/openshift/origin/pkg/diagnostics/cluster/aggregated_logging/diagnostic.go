@@ -7,7 +7,7 @@ import (
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	kapisext "k8s.io/kubernetes/pkg/apis/extensions"
-	kclient "k8s.io/kubernetes/pkg/client/unversioned"
+	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/labels"
 
 	authapi "github.com/openshift/origin/pkg/authorization/api"
@@ -27,7 +27,7 @@ type AggregatedLogging struct {
 	masterConfig     *configapi.MasterConfig
 	MasterConfigFile string
 	OsClient         *client.Client
-	KubeClient       *kclient.Client
+	KubeClient       kclientset.Interface
 	result           types.DiagnosticResult
 }
 
@@ -45,12 +45,12 @@ const (
 var loggingSelector = labels.Set{loggingInfraKey: "support"}
 
 //NewAggregatedLogging returns the AggregatedLogging Diagnostic
-func NewAggregatedLogging(masterConfigFile string, kclient *kclient.Client, osclient *client.Client) *AggregatedLogging {
+func NewAggregatedLogging(masterConfigFile string, kclient kclientset.Interface, osclient *client.Client) *AggregatedLogging {
 	return &AggregatedLogging{nil, masterConfigFile, osclient, kclient, types.NewDiagnosticResult(AggregatedLoggingName)}
 }
 
 func (d *AggregatedLogging) getScc(name string) (*kapi.SecurityContextConstraints, error) {
-	return d.KubeClient.SecurityContextConstraints().Get(name)
+	return d.KubeClient.Core().SecurityContextConstraints().Get(name)
 }
 
 func (d *AggregatedLogging) getClusterRoleBinding(name string) (*authapi.ClusterRoleBinding, error) {
@@ -62,27 +62,27 @@ func (d *AggregatedLogging) routes(project string, options kapi.ListOptions) (*r
 }
 
 func (d *AggregatedLogging) serviceAccounts(project string, options kapi.ListOptions) (*kapi.ServiceAccountList, error) {
-	return d.KubeClient.ServiceAccounts(project).List(options)
+	return d.KubeClient.Core().ServiceAccounts(project).List(options)
 }
 
 func (d *AggregatedLogging) services(project string, options kapi.ListOptions) (*kapi.ServiceList, error) {
-	return d.KubeClient.Services(project).List(options)
+	return d.KubeClient.Core().Services(project).List(options)
 }
 
 func (d *AggregatedLogging) endpointsForService(project string, service string) (*kapi.Endpoints, error) {
-	return d.KubeClient.Endpoints(project).Get(service)
+	return d.KubeClient.Core().Endpoints(project).Get(service)
 }
 
 func (d *AggregatedLogging) daemonsets(project string, options kapi.ListOptions) (*kapisext.DaemonSetList, error) {
-	return d.KubeClient.DaemonSets(project).List(kapi.ListOptions{LabelSelector: loggingInfraFluentdSelector.AsSelector()})
+	return d.KubeClient.Extensions().DaemonSets(project).List(kapi.ListOptions{LabelSelector: loggingInfraFluentdSelector.AsSelector()})
 }
 
 func (d *AggregatedLogging) nodes(options kapi.ListOptions) (*kapi.NodeList, error) {
-	return d.KubeClient.Nodes().List(kapi.ListOptions{})
+	return d.KubeClient.Core().Nodes().List(kapi.ListOptions{})
 }
 
 func (d *AggregatedLogging) pods(project string, options kapi.ListOptions) (*kapi.PodList, error) {
-	return d.KubeClient.Pods(project).List(options)
+	return d.KubeClient.Core().Pods(project).List(options)
 }
 func (d *AggregatedLogging) deploymentconfigs(project string, options kapi.ListOptions) (*deployapi.DeploymentConfigList, error) {
 	return d.OsClient.DeploymentConfigs(project).List(options)
@@ -125,7 +125,10 @@ func (d *AggregatedLogging) CanRun() (bool, error) {
 	var err error
 	d.masterConfig, err = hostdiag.GetMasterConfig(d.result, d.MasterConfigFile)
 	if err != nil {
-		return false, errors.New("Unreadable master config; skipping this diagnostic.")
+		return false, errors.New("Master configuration is unreadable")
+	}
+	if d.masterConfig.AssetConfig.LoggingPublicURL == "" {
+		return false, errors.New("No LoggingPublicURL is defined in the master configuration")
 	}
 	return true, nil
 }
@@ -146,11 +149,11 @@ func (d *AggregatedLogging) Check() types.DiagnosticResult {
 }
 
 const projectNodeSelectorWarning = `
-The project '%[1]s' was found with either a missing or non-empty node selector annotation.  
-This could keep Fluentd from running on certain nodes and collecting logs from the entire cluster.  
+The project '%[1]s' was found with either a missing or non-empty node selector annotation.
+This could keep Fluentd from running on certain nodes and collecting logs from the entire cluster.
 You can correct it by editing the project:
 
-  oc edit namespace %[1]s
+  $ oc edit namespace %[1]s
 
 and updating the annotation:
 

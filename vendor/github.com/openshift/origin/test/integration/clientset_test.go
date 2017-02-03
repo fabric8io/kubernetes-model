@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"testing"
 
-	"k8s.io/kubernetes/pkg/api"
 	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
 
 	v1buildapi "github.com/openshift/origin/pkg/build/api/v1"
-	buildclient "github.com/openshift/origin/pkg/build/client/clientset_generated/release_v1_3"
+	buildclient "github.com/openshift/origin/pkg/build/client/clientset_generated/release_v1_5"
 	v1projectapi "github.com/openshift/origin/pkg/project/api/v1"
-	projectclient "github.com/openshift/origin/pkg/project/client/clientset_generated/release_v1_3"
+	projectclient "github.com/openshift/origin/pkg/project/client/clientset_generated/release_v1_5"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -58,7 +57,7 @@ func TestClientSet_v1_3(t *testing.T) {
 		if _, err := c.Builds(namespace).Create(build); err != nil {
 			t.Fatal(err)
 		}
-		result, err := c.Builds(namespace).List(api.ListOptions{})
+		result, err := c.Builds(namespace).List(kapiv1.ListOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}

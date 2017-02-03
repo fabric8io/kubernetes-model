@@ -31,6 +31,8 @@
 # Note: for magicfile support to work correctly, the "file" utility must be
 # installed.
 
+# TODO(rmmh): rewrite this script in Python so we can actually test it!
+
 set -o errexit
 set -o nounset
 set -o pipefail
@@ -44,8 +46,31 @@ if [[ ! ${JENKINS_UPLOAD_TO_GCS:-y} =~ ^[yY]$ ]]; then
   exit 0
 fi
 
+# Attempt to determine if we're running against a repo other than
+# kubernetes/kubernetes to determine whether to place PR logs in a different
+# location.
+#
+# In the current CI system, the tracked repo is named remote. This is not true
+# in general for most devs, where origin and upstream are more common.
+GCS_SUBDIR=""
+readonly remote_git_repo=$(git config --get remote.remote.url | sed 's:.*github.com/::' || true)
+if [[ -n "${remote_git_repo}" ]]; then
+  case "${remote_git_repo}" in
+    # main repo: nothing extra
+    kubernetes/kubernetes) GCS_SUBDIR="" ;;
+    # a different repo on the k8s org: just the repo name (strip kubernetes/)
+    kubernetes/*) GCS_SUBDIR="${remote_git_repo#kubernetes/}/" ;;
+    # any other repo: ${org}_${repo} (replace / with _)
+    *) GCS_SUBDIR="${remote_git_repo/\//_}/" ;;
+  esac
+  if [[ "${remote_git_repo}" != "kubernetes/kubernetes" ]]; then
+    # also store the repo in started.json, so Gubernator can link it properly.
+    export BUILD_METADATA_REPO="${remote_git_repo}"
+  fi
+fi
+
 if [[ ${JOB_NAME} =~ -pull- ]]; then
-  : ${JENKINS_GCS_LOGS_PATH:="gs://kubernetes-jenkins/pr-logs/pull/${ghprbPullId:-unknown}"}
+  : ${JENKINS_GCS_LOGS_PATH:="gs://kubernetes-jenkins/pr-logs/pull/${GCS_SUBDIR}${ghprbPullId:-unknown}"}
   : ${JENKINS_GCS_LATEST_PATH:="gs://kubernetes-jenkins/pr-logs/directory"}
   : ${JENKINS_GCS_LOGS_INDIRECT:="gs://kubernetes-jenkins/pr-logs/directory/${JOB_NAME}"}
 else
@@ -102,6 +127,36 @@ function find_version() {
   )
 }
 
+# Output started.json. Use test function below!
+function print_started() {
+  local metadata_keys=$(compgen -e | grep ^BUILD_METADATA_)
+  echo "{"
+  echo "    \"version\": \"${version}\","  # TODO(fejta): retire
+  echo "    \"job-version\": \"${version}\","
+  echo "    \"timestamp\": ${timestamp},"
+  if [[ -n "${metadata_keys}" ]]; then
+    # Any exported variables of the form BUILD_METADATA_KEY=VALUE
+    # will be available as started["metadata"][KEY.lower()].
+    echo "    \"metadata\": {"
+    local sep=""  # leading commas are easy to track
+    for env_var in $metadata_keys; do
+      local var_upper="${env_var#BUILD_METADATA_}"
+      echo "        $sep\"${var_upper,,}\": \"${!env_var}\""
+      sep=","
+    done
+    echo "    },"
+  fi
+  echo "    \"jenkins-node\": \"${NODE_NAME:-}\""
+  echo "}"
+}
+
+# Use this to test changes to print_started.
+if [[ -n "${TEST_STARTED_JSON:-}" ]]; then
+  version=$(find_version)
+  cat <(print_started) | jq .
+  exit
+fi
+
 function upload_version() {
   local -r version=$(find_version)
   local upload_attempt
@@ -117,13 +172,7 @@ function upload_version() {
   local -r json_file="${gcs_build_path}/started.json"
   for upload_attempt in {1..3}; do
     echo "Uploading version to: ${json_file} (attempt ${upload_attempt})"
-    gsutil -q -h "Content-Type:application/json" cp -a "${gcs_acl}" <(
-      echo "{"
-      echo "    \"version\": \"${version}\","
-      echo "    \"timestamp\": ${timestamp},"
-      echo "    \"jenkins-node\": \"${NODE_NAME:-}\""
-      echo "}"
-    ) "${json_file}" || continue
+    gsutil -q -h "Content-Type:application/json" cp -a "${gcs_acl}" <(print_started) "${json_file}" || continue
     break
   done
 }
@@ -140,7 +189,11 @@ function update_job_result_cache() {
   local -r version=$(find_version)
   local -r job_results=${gcs_job_path}/jobResultsCache.json
   local -r tmp_results="${WORKSPACE}/_tmp/jobResultsCache.tmp"
-  local -r cache_size=200
+  # TODO: This constraint is insufficient.  The boundary for secondary
+  #       job cache should be date based on the last primary build.
+  #       The issue is we are trying to find a matched green set of results
+  #       at a given hash, but all of the jobs run at wildly different lengths.
+  local -r cache_size=300
   local upload_attempt
 
   if [[ -n "${version}" ]]; then
@@ -228,13 +281,15 @@ function upload_artifacts_and_build_result() {
   echo -e "\n\n\n*** View logs and artifacts at ${results_url} ***\n\n"
 }
 
-if [[ -n "${JENKINS_BUILD_STARTED:-}" ]]; then
-  upload_version
-elif [[ -n "${JENKINS_BUILD_FINISHED:-}" ]]; then
-  upload_artifacts_and_build_result ${JENKINS_BUILD_FINISHED}
-  update_job_result_cache ${JENKINS_BUILD_FINISHED}
-else
-  echo "Called without JENKINS_BUILD_STARTED or JENKINS_BUILD_FINISHED set."
-  echo "Assuming a legacy invocation."
-  upload_artifacts_and_build_result "[UNSET]"
+if [[ -z "${BOOTSTRAP_MIGRATION:-}" ]]; then
+  if [[ -n "${JENKINS_BUILD_STARTED:-}" ]]; then
+    upload_version
+  elif [[ -n "${JENKINS_BUILD_FINISHED:-}" ]]; then
+    upload_artifacts_and_build_result ${JENKINS_BUILD_FINISHED}
+    update_job_result_cache ${JENKINS_BUILD_FINISHED}
+  else
+    echo "ERROR: Called without JENKINS_BUILD_STARTED or JENKINS_BUILD_FINISHED set."
+    echo "ERROR: this should not happen"
+    exit 1
+  fi
 fi

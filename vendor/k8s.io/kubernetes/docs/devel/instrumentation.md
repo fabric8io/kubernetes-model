@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 ## Instrumenting Kubernetes with a new metric
 
 The following is a step-by-step guide for adding a new metric to the Kubernetes
@@ -50,13 +45,6 @@ https://github.com/prometheus/client_golang/blob/master/prometheus/gauge.go
 https://github.com/prometheus/client_golang/blob/master/prometheus/counter.go
 https://github.com/prometheus/client_golang/blob/master/prometheus/histogram.go
 https://github.com/prometheus/client_golang/blob/master/prometheus/summary.go
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

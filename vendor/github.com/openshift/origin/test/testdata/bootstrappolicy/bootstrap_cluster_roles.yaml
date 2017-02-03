@@ -48,7 +48,6 @@ items:
     - bindings
     - componentstatuses
     - configmaps
-    - egressnetworkpolicies
     - endpoints
     - events
     - limitranges
@@ -85,6 +84,8 @@ items:
     resources:
     - petsets
     - petsets/status
+    - statefulsets
+    - statefulsets/status
     verbs:
     - get
     - list
@@ -103,6 +104,8 @@ items:
     - batch
     attributeRestrictions: null
     resources:
+    - cronjobs
+    - cronjobs/status
     - jobs
     - jobs/status
     - scheduledjobs
@@ -179,6 +182,7 @@ items:
     - clusterroles
     - policies
     - policybindings
+    - rolebindingrestrictions
     - rolebindings
     - roles
     verbs:
@@ -276,6 +280,7 @@ items:
     attributeRestrictions: null
     resources:
     - clusternetworks
+    - egressnetworkpolicies
     - hostsubnets
     - netnamespaces
     verbs:
@@ -559,6 +564,7 @@ items:
     - batch
     attributeRestrictions: null
     resources:
+    - cronjobs
     - jobs
     - scheduledjobs
     verbs:
@@ -605,6 +611,7 @@ items:
     attributeRestrictions: null
     resources:
     - petsets
+    - statefulsets
     verbs:
     - create
     - delete
@@ -653,6 +660,7 @@ items:
     resources:
     - policies
     - policybindings
+    - rolebindingrestrictions
     verbs:
     - get
     - list
@@ -962,6 +970,7 @@ items:
     - batch
     attributeRestrictions: null
     resources:
+    - cronjobs
     - jobs
     - scheduledjobs
     verbs:
@@ -1008,6 +1017,7 @@ items:
     attributeRestrictions: null
     resources:
     - petsets
+    - statefulsets
     verbs:
     - create
     - delete
@@ -1266,6 +1276,7 @@ items:
     - batch
     attributeRestrictions: null
     resources:
+    - cronjobs
     - jobs
     - scheduledjobs
     verbs:
@@ -1300,6 +1311,7 @@ items:
     attributeRestrictions: null
     resources:
     - petsets
+    - statefulsets
     verbs:
     - get
     - list
@@ -1560,6 +1572,8 @@ items:
     - /oapi/*
     - /osapi
     - /osapi/
+    - /swaggerapi
+    - /swaggerapi/*
     - /version
     - /version/*
     resources: []
@@ -1637,6 +1651,13 @@ items:
     - builds/details
     verbs:
     - update
+  - apiGroups:
+    - ""
+    attributeRestrictions: null
+    resources:
+    - builds
+    verbs:
+    - get
 - apiVersion: v1
   kind: ClusterRole
   metadata:
@@ -1875,6 +1896,7 @@ items:
     - ""
     attributeRestrictions: null
     resources:
+    - images
     - imagestreams
     verbs:
     - get
@@ -2079,6 +2101,7 @@ items:
     - ""
     attributeRestrictions: null
     resources:
+    - egressnetworkpolicies
     - hostsubnets
     - netnamespaces
     verbs:
@@ -2091,15 +2114,6 @@ items:
     resources:
     - namespaces
     - nodes
-    verbs:
-    - get
-    - list
-    - watch
-  - apiGroups:
-    - ""
-    attributeRestrictions: null
-    resources:
-    - egressnetworkpolicies
     verbs:
     - get
     - list
@@ -2179,6 +2193,8 @@ items:
     - /oapi/*
     - /osapi
     - /osapi/
+    - /swaggerapi
+    - /swaggerapi/*
     - /version
     - /version/*
     resources: []
@@ -2717,6 +2733,14 @@ items:
     - ""
     attributeRestrictions: null
     resources:
+    - nodes
+    verbs:
+    - list
+    - watch
+  - apiGroups:
+    - ""
+    attributeRestrictions: null
+    resources:
     - pods
     verbs:
     - delete
@@ -2797,6 +2821,7 @@ items:
     - batch
     attributeRestrictions: null
     resources:
+    - cronjobs
     - jobs
     - scheduledjobs
     verbs:
@@ -2808,6 +2833,7 @@ items:
     - batch
     attributeRestrictions: null
     resources:
+    - cronjobs/status
     - jobs/status
     - scheduledjobs/status
     verbs:
@@ -2900,6 +2926,7 @@ items:
     attributeRestrictions: null
     resources:
     - petsets
+    - statefulsets
     verbs:
     - list
     - watch
@@ -2908,6 +2935,7 @@ items:
     attributeRestrictions: null
     resources:
     - petsets
+    - statefulsets
     verbs:
     - get
   - apiGroups:
@@ -3455,6 +3483,9 @@ items:
     verbs:
     - create
     - get
+    - list
+    - update
+    - watch
 - apiVersion: v1
   kind: ClusterRole
   metadata:
@@ -3510,6 +3541,7 @@ items:
     - replicationcontrollers
     verbs:
     - get
+    - patch
     - update
   - apiGroups:
     - ""
@@ -3518,6 +3550,7 @@ items:
     - deploymentconfigs
     verbs:
     - get
+    - patch
     - update
 kind: List
 metadata: {}

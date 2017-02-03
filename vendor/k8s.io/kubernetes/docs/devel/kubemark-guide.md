@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Kubemark User Guide
 
 ## Introduction
@@ -210,13 +205,6 @@ yet).
 As the time passes more fakes will probably be plugged into HollowNodes, but
 it’s crucial to make it as simple as possible to allow running a big number of
 Hollows on a single core.
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Security in Kubernetes
 
 Kubernetes should define a reasonable set of security best practices that allows
@@ -216,13 +211,6 @@ control of relocating components on failed hosts (which could be implemented by
 a separate component that can delete bindings but not create them). The
 scheduler may need read access to user or project-container information to
 determine preferential location (underspecified at this time).
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

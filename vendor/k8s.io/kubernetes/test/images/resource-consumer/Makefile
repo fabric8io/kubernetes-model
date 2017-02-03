@@ -25,15 +25,15 @@ consumer:
 container: image
 
 image:
-	sudo docker build -t $(PREFIX)/resource_consumer:$(TAG) .
-	sudo docker build -t $(PREFIX)/resource_consumer/controller:$(TAG) controller
+	sudo docker build --pull -t $(PREFIX)/resource_consumer:$(TAG) .
+	sudo docker build --pull -t $(PREFIX)/resource_consumer/controller:$(TAG) controller
 
 run_container:
 	docker run --publish=8080:8080 $(PREFIX)/resource_consumer:$(TAG)
 
 push:
-	gcloud docker push ${PREFIX}/resource_consumer:${TAG}
-	gcloud docker push ${PREFIX}/resource_consumer/controller:${TAG}
+	gcloud docker -- push ${PREFIX}/resource_consumer:${TAG}
+	gcloud docker -- push ${PREFIX}/resource_consumer/controller:${TAG}
 
 clean:
 	rm -f consumer

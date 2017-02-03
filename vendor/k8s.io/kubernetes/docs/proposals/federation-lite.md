@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Kubernetes Multi-AZ Clusters
 
 ## (previously nicknamed "Ubernetes-Lite")
@@ -199,13 +194,6 @@ Initially therefore, the GCE changes will be to:
 1. pass a flag enabling multi-AZ clusters with kube-up
 1. change the kubernetes cloud provider to iterate through relevant zones when resolving items
 1. tag GCE PD volumes with the appropriate zone information
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

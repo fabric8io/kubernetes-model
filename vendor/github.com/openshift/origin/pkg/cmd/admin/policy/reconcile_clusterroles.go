@@ -100,8 +100,8 @@ func NewCmdReconcileClusterRoles(name, fullName string, f *clientcmd.Factory, ou
 		},
 	}
 
-	cmd.Flags().BoolVar(&o.Confirmed, "confirm", o.Confirmed, "Specify that cluster roles should be modified. Defaults to false, displaying what would be replaced but not actually replacing anything.")
-	cmd.Flags().BoolVar(&o.Union, "additive-only", o.Union, "Preserves modified cluster roles.")
+	cmd.Flags().BoolVar(&o.Confirmed, "confirm", o.Confirmed, "If true, specify that cluster roles should be modified. Defaults to false, displaying what would be replaced but not actually replacing anything.")
+	cmd.Flags().BoolVar(&o.Union, "additive-only", o.Union, "If true, preserves modified cluster roles.")
 	kcmdutil.AddPrinterFlags(cmd)
 	cmd.Flags().Lookup("output").DefValue = "yaml"
 	cmd.Flags().Lookup("output").Value.Set("yaml")
@@ -118,7 +118,7 @@ func (o *ReconcileClusterRolesOptions) Complete(cmd *cobra.Command, f *clientcmd
 
 	o.Output = kcmdutil.GetFlagString(cmd, "output")
 
-	mapper, _ := f.Object(false)
+	mapper, _ := f.Object()
 	for _, resourceString := range args {
 		resource, name, err := osutil.ResolveResource(authorizationapi.Resource("clusterroles"), resourceString, mapper)
 		if err != nil {
@@ -167,7 +167,7 @@ func (o *ReconcileClusterRolesOptions) RunReconcileClusterRoles(cmd *cobra.Comma
 		for _, item := range changedClusterRoles {
 			list.Items = append(list.Items, item)
 		}
-		mapper, _ := f.Object(false)
+		mapper, _ := f.Object()
 		fn := cmdutil.VersionedPrintObject(f.PrintObject, cmd, mapper, o.Out)
 		if err := fn(list); err != nil {
 			return err

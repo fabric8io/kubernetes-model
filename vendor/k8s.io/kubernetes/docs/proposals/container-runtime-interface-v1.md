@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Redefine Container Runtime Interface
 
 The umbrella issue: [#22964](https://issues.k8s.io/22964)
@@ -250,7 +245,7 @@ discussion and may be achieved alternatively:
 **Imperative pod-level interface**
 The interface contains only CreatePod(), StartPod(), StopPod() and RemovePod().
 This implies that the runtime needs to take over container lifecycle
-manangement (i.e., enforce restart policy), lifecycle hooks, liveness checks,
+management (i.e., enforce restart policy), lifecycle hooks, liveness checks,
 etc. Kubelet will mainly be responsible for interfacing with the apiserver, and
 can potentially become a very thin daemon.
  - Pros: Lower maintenance overhead for the Kubernetes maintainers if `Docker`
@@ -265,13 +260,6 @@ can potentially become a very thin daemon.
 
  * Metrics: [#27097](https://issues.k8s.io/27097)
  * Log management: [#24677](https://issues.k8s.io/24677)
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

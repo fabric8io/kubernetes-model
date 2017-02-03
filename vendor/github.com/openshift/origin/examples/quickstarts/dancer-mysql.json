@@ -16,6 +16,17 @@
   },
   "objects": [
     {
+      "kind": "Secret",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${NAME}"
+      },
+      "stringData" : {
+        "database-user" : "${DATABASE_USER}",
+        "database-password" : "${DATABASE_PASSWORD}"
+      }
+    },
+    {
       "kind": "Service",
       "apiVersion": "v1",
       "metadata": {
@@ -86,7 +97,7 @@
             "from": {
               "kind": "ImageStreamTag",
               "namespace": "${NAMESPACE}",
-              "name": "perl:5.20"
+              "name": "perl:5.24"
             },
             "env":  [
               {
@@ -115,7 +126,10 @@
               "secret": "${GITHUB_WEBHOOK_SECRET}"
             }
           }
-        ]
+        ],
+        "postCommit": {
+          "script": "perl -I extlib/lib/perl5 -I lib t/*"
+        }
       }
     },
     {
@@ -190,11 +204,21 @@
                   },
                   {
                     "name": "MYSQL_USER",
-                    "value": "${DATABASE_USER}"
+                    "valueFrom": {
+                      "secretKeyRef" : {
+                        "name" : "${NAME}",
+                        "key" : "database-user"
+                      }
+                    }
                   },
                   {
                     "name": "MYSQL_PASSWORD",
-                    "value": "${DATABASE_PASSWORD}"
+                    "valueFrom": {
+                      "secretKeyRef" : {
+                        "name" : "${NAME}",
+                        "key" : "database-password"
+                      }
+                    }
                   },
                   {
                     "name": "MYSQL_DATABASE",
@@ -266,7 +290,7 @@
               "from": {
                 "kind": "ImageStreamTag",
                 "namespace": "${NAMESPACE}",
-                "name": "mysql:5.6"
+                "name": "mysql:5.7"
               }
             }
           },
@@ -324,11 +348,21 @@
                 "env": [
                   {
                     "name": "MYSQL_USER",
-                    "value": "${DATABASE_USER}"
+                    "valueFrom": {
+                      "secretKeyRef" : {
+                        "name" : "${NAME}",
+                        "key" : "database-user"
+                      }
+                    }
                   },
                   {
                     "name": "MYSQL_PASSWORD",
-                    "value": "${DATABASE_PASSWORD}"
+                    "valueFrom": {
+                      "secretKeyRef" : {
+                        "name" : "${NAME}",
+                        "key" : "database-password"
+                      }
+                    }
                   },
                   {
                       "name": "MYSQL_DATABASE",
@@ -405,18 +439,6 @@
       "description": "A secret string used to configure the GitHub webhook.",
       "generate": "expression",
       "from": "[a-zA-Z0-9]{40}"
-    },
-    {
-      "name": "ADMIN_USERNAME",
-      "displayName": "Administrator Username",
-      "generate": "expression",
-      "from": "admin[A-Z0-9]{3}"
-    },
-    {
-      "name": "ADMIN_PASSWORD",
-      "displayName": "Administrator Password",
-      "generate": "expression",
-      "from": "[a-zA-Z0-9]{8}"
     },
     {
       "name": "DATABASE_SERVICE_NAME",

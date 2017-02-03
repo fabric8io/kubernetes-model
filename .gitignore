@@ -3,3 +3,10 @@
 target/
 .idea/
 *.iml
+.settings
+*.swp
+*.log
+.project
+.classpath
+overlays
+.DS_Store

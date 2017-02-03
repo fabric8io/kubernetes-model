@@ -15,7 +15,7 @@
 # This file creates a standard build environment for building cross
 # platform go binary for the architecture kubernetes cares about.
 
-FROM golang:1.6.3
+FROM golang:1.7.4
 
 ENV GOARM 6
 ENV KUBE_DYNAMIC_CROSSPLATFORMS \
@@ -62,28 +62,28 @@ RUN echo "deb http://emdebian.org/tools/debian/ jessie main" > /etc/apt/sources.
 # work around 64MB tmpfs size in Docker 1.6
 ENV TMPDIR /tmp.k8s
 
-# Get the code coverage tool, godep, and go-bindata
+# Get the code coverage tool, goimports, and godep
 RUN mkdir $TMPDIR \
   && chmod a+rwx $TMPDIR \
   && chmod o+t $TMPDIR \
   && go get golang.org/x/tools/cmd/cover \
             golang.org/x/tools/cmd/goimports \
-            github.com/tools/godep \
-            github.com/jteeuwen/go-bindata/go-bindata
+            github.com/tools/godep
 
 # Download and symlink etcd. We need this for our integration tests.
-RUN export ETCD_VERSION=v2.2.1; \
+RUN export ETCD_VERSION=v3.0.14; \
   mkdir -p /usr/local/src/etcd \
   && cd /usr/local/src/etcd \
   && curl -fsSL https://github.com/coreos/etcd/releases/download/${ETCD_VERSION}/etcd-${ETCD_VERSION}-linux-amd64.tar.gz | tar -xz \
   && ln -s ../src/etcd/etcd-${ETCD_VERSION}-linux-amd64/etcd /usr/local/bin/
 
 # TODO: Remove the patched GOROOT when we have an official golang that has a working arm and ppc64le linker
-ENV K8S_PATCHED_GOLANG_VERSION=1.7.1 \
+ENV K8S_PATCHED_GOLANG_VERSION=1.7.4 \
     K8S_PATCHED_GOROOT=/usr/local/go_k8s_patched
 RUN mkdir -p ${K8S_PATCHED_GOROOT} \
   && curl -sSL https://github.com/golang/go/archive/go${K8S_PATCHED_GOLANG_VERSION}.tar.gz | tar -xz -C ${K8S_PATCHED_GOROOT} --strip-components=1
 
+# We need a patched go1.7.1 for linux/arm (https://github.com/kubernetes/kubernetes/issues/29904)
 COPY golang-patches/CL28857-go1.7.1-luxas.patch ${K8S_PATCHED_GOROOT}/
 RUN cd ${K8S_PATCHED_GOROOT} \
   && patch -p1 < CL28857-go1.7.1-luxas.patch \

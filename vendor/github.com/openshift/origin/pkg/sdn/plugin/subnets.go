@@ -10,7 +10,7 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 	kapiunversioned "k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/client/cache"
-	kclient "k8s.io/kubernetes/pkg/client/unversioned"
+	"k8s.io/kubernetes/pkg/client/retry"
 	"k8s.io/kubernetes/pkg/types"
 	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
 	utilwait "k8s.io/kubernetes/pkg/util/wait"
@@ -105,6 +105,15 @@ func (master *OsdnMaster) deleteNode(nodeName string) error {
 	return nil
 }
 
+func isValidNodeIP(node *kapi.Node, nodeIP string) bool {
+	for _, addr := range node.Status.Addresses {
+		if addr.Address == nodeIP {
+			return true
+		}
+	}
+	return false
+}
+
 func getNodeIP(node *kapi.Node) (string, error) {
 	if len(node.Status.Addresses) > 0 && node.Status.Addresses[0].Address != "" {
 		return node.Status.Addresses[0].Address, nil
@@ -122,7 +131,7 @@ func getNodeIP(node *kapi.Node) (string, error) {
 func (master *OsdnMaster) clearInitialNodeNetworkUnavailableCondition(node *kapi.Node) {
 	knode := node
 	cleared := false
-	resultErr := kclient.RetryOnConflict(kclient.DefaultBackoff, func() error {
+	resultErr := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		var err error
 
 		if knode != node {
@@ -155,7 +164,7 @@ func (master *OsdnMaster) clearInitialNodeNetworkUnavailableCondition(node *kapi
 
 func (master *OsdnMaster) watchNodes() {
 	nodeAddressMap := map[types.UID]string{}
-	RunEventQueue(master.kClient, Nodes, func(delta cache.Delta) error {
+	RunEventQueue(master.kClient.CoreClient.RESTClient(), Nodes, func(delta cache.Delta) error {
 		node := delta.Object.(*kapi.Node)
 		name := node.ObjectMeta.Name
 		uid := node.ObjectMeta.UID
@@ -169,7 +178,7 @@ func (master *OsdnMaster) watchNodes() {
 		case cache.Sync, cache.Added, cache.Updated:
 			master.clearInitialNodeNetworkUnavailableCondition(node)
 
-			if oldNodeIP, ok := nodeAddressMap[uid]; ok && (oldNodeIP == nodeIP) {
+			if oldNodeIP, ok := nodeAddressMap[uid]; ok && ((nodeIP == oldNodeIP) || isValidNodeIP(node, oldNodeIP)) {
 				break
 			}
 			// Node status is frequently updated by kubelet, so log only if the above condition is not met
@@ -269,9 +278,7 @@ func (node *OsdnNode) watchSubnets() {
 					break
 				} else {
 					// Delete old subnet rules
-					if err := node.DeleteHostSubnetRules(oldSubnet); err != nil {
-						return err
-					}
+					node.DeleteHostSubnetRules(oldSubnet)
 				}
 			}
 			if err := node.networkInfo.validateNodeIP(hs.HostIP); err != nil {
@@ -279,15 +286,11 @@ func (node *OsdnNode) watchSubnets() {
 				break
 			}
 
-			if err := node.AddHostSubnetRules(hs); err != nil {
-				return err
-			}
+			node.AddHostSubnetRules(hs)
 			subnets[string(hs.UID)] = hs
 		case cache.Deleted:
 			delete(subnets, string(hs.UID))
-			if err := node.DeleteHostSubnetRules(hs); err != nil {
-				return err
-			}
+			node.DeleteHostSubnetRules(hs)
 		}
 		return nil
 	})

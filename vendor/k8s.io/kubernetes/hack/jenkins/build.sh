@@ -31,7 +31,6 @@ set -o xtrace
 # space.
 export HOME=${WORKSPACE} # Nothing should want Jenkins $HOME
 export PATH=$PATH:/usr/local/go/bin
-export KUBE_SKIP_CONFIRMATIONS=y
 
 # Skip gcloud update checking
 export CLOUDSDK_COMPONENT_MANAGER_DISABLE_UPDATE_CHECK=true
@@ -39,21 +38,12 @@ export CLOUDSDK_COMPONENT_MANAGER_DISABLE_UPDATE_CHECK=true
 # FEDERATION?
 : ${FEDERATION:="false"}
 : ${KUBE_RELEASE_RUN_TESTS:="n"}
-
-# New kubernetes/release/push-ci-build.sh values
-# RELEASE_INFRA_PUSH=true when we're using kubernetes/release/push-ci-build.sh
-: ${RELEASE_INFRA_PUSH:="false"}
-# SET_NOMOCK_FLAG=true means we're doing full pushes and we pass --nomock to 
-# push-ci-build.sh. This is set to false in the
-# testing jobs and only used in the RELEASE_INFRA_PUSH=true scope below.
-: ${SET_NOMOCK_FLAG:="true"}
-export KUBE_RELEASE_RUN_TESTS RELEASE_INFRA_PUSH FEDERATION SET_NOMOCK_FLAG
+export KUBE_RELEASE_RUN_TESTS
 
 # Clean stuff out. Assume the last build left the tree in an odd
 # state.
 rm -rf ~/.kube*
 make clean
-git clean -fdx
 
 # Uncomment if you want to purge the Docker cache completely each
 # build. It costs about 150s each build to pull the golang image and
@@ -68,26 +58,20 @@ make release
 # Push to GCS?
 if [[ ${KUBE_SKIP_PUSH_GCS:-} =~ ^[yY]$ ]]; then
   echo "Not pushed to GCS..."
-elif ${RELEASE_INFRA_PUSH-}; then
+else
   readonly release_infra_clone="${WORKSPACE}/_tmp/release.git"
   mkdir -p ${WORKSPACE}/_tmp
   git clone https://github.com/kubernetes/release ${release_infra_clone}
 
-  if [[ ! -x ${release_infra_clone}/push-ci-build.sh ]]; then
-    echo "FATAL: Something went wrong." \
-         "${release_infra_clone}/push-ci-build.sh isn't available." \
-         "Exiting..." >&2
-    exit 1
-  fi
+  push_build=${release_infra_clone}/push-build.sh
 
   [[ -n "${KUBE_GCS_RELEASE_BUCKET-}" ]] \
-   && bucket_flag="--bucket=${KUBE_GCS_RELEASE_BUCKET-}"
+    && bucket_flag="--bucket=${KUBE_GCS_RELEASE_BUCKET-}"
   ${FEDERATION} && federation_flag="--federation"
-  ${SET_NOMOCK_FLAG} && mock_flag="--nomock"
-  ${release_infra_clone}/push-ci-build.sh ${bucket_flag-} ${federation_flag-} \
-                                          ${mock_flag-}
-else
-  ./build/push-ci-build.sh
+  [[ -n "${KUBE_GCS_RELEASE_SUFFIX-}" ]] \
+    && gcs_suffix_flag="--gcs-suffix=${KUBE_GCS_RELEASE_SUFFIX-}"
+  ${push_build} ${bucket_flag-} ${federation_flag-} ${gcs_suffix_flag-} \
+    --nomock --verbose --ci
 fi
 
 sha256sum _output/release-tars/kubernetes*.tar.gz

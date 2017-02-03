@@ -68,8 +68,6 @@ CLUSTER_ID=${INSTANCE_PREFIX}
 VPC_NAME=${VPC_NAME:-kubernetes-vpc}
 AWS_SSH_KEY=${AWS_SSH_KEY:-$HOME/.ssh/kube_aws_rsa}
 CONFIG_CONTEXT="${KUBE_CONFIG_CONTEXT:-aws_${INSTANCE_PREFIX}}"
-IAM_PROFILE_MASTER="kubernetes-master"
-IAM_PROFILE_NODE="kubernetes-minion"
 
 LOG="/dev/null"
 
@@ -122,7 +120,9 @@ fi
 ENABLE_CLUSTER_DNS="${KUBE_ENABLE_CLUSTER_DNS:-true}"
 DNS_SERVER_IP="${DNS_SERVER_IP:-10.0.0.10}"
 DNS_DOMAIN="cluster.local"
-DNS_REPLICAS=1
+
+# Optional: Enable DNS horizontal autoscaler
+ENABLE_DNS_HORIZONTAL_AUTOSCALER="${KUBE_ENABLE_DNS_HORIZONTAL_AUTOSCALER:-false}"
 
 # Optional: Install Kubernetes UI
 ENABLE_CLUSTER_UI="${KUBE_ENABLE_CLUSTER_UI:-true}"
@@ -137,7 +137,7 @@ if [[ "${ENABLE_CLUSTER_AUTOSCALER}" == "true" ]]; then
 fi
 
 # Admission Controllers to invoke prior to persisting objects in cluster
-# If we included ResourceQuota, we should keep it at the end of the list to prevent incremeting quota usage prematurely.
+# If we included ResourceQuota, we should keep it at the end of the list to prevent incrementing quota usage prematurely.
 ADMISSION_CONTROL=NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota
 
 # Optional: Enable/disable public IP assignment for minions.

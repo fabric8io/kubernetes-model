@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # ScheduledJob Controller
 
 ## Abstract
@@ -178,7 +173,7 @@ In the above example:
 
 * `--restart=OnFailure` implies creating a job instead of replicationController.
 * `--runAt="0 14 21 7 *"` implies the schedule with which the job should be run, here
-  July 7th, 2pm.  This value will be validated according to the same rules which
+  July 21, 2pm.  This value will be validated according to the same rules which
   apply to `.spec.schedule`.
 
 ## Fields Added to Job Template
@@ -308,7 +303,7 @@ in namespace `ns1` might create a job `nightly-earnings-report-3m4d3`, and later
 a job called `nightly-earnings-report-6k7ts`.  This is consistent with pods, but
 does not give the user much information.
 
-Alternatively, we can use time as a uniqifier.  For example, the same scheduledJob could
+Alternatively, we can use time as a uniquifier.  For example, the same scheduledJob could
 create a job called `nightly-earnings-report-2016-May-19`.
 However, for Jobs that run more than once per day, we would need to represent
 time as well as date.  Standard date formats (e.g. RFC 3339) use colons for time.
@@ -334,13 +329,6 @@ Below are the possible future extensions to the Job controller:
   happening in [#18827](https://issues.k8s.io/18827).
 * Be able to specify more general template in `.spec` field, to create arbitrary
   types of resources. This relates to the work happening in [#18215](https://issues.k8s.io/18215).
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
-
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
 [![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/docs/proposals/scheduledjob.md?pixel)]()

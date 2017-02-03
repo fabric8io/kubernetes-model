@@ -8,10 +8,10 @@ import (
 	"k8s.io/kubernetes/pkg/api/meta"
 	"k8s.io/kubernetes/pkg/api/rest"
 	"k8s.io/kubernetes/pkg/api/unversioned"
-	kclient "k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/registry/generic"
-	nsregistry "k8s.io/kubernetes/pkg/registry/namespace"
+	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
+	nsregistry "k8s.io/kubernetes/pkg/registry/core/namespace"
 	"k8s.io/kubernetes/pkg/runtime"
+	kstorage "k8s.io/kubernetes/pkg/storage"
 	"k8s.io/kubernetes/pkg/watch"
 
 	oapi "github.com/openshift/origin/pkg/api"
@@ -27,7 +27,7 @@ import (
 
 type REST struct {
 	// client can modify Kubernetes namespaces
-	client kclient.NamespaceInterface
+	client kcoreclient.NamespaceInterface
 	// lister can enumerate project lists that enforce policy
 	lister projectauth.Lister
 	// Allows extended behavior during creation, required
@@ -40,7 +40,7 @@ type REST struct {
 }
 
 // NewREST returns a RESTStorage object that will work against Project resources
-func NewREST(client kclient.NamespaceInterface, lister projectauth.Lister, authCache *projectauth.AuthorizationCache, projectCache *projectcache.ProjectCache) *REST {
+func NewREST(client kcoreclient.NamespaceInterface, lister projectauth.Lister, authCache *projectauth.AuthorizationCache, projectCache *projectcache.ProjectCache) *REST {
 	return &REST{
 		client:         client,
 		lister:         lister,
@@ -171,7 +171,7 @@ var _ = rest.Deleter(&REST{})
 
 // Delete deletes a Project specified by its name
 func (s *REST) Delete(ctx kapi.Context, name string) (runtime.Object, error) {
-	return &unversioned.Status{Status: unversioned.StatusSuccess}, s.client.Delete(name)
+	return &unversioned.Status{Status: unversioned.StatusSuccess}, s.client.Delete(name, nil)
 }
 
 // decoratorFunc can mutate the provided object prior to being returned.
@@ -180,7 +180,7 @@ type decoratorFunc func(obj runtime.Object) error
 // filterList filters any list object that conforms to the api conventions,
 // provided that 'm' works with the concrete type of list. d is an optional
 // decorator for the returned functions. Only matching items are decorated.
-func filterList(list runtime.Object, m generic.Matcher, d decoratorFunc) (filtered runtime.Object, err error) {
+func filterList(list runtime.Object, m kstorage.SelectionPredicate, d decoratorFunc) (filtered runtime.Object, err error) {
 	// TODO: push a matcher down into tools.etcdHelper to avoid all this
 	// nonsense. This is a lot of unnecessary copies.
 	items, err := meta.ExtractList(list)

@@ -19,8 +19,7 @@ import (
 	"k8s.io/kubernetes/pkg/apis/componentconfig"
 	"k8s.io/kubernetes/pkg/apis/componentconfig/v1alpha1"
 	"k8s.io/kubernetes/pkg/client/cache"
-	client "k8s.io/kubernetes/pkg/client/unversioned"
-	clientadapter "k8s.io/kubernetes/pkg/client/unversioned/adapters/internalclientset"
+	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/kubelet"
 	"k8s.io/kubernetes/pkg/kubelet/dockertools"
@@ -28,7 +27,7 @@ import (
 	kubeletcni "k8s.io/kubernetes/pkg/kubelet/network/cni"
 	kubeletserver "k8s.io/kubernetes/pkg/kubelet/server"
 	kubelettypes "k8s.io/kubernetes/pkg/kubelet/types"
-	kcrypto "k8s.io/kubernetes/pkg/util/crypto"
+	"k8s.io/kubernetes/pkg/util/cert"
 	kerrors "k8s.io/kubernetes/pkg/util/errors"
 
 	osclient "github.com/openshift/origin/pkg/client"
@@ -55,7 +54,7 @@ type NodeConfig struct {
 	Containerized bool
 
 	// Client to connect to the master.
-	Client *client.Client
+	Client *kclientset.Clientset
 	// DockerClient is a client to connect to Docker
 	DockerClient dockertools.DockerInterface
 	// KubeletServer contains the KubeletServer configuration
@@ -104,7 +103,7 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
 		glog.Warningf(`Using "localhost" as node name will not resolve from all locations`)
 	}
 
-	clientCAs, err := kcrypto.CertPoolFromFile(options.ServingInfo.ClientCA)
+	clientCAs, err := cert.NewPool(options.ServingInfo.ClientCA)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +171,6 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
 	if sdnapi.IsOpenShiftNetworkPlugin(server.NetworkPluginName) {
 		// set defaults for openshift-sdn
 		server.HairpinMode = componentconfig.HairpinNone
-		server.ConfigureCBR0 = false
 	}
 
 	// prevents kube from generating certs
@@ -208,7 +206,6 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
 		server.NetworkPluginName = kubeletcni.CNIPluginName
 		server.NetworkPluginDir = kubeletcni.DefaultNetDir
 		server.HairpinMode = componentconfig.HairpinNone
-		server.ConfigureCBR0 = false
 	}
 
 	deps, err := kubeletapp.UnsecuredKubeletDeps(server)
@@ -232,15 +229,15 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
 
 	// provide any config overrides
 	//deps.NodeName = options.NodeName
-	deps.KubeClient = clientadapter.FromUnversionedClient(kubeClient)
-	deps.EventClient = clientadapter.FromUnversionedClient(eventClient)
+	deps.KubeClient = kubeClient
+	deps.EventClient = eventClient
 
 	// Setup auth
 	authnTTL, err := time.ParseDuration(options.AuthConfig.AuthenticationCacheTTL)
 	if err != nil {
 		return nil, err
 	}
-	authn, err := newAuthenticator(deps.KubeClient.Authentication(), clientCAs, authnTTL, options.AuthConfig.AuthenticationCacheSize)
+	authn, err := newAuthenticator(kubeClient.Authentication(), clientCAs, authnTTL, options.AuthConfig.AuthenticationCacheSize)
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +323,7 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
 		services, serviceStore := dns.NewCachedServiceAccessorAndStore()
 		endpoints, endpointsStore := dns.NewCachedEndpointsAccessorAndStore()
 		if !enableProxy {
-			endpoints = kubeClient
+			endpoints = deps.KubeClient
 			endpointsStore = nil
 		}
 
