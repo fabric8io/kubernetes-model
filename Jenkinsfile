@@ -19,6 +19,7 @@ def dummy
 mavenNode {
   ws{
     checkout scm
+    readTrusted 'release.groovy'
     sh "git remote set-url origin git@github.com:fabric8io/kubernetes-model.git"
 
     def pipeline = load 'release.groovy'
