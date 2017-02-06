@@ -37,11 +37,11 @@ container: image
 
 image:
 	$(if $(TAG),,$(error TAG is not defined. Use 'make tag' after committing changes to see a suggestion))
-	docker build -t $(PREFIX)/porter:$(TAG) .
+	docker build --pull -t $(PREFIX)/porter:$(TAG) .
 
 push:
 	$(if $(TAG),,$(error TAG is not defined. Use 'make tag' after committing changes to see a suggestion))
-	gcloud docker push $(PREFIX)/porter:$(TAG)
+	gcloud docker -- push $(PREFIX)/porter:$(TAG)
 
 clean:
 	rm -f porter

@@ -25,6 +25,8 @@ const (
 	BuildJenkinsLogURLAnnotation = "openshift.io/jenkins-log-url"
 	// BuildJenkinsBuildURIAnnotation is an annotation holding a link to the Jenkins build
 	BuildJenkinsBuildURIAnnotation = "openshift.io/jenkins-build-uri"
+	// BuildSourceSecretMatchURIAnnotationPrefix is a prefix for annotations on a Secret which indicate a source URI against which the Secret can be used
+	BuildSourceSecretMatchURIAnnotationPrefix = "build.openshift.io/source-secret-match-uri-"
 	// BuildLabel is the key of a Pod label whose value is the Name of a Build which is run.
 	// NOTE: The value for this label may not contain the entire Build name because it will be
 	// truncated to maximum label length.
@@ -286,6 +288,51 @@ const (
 	// secret for pushing the output image.
 	// The build will stay in the pending state until the secret is created, or the build times out.
 	StatusReasonMissingPushSecret StatusReason = "MissingPushSecret"
+
+	// StatusReasonPostCommitHookFailed indicates the post-commit hook failed.
+	StatusReasonPostCommitHookFailed StatusReason = "PostCommitHookFailed"
+
+	// StatusReasonPushImageToRegistryFailed indicates that an image failed to be
+	// pushed to the registry.
+	StatusReasonPushImageToRegistryFailed StatusReason = "PushImageToRegistryFailed"
+
+	// StatusReasonPullBuilderImageFailed indicates that we failed to pull the
+	// builder image.
+	StatusReasonPullBuilderImageFailed StatusReason = "PullBuilderImageFailed"
+
+	// StatusReasonFetchSourceFailed indicates that fetching the source of the
+	// build has failed.
+	StatusReasonFetchSourceFailed StatusReason = "FetchSourceFailed"
+
+	// StatusReasonCancelledBuild indicates that the build was cancelled by the
+	// user.
+	StatusReasonCancelledBuild StatusReason = "CancelledBuild"
+
+	// StatusReasonDockerBuildFailed indicates that the docker build strategy has
+	// failed.
+	StatusReasonDockerBuildFailed StatusReason = "DockerBuildFailed"
+
+	// StatusReasonBuildPodExists indicates that the build tried to create a
+	// build pod but one was already present.
+	StatusReasonBuildPodExists StatusReason = "BuildPodExists"
+)
+
+// NOTE: These messages might change.
+const (
+	StatusMessageCannotCreateBuildPodSpec  = "Failed to create pod spec."
+	StatusMessageCannotCreateBuildPod      = "Failed creating build pod."
+	StatusMessageInvalidOutputRef          = "Output image could not be resolved."
+	StatusMessageCancelBuildFailed         = "Failed to cancel build."
+	StatusMessageBuildPodDeleted           = "The pod for this build was deleted before the build completed."
+	StatusMessageExceededRetryTimeout      = "Build did not complete and retrying timed out."
+	StatusMessageMissingPushSecret         = "Missing push secret."
+	StatusMessagePostCommitHookFailed      = "Build failed because of post commit hook."
+	StatusMessagePushImageToRegistryFailed = "Failed to push the image to the registry."
+	StatusMessagePullBuilderImageFailed    = "Failed pulling builder image."
+	StatusMessageFetchSourceFailed         = "Failed to fetch the input source."
+	StatusMessageCancelledBuild            = "The build was cancelled by the user."
+	StatusMessageDockerBuildFailed         = "Docker build strategy has failed."
+	StatusMessageBuildPodExists            = "The pod for this build already exists and is older than the build."
 )
 
 // BuildSource is the input used for the build.

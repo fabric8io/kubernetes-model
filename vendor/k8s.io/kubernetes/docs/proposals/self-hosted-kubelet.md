@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Proposal: Self-hosted kubelet
 
 ## Abstract
@@ -133,13 +128,6 @@ register itself with a given taint when it first contacts the API server. Given
 that, a kubelet could register itself with a given taint such as
 “component=kubelet”, and a kubelet pod could exist that has a toleration to that
 taint, ensuring it is the only pod the “bootstrap” kubelet runs.
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

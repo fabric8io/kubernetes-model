@@ -10,7 +10,7 @@ import (
 
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/errors"
-	kclient "k8s.io/kubernetes/pkg/client/unversioned"
+	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/runtime"
 
@@ -95,9 +95,12 @@ func NewCmdIPFailoverConfig(f *clientcmd.Factory, parentName, name string, out, 
 	cmd.Flags().StringVar(&options.Credentials, "credentials", "", "Path to a .kubeconfig file that will contain the credentials the router should use to contact the master.")
 	cmd.Flags().StringVar(&options.ServiceAccount, "service-account", options.ServiceAccount, "Name of the service account to use to run the ipfailover pod.")
 
-	cmd.Flags().BoolVar(&options.Create, "create", options.Create, "Create the configuration if it does not exist.")
+	cmd.Flags().BoolVar(&options.Create, "create", options.Create, "If true, create the configuration if it does not exist.")
 
 	cmd.Flags().StringVar(&options.VirtualIPs, "virtual-ips", "", "A set of virtual IP ranges and/or addresses that the routers bind and serve on and provide IP failover capability for.")
+	cmd.Flags().StringVar(&options.NotifyScript, "notify-script", "", "Run this script when state changes.")
+	cmd.Flags().StringVar(&options.CheckScript, "check-script", "", "Run this script at the check-interval to verify service is OK")
+	cmd.Flags().IntVar(&options.CheckInterval, "check-interval", ipfailover.DefaultCheckInterval, "Run the check-script at this interval (seconds)")
 	cmd.Flags().StringVar(&options.IptablesChain, "iptables-chain", ipfailover.DefaultIptablesChain, "Add a rule to this iptables chain to accept 224.0.0.28 multicast packets if no rule exists. When iptables-chain is empty do not change iptables.")
 	cmd.Flags().StringVarP(&options.NetworkInterface, "interface", "i", "", "Network interface bound by VRRP to use for the set of virtual IP ranges/addresses specified.")
 
@@ -192,7 +195,7 @@ func Run(f *clientcmd.Factory, options *ipfailover.IPFailoverConfigCmdOptions, c
 	list.Items = append(configList, list.Items...)
 
 	if options.Action.ShouldPrint() {
-		mapper, _ := f.Object(false)
+		mapper, _ := f.Object()
 		return cmdutil.VersionedPrintObject(f.PrintObject, cmd, mapper, options.Action.Out)(list)
 	}
 
@@ -202,9 +205,9 @@ func Run(f *clientcmd.Factory, options *ipfailover.IPFailoverConfigCmdOptions, c
 	return nil
 }
 
-func validateServiceAccount(client *kclient.Client, ns string, serviceAccount string) error {
+func validateServiceAccount(client kclientset.Interface, ns string, serviceAccount string) error {
 
-	sccList, err := client.SecurityContextConstraints().List(kapi.ListOptions{})
+	sccList, err := client.Core().SecurityContextConstraints().List(kapi.ListOptions{})
 	if err != nil {
 		if !errors.IsUnauthorized(err) {
 			return fmt.Errorf("could not retrieve list of security constraints to verify service account %q: %v", serviceAccount, err)

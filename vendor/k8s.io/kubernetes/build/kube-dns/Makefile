@@ -22,7 +22,7 @@
 # Default registry, arch and tag. This can be overwritten by arguments to make
 PLATFORM?=linux
 ARCH?=amd64
-TAG?=1.7
+TAG?=1.9
 REGISTRY?=gcr.io/google_containers
 
 GOLANG_VERSION=1.6
@@ -60,6 +60,6 @@ container:
 	rm -rf $(TEMP_DIR)
 
 push: container
-	gcloud docker push $(REGISTRY)/kubedns-$(ARCH):$(TAG)
+	gcloud docker -- push $(REGISTRY)/kubedns-$(ARCH):$(TAG)
 
 .PHONY: all container push

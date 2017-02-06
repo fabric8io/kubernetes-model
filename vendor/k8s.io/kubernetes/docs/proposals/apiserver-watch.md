@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 ## Abstract
 
 In the current system, most watch requests sent to apiserver are redirected to
@@ -143,13 +138,6 @@ the same time, we can introduce an additional etcd event type:
   However, this might turn out to be unnecessary optimization if apiserver
   will always keep up (which is possible in the new design). We will work
   out all necessary details at that point.
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

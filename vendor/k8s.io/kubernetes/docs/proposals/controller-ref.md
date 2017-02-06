@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # ControllerRef proposal
 
 Author: gmarek@
@@ -91,7 +86,7 @@ To prevent re-adoption of an object during deletion the `DeletionTimestamp` will
 Necessary related work:
 * `OwnerReferences` are correctly added/deleted,
 * GarbageCollector removes dangling references,
-* Controllers don't take any meaningfull actions when `DeletionTimestamps` is set.
+* Controllers don't take any meaningful actions when `DeletionTimestamps` is set.
 
 # Considered alternatives
 
@@ -100,13 +95,6 @@ Necessary related work:
 * Separate API field for `ControllerRef` in the ObjectMeta.
     * Dropped because: nontrivial relationship between `ControllerRef` and `OwnerReferences` when it comes to deletion/adoption.
 
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

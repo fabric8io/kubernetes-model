@@ -55,7 +55,7 @@ MASTER_USER="${MASTER_USER:-vagrant}"
 MASTER_PASSWD="${MASTER_PASSWD:-vagrant}"
 
 # Admission Controllers to invoke prior to persisting objects in cluster
-# If we included ResourceQuota, we should keep it at the end of the list to prevent incremeting quota usage prematurely.
+# If we included ResourceQuota, we should keep it at the end of the list to prevent incrementing quota usage prematurely.
 ADMISSION_CONTROL=NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota
 
 # Optional: Enable node logging.
@@ -86,7 +86,9 @@ ENABLE_CPU_CFS_QUOTA="${KUBE_ENABLE_CPU_CFS_QUOTA:-true}"
 ENABLE_CLUSTER_DNS="${KUBE_ENABLE_CLUSTER_DNS:-true}"
 DNS_SERVER_IP="10.247.0.10"
 DNS_DOMAIN="cluster.local"
-DNS_REPLICAS=1
+
+# Optional: Enable DNS horizontal autoscaler
+ENABLE_DNS_HORIZONTAL_AUTOSCALER="${KUBE_ENABLE_DNS_HORIZONTAL_AUTOSCALER:-false}"
 
 # Optional: Install Kubernetes UI
 ENABLE_CLUSTER_UI="${KUBE_ENABLE_CLUSTER_UI:-true}"
@@ -104,6 +106,9 @@ NETWORK_PROVIDER="${NETWORK_PROVIDER:-none}" # opencontrail, kubenet, etc
 if [ "${NETWORK_PROVIDER}" == "kubenet" ]; then
   CLUSTER_IP_RANGE="${CONTAINER_SUBNET}"
 fi
+
+# If enabled kube-controller-manager will be started with the --enable-hostpath-provisioner flag
+ENABLE_HOSTPATH_PROVISIONER="${ENABLE_HOSTPATH_PROVISIONER:-true}"
 
 # OpenContrail networking plugin specific settings
 OPENCONTRAIL_TAG="${OPENCONTRAIL_TAG:-R2.20}"

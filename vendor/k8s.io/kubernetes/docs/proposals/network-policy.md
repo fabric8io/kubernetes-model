@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # NetworkPolicy
 
 ## Abstract
@@ -23,7 +18,7 @@ chosen networking solution.
 
 ## Implementation
 
-The implmentation in Kubernetes consists of:
+The implementation in Kubernetes consists of:
 - A v1beta1 NetworkPolicy API object
 - A structure on the `Namespace` object to control policy, to be developed as an annotation for now.
 
@@ -302,13 +297,6 @@ spec:
 ## References
 
 - https://github.com/kubernetes/kubernetes/issues/22469 tracks network policy in kubernetes.
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

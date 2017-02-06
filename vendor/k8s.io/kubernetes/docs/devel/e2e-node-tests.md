@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Node End-To-End tests
 
 Node e2e tests are component tests meant for testing the Kubelet code on a custom host environment.
@@ -12,6 +7,8 @@ Tests can be run either locally or against a host running on GCE.
 Node e2e tests are run as both pre- and post- submit tests by the Kubernetes project.
 
 *Note: Linux only. Mac and Windows unsupported.*
+
+*Note: There is no scheduler running. The e2e tests have to do manual scheduling, e.g. by using `framework.PodClient`.*
 
 # Running tests
 
@@ -211,12 +208,10 @@ make test_e2e_node TEST_ARGS="--disable-kubenet=false" # disable kubenet
 
 ## Additional QoS Cgroups Hierarchy level testing
 
-For testing with the QoS Cgroup Hierarchy enabled, you can pass --cgroups-per-qos flag as an argument into Ginkgo using TEST_ARGS
-
-*Note: Disabled pending feature stabilization.*
+For testing with the QoS Cgroup Hierarchy enabled, you can pass --experimental-cgroups-per-qos flag as an argument into Ginkgo using TEST_ARGS
 
 ```sh
-make test_e2e_node TEST_ARGS="--cgroups-per-qos=true"
+make test_e2e_node TEST_ARGS="--experimental-cgroups-per-qos=true"
 ```
 
 # Notes on tests run by the Kubernetes project during pre-, post- submit.
@@ -229,13 +224,6 @@ failure logs if caused by a flake.**
 The PR builder runs tests against the images listed in [jenkins-pull.properties](../../test/e2e_node/jenkins/jenkins-pull.properties)
 
 The post submit tests run against the images listed in [jenkins-ci.properties](../../test/e2e_node/jenkins/jenkins-ci.properties)
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

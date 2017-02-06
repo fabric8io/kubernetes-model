@@ -87,7 +87,7 @@ func (o *CreateUserOptions) Complete(cmd *cobra.Command, f *clientcmd.Factory, a
 	}
 	o.UserClient = client.Users()
 
-	o.Mapper, _ = f.Object(false)
+	o.Mapper, _ = f.Object()
 	o.OutputFormat = cmdutil.GetFlagString(cmd, "output")
 
 	o.Printer = func(obj runtime.Object, out io.Writer) error {

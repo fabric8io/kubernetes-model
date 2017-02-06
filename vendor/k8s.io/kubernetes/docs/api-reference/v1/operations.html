@@ -458,7 +458,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -497,7 +497,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -681,6 +681,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
 </li>
 </ul>
 </div>
@@ -936,6 +942,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -966,7 +978,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -1005,7 +1017,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -1190,6 +1202,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -1205,7 +1223,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 </div>
 <div class="sect2">
-<h3 id="_create_a_endpoints">create a Endpoints</h3>
+<h3 id="_create_endpoints">create Endpoints</h3>
 <div class="listingblock">
 <div class="content">
 <pre>POST /api/v1/endpoints</pre>
@@ -1220,7 +1238,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -1259,7 +1277,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -1444,6 +1462,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -1459,7 +1483,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 </div>
 <div class="sect2">
-<h3 id="_create_a_event">create a Event</h3>
+<h3 id="_create_an_event">create an Event</h3>
 <div class="listingblock">
 <div class="content">
 <pre>POST /api/v1/events</pre>
@@ -1697,6 +1721,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
 </li>
 </ul>
 </div>
@@ -1951,6 +1981,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
 </li>
 </ul>
 </div>
@@ -2475,6 +2511,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
 </li>
 </ul>
 </div>
@@ -3068,6 +3110,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">PathParameter</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">namespace</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">object name and auth scope, such as for teams and projects</p></td>
@@ -3419,6 +3477,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -3585,7 +3649,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 </div>
 <div class="sect2">
-<h3 id="_create_a_endpoints_2">create a Endpoints</h3>
+<h3 id="_create_endpoints_2">create Endpoints</h3>
 <div class="listingblock">
 <div class="content">
 <pre>POST /api/v1/namespaces/{namespace}/endpoints</pre>
@@ -3966,7 +4030,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 </div>
 <div class="sect2">
-<h3 id="_delete_a_endpoints">delete a Endpoints</h3>
+<h3 id="_delete_endpoints">delete Endpoints</h3>
 <div class="listingblock">
 <div class="content">
 <pre>DELETE /api/v1/namespaces/{namespace}/endpoints/{name}</pre>
@@ -4008,6 +4072,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">true</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_v1_deleteoptions">v1.DeleteOptions</a></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
@@ -4362,6 +4442,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -4528,7 +4614,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 </div>
 <div class="sect2">
-<h3 id="_create_a_event_2">create a Event</h3>
+<h3 id="_create_an_event_2">create an Event</h3>
 <div class="listingblock">
 <div class="content">
 <pre>POST /api/v1/namespaces/{namespace}/events</pre>
@@ -4909,7 +4995,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 </div>
 <div class="sect2">
-<h3 id="_delete_a_event">delete a Event</h3>
+<h3 id="_delete_an_event">delete an Event</h3>
 <div class="listingblock">
 <div class="content">
 <pre>DELETE /api/v1/namespaces/{namespace}/events/{name}</pre>
@@ -4951,6 +5037,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">true</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_v1_deleteoptions">v1.DeleteOptions</a></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
@@ -5304,6 +5406,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
 </li>
 </ul>
 </div>
@@ -5897,6 +6005,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">PathParameter</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">namespace</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">object name and auth scope, such as for teams and projects</p></td>
@@ -5922,7 +6046,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -5994,7 +6118,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -6247,6 +6371,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
 </li>
 </ul>
 </div>
@@ -6837,6 +6967,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">true</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_v1_deleteoptions">v1.DeleteOptions</a></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
@@ -7570,6 +7716,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -8162,6 +8314,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">PathParameter</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">namespace</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">object name and auth scope, such as for teams and projects</p></td>
@@ -8392,7 +8560,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -8471,7 +8639,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -8537,7 +8705,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -8616,7 +8784,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -8794,7 +8962,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 </div>
 <div class="sect2">
-<h3 id="_create_eviction_of_a_eviction">create eviction of a Eviction</h3>
+<h3 id="_create_eviction_of_an_eviction">create eviction of an Eviction</h3>
 <div class="listingblock">
 <div class="content">
 <pre>POST /api/v1/namespaces/{namespace}/pods/{name}/eviction</pre>
@@ -8835,7 +9003,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"><p class="tableblock">body</p></td>
 <td class="tableblock halign-left valign-top"></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">true</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_v1alpha1_eviction">v1alpha1.Eviction</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_v1beta1_eviction">v1beta1.Eviction</a></p></td>
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
@@ -8877,7 +9045,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_v1alpha1_eviction">v1alpha1.Eviction</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_v1beta1_eviction">v1beta1.Eviction</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -9366,7 +9534,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_v1_pod">v1.Pod</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
 </tr>
 </tbody>
 </table>
@@ -11074,6 +11242,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -11666,6 +11840,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">PathParameter</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">namespace</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">object name and auth scope, such as for teams and projects</p></td>
@@ -12016,6 +12206,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
 </li>
 </ul>
 </div>
@@ -12606,6 +12802,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">true</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_v1_deleteoptions">v1.DeleteOptions</a></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
@@ -13718,6 +13930,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -14307,6 +14525,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">true</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_v1_deleteoptions">v1.DeleteOptions</a></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
@@ -15040,6 +15274,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -15632,6 +15872,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">PathParameter</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">namespace</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">object name and auth scope, such as for teams and projects</p></td>
@@ -15982,6 +16238,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
 </li>
 </ul>
 </div>
@@ -16575,6 +16837,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">PathParameter</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">namespace</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">object name and auth scope, such as for teams and projects</p></td>
@@ -16925,6 +17203,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
 </li>
 </ul>
 </div>
@@ -19180,6 +19464,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">PathParameter</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">name</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">name of the Namespace</p></td>
@@ -19981,6 +20281,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -20538,6 +20844,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">true</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_v1_deleteoptions">v1.DeleteOptions</a></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
@@ -22095,6 +22417,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -22348,6 +22676,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
 </li>
 </ul>
 </div>
@@ -22906,6 +23240,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">true</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_v1_deleteoptions">v1.DeleteOptions</a></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
@@ -23591,6 +23941,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -23845,6 +24201,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -23875,7 +24237,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -23914,7 +24276,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -25730,7 +26092,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -25761,7 +26123,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -25827,7 +26189,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -25858,7 +26220,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -25924,7 +26286,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -25955,7 +26317,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -26021,7 +26383,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -26052,7 +26414,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -26118,7 +26480,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -26157,7 +26519,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -26223,7 +26585,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -26262,7 +26624,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -26328,7 +26690,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -26367,7 +26729,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -26433,7 +26795,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -26472,7 +26834,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -26538,7 +26900,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -26609,7 +26971,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -26651,6 +27013,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -26681,7 +27049,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -26720,7 +27088,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -26792,7 +27160,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -26863,7 +27231,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -26905,6 +27273,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -26935,7 +27309,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -26974,7 +27348,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -27046,7 +27420,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -27117,7 +27491,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -27159,6 +27533,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -27189,7 +27569,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -27228,7 +27608,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -27300,7 +27680,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -27371,7 +27751,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -27413,6 +27793,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -27443,7 +27829,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -27514,7 +27900,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -27571,7 +27957,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 </div>
 <div class="sect2">
-<h3 id="_create_a_securitycontextconstraints">create a SecurityContextConstraints</h3>
+<h3 id="_create_securitycontextconstraints">create SecurityContextConstraints</h3>
 <div class="listingblock">
 <div class="content">
 <pre>POST /api/v1/securitycontextconstraints</pre>
@@ -27586,7 +27972,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -27625,7 +28011,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -27697,7 +28083,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -27752,7 +28138,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -27824,7 +28210,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -27871,7 +28257,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -27928,7 +28314,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 </div>
 <div class="sect2">
-<h3 id="_delete_a_securitycontextconstraints">delete a SecurityContextConstraints</h3>
+<h3 id="_delete_securitycontextconstraints">delete SecurityContextConstraints</h3>
 <div class="listingblock">
 <div class="content">
 <pre>DELETE /api/v1/securitycontextconstraints/{name}</pre>
@@ -27943,7 +28329,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <col style="width:16%;">
 <col style="width:16%;">
 <col style="width:16%;">
-<col style="width:16%;"> 
+<col style="width:16%;">
 </colgroup>
 <thead>
 <tr>
@@ -27973,6 +28359,22 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">gracePeriodSeconds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The duration in seconds before the object should be deleted. Value must be non-negative integer. The value zero indicates delete immediately. If this value is nil, the default grace period for the specified type will be used. Defaults to a per object value if not specified. zero means delete immediately.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (int32)</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">QueryParameter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">orphanDependents</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Should the dependent objects be orphaned. If true/false, the "orphan" finalizer will be added to/removed from the object&#8217;s finalizers list.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">PathParameter</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">name</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">name of the SecurityContextConstraints</p></td>
@@ -27990,7 +28392,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <colgroup>
 <col style="width:33%;">
 <col style="width:33%;">
-<col style="width:33%;"> 
+<col style="width:33%;">
 </colgroup>
 <thead>
 <tr>
@@ -28300,6 +28702,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -28554,6 +28962,12 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
 </li>
+<li>
+<p>application/json;stream=watch</p>
+</li>
+<li>
+<p>application/vnd.kubernetes.protobuf;stream=watch</p>
+</li>
 </ul>
 </div>
 </div>
@@ -28779,7 +29193,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -28803,10 +29217,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -28925,7 +29342,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -28949,10 +29366,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -29071,7 +29491,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -29095,10 +29515,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -29217,7 +29640,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -29241,10 +29664,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -29363,7 +29789,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -29387,10 +29813,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -29517,7 +29946,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -29541,10 +29970,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -29679,7 +30111,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -29703,10 +30135,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -29833,7 +30268,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -29857,10 +30292,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -29995,7 +30433,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -30019,10 +30457,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -30149,7 +30590,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -30173,10 +30614,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -30311,7 +30755,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -30335,10 +30779,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -30465,7 +30912,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -30489,10 +30936,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -30627,7 +31077,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -30651,10 +31101,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -30781,7 +31234,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -30805,10 +31258,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -30943,7 +31399,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -30967,10 +31423,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -31097,7 +31556,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -31121,10 +31580,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -31259,7 +31721,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -31283,10 +31745,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -31413,7 +31878,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -31437,10 +31902,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -31575,7 +32043,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -31599,10 +32067,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -31729,7 +32200,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -31753,10 +32224,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -31891,7 +32365,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -31915,10 +32389,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -32045,7 +32522,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -32069,10 +32546,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -32207,7 +32687,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -32231,10 +32711,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -32361,7 +32844,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -32385,10 +32868,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -32523,7 +33009,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -32547,10 +33033,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -32677,7 +33166,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -32701,10 +33190,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -32839,7 +33331,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -32863,10 +33355,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -32993,7 +33488,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -33017,10 +33512,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -33155,7 +33653,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -33179,10 +33677,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -33309,7 +33810,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -33333,10 +33834,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -33455,7 +33959,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -33479,10 +33983,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -33609,7 +34116,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -33633,10 +34140,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -33755,7 +34265,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -33779,10 +34289,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -33901,7 +34414,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -33925,10 +34438,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -34055,7 +34571,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -34079,10 +34595,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -34201,7 +34720,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -34225,10 +34744,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -34347,7 +34869,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -34371,10 +34893,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -34493,7 +35018,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -34517,10 +35042,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -34639,7 +35167,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -34663,10 +35191,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -34785,7 +35316,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -34809,10 +35340,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -34931,7 +35465,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -34955,10 +35489,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -35085,7 +35622,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -35109,10 +35646,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -35231,7 +35771,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -35255,10 +35795,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -35377,7 +35920,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">200</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">success</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_*versioned_event">*versioned.Event</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../definitions#_versioned_event">versioned.Event</a></p></td>
 </tr>
 </tbody>
 </table>
@@ -35401,10 +35944,13 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 <p>application/json</p>
 </li>
 <li>
-<p>application/json;stream=watch</p>
+<p>application/yaml</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf</p>
+</li>
+<li>
+<p>application/json;stream=watch</p>
 </li>
 <li>
 <p>application/vnd.kubernetes.protobuf;stream=watch</p>
@@ -35428,7 +35974,7 @@ span.icon > [class^="icon-"], span.icon > [class*=" icon-"] { cursor: default; }
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-09-01 23:20:41 UTC
+Last updated 2016-11-23 17:14:27 UTC
 </div>
 </div>
 </body>

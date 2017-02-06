@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 **Author**: Vishnu Kannan
 
 **Last** **Updated**: 11/16/2015
@@ -613,13 +608,6 @@ Capacity in MB = 1638400 * 512 * 128 bytes = 100 GB
 
 * If you use a non-default location for docker storage, change `/var/lib/docker` in the examples to your storage location.
 
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

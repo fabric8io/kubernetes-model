@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Kubectl Conventions
 
 Updated: 8/27/2015
@@ -14,6 +9,7 @@ Updated: 8/27/2015
   - [Principles](#principles)
   - [Command conventions](#command-conventions)
     - [Create commands](#create-commands)
+    - [Rules for extending special resource alias - "all"](#rules-for-extending-special-resource-alias---all)
   - [Flag conventions](#flag-conventions)
   - [Output conventions](#output-conventions)
   - [Documentation conventions](#documentation-conventions)
@@ -89,6 +85,21 @@ creating tls secrets. You create these as separate commands to get distinct
 flags and separate help that is tailored for the particular usage.
 
 
+### Rules for extending special resource alias - "all"
+
+Here are the rules to add a new resource to the `kubectl get all` output.
+
+* No cluster scoped resources
+
+* No namespace admin level resources (limits, quota, policy, authorization
+rules)
+
+* No resources that are potentially unrecoverable (secrets and pvc)
+
+* Resources that are considered "similar" to #3 should be grouped
+the same (configmaps)
+
+
 ## Flag conventions
 
 * Flags are all lowercase, with words separated by hyphens
@@ -139,6 +150,9 @@ the output. All mutations should support it.
 generation, etc., and display the output
 
 * `--output-version=...`: Convert the output to a different API group/version
+
+* `--short`: Output a compact summary of normal output; the format is subject
+to change and is optimizied for reading not parsing.
 
 * `--validate`: Validate the resource schema
 
@@ -256,23 +270,24 @@ Sample command skeleton:
 // MineRecommendedName is the recommended command name for kubectl mine.
 const MineRecommendedName = "mine"
 
+// Long command description and examples.
+var (
+  mineLong = templates.LongDesc(`
+    mine which is described here
+    with lots of details.`)
+
+  mineExample = templates.Examples(`
+    # Run my command's first action
+    kubectl mine first_action
+
+    # Run my command's second action on latest stuff
+    kubectl mine second_action --flag`)
+)
+
 // MineConfig contains all the options for running the mine cli command.
 type MineConfig struct {
   mineLatest bool
 }
-
-var (
-  mineLong = dedent.Dedent(`
-        mine which is described here
-        with lots of details.`)
-
-  mineExample = dedent.Dedent(`
-          # Run my command's first action
-          kubectl mine first_action
-
-          # Run my command's second action on latest stuff
-          kubectl mine second_action --flag`)
-)
 
 // NewCmdMine implements the kubectl mine command.
 func NewCmdMine(parent, name string, f *cmdutil.Factory, out io.Writer) *cobra.Command {
@@ -389,13 +404,6 @@ method which configures the generated namespace that callers of the generator
 
 * `--dry-run` should output the resource that would be created, without
 creating it.
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

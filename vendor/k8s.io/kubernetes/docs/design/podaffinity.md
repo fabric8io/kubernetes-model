@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Inter-pod topological affinity and anti-affinity
 
 ## Introduction
@@ -671,13 +666,6 @@ This proposal is to satisfy [#14816](https://github.com/kubernetes/kubernetes/is
 
 ** TODO: cite references **
 
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

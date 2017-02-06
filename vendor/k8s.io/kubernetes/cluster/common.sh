@@ -20,7 +20,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-KUBE_ROOT=$(dirname "${BASH_SOURCE}")/..
+KUBE_ROOT=$(cd $(dirname "${BASH_SOURCE}")/.. && pwd)
 
 DEFAULT_KUBECONFIG="${HOME}/.kube/config"
 
@@ -71,10 +71,16 @@ function create-kubeconfig() {
   fi
 
   # KUBECONFIG determines the file we write to, but it may not exist yet
-  if [[ ! -e "${KUBECONFIG}" ]]; then
-    mkdir -p $(dirname "${KUBECONFIG}")
-    touch "${KUBECONFIG}"
-  fi
+  OLD_IFS=$IFS
+  IFS=':'
+  for cfg in ${KUBECONFIG} ; do
+    if [[ ! -e "${cfg}" ]]; then
+      mkdir -p "$(dirname "${cfg}")"
+      touch "${cfg}"
+    fi
+  done
+  IFS=$OLD_IFS
+
   local cluster_args=(
       "--server=${KUBE_SERVER:-https://${KUBE_MASTER_IP}}"
   )
@@ -141,15 +147,15 @@ function clear-kubeconfig() {
   fi
 
   local kubectl="${KUBE_ROOT}/cluster/kubectl.sh"
-  "${kubectl}" config unset "clusters.${CONTEXT}"
-  "${kubectl}" config unset "users.${CONTEXT}"
-  "${kubectl}" config unset "users.${CONTEXT}-basic-auth"
-  "${kubectl}" config unset "contexts.${CONTEXT}"
-
+  # Unset the current-context before we delete it, as otherwise kubectl errors.
   local cc=$("${kubectl}" config view -o jsonpath='{.current-context}')
   if [[ "${cc}" == "${CONTEXT}" ]]; then
     "${kubectl}" config unset current-context
   fi
+  "${kubectl}" config unset "clusters.${CONTEXT}"
+  "${kubectl}" config unset "users.${CONTEXT}"
+  "${kubectl}" config unset "users.${CONTEXT}-basic-auth"
+  "${kubectl}" config unset "contexts.${CONTEXT}"
 
   echo "Cleared config for ${CONTEXT} from ${KUBECONFIG}"
 }
@@ -170,6 +176,7 @@ function create-kubeconfig-for-federation() {
 
 function tear_down_alive_resources() {
   local kubectl="${KUBE_ROOT}/cluster/kubectl.sh"
+  "${kubectl}" delete deployments --all || true
   "${kubectl}" delete rc --all || true
   "${kubectl}" delete pods --all || true
   "${kubectl}" delete svc --all || true
@@ -362,6 +369,13 @@ function set_binary_version() {
 #   SALT_TAR_URL
 #   SALT_TAR_HASH
 function tars_from_version() {
+  local sha1sum=""
+  if which sha1sum >/dev/null 2>&1; then
+    sha1sum="sha1sum"
+  else
+    sha1sum="shasum -a1"
+  fi
+
   if [[ -z "${KUBE_VERSION-}" ]]; then
     find-release-tars
     upload-server-tars
@@ -370,13 +384,13 @@ function tars_from_version() {
     SALT_TAR_URL="https://storage.googleapis.com/kubernetes-release/release/${KUBE_VERSION}/kubernetes-salt.tar.gz"
     # TODO: Clean this up.
     KUBE_MANIFESTS_TAR_URL="${SERVER_BINARY_TAR_URL/server-linux-amd64/manifests}"
-    KUBE_MANIFESTS_TAR_HASH=$(curl ${KUBE_MANIFESTS_TAR_URL} 2>/dev/null | sha1sum | awk '{print $1}')
+    KUBE_MANIFESTS_TAR_HASH=$(curl ${KUBE_MANIFESTS_TAR_URL} --silent --show-error | ${sha1sum} | awk '{print $1}')
   elif [[ ${KUBE_VERSION} =~ ${KUBE_CI_VERSION_REGEX} ]]; then
     SERVER_BINARY_TAR_URL="https://storage.googleapis.com/kubernetes-release-dev/ci/${KUBE_VERSION}/kubernetes-server-linux-amd64.tar.gz"
     SALT_TAR_URL="https://storage.googleapis.com/kubernetes-release-dev/ci/${KUBE_VERSION}/kubernetes-salt.tar.gz"
     # TODO: Clean this up.
     KUBE_MANIFESTS_TAR_URL="${SERVER_BINARY_TAR_URL/server-linux-amd64/manifests}"
-    KUBE_MANIFESTS_TAR_HASH=$(curl ${KUBE_MANIFESTS_TAR_URL} 2>/dev/null | sha1sum | awk '{print $1}')
+    KUBE_MANIFESTS_TAR_HASH=$(curl ${KUBE_MANIFESTS_TAR_URL} --silent --show-error | ${sha1sum} | awk '{print $1}')
   else
     echo "Version doesn't match regexp" >&2
     exit 1
@@ -490,13 +504,14 @@ function stage-images() {
     local docker_tag="$(cat ${temp_dir}/kubernetes/server/bin/${binary}.docker_tag)"
     (
       "${docker_cmd[@]}" load -i "${temp_dir}/kubernetes/server/bin/${binary}.tar"
-      "${docker_cmd[@]}" tag -f "gcr.io/google_containers/${binary}:${docker_tag}" "${KUBE_DOCKER_REGISTRY}/${binary}:${KUBE_IMAGE_TAG}"
+	  docker rmi "${KUBE_DOCKER_REGISTRY}/${binary}:${KUBE_IMAGE_TAG}" || true
+	  "${docker_cmd[@]}" tag "gcr.io/google_containers/${binary}:${docker_tag}" "${KUBE_DOCKER_REGISTRY}/${binary}:${KUBE_IMAGE_TAG}"
       "${docker_push_cmd[@]}" push "${KUBE_DOCKER_REGISTRY}/${binary}:${KUBE_IMAGE_TAG}"
     ) &> "${temp_dir}/${binary}-push.log" &
   done
 
   kube::util::wait-for-jobs || {
-    kube::log::error "unable to push images. see ${temp_dir}/*.log for more info."
+    kube::log::error "unable to push images. See ${temp_dir}/*.log for more info."
     return 1
   }
 
@@ -532,14 +547,21 @@ EOF
 function write-master-env {
   # If the user requested that the master be part of the cluster, set the
   # environment variable to program the master kubelet to register itself.
-  if [[ "${REGISTER_MASTER_KUBELET:-}" == "true" ]]; then
+  if [[ "${REGISTER_MASTER_KUBELET:-}" == "true" && -z "${KUBELET_APISERVER:-}" ]]; then
     KUBELET_APISERVER="${MASTER_NAME}"
+  fi
+  if [[ -z "${KUBERNETES_MASTER_NAME:-}" ]]; then
+    KUBERNETES_MASTER_NAME="${MASTER_NAME}"
   fi
 
   build-kube-env true "${KUBE_TEMP}/master-kube-env.yaml"
 }
 
 function write-node-env {
+  if [[ -z "${KUBERNETES_MASTER_NAME:-}" ]]; then
+    KUBERNETES_MASTER_NAME="${MASTER_NAME}"
+  fi
+
   build-kube-env false "${KUBE_TEMP}/node-kube-env.yaml"
 }
 
@@ -574,7 +596,7 @@ SERVER_BINARY_TAR_HASH: $(yaml-quote ${SERVER_BINARY_TAR_HASH})
 SALT_TAR_URL: $(yaml-quote ${salt_tar_url})
 SALT_TAR_HASH: $(yaml-quote ${SALT_TAR_HASH})
 SERVICE_CLUSTER_IP_RANGE: $(yaml-quote ${SERVICE_CLUSTER_IP_RANGE})
-KUBERNETES_MASTER_NAME: $(yaml-quote ${MASTER_NAME})
+KUBERNETES_MASTER_NAME: $(yaml-quote ${KUBERNETES_MASTER_NAME})
 ALLOCATE_NODE_CIDRS: $(yaml-quote ${ALLOCATE_NODE_CIDRS:-false})
 ENABLE_CLUSTER_MONITORING: $(yaml-quote ${ENABLE_CLUSTER_MONITORING:-none})
 DOCKER_REGISTRY_MIRROR_URL: $(yaml-quote ${DOCKER_REGISTRY_MIRROR_URL:-})
@@ -590,9 +612,9 @@ ENABLE_CLUSTER_DNS: $(yaml-quote ${ENABLE_CLUSTER_DNS:-false})
 ENABLE_CLUSTER_REGISTRY: $(yaml-quote ${ENABLE_CLUSTER_REGISTRY:-false})
 CLUSTER_REGISTRY_DISK: $(yaml-quote ${CLUSTER_REGISTRY_DISK:-})
 CLUSTER_REGISTRY_DISK_SIZE: $(yaml-quote ${CLUSTER_REGISTRY_DISK_SIZE:-})
-DNS_REPLICAS: $(yaml-quote ${DNS_REPLICAS:-})
 DNS_SERVER_IP: $(yaml-quote ${DNS_SERVER_IP:-})
 DNS_DOMAIN: $(yaml-quote ${DNS_DOMAIN:-})
+ENABLE_DNS_HORIZONTAL_AUTOSCALER: $(yaml-quote ${ENABLE_DNS_HORIZONTAL_AUTOSCALER:-false})
 KUBELET_TOKEN: $(yaml-quote ${KUBELET_TOKEN:-})
 KUBE_PROXY_TOKEN: $(yaml-quote ${KUBE_PROXY_TOKEN:-})
 ADMISSION_CONTROL: $(yaml-quote ${ADMISSION_CONTROL:-})
@@ -605,6 +627,7 @@ NETWORK_PROVIDER: $(yaml-quote ${NETWORK_PROVIDER:-})
 NETWORK_POLICY_PROVIDER: $(yaml-quote ${NETWORK_POLICY_PROVIDER:-})
 PREPULL_E2E_IMAGES: $(yaml-quote ${PREPULL_E2E_IMAGES:-})
 HAIRPIN_MODE: $(yaml-quote ${HAIRPIN_MODE:-})
+SOFTLOCKUP_PANIC: $(yaml-quote ${SOFTLOCKUP_PANIC:-})
 OPENCONTRAIL_TAG: $(yaml-quote ${OPENCONTRAIL_TAG:-})
 OPENCONTRAIL_KUBERNETES_TAG: $(yaml-quote ${OPENCONTRAIL_KUBERNETES_TAG:-})
 OPENCONTRAIL_PUBLIC_SUBNET: $(yaml-quote ${OPENCONTRAIL_PUBLIC_SUBNET:-})
@@ -684,12 +707,26 @@ ENABLE_MANIFEST_URL: $(yaml-quote ${ENABLE_MANIFEST_URL:-false})
 MANIFEST_URL: $(yaml-quote ${MANIFEST_URL:-})
 MANIFEST_URL_HEADER: $(yaml-quote ${MANIFEST_URL_HEADER:-})
 NUM_NODES: $(yaml-quote ${NUM_NODES})
-STORAGE_BACKEND: $(yaml-quote ${STORAGE_BACKEND:-})
+STORAGE_BACKEND: $(yaml-quote ${STORAGE_BACKEND:-etcd2})
 ENABLE_GARBAGE_COLLECTOR: $(yaml-quote ${ENABLE_GARBAGE_COLLECTOR:-})
+MASTER_ADVERTISE_ADDRESS: $(yaml-quote ${MASTER_ADVERTISE_ADDRESS:-})
+ETCD_CA_KEY: $(yaml-quote ${ETCD_CA_KEY_BASE64:-})
+ETCD_CA_CERT: $(yaml-quote ${ETCD_CA_CERT_BASE64:-})
+ETCD_PEER_KEY: $(yaml-quote ${ETCD_PEER_KEY_BASE64:-})
+ETCD_PEER_CERT: $(yaml-quote ${ETCD_PEER_CERT_BASE64:-})
 EOF
-    if [ -n "${TEST_ETCD_VERSION:-}" ]; then
+    # ETCD_IMAGE (if set) allows to use a custom etcd image.
+    if [ -n "${ETCD_IMAGE:-}" ]; then
       cat >>$file <<EOF
-TEST_ETCD_VERSION: $(yaml-quote ${TEST_ETCD_VERSION})
+ETCD_IMAGE: $(yaml-quote ${ETCD_IMAGE})
+EOF
+    fi
+    # ETCD_VERSION (if set) allows you to use custom version of etcd.
+    # The main purpose of using it may be rollback of etcd v3 API,
+    # where we need 3.0.* image, but are rolling back to 2.3.7.
+    if [ -n "${ETCD_VERSION:-}" ]; then
+      cat >>$file <<EOF
+ETCD_VERSION: $(yaml-quote ${ETCD_VERSION})
 EOF
     fi
     if [ -n "${APISERVER_TEST_ARGS:-}" ]; then
@@ -725,6 +762,11 @@ EOF
     if [ -n "${INITIAL_ETCD_CLUSTER:-}" ]; then
       cat >>$file <<EOF
 INITIAL_ETCD_CLUSTER: $(yaml-quote ${INITIAL_ETCD_CLUSTER})
+EOF
+    fi
+    if [ -n "${ETCD_QUORUM_READ:-}" ]; then
+      cat >>$file <<EOF
+ETCD_QUORUM_READ: $(yaml-quote ${ETCD_QUORUM_READ})
 EOF
     fi
 
@@ -764,7 +806,6 @@ KUBERNETES_CONTAINER_RUNTIME: $(yaml-quote ${CONTAINER_RUNTIME:-rkt})
 RKT_VERSION: $(yaml-quote ${RKT_VERSION:-})
 RKT_PATH: $(yaml-quote ${RKT_PATH:-})
 RKT_STAGE1_IMAGE: $(yaml-quote ${RKT_STAGE1_IMAGE:-})
-KUBERNETES_CONFIGURE_CBR0: $(yaml-quote ${KUBERNETES_CONFIGURE_CBR0:-true})
 EOF
   fi
   if [[ "${ENABLE_CLUSTER_AUTOSCALER}" == "true" ]]; then
@@ -803,10 +844,10 @@ EOF
 }
 
 function sha1sum-file() {
-  if which shasum >/dev/null 2>&1; then
-    shasum -a1 "$1" | awk '{ print $1 }'
-  else
+  if which sha1sum >/dev/null 2>&1; then
     sha1sum "$1" | awk '{ print $1 }'
+  else
+    shasum -a1 "$1" | awk '{ print $1 }'
   fi
 }
 
@@ -926,4 +967,37 @@ function parse-master-env() {
   EXTRA_DOCKER_OPTS=$(get-env-val "${master_env}" "EXTRA_DOCKER_OPTS")
   KUBELET_CERT_BASE64=$(get-env-val "${master_env}" "KUBELET_CERT")
   KUBELET_KEY_BASE64=$(get-env-val "${master_env}" "KUBELET_KEY")
+}
+
+# Check whether required client and server binaries exist, prompting to download
+# if missing.
+# If KUBERNETES_SKIP_CONFIRM is set to y, we'll automatically download binaries
+# without prompting.
+function verify-kube-binaries() {
+  local missing_binaries=false
+  if ! "${KUBE_ROOT}/cluster/kubectl.sh" version --client >&/dev/null; then
+    echo "!!! kubectl appears to be broken or missing"
+    missing_binaries=true
+  fi
+  if ! $(find-release-tars); then
+    missing_binaries=true
+  fi
+
+  if ! "${missing_binaries}"; then
+    return
+  fi
+
+  get_binaries_script="${KUBE_ROOT}/cluster/get-kube-binaries.sh"
+  local resp="y"
+  if [[ ! "${KUBERNETES_SKIP_CONFIRM:-n}" =~ ^[yY]$ ]]; then
+    echo "Required binaries appear to be missing. Do you wish to download them? [Y/n]"
+    read resp
+  fi
+  if [[ "${resp}" =~ ^[nN]$ ]]; then
+    echo "You must download binaries to continue. You can use "
+    echo "  ${get_binaries_script}"
+    echo "to do this for your automatically."
+    exit 1
+  fi
+  "${get_binaries_script}"
 }

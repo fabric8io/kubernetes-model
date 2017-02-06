@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	kapi "k8s.io/kubernetes/pkg/api"
-	kclient "k8s.io/kubernetes/pkg/client/unversioned"
+	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	kvalidation "k8s.io/kubernetes/pkg/util/validation"
 
@@ -57,7 +57,7 @@ type CreateSecretOptions struct {
 	// Directory sources are listed and any direct file children included (but subfolders are not traversed)
 	Sources []string
 
-	SecretsInterface kclient.SecretsInterface
+	SecretsInterface kcoreclient.SecretInterface
 
 	// Writer to write warnings to
 	Stderr io.Writer
@@ -92,8 +92,8 @@ func NewCmdCreateSecret(name, fullName string, f *clientcmd.Factory, out io.Writ
 				secret, err := options.BundleSecret()
 				kcmdutil.CheckErr(err)
 
-				mapper, _ := f.Object(false)
-				kcmdutil.CheckErr(f.Factory.PrintObject(c, mapper, secret, out))
+				mapper, _ := f.Object()
+				kcmdutil.CheckErr(f.PrintObject(c, mapper, secret, out))
 				return
 			}
 
@@ -102,8 +102,8 @@ func NewCmdCreateSecret(name, fullName string, f *clientcmd.Factory, out io.Writ
 		},
 	}
 
-	cmd.Flags().BoolVarP(&options.Quiet, "quiet", "q", options.Quiet, "Suppress warnings")
-	cmd.Flags().BoolVar(&options.AllowUnknownTypes, "confirm", options.AllowUnknownTypes, "Allow unknown secret types.")
+	cmd.Flags().BoolVarP(&options.Quiet, "quiet", "q", options.Quiet, "If true, suppress warnings")
+	cmd.Flags().BoolVar(&options.AllowUnknownTypes, "confirm", options.AllowUnknownTypes, "If true, allow unknown secret types.")
 	cmd.Flags().StringVar(&options.SecretTypeName, "type", "", "The type of secret")
 	kcmdutil.AddPrinterFlags(cmd)
 
@@ -133,11 +133,11 @@ func (o *CreateSecretOptions) Complete(args []string, f *clientcmd.Factory) erro
 		if err != nil {
 			return err
 		}
-		namespace, _, err := f.Factory.DefaultNamespace()
+		namespace, _, err := f.DefaultNamespace()
 		if err != nil {
 			return err
 		}
-		o.SecretsInterface = kubeClient.Secrets(namespace)
+		o.SecretsInterface = kubeClient.Core().Secrets(namespace)
 	}
 
 	return nil

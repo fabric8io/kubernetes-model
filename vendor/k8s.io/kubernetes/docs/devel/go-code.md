@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Kubernetes Go Tools and Tips
 
 Kubernetes is one of the largest open source Go projects, so good tooling a solid understanding of
@@ -30,13 +25,6 @@ and tips that our developers have found useful.
 - [Godoc bookmarklet](https://gist.github.com/timstclair/c891fb8aeb24d663026371d91dcdb3fc) - navigate from a github page to the corresponding godoc page.
 - Consider making a separate Go tree for each project, which can make overlapping dependency management much easier. Remember to set the `$GOPATH` correctly! Consider [scripting](https://gist.github.com/timstclair/17ca792a20e0d83b06dddef7d77b1ea0) this.
 - Emacs users - setup [go-mode](https://github.com/dominikh/go-mode.el)
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

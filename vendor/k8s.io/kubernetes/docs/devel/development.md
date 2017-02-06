@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Development Guide
 
 This document is intended to be the canonical source of truth for things like
@@ -20,7 +15,7 @@ branch, but release branches of Kubernetes should not change.
 
 Official releases are built using Docker containers. To build Kubernetes using
 Docker please follow [these instructions]
-(http://releases.k8s.io/release-1.4/build/README.md).
+(http://releases.k8s.io/HEAD/build/README.md).
 
 ## Building Kubernetes on a local OS/shell environment
 
@@ -115,7 +110,7 @@ unique places you need to update the go version.
 
 - The image for cross compiling in [build/build-image/cross/](../../build/build-image/cross/). The `VERSION` file and `Dockerfile`.
 - Update [dockerized-e2e-runner.sh](https://github.com/kubernetes/test-infra/blob/master/jenkins/dockerized-e2e-runner.sh) to run a kubekins-e2e with the desired go version, which requires pushing [e2e-image](https://github.com/kubernetes/test-infra/tree/master/jenkins/e2e-image) and [test-image](https://github.com/kubernetes/test-infra/tree/master/jenkins/test-image) images that are `FROM` the desired go version.
-- The docker image being run in [hack/jenkins/gotest-dockerized.sh](../../hack/jenkins/gotest-dockerized.sh).
+- The docker image being run in [gotest-dockerized.sh](https://github.com/kubernetes/test-infra/tree/master/jenkins/gotest-dockerized.sh).
 - The cross tag `KUBE_BUILD_IMAGE_CROSS_TAG` in [build/common.sh](../../build/common.sh)
 
 ## Workflow
@@ -235,13 +230,6 @@ hack/update-generated-docs.sh
 ```
 
 
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

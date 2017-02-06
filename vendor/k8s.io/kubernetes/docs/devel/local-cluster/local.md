@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 **Stop. This guide has been superseded by [Minikube](https://github.com/kubernetes/minikube) which is the recommended method of running Kubernetes on your local machine.**
 
 ### Requirements
@@ -124,13 +119,6 @@ $ tail -f /tmp/kube-apiserver.log
 #### The pods fail to connect to the services by host names
 
 The local-up-cluster.sh script doesn't start a DNS service. Similar situation can be found [here](http://issue.k8s.io/6667). You can start a manually.
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
-
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
 [![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/docs/devel/local-cluster/local.md?pixel)]()

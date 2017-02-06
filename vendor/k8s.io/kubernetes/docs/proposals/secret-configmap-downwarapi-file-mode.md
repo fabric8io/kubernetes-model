@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Secrets, configmaps and downwardAPI file mode bits
 
 Author: Rodrigo Campos (@rata), Tim Hockin (@thockin)
@@ -177,20 +172,13 @@ not specify all files in the object.
 The are two downside:
 
  * The files are symlinks pointint to the real file, and the realfile
-   permissions are only set. The symlink has the clasic symlink permissions.
+   permissions are only set. The symlink has the classic symlink permissions.
    This is something already present in 1.3, and it seems applications like ssh
    work just fine with that. Something worth mentioning, but doesn't seem to be
    an issue.
  * If the secret/configMap/downwardAPI is mounted in more than one container,
    the file permissions will be the same on all. This is already the case for
    Key mappings and doesn't seem like a big issue either.
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

@@ -4,13 +4,13 @@ import (
 	"io/ioutil"
 	"testing"
 
-	ktestclient "k8s.io/kubernetes/pkg/client/unversioned/testclient"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
 
 	"github.com/openshift/origin/pkg/client/testclient"
 )
 
 func TestImagePruneNamespaced(t *testing.T) {
-	kFake := ktestclient.NewSimpleFake()
+	kFake := fake.NewSimpleClientset()
 	osFake := testclient.NewSimpleFake()
 	opts := &PruneImagesOptions{
 		Namespace: "foo",
@@ -29,7 +29,7 @@ func TestImagePruneNamespaced(t *testing.T) {
 	}
 	for _, a := range osFake.Actions() {
 		// images are non-namespaced
-		if a.GetResource() == "images" {
+		if a.GetResource().Resource == "images" {
 			continue
 		}
 		if a.GetNamespace() != "foo" {

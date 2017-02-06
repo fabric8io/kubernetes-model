@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Supporting multiple API groups
 
 ## Goal
@@ -88,7 +83,7 @@
 
 1. clients:
 
-  Currently we have structured (pkg/client/unversioned#ExperimentalClient, pkg/client/unversioned#Client) and unstructured (pkg/kubectl/resource#Helper) clients. The structured clients are not scalable because each of them implements specific interface, e.g., [here](../../pkg/client/unversioned/client.go#L32). Only the unstructured clients are scalable. We should either auto-generate the code for structured clients or migrate to use the unstructured clients as much as possible.
+  Currently we have structured (pkg/client/unversioned#ExperimentalClient, pkg/client/unversioned#Client) and unstructured (pkg/kubectl/resource#Helper) clients. The structured clients are not scalable because each of them implements specific interface, e.g., `[here]../../pkg/client/unversioned/client.go#L32`--fixed. Only the unstructured clients are scalable. We should either auto-generate the code for structured clients or migrate to use the unstructured clients as much as possible.
 
   We should also move the unstructured client to pkg/client/.
 
@@ -118,13 +113,6 @@ To expose a list of the supported Openshift groups to clients, OpenShift just ha
 ## Future work
 
 1. Dependencies between groups: we need an interface to register the dependencies between groups. It is not our priority now as the use cases are not clear yet.
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
-
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
 [![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/docs/proposals/api-group.md?pixel)]()

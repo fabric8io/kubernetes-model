@@ -6,10 +6,10 @@ import (
 	"github.com/golang/glog"
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/cache"
+	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 	"k8s.io/kubernetes/pkg/client/record"
-	kclient "k8s.io/kubernetes/pkg/client/unversioned"
 	kcontroller "k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/pkg/controller/framework"
 	"k8s.io/kubernetes/pkg/runtime"
 	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
 	"k8s.io/kubernetes/pkg/util/wait"
@@ -26,14 +26,14 @@ const (
 )
 
 // NewDeploymentController creates a new DeploymentController.
-func NewDeploymentController(rcInformer, podInformer framework.SharedIndexInformer, kc kclient.Interface, sa, image string, env []kapi.EnvVar, codec runtime.Codec) *DeploymentController {
+func NewDeploymentController(rcInformer, podInformer cache.SharedIndexInformer, kc kclientset.Interface, sa, image string, env []kapi.EnvVar, codec runtime.Codec) *DeploymentController {
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartRecordingToSink(kc.Events(""))
+	eventBroadcaster.StartRecordingToSink(&kcoreclient.EventSinkImpl{Interface: kc.Core().Events("")})
 	recorder := eventBroadcaster.NewRecorder(kapi.EventSource{Component: "deployments-controller"})
 
 	c := &DeploymentController{
-		rn: kc,
-		pn: kc,
+		rn: kc.Core(),
+		pn: kc.Core(),
 
 		queue: workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 
@@ -45,13 +45,13 @@ func NewDeploymentController(rcInformer, podInformer framework.SharedIndexInform
 	}
 
 	c.rcStore.Indexer = rcInformer.GetIndexer()
-	rcInformer.AddEventHandler(framework.ResourceEventHandlerFuncs{
+	rcInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.addReplicationController,
 		UpdateFunc: c.updateReplicationController,
 	})
 
 	c.podStore.Indexer = podInformer.GetIndexer()
-	podInformer.AddEventHandler(framework.ResourceEventHandlerFuncs{
+	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: c.updatePod,
 		DeleteFunc: c.deletePod,
 	})

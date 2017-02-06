@@ -5,7 +5,6 @@ import (
 	"k8s.io/kubernetes/pkg/api/rest"
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/registry/generic"
 	"k8s.io/kubernetes/pkg/registry/generic/registry"
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/storage"
@@ -18,7 +17,7 @@ type REST struct {
 	*registry.Store
 }
 
-// NewStorage returns a RESTStorage object that will work against nodes.
+// NewStorage returns a RESTStorage object that will work against ClusterResourceQuota objects.
 func NewStorage(optsGetter restoptions.Getter) (*REST, error) {
 	store, err := makeStore(optsGetter)
 	if err != nil {
@@ -67,7 +66,7 @@ func makeStore(optsGetter restoptions.Getter) (*registry.Store, error) {
 		ObjectNameFunc: func(obj runtime.Object) (string, error) {
 			return obj.(*quotaapi.ClusterResourceQuota).Name, nil
 		},
-		PredicateFunc: func(label labels.Selector, field fields.Selector) *generic.SelectionPredicate {
+		PredicateFunc: func(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
 			return Matcher(label, field)
 		},
 

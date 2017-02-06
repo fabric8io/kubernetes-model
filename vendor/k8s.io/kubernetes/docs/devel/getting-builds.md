@@ -1,11 +1,6 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Getting Kubernetes Builds
 
-You can use [hack/get-build.sh](http://releases.k8s.io/release-1.4/hack/get-build.sh)
+You can use [hack/get-build.sh](http://releases.k8s.io/HEAD/hack/get-build.sh)
 to get a build or to use as a reference on how to get the most recent builds
 with curl. With `get-build.sh` you can grab the most recent stable build, the
 most recent release candidate, or the most recent build to pass our ci and gce
@@ -51,13 +46,6 @@ Example installation:
 $ curl -sSL https://storage.googleapis.com/pub/gsutil.tar.gz | sudo tar -xz -C /usr/local/src
 $ sudo ln -s /usr/local/src/gsutil/gsutil /usr/bin/gsutil
 ```
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
-
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
 [![Analytics](https://kubernetes-site.appspot.com/UA-36037335-10/GitHub/docs/devel/getting-builds.md?pixel)]()

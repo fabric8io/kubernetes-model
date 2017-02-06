@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Document Conventions
 
 Updated: 11/3/2015
@@ -24,8 +19,6 @@ for Kubernetes.*
     - [Headings](#headings)
   - [What Are Mungers?](#what-are-mungers)
   - [Auto-added Mungers](#auto-added-mungers)
-    - [Unversioned Warning](#unversioned-warning)
-    - [Is Versioned](#is-versioned)
     - [Generate Analytics](#generate-analytics)
 - [Generated documentation](#generated-documentation)
 
@@ -60,7 +53,7 @@ versionize documents for each release.
 
 Use inline links instead of urls at all times. When you add internal links to
 `docs/` or `examples/`, use relative links; otherwise, use
-`http://releases.k8s.io/release-1.4/<path/to/link>`. For example, avoid using:
+`http://releases.k8s.io/HEAD/<path/to/link>`. For example, avoid using:
 
 ```
 [GCE](https://github.com/kubernetes/kubernetes/blob/master/docs/getting-started-guides/gce.md)  # note that it's under docs/
@@ -72,13 +65,13 @@ Instead, use:
 
 ```
 [GCE](../getting-started-guides/gce.md)                 # note that it's under docs/
-[Kubernetes package](http://releases.k8s.io/release-1.4/pkg/)  # note that it's under pkg/
+[Kubernetes package](http://releases.k8s.io/HEAD/pkg/)  # note that it's under pkg/
 [Kubernetes](http://kubernetes.io/)                     # external link
 ```
 
 The above example generates the following links:
 [GCE](../getting-started-guides/gce.md),
-[Kubernetes package](http://releases.k8s.io/release-1.4/pkg/), and
+[Kubernetes package](http://releases.k8s.io/HEAD/pkg/), and
 [Kubernetes](http://kubernetes.io/).
 
 ## How to Include an Example
@@ -178,7 +171,7 @@ simply place
 in your md files. Note that xxxx is the placeholder for a specific munger.
 Appropriate content will be generated and inserted between two brackets after
 you run `hack/update-munge-docs.sh`. See
-[munger document](http://releases.k8s.io/release-1.4/cmd/mungedocs/) for more details.
+[munger document](http://releases.k8s.io/HEAD/cmd/mungedocs/) for more details.
 
 ## Auto-added Mungers
 
@@ -186,31 +179,6 @@ After running `hack/update-munge-docs.sh`, you may see some code / mungers in
 your md file that are auto-added. You don't have to add them manually. It's
 recommended to just read this section as a reference instead of messing up with
 the following mungers.
-
-
-### Unversioned Warning
-
-UNVERSIONED_WARNING munger inserts unversioned warning which warns the users
-when they're reading the document from HEAD and informs them where to find the
-corresponding document for a specific release.
-
-```
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-```
-
-### Is Versioned
-
-IS_VERSIONED munger inserts `IS_VERSIONED` tag in documents in each release,
-which stops UNVERSIONED_WARNING munger from inserting warning messages.
-
-```
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
-```
 
 ### Generate Analytics
 

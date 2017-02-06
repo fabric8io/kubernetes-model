@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Taints, Tolerations, and Dedicated Nodes
 
 ## Introduction
@@ -289,13 +284,6 @@ The relationship between taints and node drains is discussed in [#1574](https://
 The concepts of taints and tolerations were originally developed as part of the
 Omega project at Google.
 
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

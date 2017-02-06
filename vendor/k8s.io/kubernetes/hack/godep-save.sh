@@ -29,10 +29,12 @@ GODEP="${GODEP:-godep}"
 REQUIRED_BINS=(
   "github.com/ugorji/go/codec/codecgen"
   "github.com/onsi/ginkgo/ginkgo"
+  "github.com/jteeuwen/go-bindata/go-bindata"
   "./..."
 )
 
 pushd "${KUBE_ROOT}" > /dev/null
+  "${GODEP}" version
   GO15VENDOREXPERIMENT=1 ${GODEP} save "${REQUIRED_BINS[@]}"
   # create a symlink in vendor directory pointing to the staging client. This
   # let other packages use the staging client as if it were vendored.
@@ -40,3 +42,5 @@ pushd "${KUBE_ROOT}" > /dev/null
     ln -s ../../staging/src/k8s.io/client-go vendor/k8s.io/client-go
   fi
 popd > /dev/null
+
+echo "Don't forget to run hack/update-godep-licenses.sh if you added or removed a dependency!"

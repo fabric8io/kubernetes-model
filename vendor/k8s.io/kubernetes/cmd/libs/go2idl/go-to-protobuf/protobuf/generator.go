@@ -27,9 +27,9 @@ import (
 
 	"github.com/golang/glog"
 
-	"k8s.io/kubernetes/cmd/libs/go2idl/generator"
-	"k8s.io/kubernetes/cmd/libs/go2idl/namer"
-	"k8s.io/kubernetes/cmd/libs/go2idl/types"
+	"k8s.io/gengo/generator"
+	"k8s.io/gengo/namer"
+	"k8s.io/gengo/types"
 )
 
 // genProtoIDL produces a .proto IDL.
@@ -630,7 +630,12 @@ func membersToFields(locator ProtobufLocator, t *types.Type, localPackage types.
 			Extras: make(map[string]string),
 		}
 
-		if err := protobufTagToField(tags.Get("protobuf"), &field, m, t, localPackage); err != nil {
+		protobufTag := tags.Get("protobuf")
+		if protobufTag == "-" {
+			continue
+		}
+
+		if err := protobufTagToField(protobufTag, &field, m, t, localPackage); err != nil {
 			return nil, err
 		}
 

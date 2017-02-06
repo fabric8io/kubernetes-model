@@ -11,8 +11,9 @@ import (
 	"github.com/spf13/cobra"
 
 	kapi "k8s.io/kubernetes/pkg/api"
+	kapierrors "k8s.io/kubernetes/pkg/api/errors"
 	"k8s.io/kubernetes/pkg/api/meta"
-	kclient "k8s.io/kubernetes/pkg/client/unversioned"
+	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/runtime"
@@ -29,7 +30,7 @@ import (
 type ProjectOptions struct {
 	DefaultNamespace string
 	Oclient          *osclient.Client
-	Kclient          *kclient.Client
+	Kclient          kclientset.Interface
 	Out              io.Writer
 
 	Mapper            meta.RESTMapper
@@ -52,7 +53,7 @@ func (p *ProjectOptions) Complete(f *clientcmd.Factory, c *cobra.Command, args [
 	if err != nil {
 		return err
 	}
-	mapper, typer := f.Object(false)
+	mapper, typer := f.Object()
 
 	p.DefaultNamespace = defaultNamespace
 	p.Oclient = oc
@@ -60,7 +61,7 @@ func (p *ProjectOptions) Complete(f *clientcmd.Factory, c *cobra.Command, args [
 	p.Out = out
 	p.Mapper = mapper
 	p.Typer = typer
-	p.RESTClientFactory = f.Factory.ClientForMapping
+	p.RESTClientFactory = f.ClientForMapping
 	p.ProjectNames = []string{}
 	if len(args) != 0 {
 		p.ProjectNames = append(p.ProjectNames, args...)
@@ -84,7 +85,17 @@ func (p *ProjectOptions) Validate() error {
 		errList = append(errList, errors.New("must provide --selector=<project_selector> or projects"))
 	}
 
-	// TODO: Validate if the openshift master is running with mutitenant network plugin
+	clusterNetwork, err := p.Oclient.ClusterNetwork().Get(sdnapi.ClusterNetworkDefault)
+	if err != nil {
+		if kapierrors.IsNotFound(err) {
+			errList = append(errList, errors.New("Managing pod network is only supported for openshift multitenant network plugin"))
+		} else {
+			errList = append(errList, errors.New("Failed to fetch current network plugin info"))
+		}
+	} else if !sdnapi.IsOpenShiftMultitenantNetworkPlugin(clusterNetwork.PluginName) {
+		errList = append(errList, fmt.Errorf("Using plugin: %q, managing pod network is only supported for openshift multitenant network plugin", clusterNetwork.PluginName))
+	}
+
 	return kerrors.NewAggregate(errList)
 }
 

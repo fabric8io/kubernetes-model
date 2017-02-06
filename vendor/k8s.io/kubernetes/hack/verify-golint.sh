@@ -39,20 +39,23 @@ array_contains () {
 
 # Check that the file is in alphabetical order
 linted_file="${KUBE_ROOT}/hack/.linted_packages"
-if ! diff -u "${linted_file}" <(LANG=C sort "${linted_file}"); then
+if ! diff -u "${linted_file}" <(LC_ALL=C sort "${linted_file}"); then
 	{
 		echo
 		echo "hack/.linted_packages is not in alphabetical order. Please sort it:"
 		echo
-		echo "  LANG=C sort -o hack/.linted_packages hack/.linted_packages"
+		echo "  LC_ALL=C sort -o hack/.linted_packages hack/.linted_packages"
 		echo
 	} >&2
 	false
 fi
 
 export IFS=$'\n'
+# NOTE: when "go list -e ./..." is run within GOPATH, it turns the k8s.io/kubernetes
+# as the prefix, however if we run it outside it returns the full path of the file
+# with a leading underscore. We'll need to support both scenarios for all_packages.
 all_packages=(
-	$(go list -e ./... | egrep -v "/(third_party|vendor|staging|generated|clientset_generated)" | sed 's/k8s.io\/kubernetes\///g')
+	$(go list -e ./... | egrep -v "/(third_party|vendor|staging|generated|clientset_generated)" | sed -e 's|^k8s.io/kubernetes/||' -e "s|^_${KUBE_ROOT}/\?||")
 )
 linted_packages=(
 	$(cat $linted_file)
@@ -101,7 +104,7 @@ else
 		for p in "${linted[@]}"; do
 			echo "  echo $p >> hack/.linted_packages"
 		done
-		echo "  LANG=C sort -o hack/.linted_packages hack/.linted_packages"
+		echo "  LC_ALL=C sort -o hack/.linted_packages hack/.linted_packages"
 		echo
 		echo 'You can test via this script and commit the result.'
 		echo

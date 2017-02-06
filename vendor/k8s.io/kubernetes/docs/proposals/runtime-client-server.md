@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # Client/Server container runtime
 
 ## Abstract
@@ -204,13 +199,6 @@ This proposal is first filed by [@brendandburns](https://github.com/brendandburn
 * [kubernetes/13768](https://github.com/kubernetes/kubernetes/issues/13768)
 * [kubernetes/13709](https://github.com/kubernetes/kubernetes/pull/13079)
 * [New container runtime interface](https://github.com/kubernetes/kubernetes/pull/25899)
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

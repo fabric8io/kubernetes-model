@@ -7,13 +7,15 @@ import (
 
 	"k8s.io/kubernetes/pkg/api/rest"
 	extapi "k8s.io/kubernetes/pkg/apis/extensions"
-	"k8s.io/kubernetes/pkg/client/unversioned/testclient"
+	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
+	"k8s.io/kubernetes/pkg/controller/informers"
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
 	"k8s.io/kubernetes/pkg/storage/storagebackend"
 
 	_ "github.com/openshift/origin/pkg/api/install"
 	"github.com/openshift/origin/pkg/api/validation"
-	otestclient "github.com/openshift/origin/pkg/client/testclient"
+	"github.com/openshift/origin/pkg/client/testclient"
 	"github.com/openshift/origin/pkg/controller/shared"
 	deployapi "github.com/openshift/origin/pkg/deploy/api"
 	quotaapi "github.com/openshift/origin/pkg/quota/api"
@@ -72,11 +74,13 @@ func TestValidationRegistration(t *testing.T) {
 
 // fakeMasterConfig creates a new fake master config with an empty kubelet config and dummy storage.
 func fakeMasterConfig() *MasterConfig {
-	informerFactory := shared.NewInformerFactory(testclient.NewSimpleFake(), otestclient.NewSimpleFake(), shared.DefaultListerWatcherOverrides{}, 1*time.Second)
+	kubeInformerFactory := informers.NewSharedInformerFactory(fake.NewSimpleClientset(), 1*time.Second)
+	informerFactory := shared.NewInformerFactory(kubeInformerFactory, fake.NewSimpleClientset(), testclient.NewSimpleFake(), shared.DefaultListerWatcherOverrides{}, 1*time.Second)
 	return &MasterConfig{
-		KubeletClientConfig:           &kubeletclient.KubeletClientConfig{},
-		RESTOptionsGetter:             restoptions.NewSimpleGetter(&storagebackend.Config{ServerList: []string{"localhost"}}),
-		Informers:                     informerFactory,
-		ClusterQuotaMappingController: clusterquotamapping.NewClusterQuotaMappingController(informerFactory.Namespaces(), informerFactory.ClusterResourceQuotas()),
+		KubeletClientConfig:                   &kubeletclient.KubeletClientConfig{},
+		RESTOptionsGetter:                     restoptions.NewSimpleGetter(&storagebackend.Config{ServerList: []string{"localhost"}}),
+		Informers:                             informerFactory,
+		ClusterQuotaMappingController:         clusterquotamapping.NewClusterQuotaMappingController(kubeInformerFactory.Namespaces(), informerFactory.ClusterResourceQuotas()),
+		PrivilegedLoopbackKubernetesClientset: &kclientset.Clientset{},
 	}
 }

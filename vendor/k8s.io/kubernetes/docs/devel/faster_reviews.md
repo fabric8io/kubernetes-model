@@ -1,8 +1,3 @@
-<!-- BEGIN MUNGE: UNVERSIONED_WARNING -->
-
-
-<!-- END MUNGE: UNVERSIONED_WARNING -->
-
 # How to get faster PR reviews
 
 Most of what is written here is not at all specific to Kubernetes, but it bears
@@ -80,7 +75,7 @@ fast-moving codebase - lock in your changes ASAP, and make merges be someone
 else's problem.
 
 Obviously, we want every PR to be useful on its own, so you'll have to use
-common sense in deciding what can be a PR vs what should be a commit in a larger
+common sense in deciding what can be a PR vs. what should be a commit in a larger
 PR. Rule of thumb - if this commit or set of commits is directly related to
 Feature-X and nothing else, it should probably be part of the Feature-X PR. If
 you can plausibly imagine someone finding value in this commit outside of
@@ -216,13 +211,6 @@ Obviously, none of these points are hard rules. There is no document that can
 take the place of common sense and good taste. Use your best judgment, but put
 a bit of thought into how your work can be made easier to review. If you do
 these things your PRs will flow much more easily.
-
-
-
-
-<!-- BEGIN MUNGE: IS_VERSIONED -->
-<!-- TAG IS_VERSIONED -->
-<!-- END MUNGE: IS_VERSIONED -->
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->
