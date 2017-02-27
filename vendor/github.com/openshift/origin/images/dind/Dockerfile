@@ -18,7 +18,7 @@
 #      $ docker run -d --privileged openshift/dind
 #
 
-FROM fedora:24
+FROM fedora:25
 
 # Fix 'WARNING: terminal is not fully functional' when TERM=dumb
 ENV TERM=xterm
@@ -58,10 +58,6 @@ RUN dnf -y update && dnf -y install\
  iptables\
  openssh-clients\
  openssh-server\
- && dnf -y remove\
- docker-v1.10-migrator\
- glibc-all-langpacks\
- selinux-policy-minimum\
  && dnf clean all
 
 ## Configure docker

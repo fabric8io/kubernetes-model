@@ -17,7 +17,9 @@ import (
 	exutil "github.com/openshift/origin/test/extended/util"
 )
 
-var _ = g.Describe("[networking][router] openshift routers", func() {
+const changeTimeoutSeconds = 3 * 60
+
+var _ = g.Describe("[Conformance][networking][router] openshift routers", func() {
 	defer g.GinkgoRecover()
 	var (
 		configPath = exutil.FixturePath("testdata", "scoped-router.yaml")
@@ -34,6 +36,12 @@ var _ = g.Describe("[networking][router] openshift routers", func() {
 
 	g.Describe("The HAProxy router", func() {
 		g.It("should serve the correct routes when scoped to a single namespace and label set", func() {
+			defer func() {
+				// This should be done if the test fails but
+				// for now always dump the logs.
+				// if g.CurrentGinkgoTestDescription().Failed
+				dumpScopedRouterLogs(oc, g.CurrentGinkgoTestDescription().FullTestText)
+			}()
 			oc.SetOutputDir(exutil.TestContext.OutputDir)
 			ns := oc.KubeFramework().Namespace.Name
 			execPodName := exutil.CreateExecPodOrFail(oc.AdminKubeClient().Core(), ns, "execpod")
@@ -42,7 +50,7 @@ var _ = g.Describe("[networking][router] openshift routers", func() {
 			g.By(fmt.Sprintf("creating a scoped router from a config file %q", configPath))
 
 			var routerIP string
-			err := wait.Poll(time.Second, 2*time.Minute, func() (bool, error) {
+			err := wait.Poll(time.Second, changeTimeoutSeconds*time.Second, func() (bool, error) {
 				pod, err := oc.KubeFramework().ClientSet.Core().Pods(oc.KubeFramework().Namespace.Name).Get("scoped-router")
 				if err != nil {
 					return false, err
@@ -60,11 +68,14 @@ var _ = g.Describe("[networking][router] openshift routers", func() {
 
 			g.By("waiting for the healthz endpoint to respond")
 			healthzURI := fmt.Sprintf("http://%s:1936/healthz", routerIP)
-			err = waitForRouterOKResponseExec(ns, execPodName, healthzURI, routerIP, 60*2)
+			err = waitForRouterOKResponseExec(ns, execPodName, healthzURI, routerIP, changeTimeoutSeconds)
+			if err != nil {
+				dumpScopedRouterLogs(oc, fmt.Sprintf("%s - %s", g.CurrentGinkgoTestDescription().TestText, "waiting for the healthz endpoint to respond"))
+			}
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("waiting for the valid route to respond")
-			err = waitForRouterOKResponseExec(ns, execPodName, routerURL, "first.example.com", 60*2)
+			err = waitForRouterOKResponseExec(ns, execPodName, routerURL, "first.example.com", changeTimeoutSeconds)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			for _, host := range []string{"second.example.com", "third.example.com"} {
@@ -75,6 +86,12 @@ var _ = g.Describe("[networking][router] openshift routers", func() {
 		})
 
 		g.It("should override the route host with a custom value", func() {
+			defer func() {
+				// This should be done if the test fails but
+				// for now always dump the logs.
+				// if g.CurrentGinkgoTestDescription().Failed
+				dumpScopedRouterLogs(oc, g.CurrentGinkgoTestDescription().FullTestText)
+			}()
 			oc.SetOutputDir(exutil.TestContext.OutputDir)
 			ns := oc.KubeFramework().Namespace.Name
 			execPodName := exutil.CreateExecPodOrFail(oc.AdminKubeClient().Core(), ns, "execpod")
@@ -83,7 +100,7 @@ var _ = g.Describe("[networking][router] openshift routers", func() {
 			g.By(fmt.Sprintf("creating a scoped router from a config file %q", configPath))
 
 			var routerIP string
-			err := wait.Poll(time.Second, 2*time.Minute, func() (bool, error) {
+			err := wait.Poll(time.Second, changeTimeoutSeconds*time.Second, func() (bool, error) {
 				pod, err := oc.KubeFramework().ClientSet.Core().Pods(ns).Get("router-override")
 				if err != nil {
 					return false, err
@@ -103,11 +120,11 @@ var _ = g.Describe("[networking][router] openshift routers", func() {
 
 			g.By("waiting for the healthz endpoint to respond")
 			healthzURI := fmt.Sprintf("http://%s:1936/healthz", routerIP)
-			err = waitForRouterOKResponseExec(ns, execPodName, healthzURI, routerIP, 60*2)
+			err = waitForRouterOKResponseExec(ns, execPodName, healthzURI, routerIP, changeTimeoutSeconds)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("waiting for the valid route to respond")
-			err = waitForRouterOKResponseExec(ns, execPodName, routerURL, fmt.Sprintf(pattern, "route-1", ns), 60*2)
+			err = waitForRouterOKResponseExec(ns, execPodName, routerURL, fmt.Sprintf(pattern, "route-1", ns), changeTimeoutSeconds)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("checking that the stored domain name does not match a route")
@@ -129,13 +146,17 @@ func waitForRouterOKResponseExec(ns, execPodName, url, host string, timeoutSecon
 	cmd := fmt.Sprintf(`
 		set -e
 		for i in $(seq 1 %d); do
-			code=$( curl -s -o /dev/null -w '%%{http_code}\n' --header 'Host: %s' %q )
-			echo $code
-			if [[ $code -eq 200 ]]; then
-				exit 0
-			fi
-			if [[ $code -ne 503 ]]; then
-				exit 1
+			code=$( curl -s -o /dev/null -w '%%{http_code}\n' --header 'Host: %s' %q ) || rc=$?
+			if [[ "${rc:-0}" -eq 0 ]]; then
+				echo $code
+				if [[ $code -eq 200 ]]; then
+					exit 0
+				fi
+				if [[ $code -ne 503 ]]; then
+					exit 1
+				fi
+			else
+				echo "error ${rc}" 1>&2
 			fi
 			sleep 1
 		done
@@ -155,10 +176,14 @@ func expectRouteStatusCodeRepeatedExec(ns, execPodName, url, host string, status
 	cmd := fmt.Sprintf(`
 		set -e
 		for i in $(seq 1 %d); do
-			code=$( curl -s -o /dev/null -w '%%{http_code}\n' --header 'Host: %s' %q )
-			echo $code
-			if [[ $code -ne %d ]]; then
-				exit 1
+			code=$( curl -s -o /dev/null -w '%%{http_code}\n' --header 'Host: %s' %q ) || rc=$?
+			if [[ "${rc:-0}" -eq 0 ]]; then
+				echo $code
+				if [[ $code -ne %d ]]; then
+					exit 1
+				fi
+			else
+				echo "error ${rc}" 1>&2
 			fi
 		done
 		`, times, host, url, statusCode)
@@ -188,4 +213,9 @@ func getAuthenticatedRouteURLViaPod(ns, execPodName, url, host, user, pass strin
 		return "", fmt.Errorf("host command failed: %v\n%s", err, output)
 	}
 	return output, nil
+}
+
+func dumpScopedRouterLogs(oc *exutil.CLI, name string) {
+	log, _ := e2e.GetPodLogs(oc.AdminKubeClient(), oc.KubeFramework().Namespace.Name, "scoped-router", "router")
+	e2e.Logf("Scoped Router test %s logs:\n %s", name, log)
 }

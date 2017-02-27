@@ -21,9 +21,7 @@ import (
 )
 
 const (
-	useLocalPluginSnapshotEnvVarName = "USE_SNAPSHOT_JENKINS_IMAGE"
-	disableJenkinsMemoryStats        = "DISABLE_JENKINS_MEMORY_MONITORING"
-	localPluginSnapshotImage         = "openshift/jenkins-plugin-snapshot-test:latest"
+	localPluginSnapshotImage = "openshift/jenkins-plugin-snapshot-test:latest"
 )
 
 // ginkgolog creates simple entry in the GinkgoWriter.
@@ -109,9 +107,6 @@ func validateCreateDelete(create bool, key, out string, err error) {
 	}
 }
 
-// Designed to match if RSS memory is greater than 500000000  (i.e. > 476MB)
-var memoryOverragePattern = regexp.MustCompile(`\s+rss\s+5\d\d\d\d\d\d\d\d`)
-
 var _ = g.Describe("[image_ecosystem][jenkins][Slow] openshift pipeline plugin", func() {
 	defer g.GinkgoRecover()
 	var oc = exutil.NewCLI("jenkins-plugin", exutil.KubeConfigPath())
@@ -122,7 +117,7 @@ var _ = g.Describe("[image_ecosystem][jenkins][Slow] openshift pipeline plugin",
 
 	g.AfterEach(func() {
 
-		if os.Getenv(disableJenkinsMemoryStats) == "" {
+		if os.Getenv(jenkins.DisableJenkinsMemoryStats) == "" {
 			ticker.Stop()
 		}
 
@@ -154,53 +149,11 @@ var _ = g.Describe("[image_ecosystem][jenkins][Slow] openshift pipeline plugin",
 		time.Sleep(10 * time.Second) // Give project time to initialize
 
 		g.By("kick off the build for the jenkins ephermeral and application templates")
-		tag := []string{localPluginSnapshotImage}
-		hexIDs, err := exutil.DumpAndReturnTagging(tag)
 
-		// If the user has expressed an interest in local plugin testing by setting the
-		// SNAPSHOT_JENKINS_IMAGE environment variable, try to use the local image. Inform them
-		// either about which image is being used in case their test fails.
-		snapshotImagePresent := len(hexIDs) > 0 && err == nil
-		useSnapshotImage := os.Getenv(useLocalPluginSnapshotEnvVarName) != ""
+		newAppArgs := []string{exutil.FixturePath("..", "..", "examples", "jenkins", "jenkins-ephemeral-template.json")}
+		newAppArgs, useSnapshotImage := jenkins.SetupSnapshotImage(localPluginSnapshotImage, "jenkins-plugin-snapshot-test", newAppArgs, oc)
 
-		//TODO disabling oauth until we can update getAdminPassword path to handle oauth (perhaps borrow from oauth integration tests)
-		newAppArgs := []string{exutil.FixturePath("..", "..", "examples", "jenkins", "jenkins-ephemeral-template.json"), "-p", "ENABLE_OAUTH=false"}
-
-		if useSnapshotImage {
-			g.By("Creating a snapshot Jenkins imagestream and overridding the default Jenkins imagestream")
-			o.Expect(snapshotImagePresent).To(o.BeTrue())
-
-			ginkgolog("")
-			ginkgolog("")
-			ginkgolog("IMPORTANT: You are testing a local jenkins snapshot image.")
-			ginkgolog("In order to target the official image stream, you must unset %s before running extended tests.", useLocalPluginSnapshotEnvVarName)
-			ginkgolog("")
-			ginkgolog("")
-
-			// Create an imagestream based on the Jenkins' plugin PR-Testing image (https://github.com/openshift/jenkins-plugin/blob/master/PR-Testing/README).
-			snapshotImageStream := "jenkins-plugin-snapshot-test"
-			err = oc.Run("new-build").Args("-D", fmt.Sprintf("FROM %s", localPluginSnapshotImage), "--to", snapshotImageStream).Execute()
-			o.Expect(err).NotTo(o.HaveOccurred())
-
-			err = oc.Run("logs").Args("-f", "bc/jenkins-plugin-snapshot-test").Execute()
-			o.Expect(err).NotTo(o.HaveOccurred())
-
-			// Supplant the normal imagestream with the local imagestream using template parameters
-			newAppArgs = append(newAppArgs, "-p", fmt.Sprintf("NAMESPACE=%s", oc.Namespace()))
-			newAppArgs = append(newAppArgs, "-p", fmt.Sprintf("JENKINS_IMAGE_STREAM_TAG=%s:latest", snapshotImageStream))
-
-		} else {
-			if snapshotImagePresent {
-				ginkgolog("")
-				ginkgolog("")
-				ginkgolog("IMPORTANT: You have a local OpenShift jenkins snapshot image, but it is not being used for testing.")
-				ginkgolog("In order to target your local image, you must set %s to some value before running extended tests.", useLocalPluginSnapshotEnvVarName)
-				ginkgolog("")
-				ginkgolog("")
-			}
-		}
-
-		err = oc.Run("new-app").Args(newAppArgs...).Execute()
+		err := oc.Run("new-app").Args(newAppArgs...).Execute()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("waiting for jenkins deployment")
@@ -225,42 +178,8 @@ var _ = g.Describe("[image_ecosystem][jenkins][Slow] openshift pipeline plugin",
 			o.Expect(err).NotTo(o.HaveOccurred())
 		}
 
-		jenkinsPod := jenkins.FindJenkinsPod(oc)
-
-		if os.Getenv(disableJenkinsMemoryStats) == "" {
-			ticker = time.NewTicker(10 * time.Second)
-			go func() {
-				for t := range ticker.C {
-					memstats, err := oc.Run("exec").Args("--namespace", jenkinsNamespace, jenkinsPod.Name, "--", "cat", "/sys/fs/cgroup/memory/memory.stat").Output()
-					if err != nil {
-						ginkgolog("\nUnable to acquire Jenkins cgroup memory.stat")
-					}
-					ps, err := oc.Run("exec").Args("--namespace", jenkinsNamespace, jenkinsPod.Name, "--", "ps", "faux").Output()
-					if err != nil {
-						ginkgolog("\nUnable to acquire Jenkins ps information")
-					}
-					ginkgolog("\nJenkins memory statistics at %v\n%s\n%s\n\n", t, ps, memstats)
-
-					// This is likely a temporary measure in place to extract diagnostic information during unexpectedly
-					// high memory utilization within the Jenkins image. If Jenkins is using
-					// a large amount of RSS, extract JVM information from the pod.
-					if memoryOverragePattern.MatchString(memstats) {
-						histogram, err := oc.Run("rsh").Args("--namespace", jenkinsNamespace, jenkinsPod.Name, "jmap", "-histo", "1").Output()
-						if err == nil {
-							ginkgolog("\n\nJenkins histogram:\n%s\n\n", histogram)
-						} else {
-							ginkgolog("Unable to acquire Jenkins histogram: %v", err)
-						}
-						stack, err := oc.Run("exec").Args("--namespace", jenkinsNamespace, jenkinsPod.Name, "--", "jstack", "1").Output()
-						if err == nil {
-							ginkgolog("\n\nJenkins thread dump:\n%s\n\n", stack)
-						} else {
-							ginkgolog("Unable to acquire Jenkins thread dump: %v", err)
-						}
-					}
-
-				}
-			}()
+		if os.Getenv(jenkins.DisableJenkinsMemoryStats) == "" {
+			ticker = jenkins.StartJenkinsMemoryTracking(oc, jenkinsNamespace)
 		}
 
 		// Start capturing logs from this deployment config.

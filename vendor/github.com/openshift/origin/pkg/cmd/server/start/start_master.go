@@ -450,8 +450,7 @@ func (m *Master) Start() error {
 }
 
 func startHealth(openshiftConfig *origin.MasterConfig) error {
-	openshiftConfig.RunHealth()
-	return nil
+	return openshiftConfig.RunHealth()
 }
 
 // StartAPI starts the components of the master that are considered part of the API - the Kubernetes
@@ -653,9 +652,14 @@ func startControllers(oc *origin.MasterConfig, kc *kubernetes.MasterConfig) erro
 			glog.Fatalf("Could not get client for pod gc controller: %v", err)
 		}
 
-		_, _, statefulSetClient, err := oc.GetServiceAccountClients(bootstrappolicy.InfraPetSetControllerServiceAccountName)
+		_, _, statefulSetClient, err := oc.GetServiceAccountClients(bootstrappolicy.InfraStatefulSetControllerServiceAccountName)
 		if err != nil {
 			glog.Fatalf("Could not get client for pet set controller: %v", err)
+		}
+
+		_, _, certificateSigningClient, err := oc.GetServiceAccountClients(bootstrappolicy.InfraCertificateSigningControllerServiceAccountName)
+		if err != nil {
+			glog.Fatalf("Could not get client for disruption budget controller: %v", err)
 		}
 
 		namespaceControllerClientConfig, _, namespaceControllerKubeClient, err := oc.GetServiceAccountClients(bootstrappolicy.InfraNamespaceControllerServiceAccountName)
@@ -708,6 +712,8 @@ func startControllers(oc *origin.MasterConfig, kc *kubernetes.MasterConfig) erro
 		kc.RunGCController(gcClient)
 
 		kc.RunServiceLoadBalancerController(serviceLoadBalancerClient)
+
+		kc.RunCertificateSigningController(certificateSigningClient)
 
 		appsEnabled := len(configapi.GetEnabledAPIVersionsForGroup(kc.Options, apps.GroupName)) > 0
 		if appsEnabled {

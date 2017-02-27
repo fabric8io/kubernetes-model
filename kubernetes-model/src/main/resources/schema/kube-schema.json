@@ -6976,7 +6976,15 @@
           "$ref": "#/definitions/kubernetes_runtime_RawExtension",
           "javaType": "io.fabric8.kubernetes.api.model.HasMetadata"
         },
+        "isNonResourceURL": {
+          "type": "boolean",
+          "description": ""
+        },
         "namespace": {
+          "type": "string",
+          "description": ""
+        },
+        "path": {
           "type": "string",
           "description": ""
         },
@@ -7309,6 +7317,10 @@
             "description": ""
           }
         },
+        "isNonResourceURL": {
+          "type": "boolean",
+          "description": ""
+        },
         "kind": {
           "type": "string",
           "description": "",
@@ -7316,6 +7328,10 @@
           "required": true
         },
         "namespace": {
+          "type": "string",
+          "description": ""
+        },
+        "path": {
           "type": "string",
           "description": ""
         },
@@ -7827,6 +7843,10 @@
             "description": ""
           }
         },
+        "isNonResourceURL": {
+          "type": "boolean",
+          "description": ""
+        },
         "kind": {
           "type": "string",
           "description": "",
@@ -7834,6 +7854,10 @@
           "required": true
         },
         "namespace": {
+          "type": "string",
+          "description": ""
+        },
+        "path": {
           "type": "string",
           "description": ""
         },
@@ -8412,6 +8436,10 @@
           "type": "string",
           "description": ""
         },
+        "output": {
+          "$ref": "#/definitions/os_build_BuildStatusOutput",
+          "javaType": "io.fabric8.openshift.api.model.BuildStatusOutput"
+        },
         "outputDockerImageReference": {
           "type": "string",
           "description": ""
@@ -8431,6 +8459,36 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.BuildStatus",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "os_build_BuildStatusOutput": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "to": {
+          "$ref": "#/definitions/os_build_BuildStatusOutputTo",
+          "javaType": "io.fabric8.openshift.api.model.BuildStatusOutputTo"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.BuildStatusOutput",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "os_build_BuildStatusOutputTo": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "imageDigest": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.BuildStatusOutputTo",
       "javaInterfaces": [
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
@@ -8862,6 +8920,14 @@
       "type": "object",
       "description": "",
       "properties": {
+        "env": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_EnvVar",
+            "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
+          }
+        },
         "jenkinsfile": {
           "type": "string",
           "description": ""
@@ -10906,6 +10972,10 @@
           }
         },
         "host": {
+          "type": "string",
+          "description": ""
+        },
+        "routerCanonicalHostname": {
           "type": "string",
           "description": ""
         },

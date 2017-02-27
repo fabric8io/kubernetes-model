@@ -3182,6 +3182,13 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 							Format:      "",
 						},
 					},
+					"keepTerminatedPodVolumes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "This flag, if set, instructs the kubelet to keep volumes from terminated pods mounted to the node. This can be useful for debugging volume related issues.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"TypeMeta", "podManifestPath", "syncFrequency", "fileCheckFrequency", "httpCheckFrequency", "manifestURL", "manifestURLHeader", "enableServer", "address", "port", "readOnlyPort", "tlsCertFile", "tlsPrivateKeyFile", "certDirectory", "authentication", "authorization", "hostnameOverride", "podInfraContainerImage", "dockerEndpoint", "rootDirectory", "seccompProfileRoot", "allowPrivileged", "hostNetworkSources", "hostPIDSources", "hostIPCSources", "registryPullQPS", "registryBurst", "eventRecordQPS", "eventBurst", "enableDebuggingHandlers", "minimumGCAge", "maxPerPodContainerCount", "maxContainerCount", "cAdvisorPort", "healthzPort", "healthzBindAddress", "oomScoreAdj", "registerNode", "clusterDomain", "masterServiceNamespace", "clusterDNS", "streamingConnectionIdleTimeout", "nodeStatusUpdateFrequency", "imageMinimumGCAge", "imageGCHighThresholdPercent", "imageGCLowThresholdPercent", "lowDiskSpaceThresholdMB", "volumeStatsAggPeriod", "networkPluginName", "networkPluginMTU", "networkPluginDir", "cniConfDir", "cniBinDir", "volumePluginDir", "containerRuntime", "remoteRuntimeEndpoint", "remoteImageEndpoint", "lockFilePath", "exitOnLockContention", "hairpinMode", "babysitDaemons", "maxPods", "nvidiaGPUs", "dockerExecHandlerName", "podCIDR", "resolvConf", "cpuCFSQuota", "containerized", "maxOpenFiles", "reconcileCIDR", "registerSchedulable", "contentType", "kubeAPIQPS", "kubeAPIBurst", "serializeImagePulls", "nodeLabels", "nonMasqueradeCIDR", "enableCustomMetrics", "podsPerCore", "enableControllerAttachDetach", "systemReserved", "kubeReserved", "protectKernelDefaults", "makeIPTablesUtilChains", "iptablesMasqueradeBit", "iptablesDropBit", "featureGates"},
 			},
@@ -7252,6 +7259,20 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 							Format:      "",
 						},
 					},
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Path is the path of a non resource URL",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"isNonResourceURL": {
+						SchemaProps: spec.SchemaProps{
+							Description: "IsNonResourceURL is true if this is a request for a non-resource URL (outside of the resource hieraarchy)",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 					"content": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Content is the actual content of the request for create and update",
@@ -7259,7 +7280,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 						},
 					},
 				},
-				Required: []string{"namespace", "verb", "resourceAPIGroup", "resourceAPIVersion", "resource", "resourceName"},
+				Required: []string{"namespace", "verb", "resourceAPIGroup", "resourceAPIVersion", "resource", "resourceName", "path", "isNonResourceURL"},
 			},
 		},
 		Dependencies: []string{
@@ -8193,7 +8214,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					},
 					"env": {
 						SchemaProps: spec.SchemaProps{
-							Description: "env contains additional environment variables you want to pass into a builder container",
+							Description: "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -8455,12 +8476,52 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 							Ref:         spec.MustCreateRef("#/definitions/v1.ObjectReference"),
 						},
 					},
+					"output": {
+						SchemaProps: spec.SchemaProps{
+							Description: "output describes the Docker image the build has produced.",
+							Ref:         spec.MustCreateRef("#/definitions/v1.BuildStatusOutput"),
+						},
+					},
 				},
 				Required: []string{"phase"},
 			},
 		},
 		Dependencies: []string{
-			"unversioned.Time", "v1.ObjectReference"},
+			"unversioned.Time", "v1.BuildStatusOutput", "v1.ObjectReference"},
+	},
+	"v1.BuildStatusOutput": {
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "BuildStatusOutput contains the status of the built image.",
+				Properties: map[string]spec.Schema{
+					"to": {
+						SchemaProps: spec.SchemaProps{
+							Description: "to describes the status of the built image being pushed to a registry.",
+							Ref:         spec.MustCreateRef("#/definitions/v1.BuildStatusOutputTo"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"v1.BuildStatusOutputTo"},
+	},
+	"v1.BuildStatusOutputTo": {
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "BuildStatusOutputTo describes the status of the built image with regards to image registry to which it was supposed to be pushed.",
+				Properties: map[string]spec.Schema{
+					"imageDigest": {
+						SchemaProps: spec.SchemaProps{
+							Description: "imageDigest is the digest of the built Docker image. The digest uniquely identifies the image in the registry to which it was pushed.\n\nPlease note that this field may not always be set even if the push completes successfully - e.g. when the registry returns no digest or returns it in a format that the builder doesn't understand.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{},
 	},
 	"v1.BuildStrategy": {
 		Schema: spec.Schema{
@@ -10293,7 +10354,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					},
 					"env": {
 						SchemaProps: spec.SchemaProps{
-							Description: "env contains additional environment variables you want to pass into a builder container",
+							Description: "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -11347,7 +11408,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					},
 					"env": {
 						SchemaProps: spec.SchemaProps{
-							Description: "env contains additional environment variables you want to pass into a builder container",
+							Description: "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -12452,7 +12513,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					},
 					"env": {
 						SchemaProps: spec.SchemaProps{
-							Description: "env contains additional environment variables you want to pass into a builder container",
+							Description: "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -14422,10 +14483,24 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 							Format:      "",
 						},
 					},
+					"env": {
+						SchemaProps: spec.SchemaProps{
+							Description: "env contains additional environment variables you want to pass into a build pipeline. ValueFrom is not supported.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: spec.MustCreateRef("#/definitions/v1.EnvVar"),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
-		Dependencies: []string{},
+		Dependencies: []string{
+			"v1.EnvVar"},
 	},
 	"v1.Job": {
 		Schema: spec.Schema{
@@ -15189,6 +15264,20 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 							Format:      "",
 						},
 					},
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Path is the path of a non resource URL",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"isNonResourceURL": {
+						SchemaProps: spec.SchemaProps{
+							Description: "IsNonResourceURL is true if this is a request for a non-resource URL (outside of the resource hieraarchy)",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 					"content": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Content is the actual content of the request for create and update",
@@ -15196,7 +15285,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 						},
 					},
 				},
-				Required: []string{"namespace", "verb", "resourceAPIGroup", "resourceAPIVersion", "resource", "resourceName"},
+				Required: []string{"namespace", "verb", "resourceAPIGroup", "resourceAPIVersion", "resource", "resourceName", "path", "isNonResourceURL"},
 			},
 		},
 		Dependencies: []string{
@@ -15263,6 +15352,20 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 							Format:      "",
 						},
 					},
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Path is the path of a non resource URL",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"isNonResourceURL": {
+						SchemaProps: spec.SchemaProps{
+							Description: "IsNonResourceURL is true if this is a request for a non-resource URL (outside of the resource hieraarchy)",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 					"content": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Content is the actual content of the request for create and update",
@@ -15305,7 +15408,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 						},
 					},
 				},
-				Required: []string{"namespace", "verb", "resourceAPIGroup", "resourceAPIVersion", "resource", "resourceName", "user", "groups", "scopes"},
+				Required: []string{"namespace", "verb", "resourceAPIGroup", "resourceAPIVersion", "resource", "resourceName", "path", "isNonResourceURL", "user", "groups", "scopes"},
 			},
 		},
 		Dependencies: []string{
@@ -20238,6 +20341,20 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 							Format:      "",
 						},
 					},
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Path is the path of a non resource URL",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"isNonResourceURL": {
+						SchemaProps: spec.SchemaProps{
+							Description: "IsNonResourceURL is true if this is a request for a non-resource URL (outside of the resource hieraarchy)",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 					"content": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Content is the actual content of the request for create and update",
@@ -20245,7 +20362,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 						},
 					},
 				},
-				Required: []string{"namespace", "verb", "resourceAPIGroup", "resourceAPIVersion", "resource", "resourceName"},
+				Required: []string{"namespace", "verb", "resourceAPIGroup", "resourceAPIVersion", "resource", "resourceName", "path", "isNonResourceURL"},
 			},
 		},
 		Dependencies: []string{
@@ -21037,6 +21154,13 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					"wildcardPolicy": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Wildcard policy is the wildcard policy that was allowed where this route is exposed.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"routerCanonicalHostname": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CanonicalHostname is the external host name for the router that can be used as a CNAME for the host requested for this route. This value is optional and may not be set in all cases.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -22795,7 +22919,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					},
 					"env": {
 						SchemaProps: spec.SchemaProps{
-							Description: "env contains additional environment variables you want to pass into a builder container",
+							Description: "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -22829,13 +22953,13 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					},
 					"runtimeImage": {
 						SchemaProps: spec.SchemaProps{
-							Description: "runtimeImage is an optional image that is used to run an application without unneeded dependencies installed. The building of the application is still done in the builder image but, post build, you can copy the needed artifacts in the runtime image for use. This field and the feature it enables are in tech preview.",
+							Description: "runtimeImage is an optional image that is used to run an application without unneeded dependencies installed. The building of the application is still done in the builder image but, post build, you can copy the needed artifacts in the runtime image for use. Deprecated: This feature will be removed in a future release. Use ImageSource to copy binary artifacts created from one build into a separate runtime image.",
 							Ref:         spec.MustCreateRef("#/definitions/v1.ObjectReference"),
 						},
 					},
 					"runtimeArtifacts": {
 						SchemaProps: spec.SchemaProps{
-							Description: "runtimeArtifacts specifies a list of source/destination pairs that will be copied from the builder to the runtime image. sourcePath can be a file or directory. destinationDir must be a directory. destinationDir can also be empty or equal to \".\", in this case it just refers to the root of WORKDIR. This field and the feature it enables are in tech preview.",
+							Description: "runtimeArtifacts specifies a list of source/destination pairs that will be copied from the builder to the runtime image. sourcePath can be a file or directory. destinationDir must be a directory. destinationDir can also be empty or equal to \".\", in this case it just refers to the root of WORKDIR. Deprecated: This feature will be removed in a future release. Use ImageSource to copy binary artifacts created from one build into a separate runtime image.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -22963,6 +23087,20 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 							Format:      "",
 						},
 					},
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Path is the path of a non resource URL",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"isNonResourceURL": {
+						SchemaProps: spec.SchemaProps{
+							Description: "IsNonResourceURL is true if this is a request for a non-resource URL (outside of the resource hieraarchy)",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 					"content": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Content is the actual content of the request for create and update",
@@ -23005,7 +23143,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 						},
 					},
 				},
-				Required: []string{"namespace", "verb", "resourceAPIGroup", "resourceAPIVersion", "resource", "resourceName", "user", "groups", "scopes"},
+				Required: []string{"namespace", "verb", "resourceAPIGroup", "resourceAPIVersion", "resource", "resourceName", "path", "isNonResourceURL", "user", "groups", "scopes"},
 			},
 		},
 		Dependencies: []string{
@@ -23572,7 +23710,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					},
 					"objects": {
 						SchemaProps: spec.SchemaProps{
-							Description: "objects is an array of resources to include in this template.",
+							Description: "objects is an array of resources to include in this template. If a namespace value is hardcoded in the object, it will be removed during template instantiation, however if the namespace value is, or contains, a ${PARAMETER_REFERENCE}, the resolved value after parameter substitution will be respected and the object will be created in that namespace.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -23835,7 +23973,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					},
 					"groups": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Groups are the groups that this user is a member of",
+							Description: "Groups specifies group names this user is a member of. This field is deprecated and will be removed in a future release. Instead, create a Group object containing the name of this User.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -26090,6 +26228,13 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					"ExperimentalCheckNodeCapabilitiesBeforeMount": {
 						SchemaProps: spec.SchemaProps{
 							Description: "This flag, if set, enables a check prior to mount operations to verify that the required components (binaries, etc.) to mount the volume are available on the underlying node. If the check is enabled and fails the mount operation fails.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"keepTerminatedPodVolumes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "This flag, if set, instructs the kubelet to keep volumes from terminated pods mounted to the node. This can be useful for debugging volume related issues.",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},

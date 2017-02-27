@@ -190,6 +190,64 @@ func TestNodeReadIndex(t *testing.T) {
 	}
 }
 
+// TestNodeReadIndexToOldLeader ensures that raftpb.MsgReadIndex to old leader
+// gets forwarded to the new leader and 'send' method does not attach its term.
+func TestNodeReadIndexToOldLeader(t *testing.T) {
+	r1 := newTestRaft(1, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+	r2 := newTestRaft(2, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+	r3 := newTestRaft(3, []uint64{1, 2, 3}, 10, 1, NewMemoryStorage())
+
+	nt := newNetwork(r1, r2, r3)
+
+	// elect r1 as leader
+	nt.send(raftpb.Message{From: 1, To: 1, Type: raftpb.MsgHup})
+
+	var testEntries = []raftpb.Entry{{Data: []byte("testdata")}}
+
+	// send readindex request to r2(follower)
+	r2.Step(raftpb.Message{From: 2, To: 2, Type: raftpb.MsgReadIndex, Entries: testEntries})
+
+	// verify r2(follower) forwards this message to r1(leader) with term not set
+	if len(r2.msgs) != 1 {
+		t.Fatalf("len(r2.msgs) expected 1, got %d", len(r2.msgs))
+	}
+	readIndxMsg1 := raftpb.Message{From: 2, To: 1, Type: raftpb.MsgReadIndex, Entries: testEntries}
+	if !reflect.DeepEqual(r2.msgs[0], readIndxMsg1) {
+		t.Fatalf("r2.msgs[0] expected %+v, got %+v", readIndxMsg1, r2.msgs[0])
+	}
+
+	// send readindex request to r3(follower)
+	r3.Step(raftpb.Message{From: 3, To: 3, Type: raftpb.MsgReadIndex, Entries: testEntries})
+
+	// verify r3(follower) forwards this message to r1(leader) with term not set as well.
+	if len(r3.msgs) != 1 {
+		t.Fatalf("len(r3.msgs) expected 1, got %d", len(r3.msgs))
+	}
+	readIndxMsg2 := raftpb.Message{From: 3, To: 1, Type: raftpb.MsgReadIndex, Entries: testEntries}
+	if !reflect.DeepEqual(r3.msgs[0], readIndxMsg2) {
+		t.Fatalf("r3.msgs[0] expected %+v, got %+v", readIndxMsg2, r3.msgs[0])
+	}
+
+	// now elect r3 as leader
+	nt.send(raftpb.Message{From: 3, To: 3, Type: raftpb.MsgHup})
+
+	// let r1 steps the two messages previously we got from r2, r3
+	r1.Step(readIndxMsg1)
+	r1.Step(readIndxMsg2)
+
+	// verify r1(follower) forwards these messages again to r3(new leader)
+	if len(r1.msgs) != 2 {
+		t.Fatalf("len(r1.msgs) expected 1, got %d", len(r1.msgs))
+	}
+	readIndxMsg3 := raftpb.Message{From: 1, To: 3, Type: raftpb.MsgReadIndex, Entries: testEntries}
+	if !reflect.DeepEqual(r1.msgs[0], readIndxMsg3) {
+		t.Fatalf("r1.msgs[0] expected %+v, got %+v", readIndxMsg3, r1.msgs[0])
+	}
+	if !reflect.DeepEqual(r1.msgs[1], readIndxMsg3) {
+		t.Fatalf("r1.msgs[1] expected %+v, got %+v", readIndxMsg3, r1.msgs[1])
+	}
+}
+
 // TestNodeProposeConfig ensures that node.ProposeConfChange sends the given configuration proposal
 // to the underlying raft.
 func TestNodeProposeConfig(t *testing.T) {
@@ -231,6 +289,76 @@ func TestNodeProposeConfig(t *testing.T) {
 	if !bytes.Equal(msgs[0].Entries[0].Data, ccdata) {
 		t.Errorf("data = %v, want %v", msgs[0].Entries[0].Data, ccdata)
 	}
+}
+
+// TestNodeProposeAddDuplicateNode ensures that two proposes to add the same node should
+// not affect the later propose to add new node.
+func TestNodeProposeAddDuplicateNode(t *testing.T) {
+	n := newNode()
+	s := NewMemoryStorage()
+	r := newTestRaft(1, []uint64{1}, 10, 1, s)
+	go n.run(r)
+	n.Campaign(context.TODO())
+	rdyEntries := make([]raftpb.Entry, 0)
+	ticker := time.NewTicker(time.Millisecond * 100)
+	done := make(chan struct{})
+	stop := make(chan struct{})
+	applyConfChan := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				n.Tick()
+			case rd := <-n.Ready():
+				s.Append(rd.Entries)
+				for _, e := range rd.Entries {
+					rdyEntries = append(rdyEntries, e)
+					switch e.Type {
+					case raftpb.EntryNormal:
+					case raftpb.EntryConfChange:
+						var cc raftpb.ConfChange
+						cc.Unmarshal(e.Data)
+						n.ApplyConfChange(cc)
+						applyConfChan <- struct{}{}
+					}
+				}
+				n.Advance()
+			}
+		}
+	}()
+
+	cc1 := raftpb.ConfChange{Type: raftpb.ConfChangeAddNode, NodeID: 1}
+	ccdata1, _ := cc1.Marshal()
+	n.ProposeConfChange(context.TODO(), cc1)
+	<-applyConfChan
+
+	// try add the same node again
+	n.ProposeConfChange(context.TODO(), cc1)
+	<-applyConfChan
+
+	// the new node join should be ok
+	cc2 := raftpb.ConfChange{Type: raftpb.ConfChangeAddNode, NodeID: 2}
+	ccdata2, _ := cc2.Marshal()
+	n.ProposeConfChange(context.TODO(), cc2)
+	<-applyConfChan
+
+	close(stop)
+	<-done
+
+	if len(rdyEntries) != 4 {
+		t.Errorf("len(entry) = %d, want %d, %v\n", len(rdyEntries), 4, rdyEntries)
+	}
+	if !bytes.Equal(rdyEntries[1].Data, ccdata1) {
+		t.Errorf("data = %v, want %v", rdyEntries[1].Data, ccdata1)
+	}
+	if !bytes.Equal(rdyEntries[3].Data, ccdata2) {
+		t.Errorf("data = %v, want %v", rdyEntries[3].Data, ccdata2)
+	}
+	n.Stop()
 }
 
 // TestBlockProposal ensures that node will block proposal when it does not
@@ -294,9 +422,7 @@ func TestNodeStop(t *testing.T) {
 		close(donec)
 	}()
 
-	elapsed := r.electionElapsed
-	n.Tick()
-	testutil.WaitSchedule()
+	status := n.Status()
 	n.Stop()
 
 	select {
@@ -305,13 +431,15 @@ func TestNodeStop(t *testing.T) {
 		t.Fatalf("timed out waiting for node to stop!")
 	}
 
-	if r.electionElapsed != elapsed+1 {
-		t.Errorf("elapsed = %d, want %d", r.electionElapsed, elapsed+1)
+	emptyStatus := Status{}
+
+	if reflect.DeepEqual(status, emptyStatus) {
+		t.Errorf("status = %v, want not empty", status)
 	}
-	// Further ticks should have no effect, the node is stopped.
-	n.Tick()
-	if r.electionElapsed != elapsed+1 {
-		t.Errorf("elapsed = %d, want %d", r.electionElapsed, elapsed+1)
+	// Further status should return be empty, the node is stopped.
+	status = n.Status()
+	if !reflect.DeepEqual(status, emptyStatus) {
+		t.Errorf("status = %v, want empty", status)
 	}
 	// Subsequent Stops should have no effect.
 	n.Stop()

@@ -370,6 +370,38 @@ func TestInstantiateWithImageTrigger(t *testing.T) {
 				bc = buildConfig
 				return nil
 			}
+		client.GetImageStreamFunc =
+			func(ctx kapi.Context, name string) (*imageapi.ImageStream, error) {
+				return &imageapi.ImageStream{
+					ObjectMeta: kapi.ObjectMeta{Name: name},
+					Status: imageapi.ImageStreamStatus{
+						DockerImageRepository: originalImage,
+						Tags: map[string]imageapi.TagEventList{
+							"tag1": {
+								Items: []imageapi.TagEvent{
+									{
+										DockerImageReference: "ref/" + name + ":tag1",
+									},
+								},
+							},
+							"tag2": {
+								Items: []imageapi.TagEvent{
+									{
+										DockerImageReference: "ref/" + name + ":tag2",
+									},
+								},
+							},
+							"tag3": {
+								Items: []imageapi.TagEvent{
+									{
+										DockerImageReference: "ref/" + name + ":tag3",
+									},
+								},
+							},
+						},
+					},
+				}, nil
+			}
 		generator.Client = client
 
 		req := &buildapi.BuildRequest{
@@ -395,7 +427,7 @@ func TestInstantiateWithImageTrigger(t *testing.T) {
 			if i == tc.triggerIndex {
 				// Verify that the trigger got updated
 				if bc.Spec.Triggers[i].ImageChange.LastTriggeredImageID != imageID {
-					t.Errorf("%s: expeccted trigger at index %d to contain imageID %s", tc.name, i, imageID)
+					t.Errorf("%s: expected trigger at index %d to contain imageID %s", tc.name, i, imageID)
 				}
 				continue
 			}
@@ -405,8 +437,8 @@ func TestInstantiateWithImageTrigger(t *testing.T) {
 				if from == nil {
 					from = buildutil.GetInputReference(bc.Spec.Strategy)
 				}
-				if bc.Spec.Triggers[i].ImageChange.LastTriggeredImageID != ("ref@" + from.Name) {
-					t.Errorf("%s: expected LastTriggeredImageID for trigger at %d to be %s. Got: %s", tc.name, i, "ref@"+from.Name, bc.Spec.Triggers[i].ImageChange.LastTriggeredImageID)
+				if bc.Spec.Triggers[i].ImageChange.LastTriggeredImageID != ("ref/" + from.Name) {
+					t.Errorf("%s: expected LastTriggeredImageID for trigger at %d (%+v) to be %s. Got: %s", tc.name, i, bc.Spec.Triggers[i].ImageChange.From, "ref/"+from.Name, bc.Spec.Triggers[i].ImageChange.LastTriggeredImageID)
 				}
 			}
 		}
@@ -447,8 +479,8 @@ func TestInstantiateWithLastVersion(t *testing.T) {
 func TestInstantiateWithMissingImageStream(t *testing.T) {
 	g := mockBuildGenerator()
 	c := g.Client.(Client)
-	c.GetImageStreamTagFunc = func(ctx kapi.Context, name string) (*imageapi.ImageStreamTag, error) {
-		return nil, errors.NewNotFound(imageapi.Resource("imagestreamtags"), "testRepo")
+	c.GetImageStreamFunc = func(ctx kapi.Context, name string) (*imageapi.ImageStream, error) {
+		return nil, errors.NewNotFound(imageapi.Resource("imagestreams"), "testRepo")
 	}
 	g.Client = c
 
@@ -456,7 +488,7 @@ func TestInstantiateWithMissingImageStream(t *testing.T) {
 	se, ok := err.(*errors.StatusError)
 
 	if !ok {
-		t.Errorf("Expected errors.StatusError, got %T", err)
+		t.Fatalf("Expected errors.StatusError, got %T", err)
 	}
 
 	if se.ErrStatus.Code != errors.StatusUnprocessableEntity {
@@ -740,6 +772,7 @@ func TestGenerateBuildFromConfig(t *testing.T) {
 	resources := mockResources()
 	bc := &buildapi.BuildConfig{
 		ObjectMeta: kapi.ObjectMeta{
+			UID:       "test-uid",
 			Name:      "test-build-config",
 			Namespace: kapi.NamespaceDefault,
 			Labels:    map[string]string{"testlabel": "testvalue"},
@@ -808,6 +841,9 @@ func TestGenerateBuildFromConfig(t *testing.T) {
 	}
 	if build.Annotations[buildapi.BuildNumberAnnotation] != "13" {
 		t.Errorf("Build number annotation value %s does not match expected value 13", build.Annotations[buildapi.BuildNumberAnnotation])
+	}
+	if len(build.OwnerReferences) == 0 || build.OwnerReferences[0].Kind != "BuildConfig" || build.OwnerReferences[0].Name != bc.Name {
+		t.Errorf("generated build does not have OwnerReference to parent BuildConfig")
 	}
 
 	// Test long name
@@ -1071,6 +1107,14 @@ func TestGenerateBuildFromBuild(t *testing.T) {
 				buildapi.BuildJenkinsBuildURIAnnotation:   "baz",
 				buildapi.BuildPodNameAnnotation:           "ruby-sample-build-1-build",
 			},
+			OwnerReferences: []kapi.OwnerReference{
+				{
+					Name:       "test-owner",
+					Kind:       "BuildConfig",
+					APIVersion: "v1",
+					UID:        "foo",
+				},
+			},
 		},
 		Spec: buildapi.BuildSpec{
 			CommonSpec: buildapi.CommonSpec{
@@ -1105,6 +1149,10 @@ func TestGenerateBuildFromBuild(t *testing.T) {
 	if _, ok := newBuild.ObjectMeta.Annotations[buildapi.BuildPodNameAnnotation]; ok {
 		t.Errorf("%s annotation exists, expected it not to", buildapi.BuildPodNameAnnotation)
 	}
+	if !reflect.DeepEqual(build.ObjectMeta.OwnerReferences, newBuild.ObjectMeta.OwnerReferences) {
+		t.Errorf("Build OwnerReferences does not match the original Build OwnerReferences")
+	}
+
 }
 
 func TestGenerateBuildFromBuildWithBuildConfig(t *testing.T) {
@@ -1421,7 +1469,7 @@ func TestResolveImageStreamRef(t *testing.T) {
 				Name: imageRepoName + ":" + tagName,
 			},
 			expectedSuccess:   true,
-			expectedDockerRef: latestDockerReference,
+			expectedDockerRef: dockerReference,
 		},
 		{
 			streamRef: kapi.ObjectReference{
@@ -1445,7 +1493,7 @@ func TestResolveImageStreamRef(t *testing.T) {
 			t.Errorf("Scenario %d: did not get expected error", i)
 		}
 		if ref != test.expectedDockerRef {
-			t.Errorf("Scenario %d: Resolved reference %s did not match expected value %s", i, ref, test.expectedDockerRef)
+			t.Errorf("Scenario %d: Resolved reference %q did not match expected value %q", i, ref, test.expectedDockerRef)
 		}
 	}
 }
@@ -1554,7 +1602,6 @@ func mockBuildGeneratorForInstantiate() *BuildGenerator {
 			},
 		}, nil
 	}
-	g.Client = c
 	return g
 }
 
@@ -1603,7 +1650,7 @@ func mockBuildGenerator() *BuildGenerator {
 							},
 							imageapi.DefaultImageTag: {
 								Items: []imageapi.TagEvent{
-									{DockerImageReference: latestDockerReference},
+									{DockerImageReference: latestDockerReference, Image: "myid"},
 								},
 							},
 						},

@@ -137,9 +137,10 @@ function os::test::extended::setup () {
 	fi
 	os::log::info "Using VOLUME_DIR=${VOLUME_DIR}"
 
-	# This is a bit hacky, but set the pod gc threshold appropriately for the garbage_collector test.
+	# This is a bit hacky, but set the pod gc threshold appropriately for the garbage_collector test
+	# and enable-hostpath-provisioner for StatefulSet tests
 	cp "${SERVER_CONFIG_DIR}/master/master-config.yaml" "${SERVER_CONFIG_DIR}/master/master-config.orig3.yaml"
-	openshift ex config patch "${SERVER_CONFIG_DIR}/master/master-config.orig3.yaml" --patch='{"kubernetesMasterConfig":{"controllerArguments":{"terminated-pod-gc-threshold":["100"]}}}' > "${SERVER_CONFIG_DIR}/master/master-config.yaml"
+	openshift ex config patch "${SERVER_CONFIG_DIR}/master/master-config.orig3.yaml" --patch='{"kubernetesMasterConfig":{"controllerArguments":{"terminated-pod-gc-threshold":["100"], "enable-hostpath-provisioner":["true"]}}}' > "${SERVER_CONFIG_DIR}/master/master-config.yaml"
 
 	os::start::server "${API_SERVER_VERSION:-}" "${CONTROLLER_VERSION:-}" "${SKIP_NODE:-}"
 
@@ -351,14 +352,10 @@ readonly SERIAL_TESTS=(
 
 readonly CONFORMANCE_TESTS=(
 	"\[Conformance\]"
-
 	"Services.*NodePort"
 	"ResourceQuota should"
-	"\[networking\] basic openshift networking"
-	"\[networking\]\[router\]"
-	"Ensure supplemental groups propagate to docker"
 	"EmptyDir"
-	"PetSet"
+	"StatefulSet"
 	"Downward API"
 	"DNS for ExternalName services"
 	"DNS for pods for Hostname and Subdomain annotation"
@@ -367,18 +364,12 @@ readonly CONFORMANCE_TESTS=(
 	"Pods should support retrieving logs from the container"
 	"Kubectl client Simple pod should support"
 	"Job should run a job to completion when tasks succeed"
-	"\[images\]\[mongodb\] openshift mongodb replication"
-	"\[job\] openshift can execute jobs controller"
-	"\[volumes\] Test local storage quota FSGroup"
-	"test deployment should run a deployment to completion"
 	"Variable Expansion"
 	"init containers"
 	"Clean up pods on node kubelet"
 	"\[Feature\:SecurityContext\]"
 	"should create a LimitRange with defaults"
 	"Generated release_1_2 clientset"
-	"\[Feature\:PodDisruptionbudget\]"
 	"should create a pod that reads a secret"
 	"should create a pod that prints his name and namespace"
-	"manifest migration from etcd to registry storage"
 )

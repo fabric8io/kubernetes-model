@@ -5,7 +5,9 @@ trap os::test::junit::reconcile_output EXIT
 # Cleanup cluster resources created by this test
 (
   set +e
-  oc delete all,templates --all
+#  oc delete all,templates --all
+  oc delete-project template-substitute
+  oc delete-project prefix-template-substitute
   exit 0
 ) &>/dev/null
 
@@ -50,6 +52,23 @@ os::cmd::expect_failure 'oc get dc/mysql'
 os::cmd::expect_failure 'oc get dc/php'
 os::cmd::expect_success_and_text 'oc new-app -f test/testdata/template-without-app-label.json -o yaml' 'app: ruby-helloworld-sample'
 
+# check object namespace handling
+# hardcoded values should be stripped
+os::cmd::expect_success_and_not_text 'oc new-app -f test/testdata/template-with-namespaces.json -o jsonpath="{.items[?(@.metadata.name==\"stripped\")].metadata.namespace}"' 'STRIPPED'
+# normal parameterized values should be substituted and retained
+os::cmd::expect_success_and_text 'oc new-app -f test/testdata/template-with-namespaces.json -o jsonpath="{.items[?(@.metadata.name==\"route-edge-substituted\")].metadata.namespace}"' 'substituted'
+os::cmd::expect_success_and_text 'oc new-app -f test/testdata/template-with-namespaces.json -o jsonpath="{.items[?(@.metadata.name==\"route-edge-prefix-substituted\")].metadata.namespace}"' 'prefix-substituted'
+# non-string parameterized values should be stripped
+os::cmd::expect_failure_and_text 'oc new-app -f test/testdata/template-with-namespaces.json -o jsonpath="{.items[?(@.metadata.name==\"route-edge-refstripped\")].metadata.namespace}"' 'namespace is not found'
+os::cmd::expect_failure_and_text 'oc new-app -f test/testdata/template-with-namespaces.json -o jsonpath="{.items[?(@.metadata.name==\"route-edge-prefix-refstripped\")].metadata.namespace}"' 'namespace is not found'
+# ensure the objects can actually get created with a namespace specified
+project=$(oc project -q)
+os::cmd::expect_success 'oc new-project template-substitute'
+os::cmd::expect_success 'oc new-project prefix-template-substitute'
+os::cmd::expect_success 'oc project ${project}'
+os::cmd::expect_success 'oc new-app -f test/testdata/template-with-namespaces.json -p SUBSTITUTED=template-substitute'
+os::cmd::expect_success 'oc delete all -l app=ruby-helloworld-sample'
+
 # ensure non-duplicate invalid label errors show up
 os::cmd::expect_failure_and_text 'oc new-app nginx -l qwer1345%$$#=self' 'error: ImageStream "nginx" is invalid'
 os::cmd::expect_failure_and_text 'oc new-app nginx -l qwer1345%$$#=self' 'DeploymentConfig "nginx" is invalid'
@@ -60,16 +79,14 @@ os::cmd::expect_success 'oc create -f examples/sample-app/application-template-s
 os::cmd::expect_success 'oc get template ruby-helloworld-sample'
 os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample -o yaml' 'MYSQL_USER'
 os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample -o yaml' 'MYSQL_PASSWORD'
-os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample -o yaml' 'ADMIN_USERNAME'
-os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample -o yaml' 'ADMIN_PASSWORD'
 os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample --param MYSQL_PASSWORD=hello -o yaml' 'hello'
 os::cmd::expect_success_and_text  'oc new-app -e FOO=BAR -f examples/jenkins/jenkins-ephemeral-template.json -o jsonpath="{.items[?(@.kind==\"DeploymentConfig\")].spec.template.spec.containers[0].env[?(@.name==\"FOO\")].value}" ' '^BAR$'
 os::cmd::expect_success_and_text  'oc new-app -e OPENSHIFT_ENABLE_OAUTH=false -f examples/jenkins/jenkins-ephemeral-template.json -o jsonpath="{.items[?(@.kind==\"DeploymentConfig\")].spec.template.spec.containers[0].env[?(@.name==\"OPENSHIFT_ENABLE_OAUTH\")].value}" ' 'false'
 
 # check that values are not split on commas
-os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample --param MYSQL_PASSWORD=hello,MYSQL_USER=fail -o yaml' 'value: hello,MYSQL_USER=fail'
+os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample --param MYSQL_DATABASE=hello,MYSQL_USER=fail -o yaml' 'value: hello,MYSQL_USER=fail'
 # check that warning is printed when --param PARAM1=VAL1,PARAM2=VAL2 is used
-os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample --param MYSQL_PASSWORD=hello,MYSQL_USER=fail -o yaml' 'no longer accepts comma-separated list'
+os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample --param MYSQL_DATABASE=hello,MYSQL_USER=fail -o yaml' 'no longer accepts comma-separated list'
 # check that env vars are not split on commas
 os::cmd::expect_success_and_text 'oc new-app php --env PASS=one,two=three -o yaml' 'value: one,two=three'
 # check that warning is printed when --env PARAM1=VAL1,PARAM2=VAL2 is used
@@ -85,10 +102,10 @@ os::cmd::expect_success_and_not_text 'oc new-app php PASS=one,two=three -o yaml'
 
 # check that we can populate template parameters from file
 param_file="${OS_ROOT}/test/testdata/test-cmd-newapp-params.env"
-os::cmd::expect_success_and_text "oc new-app ruby-helloworld-sample --param-file ${param_file} -o jsonpath='{.items[?(@.kind==\"DeploymentConfig\")].spec.template.spec.containers[0].env[?(@.name==\"MYSQL_PASSWORD\")].value}'" 'thisisapassword'
-os::cmd::expect_success_and_text "oc new-app ruby-helloworld-sample --param-file ${param_file} --param MYSQL_PASSWORD=otherpass -o jsonpath='{.items[?(@.kind==\"DeploymentConfig\")].spec.template.spec.containers[0].env[?(@.name==\"MYSQL_PASSWORD\")].value}'" 'otherpass'
-os::cmd::expect_success_and_text "oc new-app ruby-helloworld-sample --param-file ${param_file} --param MYSQL_PASSWORD=otherpass -o yaml" 'ignoring value from file'
-os::cmd::expect_success_and_text "cat ${param_file} | oc new-app ruby-helloworld-sample --param-file - -o jsonpath='{.items[?(@.kind==\"DeploymentConfig\")].spec.template.spec.containers[0].env[?(@.name==\"MYSQL_PASSWORD\")].value}'" 'thisisapassword'
+os::cmd::expect_success_and_text "oc new-app ruby-helloworld-sample --param-file ${param_file} -o jsonpath='{.items[?(@.kind==\"DeploymentConfig\")].spec.template.spec.containers[0].env[?(@.name==\"MYSQL_DATABASE\")].value}'" 'thisisadatabase'
+os::cmd::expect_success_and_text "oc new-app ruby-helloworld-sample --param-file ${param_file} --param MYSQL_DATABASE=otherdatabase -o jsonpath='{.items[?(@.kind==\"DeploymentConfig\")].spec.template.spec.containers[0].env[?(@.name==\"MYSQL_DATABASE\")].value}'" 'otherdatabase'
+os::cmd::expect_success_and_text "oc new-app ruby-helloworld-sample --param-file ${param_file} --param MYSQL_DATABASE=otherdatabase -o yaml" 'ignoring value from file'
+os::cmd::expect_success_and_text "cat ${param_file} | oc new-app ruby-helloworld-sample --param-file - -o jsonpath='{.items[?(@.kind==\"DeploymentConfig\")].spec.template.spec.containers[0].env[?(@.name==\"MYSQL_DATABASE\")].value}'" 'thisisadatabase'
 
 os::cmd::expect_failure_and_text "oc new-app ruby-helloworld-sample --param-file does/not/exist" 'no such file or directory'
 os::cmd::expect_failure_and_text "oc new-app ruby-helloworld-sample --param-file test/testdata"  'is a directory'
@@ -290,13 +307,29 @@ os::cmd::expect_success 'oc new-build https://github.com/openshift/nodejs-ex htt
 os::cmd::expect_success_and_text 'oc new-build --binary --image-stream=ruby -o yaml' 'type: Source'
 # check that binary build with a specific strategy uses that strategy regardless of the image type
 os::cmd::expect_success_and_text 'oc new-build --binary --image=ruby --strategy=docker -o yaml' 'type: Docker'
-os::cmd::expect_success 'oc delete imageStreams --all'
+
+# When only a single imagestreamtag exists, and it does not match the implicit default
+# latest tag, new-app should fail.
+# when latest exists, we default to it and match it.
+os::cmd::expect_success 'oc new-app --image-stream ruby https://github.com/openshift/rails-ex --dry-run'
+# when latest does not exist, there are multiple partial matches (2.2, 2.3)
+os::cmd::expect_success 'oc delete imagestreamtag ruby:latest'
+os::cmd::expect_failure_and_text 'oc new-app --image-stream ruby https://github.com/openshift/rails-ex --dry-run' 'error: multiple images or templates matched \"ruby\":'
+# when only 2.3 exists, there is a single partial match (2.3)
+os::cmd::expect_success 'oc delete imagestreamtag ruby:2.2'
+os::cmd::expect_failure_and_text 'oc new-app --image-stream ruby https://github.com/openshift/rails-ex --dry-run' 'error: only a partial match was found for \"ruby\":'
+# when the tag is specified explicitly, the operation is successful
+os::cmd::expect_success 'oc new-app --image-stream ruby:2.3 https://github.com/openshift/rails-ex --dry-run'
+
+os::cmd::expect_success 'oc delete imagestreams --all'
 
 # check that we can create from the template without errors
 os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample -l app=helloworld' 'service "frontend" created'
 os::cmd::expect_success 'oc delete all -l app=helloworld'
+os::cmd::expect_success 'oc delete secret dbsecret'
 os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample -l app=helloworld -o name' 'service/frontend'
 os::cmd::expect_success 'oc delete all -l app=helloworld'
+os::cmd::expect_success 'oc delete secret dbsecret'
 # create from template with code explicitly set is not supported
 os::cmd::expect_failure 'oc new-app ruby-helloworld-sample~git@github.com:mfojtik/sinatra-app-example'
 os::cmd::expect_success 'oc delete template ruby-helloworld-sample'

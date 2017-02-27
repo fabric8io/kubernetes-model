@@ -147,7 +147,7 @@ var map_BuildRequest = map[string]string{
 	"from":             "from is the reference to the ImageStreamTag that triggered the build.",
 	"binary":           "binary indicates a request to build from a binary provided to the builder",
 	"lastVersion":      "lastVersion (optional) is the LastVersion of the BuildConfig that was used to generate the build. If the BuildConfig in the generator doesn't match, a build will not be generated.",
-	"env":              "env contains additional environment variables you want to pass into a builder container",
+	"env":              "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
 	"triggeredBy":      "triggeredBy describes which triggers started the most recent update to the build configuration and contains information about those triggers.",
 }
 
@@ -191,10 +191,29 @@ var map_BuildStatus = map[string]string{
 	"duration":                   "duration contains time.Duration object describing build time.",
 	"outputDockerImageReference": "outputDockerImageReference contains a reference to the Docker image that will be built by this build. Its value is computed from Build.Spec.Output.To, and should include the registry address, so that it can be used to push and pull the image.",
 	"config":                     "config is an ObjectReference to the BuildConfig this Build is based on.",
+	"output":                     "output describes the Docker image the build has produced.",
 }
 
 func (BuildStatus) SwaggerDoc() map[string]string {
 	return map_BuildStatus
+}
+
+var map_BuildStatusOutput = map[string]string{
+	"":   "BuildStatusOutput contains the status of the built image.",
+	"to": "to describes the status of the built image being pushed to a registry.",
+}
+
+func (BuildStatusOutput) SwaggerDoc() map[string]string {
+	return map_BuildStatusOutput
+}
+
+var map_BuildStatusOutputTo = map[string]string{
+	"":            "BuildStatusOutputTo describes the status of the built image with regards to image registry to which it was supposed to be pushed.",
+	"imageDigest": "imageDigest is the digest of the built Docker image. The digest uniquely identifies the image in the registry to which it was pushed.\n\nPlease note that this field may not always be set even if the push completes successfully - e.g. when the registry returns no digest or returns it in a format that the builder doesn't understand.",
+}
+
+func (BuildStatusOutputTo) SwaggerDoc() map[string]string {
+	return map_BuildStatusOutputTo
 }
 
 var map_BuildStrategy = map[string]string{
@@ -255,7 +274,7 @@ var map_CustomBuildStrategy = map[string]string{
 	"":                   "CustomBuildStrategy defines input parameters specific to Custom build.",
 	"from":               "from is reference to an DockerImage, ImageStreamTag, or ImageStreamImage from which the docker image should be pulled",
 	"pullSecret":         "pullSecret is the name of a Secret that would be used for setting up the authentication for pulling the Docker images from the private Docker registries",
-	"env":                "env contains additional environment variables you want to pass into a builder container",
+	"env":                "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
 	"exposeDockerSocket": "exposeDockerSocket will allow running Docker commands (and build Docker images) from inside the Docker container.",
 	"forcePull":          "forcePull describes if the controller should configure the build pod to always pull the images for the builder or only pull if it is not present locally",
 	"secrets":            "secrets is a list of additional secrets that will be included in the build pod",
@@ -271,7 +290,7 @@ var map_DockerBuildStrategy = map[string]string{
 	"from":           "from is reference to an DockerImage, ImageStreamTag, or ImageStreamImage from which the docker image should be pulled the resulting image will be used in the FROM line of the Dockerfile for this build.",
 	"pullSecret":     "pullSecret is the name of a Secret that would be used for setting up the authentication for pulling the Docker images from the private Docker registries",
 	"noCache":        "noCache if set to true indicates that the docker build must be executed with the --no-cache=true flag",
-	"env":            "env contains additional environment variables you want to pass into a builder container",
+	"env":            "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
 	"forcePull":      "forcePull describes if the builder should pull the images from registry prior to building.",
 	"dockerfilePath": "dockerfilePath is the path of the Dockerfile that will be used to build the Docker image, relative to the root of the context (contextDir).",
 }
@@ -294,7 +313,7 @@ var map_GenericWebHookEvent = map[string]string{
 	"":     "GenericWebHookEvent is the payload expected for a generic webhook post",
 	"type": "type is the type of source repository",
 	"git":  "git is the git information if the Type is BuildSourceGit",
-	"env":  "env contains additional environment variables you want to pass into a builder container",
+	"env":  "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
 }
 
 func (GenericWebHookEvent) SwaggerDoc() map[string]string {
@@ -396,6 +415,7 @@ var map_JenkinsPipelineBuildStrategy = map[string]string{
 	"":                "JenkinsPipelineBuildStrategy holds parameters specific to a Jenkins Pipeline build. This strategy is in tech preview.",
 	"jenkinsfilePath": "JenkinsfilePath is the optional path of the Jenkinsfile that will be used to configure the pipeline relative to the root of the context (contextDir). If both JenkinsfilePath & Jenkinsfile are both not specified, this defaults to Jenkinsfile in the root of the specified contextDir.",
 	"jenkinsfile":     "Jenkinsfile defines the optional raw contents of a Jenkinsfile which defines a Jenkins pipeline build.",
+	"env":             "env contains additional environment variables you want to pass into a build pipeline. ValueFrom is not supported.",
 }
 
 func (JenkinsPipelineBuildStrategy) SwaggerDoc() map[string]string {
@@ -437,12 +457,12 @@ var map_SourceBuildStrategy = map[string]string{
 	"":                 "SourceBuildStrategy defines input parameters specific to an Source build.",
 	"from":             "from is reference to an DockerImage, ImageStreamTag, or ImageStreamImage from which the docker image should be pulled",
 	"pullSecret":       "pullSecret is the name of a Secret that would be used for setting up the authentication for pulling the Docker images from the private Docker registries",
-	"env":              "env contains additional environment variables you want to pass into a builder container",
+	"env":              "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
 	"scripts":          "scripts is the location of Source scripts",
 	"incremental":      "incremental flag forces the Source build to do incremental builds if true.",
 	"forcePull":        "forcePull describes if the builder should pull the images from registry prior to building.",
-	"runtimeImage":     "runtimeImage is an optional image that is used to run an application without unneeded dependencies installed. The building of the application is still done in the builder image but, post build, you can copy the needed artifacts in the runtime image for use. This field and the feature it enables are in tech preview.",
-	"runtimeArtifacts": "runtimeArtifacts specifies a list of source/destination pairs that will be copied from the builder to the runtime image. sourcePath can be a file or directory. destinationDir must be a directory. destinationDir can also be empty or equal to \".\", in this case it just refers to the root of WORKDIR. This field and the feature it enables are in tech preview.",
+	"runtimeImage":     "runtimeImage is an optional image that is used to run an application without unneeded dependencies installed. The building of the application is still done in the builder image but, post build, you can copy the needed artifacts in the runtime image for use. Deprecated: This feature will be removed in a future release. Use ImageSource to copy binary artifacts created from one build into a separate runtime image.",
+	"runtimeArtifacts": "runtimeArtifacts specifies a list of source/destination pairs that will be copied from the builder to the runtime image. sourcePath can be a file or directory. destinationDir must be a directory. destinationDir can also be empty or equal to \".\", in this case it just refers to the root of WORKDIR. Deprecated: This feature will be removed in a future release. Use ImageSource to copy binary artifacts created from one build into a separate runtime image.",
 }
 
 func (SourceBuildStrategy) SwaggerDoc() map[string]string {

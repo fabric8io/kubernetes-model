@@ -1,13 +1,13 @@
 package: github.com/fabric8io/kubernetes-model
 import:
 - package: github.com/openshift/origin
-  version: v1.5.0-alpha.2
+  version: 4bfdac87b805d28cff9c534c334d635fbd6f00f7
 - package: k8s.io/kubernetes
   version: 43a9be421799afb8a9c02d3541212a6e623c9053
   repo: https://github.com/openshift/kubernetes.git
   vcs: git
 - package: github.com/golang/glog
-  version: 335da9dda11408a34b64344f82e9c03779b71673
+  version: 44145f04b68cf362d9c4df2182967c2275eaefed
   repo: https://github.com/openshift/glog.git
   vcs: git
 - package: github.com/dgrijalva/jwt-go

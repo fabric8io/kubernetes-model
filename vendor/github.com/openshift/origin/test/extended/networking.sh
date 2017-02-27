@@ -53,6 +53,7 @@ DEFAULT_SKIP_LIST=(
 
 MINIMAL_SKIP_LIST=(
   "OVS"
+  "multicast"
 )
 
 CLUSTER_CMD="${OS_ROOT}/hack/dind-cluster.sh"
@@ -269,8 +270,7 @@ if [[ -n "${OPENSHIFT_SKIP_BUILD:-}" ]] &&
      os::util::find::built_binary 'extended.test' >/dev/null 2>&1; then
   os::log::warn "Skipping rebuild of test binary due to OPENSHIFT_SKIP_BUILD=1"
 else
-  # cgo must be disabled to have the symbol table available
-  CGO_ENABLED=0 hack/build-go.sh test/extended/extended.test
+  hack/build-go.sh test/extended/extended.test
 fi
 
 # enable-selinux/disable-selinux use the shared control variable

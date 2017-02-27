@@ -43,15 +43,9 @@ fi
 # remove self-provisioner role from user and test login prompt before creating any projects
 os::cmd::expect_success "oadm policy remove-cluster-role-from-group self-provisioner system:authenticated:oauth --config='${login_kubeconfig}'"
 os::cmd::expect_success_and_text "oc login --server=${KUBERNETES_MASTER} --certificate-authority='${MASTER_CONFIG_DIR}/ca.crt' -u test-user -p anything" "You don't have any projects. Contact your system administrator to request a project"
-# make sure `oc status` re-uses the correct "no projects" message from `oc login` with no self-provisioner role
-os::cmd::expect_success_and_text 'oc status' "You don't have any projects. Contact your system administrator to request a project"
-os::cmd::expect_success_and_text 'oc status --all-namespaces' "Showing all projects on server"
 # make sure standard login prompt is printed once self-provisioner status is restored
 os::cmd::expect_success "oadm policy add-cluster-role-to-group self-provisioner system:authenticated:oauth --config='${login_kubeconfig}'"
 os::cmd::expect_success_and_text "oc login --server=${KUBERNETES_MASTER} --certificate-authority='${MASTER_CONFIG_DIR}/ca.crt' -u test-user -p anything" "You don't have any projects. You can try to create a new project, by running"
-# make sure `oc status` re-uses the correct "no projects" message from `oc login`
-os::cmd::expect_success_and_text 'oc status' "You don't have any projects. You can try to create a new project, by running"
-os::cmd::expect_success_and_text 'oc status --all-namespaces' "Showing all projects on server"
 os::cmd::expect_success 'oc logout'
 echo "login and status messages: ok"
 
@@ -92,6 +86,15 @@ os::cmd::expect_failure_and_text 'oc get pods' '"system:anonymous" cannot list p
 # Does not work inside of a container, determine why and reenable
 # os::cmd::expect_failure_and_text "oc login '${KUBERNETES_MASTER}' -u test -p test '--config=${templocation}/file' --insecure-skip-tls-verify" 'KUBECONFIG is set to a file that cannot be created or modified'
 echo "login warnings: ok"
+
+# login and create serviceaccount and test login and logout with a service account token
+os::cmd::expect_success "oc login ${KUBERNETES_MASTER} --certificate-authority='${MASTER_CONFIG_DIR}/ca.crt' -u test-user -p anything --api-version=v1"
+os::cmd::expect_success_and_text "oc create sa testserviceaccount" "serviceaccount \"testserviceaccount\" created"
+os::cmd::expect_success_and_text "oc login --token=$(oc sa get-token testserviceaccount)" "system:serviceaccount:project-foo:testserviceaccount"
+# attempt to logout successfully
+os::cmd::expect_success_and_text "oc logout" "Logged \"system:serviceaccount:project-foo:testserviceaccount\" out"
+# verify that the token is no longer present in our local config
+os::cmd::expect_failure_and_text "oc whoami" "User \"system:anonymous\" cannot get users"
 
 # log in and set project to use from now on
 os::cmd::expect_success "oc login --server=${KUBERNETES_MASTER} --certificate-authority='${MASTER_CONFIG_DIR}/ca.crt' -u test-user -p anything"

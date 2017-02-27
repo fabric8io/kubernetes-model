@@ -18,11 +18,13 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"strings"
 
 	"github.com/coreos/pkg/capnslog"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/time/rate"
 )
 
 var plog = capnslog.NewPackageLogger("github.com/coreos/etcd", "etcd-tester")
@@ -32,6 +34,8 @@ const (
 	defaultPeerPort      = 2380
 	defaultFailpointPort = 2381
 )
+
+const pprofPrefix = "/debug/pprof-tester"
 
 func main() {
 	endpointStr := flag.String("agent-endpoints", "localhost:9027", "HTTP RPC endpoints of agents. Do not specify the schema.")
@@ -47,10 +51,10 @@ func main() {
 	stressQPS := flag.Int("stress-qps", 10000, "maximum number of stresser requests per second.")
 	schedCases := flag.String("schedule-cases", "", "test case schedule")
 	consistencyCheck := flag.Bool("consistency-check", true, "true to check consistency (revision, hash)")
-	isV2Only := flag.Bool("v2-only", false, "'true' to run V2 only tester.")
-	stresserType := flag.String("stresser", "default", "specify stresser (\"default\" or \"nop\").")
+	stresserType := flag.String("stresser", "keys,lease", "comma separated list of stressers (keys, lease, v2keys, nop).")
 	failureTypes := flag.String("failures", "default,failpoints", "specify failures (concat of \"default\" and \"failpoints\").")
 	externalFailures := flag.String("external-failures", "", "specify a path of script for enabling/disabling an external fault injector")
+	enablePprof := flag.Bool("enable-pprof", false, "true to enable pprof")
 	flag.Parse()
 
 	eps := strings.Split(*endpointStr, ",")
@@ -58,6 +62,7 @@ func main() {
 	pports := portsFromArg(*peerPorts, len(eps), defaultPeerPort)
 	fports := portsFromArg(*failpointPorts, len(eps), defaultFailpointPort)
 	agents := make([]agentConfig, len(eps))
+
 	for i := range eps {
 		agents[i].endpoint = eps[i]
 		agents[i].clientPort = cports[i]
@@ -66,20 +71,7 @@ func main() {
 		agents[i].datadir = *datadir
 	}
 
-	sConfig := &stressConfig{
-		qps:            *stressQPS,
-		keyLargeSize:   int(*stressKeyLargeSize),
-		keySize:        int(*stressKeySize),
-		keySuffixRange: int(*stressKeySuffixRange),
-		v2:             *isV2Only,
-	}
-
-	c := &cluster{
-		agents:        agents,
-		v2Only:        *isV2Only,
-		stressBuilder: newStressBuilder(*stresserType, sConfig),
-	}
-
+	c := &cluster{agents: agents}
 	if err := c.bootstrap(); err != nil {
 		plog.Fatal(err)
 	}
@@ -121,20 +113,41 @@ func main() {
 		}
 	}
 
+	scfg := stressConfig{
+		rateLimiter:    rate.NewLimiter(rate.Limit(*stressQPS), *stressQPS),
+		keyLargeSize:   int(*stressKeyLargeSize),
+		keySize:        int(*stressKeySize),
+		keySuffixRange: int(*stressKeySuffixRange),
+		numLeases:      10,
+		keysPerLease:   10,
+	}
+
 	t := &tester{
 		failures: schedule,
 		cluster:  c,
 		limit:    *limit,
-		checker:  newNoChecker(),
-	}
 
-	if *consistencyCheck && !c.v2Only {
-		t.checker = newHashChecker(t)
+		scfg:         scfg,
+		stresserType: *stresserType,
+		doChecks:     *consistencyCheck,
 	}
 
 	sh := statusHandler{status: &t.status}
 	http.Handle("/status", sh)
 	http.Handle("/metrics", prometheus.Handler())
+
+	if *enablePprof {
+		http.Handle(pprofPrefix+"/", http.HandlerFunc(pprof.Index))
+		http.Handle(pprofPrefix+"/profile", http.HandlerFunc(pprof.Profile))
+		http.Handle(pprofPrefix+"/symbol", http.HandlerFunc(pprof.Symbol))
+		http.Handle(pprofPrefix+"/cmdline", http.HandlerFunc(pprof.Cmdline))
+		http.Handle(pprofPrefix+"/trace", http.HandlerFunc(pprof.Trace))
+		http.Handle(pprofPrefix+"/heap", pprof.Handler("heap"))
+		http.Handle(pprofPrefix+"/goroutine", pprof.Handler("goroutine"))
+		http.Handle(pprofPrefix+"/threadcreate", pprof.Handler("threadcreate"))
+		http.Handle(pprofPrefix+"/block", pprof.Handler("block"))
+	}
+
 	go func() { plog.Fatal(http.ListenAndServe(":9028", nil)) }()
 
 	t.runLoop()

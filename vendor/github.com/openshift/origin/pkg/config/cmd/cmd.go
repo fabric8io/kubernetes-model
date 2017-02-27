@@ -52,7 +52,7 @@ type Bulk struct {
 	IgnoreError IgnoreErrorFunc
 }
 
-// Create attempts to create each item generically, gathering all errors in the
+// Run attempts to create each item generically, gathering all errors in the
 // event a failure occurs. The contents of list will be updated to include the
 // version from the server.
 func (b *Bulk) Run(list *kapi.List, namespace string) []error {
@@ -131,6 +131,9 @@ func HaltOnError(fn AfterFunc) AfterFunc {
 
 // Create is the default create operation for a generic resource.
 func Create(info *resource.Info, namespace string, obj runtime.Object) (runtime.Object, error) {
+	if len(info.Namespace) > 0 {
+		namespace = info.Namespace
+	}
 	return resource.NewHelper(info.Client, info.Mapping).Create(namespace, false, obj)
 }
 
