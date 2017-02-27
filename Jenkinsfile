@@ -16,29 +16,31 @@
  */
 @Library('github.com/fabric8io/fabric8-pipeline-library@master')
 def dummy
-mavenNode {
-  ws{
-    checkout scm
-    readTrusted 'release.groovy'
-    if (env.BRANCH_NAME.startsWith('PR-')){
-      echo 'Running CI pipeline'
-      container(name: 'maven') {
-        sh 'mvn clean install'
+clientsTemplate{
+  mavenNode {
+    ws{
+      checkout scm
+      readTrusted 'release.groovy'
+      if (env.BRANCH_NAME.startsWith('PR-')){
+        echo 'Running CI pipeline'
+        container(name: 'maven') {
+          sh 'mvn clean install'
+        }
+      } else if (env.BRANCH_NAME.equals('master')){
+        echo 'Running CD pipeline'
+        sh "git remote set-url origin git@github.com:fabric8io/kubernetes-model.git"
+
+        def pipeline = load 'release.groovy'
+
+        stage 'Stage'
+        def stagedProject = pipeline.stage()
+
+        stage 'Promote'
+        pipeline.release(stagedProject)
+
+        stage 'Update downstream dependencies'
+        pipeline.updateDownstreamDependencies(stagedProject)
       }
-    } else if (env.BRANCH_NAME.equals('master')){
-      echo 'Running CD pipeline'
-      sh "git remote set-url origin git@github.com:fabric8io/kubernetes-model.git"
-
-      def pipeline = load 'release.groovy'
-
-      stage 'Stage'
-      def stagedProject = pipeline.stage()
-
-      stage 'Promote'
-      pipeline.release(stagedProject)
-
-      stage 'Update downstream dependencies'
-      pipeline.updateDownstreamDependencies(stagedProject)
     }
   }
 }
