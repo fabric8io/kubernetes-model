@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"k8s.io/kubernetes/pkg/client/retry"
+	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
 
 	"github.com/docker/distribution/reference"
 	"github.com/fsouza/go-dockerclient"
@@ -192,13 +193,20 @@ func retryBuildStatusUpdate(build *api.Build, client client.BuildInterface, sour
 			latestBuild.Spec.Revision = sourceRev
 			latestBuild.ResourceVersion = ""
 		}
-
+		latestBuild.Status.Phase = build.Status.Phase
 		latestBuild.Status.Reason = build.Status.Reason
 		latestBuild.Status.Message = build.Status.Message
+		latestBuild.Status.Output.To = build.Status.Output.To
 
 		if _, err := client.UpdateDetails(latestBuild); err != nil {
 			return err
 		}
 		return nil
 	})
+}
+
+func handleBuildStatusUpdate(build *api.Build, client client.BuildInterface, sourceRev *api.SourceRevision) {
+	if updateErr := retryBuildStatusUpdate(build, client, sourceRev); updateErr != nil {
+		utilruntime.HandleError(fmt.Errorf("error occurred while updating the build status: %v", updateErr))
+	}
 }

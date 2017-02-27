@@ -3,97 +3,6 @@
 # This script provides common script functions for the hacks
 # Requires OS_ROOT to be set
 
-readonly OS_BUILD_ENV_GOLANG="${OS_BUILD_ENV_GOLANG:-1.7}"
-readonly OS_BUILD_ENV_IMAGE="${OS_BUILD_ENV_IMAGE:-openshift/origin-release:golang-${OS_BUILD_ENV_GOLANG}}"
-
-readonly OS_OUTPUT_SUBPATH="${OS_OUTPUT_SUBPATH:-_output/local}"
-readonly OS_OUTPUT="${OS_ROOT}/${OS_OUTPUT_SUBPATH}"
-readonly OS_LOCAL_RELEASEPATH="${OS_OUTPUT}/releases"
-readonly OS_OUTPUT_BINPATH="${OS_OUTPUT}/bin"
-readonly OS_OUTPUT_PKGDIR="${OS_OUTPUT}/pkgdir"
-
-readonly OS_GO_PACKAGE=github.com/openshift/origin
-
-readonly OS_SDN_COMPILE_TARGETS_LINUX=(
-  pkg/sdn/plugin/sdn-cni-plugin
-  vendor/github.com/containernetworking/cni/plugins/ipam/host-local
-  vendor/github.com/containernetworking/cni/plugins/main/loopback
-)
-readonly OS_IMAGE_COMPILE_TARGETS_LINUX=(
-  images/pod
-  cmd/dockerregistry
-  cmd/gitserver
-  "${OS_SDN_COMPILE_TARGETS_LINUX[@]}"
-)
-readonly OS_SCRATCH_IMAGE_COMPILE_TARGETS_LINUX=(
-  examples/hello-openshift
-  examples/deployment
-)
-readonly OS_IMAGE_COMPILE_BINARIES=("${OS_SCRATCH_IMAGE_COMPILE_TARGETS_LINUX[@]##*/}" "${OS_IMAGE_COMPILE_TARGETS_LINUX[@]##*/}")
-
-readonly OS_CROSS_COMPILE_TARGETS=(
-  cmd/openshift
-  cmd/oc
-)
-readonly OS_CROSS_COMPILE_BINARIES=("${OS_CROSS_COMPILE_TARGETS[@]##*/}")
-
-readonly OS_TEST_TARGETS=(
-  test/extended/extended.test
-)
-
-#If you update this list, be sure to get the images/origin/Dockerfile
-readonly OPENSHIFT_BINARY_SYMLINKS=(
-  openshift-router
-  openshift-deploy
-  openshift-recycle
-  openshift-sti-build
-  openshift-docker-build
-  origin
-  osc
-  oadm
-  osadm
-  kubectl
-  kubernetes
-  kubelet
-  kube-proxy
-  kube-apiserver
-  kube-controller-manager
-  kube-scheduler
-)
-readonly OPENSHIFT_BINARY_COPY=(
-  oadm
-  kubelet
-  kube-proxy
-  kube-apiserver
-  kube-controller-manager
-  kube-scheduler
-)
-readonly OC_BINARY_COPY=(
-  kubectl
-)
-readonly OS_BINARY_RELEASE_CLIENT_WINDOWS=(
-  oc.exe
-  README.md
-  ./LICENSE
-)
-readonly OS_BINARY_RELEASE_CLIENT_MAC=(
-  oc
-  README.md
-  ./LICENSE
-)
-readonly OS_BINARY_RELEASE_CLIENT_LINUX=(
-  ./oc
-  ./README.md
-  ./LICENSE
-)
-readonly OS_BINARY_RELEASE_SERVER_LINUX=(
-  './*'
-)
-readonly OS_BINARY_RELEASE_CLIENT_EXTRA=(
-  ${OS_ROOT}/README.md
-  ${OS_ROOT}/LICENSE
-)
-
 # os::build::binaries_from_targets take a list of build targets and return the
 # full go package to be built
 function os::build::binaries_from_targets() {
@@ -125,6 +34,12 @@ function os::build::host_platform_friendly() {
     echo "linux-32bit"
   elif [[ $platform == "linux/amd64" ]]; then
     echo "linux-64bit"
+  elif [[ $platform == "linux/ppc64le" ]]; then
+    echo "linux-powerpc64"
+  elif [[ $platform == "linux/arm64" ]]; then
+    echo "linux-arm64"
+  elif [[ $platform == "linux/s390x" ]]; then
+    echo "linux-s390"
   else
     echo "$(go env GOHOSTOS)-$(go env GOHOSTARCH)"
   fi
@@ -262,8 +177,6 @@ os::build::internal::build_binaries() {
     # Use eval to preserve embedded quoted strings.
     local goflags
     eval "goflags=(${OS_GOFLAGS:-})"
-    local gotags
-    eval "gotags=(${OS_GOFLAGS_TAGS:-})"
 
     local arg
     for arg; do
@@ -304,6 +217,7 @@ os::build::internal::build_binaries() {
       fi
 
       local platform_gotags_envvar=OS_GOFLAGS_TAGS_$(echo ${platform} | tr '[:lower:]/' '[:upper:]_')
+      local platform_gotags_test_envvar=OS_GOFLAGS_TAGS_TEST_$(echo ${platform} | tr '[:lower:]/' '[:upper:]_')
 
       if [[ ${#nonstatics[@]} -gt 0 ]]; then
         GOOS=${platform%/*} GOARCH=${platform##*/} go install \
@@ -322,9 +236,10 @@ os::build::internal::build_binaries() {
 
       for test in "${tests[@]:+${tests[@]}}"; do
         local outfile="${OS_OUTPUT_BINPATH}/${platform}/$(basename ${test})"
-        GOOS=${platform%/*} GOARCH=${platform##*/} go test \
+        # disabling cgo allows use of delve
+        CGO_ENABLED=0 GOOS=${platform%/*} GOARCH=${platform##*/} go test \
           -pkgdir "${OS_OUTPUT_PKGDIR}/${platform}" \
-          -tags "${OS_GOFLAGS_TAGS-} ${!platform_gotags_envvar:-}" \
+          -tags "${OS_GOFLAGS_TAGS-} ${!platform_gotags_test_envvar:-}" \
           -ldflags "${version_ldflags}" \
           -i -c -o "${outfile}" \
           "${goflags[@]:+${goflags[@]}}" \
@@ -372,8 +287,6 @@ function os::build::place_bins() {
   (
     local host_platform
     host_platform=$(os::build::host_platform)
-
-    echo "++ Placing binaries"
 
     if [[ "${OS_RELEASE_ARCHIVE-}" != "" ]]; then
       os::build::get_version_vars
@@ -432,31 +345,35 @@ function os::build::place_bins() {
       done
 
       # Create the release archive.
-      local platform_segment="${platform//\//-}"
+      platform="$( os::build::host_platform_friendly "${platform}" )"
       if [[ ${OS_RELEASE_ARCHIVE} == "openshift-origin" ]]; then
         for file in "${OS_BINARY_RELEASE_CLIENT_EXTRA[@]}"; do
           cp "${file}" "${release_binpath}/"
         done
-        if [[ $platform == "windows/amd64" ]]; then
-          platform="windows" OS_RELEASE_ARCHIVE="openshift-origin-client-tools" os::build::archive_zip "${OS_BINARY_RELEASE_CLIENT_WINDOWS[@]}"
-        elif [[ $platform == "darwin/amd64" ]]; then
-          platform="mac" OS_RELEASE_ARCHIVE="openshift-origin-client-tools" os::build::archive_zip "${OS_BINARY_RELEASE_CLIENT_MAC[@]}"
-        elif [[ $platform == "linux/386" ]]; then
-          platform="linux/32bit" OS_RELEASE_ARCHIVE="openshift-origin-client-tools" os::build::archive_tar "${OS_BINARY_RELEASE_CLIENT_LINUX[@]}"
-        elif [[ $platform == "linux/amd64" ]]; then
-          platform="linux/64bit" OS_RELEASE_ARCHIVE="openshift-origin-client-tools" os::build::archive_tar "${OS_BINARY_RELEASE_CLIENT_LINUX[@]}"
-          platform="linux/64bit" OS_RELEASE_ARCHIVE="openshift-origin-server" os::build::archive_tar "${OS_BINARY_RELEASE_SERVER_LINUX[@]}"
-        elif [[ $platform == "linux/ppc64le" ]]; then
-          platform="linux/ppc64le" OS_RELEASE_ARCHIVE="openshift-origin-client-tools" os::build::archive_tar "${OS_BINARY_RELEASE_CLIENT_LINUX[@]}"
-          platform="linux/ppc64le" OS_RELEASE_ARCHIVE="openshift-origin-server" os::build::archive_tar "${OS_BINARY_RELEASE_SERVER_LINUX[@]}"
+        if [[ $platform == "windows" ]]; then
+          OS_RELEASE_ARCHIVE="openshift-origin-client-tools" os::build::archive_zip "${OS_BINARY_RELEASE_CLIENT_WINDOWS[@]}"
+        elif [[ $platform == "mac" ]]; then
+          OS_RELEASE_ARCHIVE="openshift-origin-client-tools" os::build::archive_zip "${OS_BINARY_RELEASE_CLIENT_MAC[@]}"
+        elif [[ $platform == "linux-32bit" ]]; then
+          OS_RELEASE_ARCHIVE="openshift-origin-client-tools" os::build::archive_tar "${OS_BINARY_RELEASE_CLIENT_LINUX[@]}"
+        elif [[ $platform == "linux-64bit" ]]; then
+          OS_RELEASE_ARCHIVE="openshift-origin-client-tools" os::build::archive_tar "${OS_BINARY_RELEASE_CLIENT_LINUX[@]}"
+          OS_RELEASE_ARCHIVE="openshift-origin-server" os::build::archive_tar "${OS_BINARY_RELEASE_SERVER_LINUX[@]}"
+        elif [[ $platform == "linux-powerpc64" ]]; then
+          OS_RELEASE_ARCHIVE="openshift-origin-client-tools" os::build::archive_tar "${OS_BINARY_RELEASE_CLIENT_LINUX[@]}"
+          OS_RELEASE_ARCHIVE="openshift-origin-server" os::build::archive_tar "${OS_BINARY_RELEASE_SERVER_LINUX[@]}"
+        elif [[ $platform == "linux-arm64" ]]; then
+          OS_RELEASE_ARCHIVE="openshift-origin-client-tools" os::build::archive_tar "${OS_BINARY_RELEASE_CLIENT_LINUX[@]}"
+          OS_RELEASE_ARCHIVE="openshift-origin-server" os::build::archive_tar "${OS_BINARY_RELEASE_SERVER_LINUX[@]}"
+        elif [[ $platform == "linux-s390" ]]; then
+          OS_RELEASE_ARCHIVE="openshift-origin-client-tools" os::build::archive_tar "${OS_BINARY_RELEASE_CLIENT_LINUX[@]}"
+          OS_RELEASE_ARCHIVE="openshift-origin-server" os::build::archive_tar "${OS_BINARY_RELEASE_SERVER_LINUX[@]}"
         else
           echo "++ ERROR: No release type defined for $platform"
         fi
       else
-        if [[ $platform == "linux/amd64" ]]; then
-          platform="linux/64bit" os::build::archive_tar "./*"
-        elif [[ $platform == "linux/ppc64le" ]]; then
-          platform="linux/ppc64le" os::build::archive_tar "./*"
+        if [[ $platform == "linux-64bit" || $platform == "linux-powerpc64" || $platform == "linux-arm64" || $platform == "linux-s390" ]]; then
+          os::build::archive_tar "./*"
         else
           echo "++ ERROR: No release type defined for $platform"
         fi
@@ -468,14 +385,13 @@ function os::build::place_bins() {
 readonly -f os::build::place_bins
 
 function os::build::archive_name() {
-  echo "${OS_RELEASE_ARCHIVE}-${OS_GIT_VERSION}-$1"
+  echo "${OS_RELEASE_ARCHIVE}-${OS_GIT_VERSION}-$1" | tr '+' '-'
 }
 readonly -f os::build::archive_name
 
 function os::build::archive_zip() {
-  local platform_segment="${platform//\//-}"
   local default_name
-  default_name="$( os::build::archive_name "${platform_segment}" ).zip"
+  default_name="$( os::build::archive_name "${platform}" ).zip"
   local archive_name="${archive_name:-$default_name}"
   echo "++ Creating ${archive_name}"
   for file in "$@"; do
@@ -488,9 +404,8 @@ function os::build::archive_zip() {
 readonly -f os::build::archive_zip
 
 function os::build::archive_tar() {
-  local platform_segment="${platform//\//-}"
   local base_name
-  base_name="$( os::build::archive_name "${platform_segment}" )"
+  base_name="$( os::build::archive_name "${platform}" )"
   local default_name="${base_name}.tar.gz"
   local archive_name="${archive_name:-$default_name}"
   echo "++ Creating ${archive_name}"
@@ -669,7 +584,7 @@ function os::build::os_version_vars() {
       # Try to match the "git describe" output to a regex to try to extract
       # the "major" and "minor" versions and whether this is the exact tagged
       # version or whether the tree is between two tagged versions.
-      if [[ "${OS_GIT_VERSION}" =~ ^v([0-9]+)\.([0-9]+)(\.[0-9]+)?([-].*)?$ ]]; then
+      if [[ "${OS_GIT_VERSION}" =~ ^v([0-9]+)\.([0-9]+)(\.[0-9]+)*([-].*)?$ ]]; then
         OS_GIT_MAJOR=${BASH_REMATCH[1]}
         OS_GIT_MINOR=${BASH_REMATCH[2]}
         if [[ -n "${BASH_REMATCH[4]}" ]]; then
@@ -717,7 +632,7 @@ function os::build::kube_version_vars() {
   # Try to match the "git describe" output to a regex to try to extract
   # the "major" and "minor" versions and whether this is the exact tagged
   # version or whether the tree is between two tagged versions.
-  if [[ "${KUBE_GIT_VERSION}" =~ ^v([0-9]+)\.([0-9]+)(\.[0-9]+)?([-].*)?$ ]]; then
+  if [[ "${KUBE_GIT_VERSION}" =~ ^v([0-9]+)\.([0-9]+)(\.[0-9]+)*([-].*)?$ ]]; then
     KUBE_GIT_MAJOR=${BASH_REMATCH[1]}
     KUBE_GIT_MINOR=${BASH_REMATCH[2]}
     if [[ -n "${BASH_REMATCH[4]}" ]]; then
@@ -749,6 +664,13 @@ EOF
 }
 readonly -f os::build::save_version_vars
 
+# os::build::get_product_vars exports variables that we expect to change
+# depending on the distribution of Origin
+function os::build::get_product_vars() {
+  export OS_BUILD_LDFLAGS_IMAGE_PREFIX="${OS_IMAGE_PREFIX:-"openshift/origin"}"
+  export OS_BUILD_LDFLAGS_DEFAULT_IMAGE_STREAMS="${OS_BUILD_LDFLAGS_DEFAULT_IMAGE_STREAMS:-"centos7"}"
+}
+
 # golang 1.5 wants `-X key=val`, but golang 1.4- REQUIRES `-X key val`
 function os::build::ldflag() {
   local key=${1}
@@ -773,11 +695,14 @@ function os::build::ldflags() {
   cd "${OS_ROOT}"
 
   os::build::get_version_vars
+  os::build::get_product_vars
 
   local buildDate="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
   declare -a ldflags=()
 
+  ldflags+=($(os::build::ldflag "${OS_GO_PACKAGE}/pkg/bootstrap/docker.defaultImageStreams" "${OS_BUILD_LDFLAGS_DEFAULT_IMAGE_STREAMS}"))
+  ldflags+=($(os::build::ldflag "${OS_GO_PACKAGE}/pkg/cmd/util/variable.DefaultImagePrefix" "${OS_BUILD_LDFLAGS_IMAGE_PREFIX}"))
   ldflags+=($(os::build::ldflag "${OS_GO_PACKAGE}/pkg/version.majorFromGit" "${OS_GIT_MAJOR}"))
   ldflags+=($(os::build::ldflag "${OS_GO_PACKAGE}/pkg/version.minorFromGit" "${OS_GIT_MINOR}"))
   ldflags+=($(os::build::ldflag "${OS_GO_PACKAGE}/pkg/version.versionFromGit" "${OS_GIT_VERSION}"))

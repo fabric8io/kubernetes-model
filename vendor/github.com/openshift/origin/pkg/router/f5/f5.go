@@ -1013,7 +1013,7 @@ func (f5 *f5LTM) CreatePool(poolname string) error {
 	// to specify a different monitor to use.
 	payload := f5Pool{
 		Mode:    "round-robin",
-		Monitor: "/Common/http",
+		Monitor: "min 1 of /Common/http /Common/https",
 		Name:    poolname,
 	}
 
@@ -1315,6 +1315,9 @@ func (f5 *f5LTM) addRoute(policyname, routename, poolname, hostname,
 		conditionPayload.HttpUri = true
 		conditionPayload.PathSegment = true
 		for i, segment := range segments[1:] {
+			if segment == "" {
+				continue
+			}
 			idx := fmt.Sprintf("%d", i+1)
 			conditionPayload.Name = idx
 			conditionPayload.Index = i + 1

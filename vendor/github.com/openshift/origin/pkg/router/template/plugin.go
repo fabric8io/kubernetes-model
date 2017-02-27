@@ -51,6 +51,7 @@ type TemplatePluginConfig struct {
 	AllowWildcardRoutes    bool
 	PeerService            *ktypes.NamespacedName
 	BindPortsAfterSync     bool
+	MaxConnections         string
 }
 
 // routerInterface controls the interaction of the plugin with the underlying router implementation
@@ -102,6 +103,7 @@ func NewTemplatePlugin(cfg TemplatePluginConfig, lookupSvc ServiceLookup) (*Temp
 		"matchValues":       matchValues,       //compares a given string to a list of allowed strings
 
 		"genSubdomainWildcardRegexp": genSubdomainWildcardRegexp, //generates a regular expression matching the subdomain for hosts (and paths) with a wildcard policy
+		"generateRouteRegexp":        generateRouteRegexp,        //generates a regular expression matching the route hosts (and paths)
 		"genCertificateHostName":     genCertificateHostName,     //generates host name to use for serving/matching certificates
 	}
 	masterTemplate, err := template.New("config").Funcs(globalFuncs).ParseFiles(cfg.TemplatePath)
@@ -192,7 +194,7 @@ func (p *TemplatePlugin) HandleRoute(eventType watch.EventType, route *routeapi.
 	return nil
 }
 
-// HandleAllowedNamespaces limits the scope of valid routes to only those that match
+// HandleNamespaces limits the scope of valid routes to only those that match
 // the provided namespace list.
 func (p *TemplatePlugin) HandleNamespaces(namespaces sets.String) error {
 	p.Router.FilterNamespaces(namespaces)

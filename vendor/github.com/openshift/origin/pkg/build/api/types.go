@@ -54,6 +54,11 @@ const (
 	// BuildConfigPausedAnnotation is an annotation that marks a BuildConfig as paused.
 	// New Builds cannot be instantiated from a paused BuildConfig.
 	BuildConfigPausedAnnotation = "openshift.io/build-config.paused"
+	// BuildAcceptedAnnotation is an annotation used to update a build that can now be
+	// run based on the RunPolicy (e.g. Serial). Updating the build with this annotation
+	// forces the build to be processed by the build controller queue without waiting
+	// for a resync.
+	BuildAcceptedAnnotation = "build.openshift.io/accepted"
 )
 
 // +genclient=true
@@ -220,6 +225,9 @@ type BuildStatus struct {
 
 	// Config is an ObjectReference to the BuildConfig this Build is based on.
 	Config *kapi.ObjectReference
+
+	// Output describes the Docker image the build has produced.
+	Output BuildStatusOutput
 }
 
 // BuildPhase represents the status of a build at a point in time.
@@ -334,6 +342,24 @@ const (
 	StatusMessageDockerBuildFailed         = "Docker build strategy has failed."
 	StatusMessageBuildPodExists            = "The pod for this build already exists and is older than the build."
 )
+
+// BuildStatusOutput contains the status of the built image.
+type BuildStatusOutput struct {
+	// To describes the status of the built image being pushed to a registry.
+	To *BuildStatusOutputTo
+}
+
+// BuildStatusOutputTo describes the status of the built image with regards to
+// image registry to which it was supposed to be pushed.
+type BuildStatusOutputTo struct {
+	// ImageDigest is the digest of the built Docker image. The digest uniquely
+	// identifies the image in the registry to which it was pushed.
+	//
+	// Please note that this field may not always be set even if the push
+	// completes successfully - e.g. when the registry returns no digest or
+	// returns it in a format that the builder doesn't understand.
+	ImageDigest string
+}
 
 // BuildSource is the input used for the build.
 type BuildSource struct {
@@ -524,7 +550,8 @@ type CustomBuildStrategy struct {
 	// registries
 	PullSecret *kapi.LocalObjectReference
 
-	// Env contains additional environment variables you want to pass into a builder container
+	// Env contains additional environment variables you want to pass into a builder container.
+	// ValueFrom is not supported.
 	Env []kapi.EnvVar
 
 	// ExposeDockerSocket will allow running Docker commands (and build Docker images) from
@@ -559,7 +586,8 @@ type DockerBuildStrategy struct {
 	// --no-cache=true flag
 	NoCache bool
 
-	// Env contains additional environment variables you want to pass into a builder container
+	// Env contains additional environment variables you want to pass into a builder container.
+	// ValueFrom is not supported.
 	Env []kapi.EnvVar
 
 	// ForcePull describes if the builder should pull the images from registry prior to building.
@@ -581,7 +609,8 @@ type SourceBuildStrategy struct {
 	// registries
 	PullSecret *kapi.LocalObjectReference
 
-	// Env contains additional environment variables you want to pass into a builder container
+	// Env contains additional environment variables you want to pass into a builder container.
+	// ValueFrom is not supported.
 	Env []kapi.EnvVar
 
 	// Scripts is the location of Source scripts
@@ -618,6 +647,10 @@ type JenkinsPipelineBuildStrategy struct {
 
 	// Jenkinsfile defines the optional raw contents of a Jenkinsfile which defines a Jenkins pipeline build.
 	Jenkinsfile string
+
+	// Env contains additional environment variables you want to pass into a build pipeline.
+	// ValueFrom is not supported.
+	Env []kapi.EnvVar
 }
 
 // A BuildPostCommitSpec holds a build post commit hook specification. The hook
@@ -883,7 +916,8 @@ type GenericWebHookEvent struct {
 	// Git is the git information, if any.
 	Git *GitInfo
 
-	// Env contains additional environment variables you want to pass into a builder container
+	// Env contains additional environment variables you want to pass into a builder container.
+	// ValueFrom is not supported.
 	Env []kapi.EnvVar
 }
 
@@ -935,6 +969,7 @@ type BuildRequest struct {
 	LastVersion *int64
 
 	// Env contains additional environment variables you want to pass into a builder container.
+	// ValueFrom is not supported.
 	Env []kapi.EnvVar
 
 	// TriggeredBy describes which triggers started the most recent update to the

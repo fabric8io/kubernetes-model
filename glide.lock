@@ -1,5 +1,5 @@
-hash: 0083a380a8c719e0fa685d756a316338f68e0e38c436c471666c963ec731d64b
-updated: 2017-02-04T09:41:31.303152199Z
+hash: dd5bc345434aa2f7c85a0e5811e2c8e3a3dc49bc507164af9bb27d0f34da7449
+updated: 2017-02-27T15:30:16.219454594Z
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -13,7 +13,7 @@ imports:
 - name: github.com/blang/semver
   version: 31b736133b98f26d5e078ec9eb591666edfd091f
 - name: github.com/coreos/etcd
-  version: 83347907774bf36cbb261c594a32fd7b0f5dd9f6
+  version: 8ba2897a21e4fc51b298ca553d251318425f93ae
   subpackages:
   - alarm
   - auth
@@ -50,6 +50,7 @@ imports:
   - pkg/idutil
   - pkg/ioutil
   - pkg/logutil
+  - pkg/monotime
   - pkg/netutil
   - pkg/osutil
   - pkg/pathutil
@@ -217,7 +218,7 @@ imports:
   - vanity
   - vanity/command
 - name: github.com/golang/glog
-  version: 335da9dda11408a34b64344f82e9c03779b71673
+  version: 44145f04b68cf362d9c4df2182967c2275eaefed
   repo: https://github.com/openshift/glog.git
   vcs: git
 - name: github.com/golang/groupcache
@@ -235,6 +236,8 @@ imports:
   version: 215affda49addc4c8ef7e2534915df2c8c35c6cd
 - name: github.com/gorilla/mux
   version: 8096f47503459bcc74d1f4c487b7e6e42e5746b5
+- name: github.com/grpc-ecosystem/go-grpc-prometheus
+  version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
   version: f52d055dc48aec25854ed7d31862f78913cf17d1
   subpackages:
@@ -256,7 +259,7 @@ imports:
   subpackages:
   - pbutil
 - name: github.com/openshift/origin
-  version: e4b43ee6f35d3dd8b2cbd7e92bc8a9225fa94653
+  version: 4bfdac87b805d28cff9c534c334d635fbd6f00f7
   subpackages:
   - pkg/api
   - pkg/api/extension
@@ -372,7 +375,7 @@ imports:
   - internal/urlfetch
   - urlfetch
 - name: google.golang.org/grpc
-  version: b1a2821ca5a4fd6b6e48ddfbb7d6d7584d839d21
+  version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
   subpackages:
   - codes
   - credentials
@@ -410,8 +413,10 @@ imports:
   - pkg/apimachinery
   - pkg/apimachinery/registered
   - pkg/apis/apps
+  - pkg/apis/apps/v1beta1
   - pkg/apis/autoscaling
   - pkg/apis/batch
+  - pkg/apis/batch/v2alpha1
   - pkg/apis/certificates
   - pkg/apis/extensions
   - pkg/apis/extensions/v1beta1

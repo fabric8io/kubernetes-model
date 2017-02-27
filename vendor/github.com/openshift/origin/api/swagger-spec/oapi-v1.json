@@ -23237,7 +23237,7 @@
       "items": {
        "$ref": "v1.EnvVar"
       },
-      "description": "env contains additional environment variables you want to pass into a builder container"
+      "description": "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported."
      },
      "forcePull": {
       "type": "boolean",
@@ -23384,7 +23384,7 @@
       "items": {
        "$ref": "v1.EnvVar"
       },
-      "description": "env contains additional environment variables you want to pass into a builder container"
+      "description": "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported."
      },
      "scripts": {
       "type": "string",
@@ -23400,14 +23400,14 @@
      },
      "runtimeImage": {
       "$ref": "v1.ObjectReference",
-      "description": "runtimeImage is an optional image that is used to run an application without unneeded dependencies installed. The building of the application is still done in the builder image but, post build, you can copy the needed artifacts in the runtime image for use. This field and the feature it enables are in tech preview."
+      "description": "runtimeImage is an optional image that is used to run an application without unneeded dependencies installed. The building of the application is still done in the builder image but, post build, you can copy the needed artifacts in the runtime image for use. Deprecated: This feature will be removed in a future release. Use ImageSource to copy binary artifacts created from one build into a separate runtime image."
      },
      "runtimeArtifacts": {
       "type": "array",
       "items": {
        "$ref": "v1.ImageSourcePath"
       },
-      "description": "runtimeArtifacts specifies a list of source/destination pairs that will be copied from the builder to the runtime image. sourcePath can be a file or directory. destinationDir must be a directory. destinationDir can also be empty or equal to \".\", in this case it just refers to the root of WORKDIR. This field and the feature it enables are in tech preview."
+      "description": "runtimeArtifacts specifies a list of source/destination pairs that will be copied from the builder to the runtime image. sourcePath can be a file or directory. destinationDir must be a directory. destinationDir can also be empty or equal to \".\", in this case it just refers to the root of WORKDIR. Deprecated: This feature will be removed in a future release. Use ImageSource to copy binary artifacts created from one build into a separate runtime image."
      }
     }
    },
@@ -23431,7 +23431,7 @@
       "items": {
        "$ref": "v1.EnvVar"
       },
-      "description": "env contains additional environment variables you want to pass into a builder container"
+      "description": "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported."
      },
      "exposeDockerSocket": {
       "type": "boolean",
@@ -23483,6 +23483,13 @@
      "jenkinsfile": {
       "type": "string",
       "description": "Jenkinsfile defines the optional raw contents of a Jenkinsfile which defines a Jenkins pipeline build."
+     },
+     "env": {
+      "type": "array",
+      "items": {
+       "$ref": "v1.EnvVar"
+      },
+      "description": "env contains additional environment variables you want to pass into a build pipeline. ValueFrom is not supported."
      }
     }
    },
@@ -23769,7 +23776,7 @@
       "items": {
        "$ref": "v1.EnvVar"
       },
-      "description": "env contains additional environment variables you want to pass into a builder container"
+      "description": "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported."
      },
      "triggeredBy": {
       "type": "array",
@@ -23995,6 +24002,30 @@
      "config": {
       "$ref": "v1.ObjectReference",
       "description": "config is an ObjectReference to the BuildConfig this Build is based on."
+     },
+     "output": {
+      "$ref": "v1.BuildStatusOutput",
+      "description": "output describes the Docker image the build has produced."
+     }
+    }
+   },
+   "v1.BuildStatusOutput": {
+    "id": "v1.BuildStatusOutput",
+    "description": "BuildStatusOutput contains the status of the built image.",
+    "properties": {
+     "to": {
+      "$ref": "v1.BuildStatusOutputTo",
+      "description": "to describes the status of the built image being pushed to a registry."
+     }
+    }
+   },
+   "v1.BuildStatusOutputTo": {
+    "id": "v1.BuildStatusOutputTo",
+    "description": "BuildStatusOutputTo describes the status of the built image with regards to image registry to which it was supposed to be pushed.",
+    "properties": {
+     "imageDigest": {
+      "type": "string",
+      "description": "imageDigest is the digest of the built Docker image. The digest uniquely identifies the image in the registry to which it was pushed.\n\nPlease note that this field may not always be set even if the push completes successfully - e.g. when the registry returns no digest or returns it in a format that the builder doesn't understand."
      }
     }
    },
@@ -27562,7 +27593,9 @@
      "resourceAPIGroup",
      "resourceAPIVersion",
      "resource",
-     "resourceName"
+     "resourceName",
+     "path",
+     "isNonResourceURL"
     ],
     "properties": {
      "kind": {
@@ -27597,6 +27630,14 @@
       "type": "string",
       "description": "ResourceName is the name of the resource being requested for a \"get\" or deleted for a \"delete\""
      },
+     "path": {
+      "type": "string",
+      "description": "Path is the path of a non resource URL"
+     },
+     "isNonResourceURL": {
+      "type": "boolean",
+      "description": "IsNonResourceURL is true if this is a request for a non-resource URL (outside of the resource hieraarchy)"
+     },
      "content": {
       "type": "string",
       "description": "Content is the actual content of the request for create and update"
@@ -27613,6 +27654,8 @@
      "resourceAPIVersion",
      "resource",
      "resourceName",
+     "path",
+     "isNonResourceURL",
      "user",
      "groups",
      "scopes"
@@ -27649,6 +27692,14 @@
      "resourceName": {
       "type": "string",
       "description": "ResourceName is the name of the resource being requested for a \"get\" or deleted for a \"delete\""
+     },
+     "path": {
+      "type": "string",
+      "description": "Path is the path of a non resource URL"
+     },
+     "isNonResourceURL": {
+      "type": "boolean",
+      "description": "IsNonResourceURL is true if this is a request for a non-resource URL (outside of the resource hieraarchy)"
      },
      "content": {
       "type": "string",
@@ -28549,7 +28600,7 @@
       "items": {
        "$ref": "runtime.RawExtension"
       },
-      "description": "objects is an array of resources to include in this template."
+      "description": "objects is an array of resources to include in this template. If a namespace value is hardcoded in the object, it will be removed during template instantiation, however if the namespace value is, or contains, a ${PARAMETER_REFERENCE}, the resolved value after parameter substitution will be respected and the object will be created in that namespace."
      },
      "parameters": {
       "type": "array",
@@ -28722,7 +28773,9 @@
      "resourceAPIGroup",
      "resourceAPIVersion",
      "resource",
-     "resourceName"
+     "resourceName",
+     "path",
+     "isNonResourceURL"
     ],
     "properties": {
      "kind": {
@@ -28756,6 +28809,14 @@
      "resourceName": {
       "type": "string",
       "description": "ResourceName is the name of the resource being requested for a \"get\" or deleted for a \"delete\""
+     },
+     "path": {
+      "type": "string",
+      "description": "Path is the path of a non resource URL"
+     },
+     "isNonResourceURL": {
+      "type": "boolean",
+      "description": "IsNonResourceURL is true if this is a request for a non-resource URL (outside of the resource hieraarchy)"
      },
      "content": {
       "type": "string",
@@ -29201,6 +29262,10 @@
      "wildcardPolicy": {
       "type": "string",
       "description": "Wildcard policy is the wildcard policy that was allowed where this route is exposed."
+     },
+     "routerCanonicalHostname": {
+      "type": "string",
+      "description": "CanonicalHostname is the external host name for the router that can be used as a CNAME for the host requested for this route. This value is optional and may not be set in all cases."
      }
     }
    },
@@ -29305,6 +29370,8 @@
      "resourceAPIVersion",
      "resource",
      "resourceName",
+     "path",
+     "isNonResourceURL",
      "user",
      "groups",
      "scopes"
@@ -29341,6 +29408,14 @@
      "resourceName": {
       "type": "string",
       "description": "ResourceName is the name of the resource being requested for a \"get\" or deleted for a \"delete\""
+     },
+     "path": {
+      "type": "string",
+      "description": "Path is the path of a non resource URL"
+     },
+     "isNonResourceURL": {
+      "type": "boolean",
+      "description": "IsNonResourceURL is true if this is a request for a non-resource URL (outside of the resource hieraarchy)"
      },
      "content": {
       "type": "string",
@@ -29538,7 +29613,7 @@
       "items": {
        "type": "string"
       },
-      "description": "Groups are the groups that this user is a member of"
+      "description": "Groups specifies group names this user is a member of. This field is deprecated and will be removed in a future release. Instead, create a Group object containing the name of this User."
      }
     }
    },

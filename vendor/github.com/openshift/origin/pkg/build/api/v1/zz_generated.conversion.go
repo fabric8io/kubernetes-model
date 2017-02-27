@@ -55,6 +55,10 @@ func RegisterConversions(scheme *runtime.Scheme) error {
 		Convert_api_BuildSpec_To_v1_BuildSpec,
 		Convert_v1_BuildStatus_To_api_BuildStatus,
 		Convert_api_BuildStatus_To_v1_BuildStatus,
+		Convert_v1_BuildStatusOutput_To_api_BuildStatusOutput,
+		Convert_api_BuildStatusOutput_To_v1_BuildStatusOutput,
+		Convert_v1_BuildStatusOutputTo_To_api_BuildStatusOutputTo,
+		Convert_api_BuildStatusOutputTo_To_v1_BuildStatusOutputTo,
 		Convert_v1_BuildStrategy_To_api_BuildStrategy,
 		Convert_api_BuildStrategy_To_v1_BuildStrategy,
 		Convert_v1_BuildTriggerCause_To_api_BuildTriggerCause,
@@ -763,6 +767,9 @@ func autoConvert_v1_BuildStatus_To_api_BuildStatus(in *BuildStatus, out *api.Bui
 	} else {
 		out.Config = nil
 	}
+	if err := Convert_v1_BuildStatusOutput_To_api_BuildStatusOutput(&in.Output, &out.Output, s); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -788,11 +795,50 @@ func autoConvert_api_BuildStatus_To_v1_BuildStatus(in *api.BuildStatus, out *Bui
 	} else {
 		out.Config = nil
 	}
+	if err := Convert_api_BuildStatusOutput_To_v1_BuildStatusOutput(&in.Output, &out.Output, s); err != nil {
+		return err
+	}
 	return nil
 }
 
 func Convert_api_BuildStatus_To_v1_BuildStatus(in *api.BuildStatus, out *BuildStatus, s conversion.Scope) error {
 	return autoConvert_api_BuildStatus_To_v1_BuildStatus(in, out, s)
+}
+
+func autoConvert_v1_BuildStatusOutput_To_api_BuildStatusOutput(in *BuildStatusOutput, out *api.BuildStatusOutput, s conversion.Scope) error {
+	out.To = (*api.BuildStatusOutputTo)(unsafe.Pointer(in.To))
+	return nil
+}
+
+func Convert_v1_BuildStatusOutput_To_api_BuildStatusOutput(in *BuildStatusOutput, out *api.BuildStatusOutput, s conversion.Scope) error {
+	return autoConvert_v1_BuildStatusOutput_To_api_BuildStatusOutput(in, out, s)
+}
+
+func autoConvert_api_BuildStatusOutput_To_v1_BuildStatusOutput(in *api.BuildStatusOutput, out *BuildStatusOutput, s conversion.Scope) error {
+	out.To = (*BuildStatusOutputTo)(unsafe.Pointer(in.To))
+	return nil
+}
+
+func Convert_api_BuildStatusOutput_To_v1_BuildStatusOutput(in *api.BuildStatusOutput, out *BuildStatusOutput, s conversion.Scope) error {
+	return autoConvert_api_BuildStatusOutput_To_v1_BuildStatusOutput(in, out, s)
+}
+
+func autoConvert_v1_BuildStatusOutputTo_To_api_BuildStatusOutputTo(in *BuildStatusOutputTo, out *api.BuildStatusOutputTo, s conversion.Scope) error {
+	out.ImageDigest = in.ImageDigest
+	return nil
+}
+
+func Convert_v1_BuildStatusOutputTo_To_api_BuildStatusOutputTo(in *BuildStatusOutputTo, out *api.BuildStatusOutputTo, s conversion.Scope) error {
+	return autoConvert_v1_BuildStatusOutputTo_To_api_BuildStatusOutputTo(in, out, s)
+}
+
+func autoConvert_api_BuildStatusOutputTo_To_v1_BuildStatusOutputTo(in *api.BuildStatusOutputTo, out *BuildStatusOutputTo, s conversion.Scope) error {
+	out.ImageDigest = in.ImageDigest
+	return nil
+}
+
+func Convert_api_BuildStatusOutputTo_To_v1_BuildStatusOutputTo(in *api.BuildStatusOutputTo, out *BuildStatusOutputTo, s conversion.Scope) error {
+	return autoConvert_api_BuildStatusOutputTo_To_v1_BuildStatusOutputTo(in, out, s)
 }
 
 func autoConvert_v1_BuildStrategy_To_api_BuildStrategy(in *BuildStrategy, out *api.BuildStrategy, s conversion.Scope) error {
@@ -824,7 +870,15 @@ func autoConvert_v1_BuildStrategy_To_api_BuildStrategy(in *BuildStrategy, out *a
 	} else {
 		out.CustomStrategy = nil
 	}
-	out.JenkinsPipelineStrategy = (*api.JenkinsPipelineBuildStrategy)(unsafe.Pointer(in.JenkinsPipelineStrategy))
+	if in.JenkinsPipelineStrategy != nil {
+		in, out := &in.JenkinsPipelineStrategy, &out.JenkinsPipelineStrategy
+		*out = new(api.JenkinsPipelineBuildStrategy)
+		if err := Convert_v1_JenkinsPipelineBuildStrategy_To_api_JenkinsPipelineBuildStrategy(*in, *out, s); err != nil {
+			return err
+		}
+	} else {
+		out.JenkinsPipelineStrategy = nil
+	}
 	return nil
 }
 
@@ -860,7 +914,15 @@ func autoConvert_api_BuildStrategy_To_v1_BuildStrategy(in *api.BuildStrategy, ou
 	} else {
 		out.CustomStrategy = nil
 	}
-	out.JenkinsPipelineStrategy = (*JenkinsPipelineBuildStrategy)(unsafe.Pointer(in.JenkinsPipelineStrategy))
+	if in.JenkinsPipelineStrategy != nil {
+		in, out := &in.JenkinsPipelineStrategy, &out.JenkinsPipelineStrategy
+		*out = new(JenkinsPipelineBuildStrategy)
+		if err := Convert_api_JenkinsPipelineBuildStrategy_To_v1_JenkinsPipelineBuildStrategy(*in, *out, s); err != nil {
+			return err
+		}
+	} else {
+		out.JenkinsPipelineStrategy = nil
+	}
 	return nil
 }
 
@@ -1577,6 +1639,17 @@ func Convert_api_ImageSourcePath_To_v1_ImageSourcePath(in *api.ImageSourcePath, 
 func autoConvert_v1_JenkinsPipelineBuildStrategy_To_api_JenkinsPipelineBuildStrategy(in *JenkinsPipelineBuildStrategy, out *api.JenkinsPipelineBuildStrategy, s conversion.Scope) error {
 	out.JenkinsfilePath = in.JenkinsfilePath
 	out.Jenkinsfile = in.Jenkinsfile
+	if in.Env != nil {
+		in, out := &in.Env, &out.Env
+		*out = make([]pkg_api.EnvVar, len(*in))
+		for i := range *in {
+			if err := api_v1.Convert_v1_EnvVar_To_api_EnvVar(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Env = nil
+	}
 	return nil
 }
 
@@ -1587,6 +1660,17 @@ func Convert_v1_JenkinsPipelineBuildStrategy_To_api_JenkinsPipelineBuildStrategy
 func autoConvert_api_JenkinsPipelineBuildStrategy_To_v1_JenkinsPipelineBuildStrategy(in *api.JenkinsPipelineBuildStrategy, out *JenkinsPipelineBuildStrategy, s conversion.Scope) error {
 	out.JenkinsfilePath = in.JenkinsfilePath
 	out.Jenkinsfile = in.Jenkinsfile
+	if in.Env != nil {
+		in, out := &in.Env, &out.Env
+		*out = make([]api_v1.EnvVar, len(*in))
+		for i := range *in {
+			if err := api_v1.Convert_api_EnvVar_To_v1_EnvVar(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Env = nil
+	}
 	return nil
 }
 

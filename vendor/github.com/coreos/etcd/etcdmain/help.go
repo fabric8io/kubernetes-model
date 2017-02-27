@@ -139,6 +139,8 @@ logging flags
 		enable debug-level logging for etcd.
 	--log-package-levels ''
 		specify a particular log level for each etcd package (eg: 'etcdmain=CRITICAL,etcdserver=DEBUG').
+	--log-output 'default'
+		specify 'stdout' or 'stderr' to skip journald logging even when running under systemd.
 
 unsafe flags:
 
@@ -147,9 +149,11 @@ given by the consensus protocol.
 
 	--force-new-cluster 'false'
 		force to create a new one-member cluster.
-	
+
 profiling flags:
 	--enable-pprof 'false'
 		Enable runtime profiling data via HTTP server. Address is at client URL + "/debug/pprof/"
+	--metrics 'basic'
+	  Set level of detail for exported metrics, specify 'extensive' to include histogram metrics.
 `
 )

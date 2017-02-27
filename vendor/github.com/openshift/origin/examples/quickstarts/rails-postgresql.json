@@ -7,7 +7,11 @@
       "openshift.io/display-name": "Rails + PostgreSQL (Ephemeral)",
       "description": "An example Rails application with a PostgreSQL database. For more information about using this template, including OpenShift considerations, see https://github.com/openshift/rails-ex/blob/master/README.md.\n\nWARNING: Any data stored will be lost upon pod destruction. Only use this template for testing.",
       "tags": "quickstart,ruby,rails",
-      "iconClass": "icon-ruby"
+      "iconClass": "icon-ruby",
+      "template.openshift.io/long-description": "This template defines resources needed to develop a Rails application, including a build configuration, application deployment configuration, and database deployment configuration.  The database is stored in non-persistent storage, so this configuration should be used for experimental purposes only.",
+      "template.openshift.io/provider-display-name": "Red Hat, Inc.",
+      "template.openshift.io/documentation-url": "https://github.com/openshift/rails-ex",
+      "template.openshift.io/support-url": "https://access.redhat.com"
     }
   },
   "message": "The following service(s) have been created in your project: ${NAME}, ${DATABASE_SERVICE_NAME}.\n\nFor more information about using this template, including OpenShift considerations, see https://github.com/openshift/rails-ex/blob/master/README.md.",
@@ -104,8 +108,8 @@
             },
             "env": [
               {
-                  "name": "RUBYGEM_MIRROR",
-                  "value": "${RUBYGEM_MIRROR}"
+                "name": "RUBYGEM_MIRROR",
+                "value": "${RUBYGEM_MIRROR}"
               }
             ]
           }
@@ -148,7 +152,7 @@
         "strategy": {
           "type": "Recreate",
           "recreateParams": {
-          "pre": {
+            "pre": {
               "failurePolicy": "Abort",
               "execNewPod": {
                 "command": [
@@ -165,7 +169,7 @@
             "imageChangeParams": {
               "automatic": true,
               "containerNames": [
-                "rails-postgresql-example"
+                "${NAME}"
               ],
               "from": {
                 "kind": "ImageStreamTag",
@@ -191,7 +195,7 @@
           "spec": {
             "containers": [
               {
-                "name": "rails-postgresql-example",
+                "name": "${NAME}",
                 "image": " ",
                 "ports": [
                   {
@@ -286,9 +290,9 @@
                   }
                 ],
                 "resources": {
-		      "limits": {
-			  "memory": "${MEMORY_LIMIT}"
-		      }
+                  "limits": {
+                    "memory": "${MEMORY_LIMIT}"
+                  }
                 }
               }
             ]
@@ -400,11 +404,21 @@
                 "env": [
                   {
                     "name": "POSTGRESQL_USER",
-                    "value": "${DATABASE_USER}"
+                    "valueFrom": {
+                      "secretKeyRef" : {
+                        "name" : "${NAME}",
+                        "key" : "database-user"
+                      }
+                    }
                   },
                   {
                     "name": "POSTGRESQL_PASSWORD",
-                    "value": "${DATABASE_PASSWORD}"
+                    "valueFrom": {
+                      "secretKeyRef" : {
+                        "name" : "${NAME}",
+                        "key" : "database-password"
+                      }
+                    }
                   },
                   {
                     "name": "POSTGRESQL_DATABASE",
@@ -420,9 +434,9 @@
                   }
                 ],
                 "resources": {
-		      "limits": {
-			  "memory": "${MEMORY_POSTGRESQL_LIMIT}"
-		      }
+                  "limits": {
+                    "memory": "${MEMORY_POSTGRESQL_LIMIT}"
+                  }
                 }
               }
             ]
