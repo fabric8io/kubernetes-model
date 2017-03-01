@@ -1274,6 +1274,163 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "kubernetes_CustomObject": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/kubernetes_CustomObjectSpec",
+          "javaType": "io.fabric8.kubernetes.api.model.CustomObjectSpec"
+        },
+        "status": {
+          "$ref": "#/definitions/kubernetes_CustomObjectStatus",
+          "javaType": "io.fabric8.kubernetes.api.model.CustomObjectStatus"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.CustomObject",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_CustomObjectCondition": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "lastTransitionTime": {
+          "type": "string",
+          "description": ""
+        },
+        "lastUpdateTime": {
+          "type": "string",
+          "description": ""
+        },
+        "message": {
+          "type": "string",
+          "description": ""
+        },
+        "reason": {
+          "type": "string",
+          "description": ""
+        },
+        "status": {
+          "type": "string",
+          "description": ""
+        },
+        "type": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.CustomObjectCondition",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_CustomObjectList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_CustomObject",
+            "javaType": "io.fabric8.kubernetes.api.model.CustomObject"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "CustomObjectList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/api_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.CustomObjectList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kubernetes_CustomObjectStatus": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_CustomObjectCondition",
+            "javaType": "io.fabric8.kubernetes.api.model.CustomObjectCondition"
+          }
+        },
+        "hostIP": {
+          "type": "string",
+          "description": ""
+        },
+        "message": {
+          "type": "string",
+          "description": ""
+        },
+        "phase": {
+          "type": "string",
+          "description": ""
+        },
+        "podIP": {
+          "type": "string",
+          "description": ""
+        },
+        "reason": {
+          "type": "string",
+          "description": ""
+        },
+        "startTime": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.CustomObjectStatus",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_CustomObjectSpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.CustomObjectSpec",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "kubernetes_DaemonEndpoint": {
       "type": "object",
       "description": "",
@@ -11639,6 +11796,14 @@
     "CronJobList": {
       "$ref": "#/definitions/kubernetes_batch_CronJobList",
       "javaType": "io.fabric8.kubernetes.api.model.CronJobList"
+    },
+    "CustomObject": {
+      "$ref": "#/definitions/kubernetes_CustomObject",
+      "javaType": "io.fabric8.kubernetes.api.model.CustomObject"
+    },
+    "CustomObjectList": {
+      "$ref": "#/definitions/kubernetes_CustomObjectList",
+      "javaType": "io.fabric8.kubernetes.api.model.CustomObjectList"
     },
     "DaemonSet": {
       "$ref": "#/definitions/kubernetes_extensions_DaemonSet",
