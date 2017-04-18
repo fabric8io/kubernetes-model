@@ -111,6 +111,7 @@ type Schema struct {
 	RoleList                       authapi.RoleList
 	RoleBinding                    authapi.RoleBinding
 	RoleBindingList                authapi.RoleBindingList
+	RoleBindingRestriction         authapi.RoleBindingRestriction
 	LocalSubjectAccessReview       authapi.LocalSubjectAccessReview
 	SubjectAccessReview            authapi.SubjectAccessReview
 	SubjectAccessReviewResponse    authapi.SubjectAccessReviewResponse
