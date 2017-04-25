@@ -150,6 +150,8 @@ type Schema struct {
 	IngressList                    extensions.IngressList
 	ReplicaSet                     extensions.ReplicaSet
 	ReplicaSetList                 extensions.ReplicaSetList
+	NetworkPolicy                  extensions.NetworkPolicy
+	NetworkPolicyList              extensions.NetworkPolicyList
 	ConfigMap                      kapi.ConfigMap
 	ConfigMapList                  kapi.ConfigMapList
 }
