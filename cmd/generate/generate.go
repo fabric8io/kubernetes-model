@@ -77,6 +77,8 @@ type Schema struct {
 	Binding                        kapi.Binding
 	LimitRangeList                 kapi.LimitRangeList
 	DeleteOptions                  kapi.DeleteOptions
+	CustomObject                   kapi.CustomObject
+	CustomObjectList               kapi.CustomObjectList
 	Quantity                       resourceapi.Quantity
 	BuildRequest                   buildapi.BuildRequest
 	BuildList                      buildapi.BuildList
