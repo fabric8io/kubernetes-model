@@ -537,6 +537,257 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "kuberbetes_rbac_PolicyRule": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiGroups": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "attributeRestrictions": {
+          "$ref": "#/definitions/kubernetes_runtime_RawExtension",
+          "javaType": "io.fabric8.kubernetes.api.model.HasMetadata"
+        },
+        "nonResourceURLs": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "resourceNames": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "resources": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "verbs": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.PolicyRule",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kuberbetes_rbac_Role": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "rbac/v1alpha1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "Role",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "rules": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kuberbetes_rbac_PolicyRule",
+            "javaType": "io.fabric8.kubernetes.api.model.PolicyRule"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.Role",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kuberbetes_rbac_RoleBinding": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "rbac/v1alpha1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "RoleBinding",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "roleRef": {
+          "$ref": "#/definitions/kuberbetes_rbac_RoleRef",
+          "javaType": "io.fabric8.kubernetes.api.model.RoleRef"
+        },
+        "subjects": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kuberbetes_rbac_Subject",
+            "javaType": "io.fabric8.kubernetes.api.model.Subject"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.RoleBinding",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kuberbetes_rbac_RoleBindingList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "rbac/v1alpha1",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kuberbetes_rbac_RoleBinding",
+            "javaType": "io.fabric8.kubernetes.api.model.RoleBinding"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "RoleBindingList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/api_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.RoleBindingList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kuberbetes_rbac_RoleList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "rbac/v1alpha1",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kuberbetes_rbac_Role",
+            "javaType": "io.fabric8.kubernetes.api.model.Role"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "RoleList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/api_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.RoleList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kuberbetes_rbac_RoleRef": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiGroup": {
+          "type": "string",
+          "description": ""
+        },
+        "kind": {
+          "type": "string",
+          "description": ""
+        },
+        "name": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.RoleRef",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kuberbetes_rbac_Subject": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": ""
+        },
+        "kind": {
+          "type": "string",
+          "description": ""
+        },
+        "name": {
+          "type": "string",
+          "description": ""
+        },
+        "namespace": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.Subject",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "kubernetes_AWSElasticBlockStoreVolumeSource": {
       "type": "object",
       "description": "",
@@ -6512,6 +6763,161 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "kubernetes_extensions_NetworkPolicy": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "extensions/v1beta1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "NetworkPolicy",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/kubernetes_extensions_NetworkPolicySpec",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicySpec"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicy",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_extensions_NetworkPolicyIngressRule": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "from": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyPeer",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPeer"
+          }
+        },
+        "ports": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyPort",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPort"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyIngressRule",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_extensions_NetworkPolicyList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "extensions/v1beta1",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicy",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicy"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "NetworkPolicyList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/api_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kubernetes_extensions_NetworkPolicyPeer": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "namespaceSelector": {
+          "$ref": "#/definitions/api_LabelSelector",
+          "javaType": "io.fabric8.kubernetes.api.model.LabelSelector"
+        },
+        "podSelector": {
+          "$ref": "#/definitions/api_LabelSelector",
+          "javaType": "io.fabric8.kubernetes.api.model.LabelSelector"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPeer",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_extensions_NetworkPolicyPort": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "port": {
+          "$ref": "#/definitions/kubernetes_intstr_IntOrString",
+          "javaType": "io.fabric8.kubernetes.api.model.IntOrString"
+        },
+        "protocol": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPort",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_extensions_NetworkPolicySpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "ingress": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyIngressRule",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyIngressRule"
+          }
+        },
+        "podSelector": {
+          "$ref": "#/definitions/api_LabelSelector",
+          "javaType": "io.fabric8.kubernetes.api.model.LabelSelector"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicySpec",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "kubernetes_extensions_ReplicaSet": {
       "type": "object",
       "description": "",
@@ -6677,161 +7083,6 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.extensions.ReplicaSetStatus",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
-      ]
-    },
-    "kubernetes_extensions_NetworkPolicy": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "apiVersion": {
-          "type": "string",
-          "description": "",
-          "default": "extensions/v1beta1",
-          "required": true
-        },
-        "kind": {
-          "type": "string",
-          "description": "",
-          "default": "NetworkPolicy",
-          "required": true
-        },
-        "metadata": {
-          "$ref": "#/definitions/kubernetes_ObjectMeta",
-          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
-        },
-        "spec": {
-          "$ref": "#/definitions/kubernetes_extensions_NetworkPolicySpec",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicySpec"
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicy",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.HasMetadata"
-      ]
-    },
-    "kubernetes_extensions_NetworkPolicyList": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "apiVersion": {
-          "type": "string",
-          "description": "",
-          "default": "extensions/v1beta1",
-          "required": true
-        },
-        "items": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicy",
-            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicy"
-          }
-        },
-        "kind": {
-          "type": "string",
-          "description": "",
-          "default": "NetworkPolicyList",
-          "required": true
-        },
-        "metadata": {
-          "$ref": "#/definitions/api_ListMeta",
-          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyList",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource",
-        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
-      ]
-    },
-    "kubernetes_extensions_NetworkPolicySpec": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "ingress": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyIngressRule",
-            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyIngressRule"
-          }
-        },
-        "podSelector": {
-          "$ref": "#/definitions/api_LabelSelector",
-          "javaType": "io.fabric8.kubernetes.api.model.LabelSelector"
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicySpec",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
-      ]
-    },
-    "kubernetes_extensions_NetworkPolicyIngressRule": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "from": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyPeer",
-            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPeer"
-          }
-        },
-        "ports": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyPort",
-            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPort"
-          }
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyIngressRule",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
-      ]
-    },
-    "kubernetes_extensions_NetworkPolicyPeer": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "namespaceSelector": {
-          "$ref": "#/definitions/api_LabelSelector",
-          "javaType": "io.fabric8.kubernetes.api.model.LabelSelector"
-        },
-        "podSelector": {
-          "$ref": "#/definitions/api_LabelSelector",
-          "javaType": "io.fabric8.kubernetes.api.model.LabelSelector"
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPeer",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
-      ]
-    },
-    "kubernetes_extensions_NetworkPolicyPort": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "port": {
-          "type": "integer",
-          "description": ""
-        },
-        "protocol": {
-          "type": "string",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPort",
       "javaInterfaces": [
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
@@ -12073,6 +12324,14 @@
       "$ref": "#/definitions/kubernetes_NamespaceList",
       "javaType": "io.fabric8.kubernetes.api.model.NamespaceList"
     },
+    "NetworkPolicy": {
+      "$ref": "#/definitions/kubernetes_extensions_NetworkPolicy",
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicy"
+    },
+    "NetworkPolicyList": {
+      "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyList",
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyList"
+    },
     "Node": {
       "$ref": "#/definitions/kubernetes_Node",
       "javaType": "io.fabric8.kubernetes.api.model.Node"
@@ -12177,6 +12436,22 @@
       "$ref": "#/definitions/kubernetes_resource_Quantity",
       "javaType": "io.fabric8.kubernetes.api.model.Quantity"
     },
+    "RBACRole": {
+      "$ref": "#/definitions/kuberbetes_rbac_Role",
+      "javaType": "io.fabric8.kubernetes.api.model.Role"
+    },
+    "RBACRoleBinding": {
+      "$ref": "#/definitions/kuberbetes_rbac_RoleBinding",
+      "javaType": "io.fabric8.kubernetes.api.model.RoleBinding"
+    },
+    "RBACRoleBindingList": {
+      "$ref": "#/definitions/kuberbetes_rbac_RoleBindingList",
+      "javaType": "io.fabric8.kubernetes.api.model.RoleBindingList"
+    },
+    "RBACRoleList": {
+      "$ref": "#/definitions/kuberbetes_rbac_RoleList",
+      "javaType": "io.fabric8.kubernetes.api.model.RoleList"
+    },
     "ReplicaSet": {
       "$ref": "#/definitions/kubernetes_extensions_ReplicaSet",
       "javaType": "io.fabric8.kubernetes.api.model.extensions.ReplicaSet"
@@ -12184,14 +12459,6 @@
     "ReplicaSetList": {
       "$ref": "#/definitions/kubernetes_extensions_ReplicaSetList",
       "javaType": "io.fabric8.kubernetes.api.model.extensions.ReplicaSetList"
-    },
-    "NetworkPolicy": {
-      "$ref": "#/definitions/kubernetes_extensions_NetworkPolicy",
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicy"
-    },
-    "NetworkPolicyList": {
-      "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyList",
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyList"
     },
     "ReplicationControllerList": {
       "$ref": "#/definitions/kubernetes_ReplicationControllerList",
