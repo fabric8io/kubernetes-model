@@ -41,6 +41,7 @@ import (
 	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 	configapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api/v1"
 	watch "k8s.io/kubernetes/pkg/watch/json"
+	rbac "k8s.io/kubernetes/pkg/apis/rbac/v1alpha1"
 
 	"github.com/fabric8io/kubernetes-model/pkg/schemagen"
 )
@@ -111,6 +112,10 @@ type Schema struct {
 	RoleList                       authapi.RoleList
 	RoleBinding                    authapi.RoleBinding
 	RoleBindingList                authapi.RoleBindingList
+	RBACRole                       rbac.Role
+	RBACRoleList                   rbac.RoleList
+	RBACRoleBinding		       rbac.RoleBinding
+	RBACRoleBindingList            rbac.RoleBindingList
 	RoleBindingRestriction         authapi.RoleBindingRestriction
 	LocalSubjectAccessReview       authapi.LocalSubjectAccessReview
 	SubjectAccessReview            authapi.SubjectAccessReview
@@ -182,6 +187,7 @@ func main() {
 		{"k8s.io/kubernetes/pkg/apis/extensions/v1beta1", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_extensions_"},
 		{"k8s.io/kubernetes/pkg/apis/apps/v1beta1", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_apps_"},
 		{"k8s.io/kubernetes/pkg/apis/batch/v2alpha1", "io.fabric8.kubernetes.api.model", "kubernetes_batch_"},
+		{"k8s.io/kubernetes/pkg/apis/rbac/v1alpha1", "io.fabric8.kubernetes.api.model", "kuberbetes_rbac_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{
