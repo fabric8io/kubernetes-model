@@ -37,6 +37,7 @@ import (
 	rapi "k8s.io/kubernetes/pkg/api/unversioned"
 	kapi "k8s.io/kubernetes/pkg/api/v1"
 	appsapi "k8s.io/kubernetes/pkg/apis/apps/v1beta1"
+	autoscalingapi "k8s.io/kubernetes/pkg/apis/autoscaling/v1"
 	batchapi "k8s.io/kubernetes/pkg/apis/batch/v2alpha1"
 	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 	configapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api/v1"
@@ -135,8 +136,8 @@ type Schema struct {
 	CronJob                        batchapi.CronJob
 	CronJobList                    batchapi.CronJobList
 	Scale                          extensions.Scale
-	HorizontalPodAutoscaler        extensions.HorizontalPodAutoscaler
-	HorizontalPodAutoscalerList    extensions.HorizontalPodAutoscalerList
+	HorizontalPodAutoscaler        autoscalingapi.HorizontalPodAutoscaler
+	HorizontalPodAutoscalerList    autoscalingapi.HorizontalPodAutoscalerList
 	ThirdPartyResource             extensions.ThirdPartyResource
 	ThirdPartyResourceList         extensions.ThirdPartyResourceList
 	Deployment                     extensions.Deployment
@@ -182,6 +183,7 @@ func main() {
 		{"k8s.io/kubernetes/pkg/apis/extensions/v1beta1", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_extensions_"},
 		{"k8s.io/kubernetes/pkg/apis/apps/v1beta1", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_apps_"},
 		{"k8s.io/kubernetes/pkg/apis/batch/v2alpha1", "io.fabric8.kubernetes.api.model", "kubernetes_batch_"},
+		{"k8s.io/kubernetes/pkg/apis/autoscaling/v1", "io.fabric8.kubernetes.api.model", "kubernetes_autoscaling_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{

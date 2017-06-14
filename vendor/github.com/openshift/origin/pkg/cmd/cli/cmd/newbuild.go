@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
+	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/util/errors"
 
 	buildapi "github.com/openshift/origin/pkg/build/api"
@@ -82,14 +83,25 @@ on the Docker Hub.
 )
 
 type NewBuildOptions struct {
-	*ObjectGeneratorOptions
+	Action configcmd.BulkAction
+	Config *newcmd.AppConfig
+
+	BaseName    string
+	CommandPath string
+	CommandName string
+
+	In            io.Reader
+	Out, ErrOut   io.Writer
+	Output        string
+	PrintObject   func(obj runtime.Object) error
+	LogsForObject LogsForObjectFunc
 }
 
 // NewCmdNewBuild implements the OpenShift cli new-build command
 func NewCmdNewBuild(name, baseName string, f *clientcmd.Factory, in io.Reader, out, errout io.Writer) *cobra.Command {
 	config := newcmd.NewAppConfig()
 	config.ExpectToBuild = true
-	o := &NewBuildOptions{ObjectGeneratorOptions: &ObjectGeneratorOptions{Config: config}}
+	o := &NewBuildOptions{Config: config}
 
 	cmd := &cobra.Command{
 		Use:        fmt.Sprintf("%s (IMAGE | IMAGESTREAM | PATH | URL ...)", name),
@@ -143,28 +155,64 @@ func NewCmdNewBuild(name, baseName string, f *clientcmd.Factory, in io.Reader, o
 
 // Complete sets any default behavior for the command
 func (o *NewBuildOptions) Complete(baseName, commandName string, f *clientcmd.Factory, c *cobra.Command, args []string, in io.Reader, out, errout io.Writer) error {
-	bo := o.ObjectGeneratorOptions
-	err := bo.Complete(baseName, commandName, f, c, args, in, out, errout)
-	if err != nil {
-		return err
+	o.In = in
+	o.Out = out
+	o.ErrOut = errout
+	o.Output = kcmdutil.GetFlagString(c, "output")
+	// Only output="" should print descriptions of intermediate steps. Everything
+	// else should print only some specific output (json, yaml, go-template, ...)
+	o.Config.In = in
+	if len(o.Output) == 0 {
+		o.Config.Out = o.Out
+	} else {
+		o.Config.Out = ioutil.Discard
+	}
+	o.Config.ErrOut = o.ErrOut
+
+	o.Action.Out, o.Action.ErrOut = o.Out, o.ErrOut
+	o.Action.Bulk.Mapper = clientcmd.ResourceMapper(f)
+	o.Action.Bulk.Op = configcmd.Create
+	// Retry is used to support previous versions of the API server that will
+	// consider the presence of an unknown trigger type to be an error.
+	o.Action.Bulk.Retry = retryBuildConfig
+
+	o.Config.DryRun = o.Action.DryRun
+	o.Config.AllowNonNumericExposedPorts = true
+
+	o.BaseName = baseName
+	o.CommandPath = c.CommandPath()
+	o.CommandName = commandName
+
+	if o.Output == "wide" {
+		return kcmdutil.UsageError(c, "wide mode is not a compatible output format")
 	}
 
-	bo.Config.AllowNonNumericExposedPorts = true
-	if bo.Config.Dockerfile == "-" {
+	cmdutil.WarnAboutCommaSeparation(o.ErrOut, o.Config.Environment, "--env")
+	cmdutil.WarnAboutCommaSeparation(o.ErrOut, o.Config.BuildEnvironment, "--build-env")
+
+	mapper, _ := f.Object()
+	o.PrintObject = cmdutil.VersionedPrintObject(f.PrintObject, c, mapper, out)
+	o.LogsForObject = f.LogsForObject
+	if err := CompleteAppConfig(o.Config, f, c, args); err != nil {
+		return err
+	}
+	if o.Config.Dockerfile == "-" {
 		data, err := ioutil.ReadAll(in)
 		if err != nil {
 			return err
 		}
-		bo.Config.Dockerfile = string(data)
+		o.Config.Dockerfile = string(data)
 	}
-
+	if err := setAppConfigLabels(c, o.Config); err != nil {
+		return err
+	}
 	return nil
 }
 
 // RunNewBuild contains all the necessary functionality for the OpenShift cli new-build command
 func (o *NewBuildOptions) RunNewBuild() error {
 	config := o.Config
-	out := o.Action.Out
+	out := o.Out
 
 	checkGitInstalled(out)
 

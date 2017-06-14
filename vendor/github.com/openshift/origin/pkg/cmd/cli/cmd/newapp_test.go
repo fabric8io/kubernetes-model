@@ -11,7 +11,6 @@ import (
 	"github.com/openshift/origin/pkg/generate/app"
 	kapi "k8s.io/kubernetes/pkg/api"
 
-	configcmd "github.com/openshift/origin/pkg/config/cmd"
 	newcmd "github.com/openshift/origin/pkg/generate/app/cmd"
 	imageapi "github.com/openshift/origin/pkg/image/api"
 	templateapi "github.com/openshift/origin/pkg/template/api"
@@ -208,10 +207,8 @@ func TestNewAppRunFailure(t *testing.T) {
 	}
 
 	opts := &NewAppOptions{
-		ObjectGeneratorOptions: &ObjectGeneratorOptions{
-			BaseName:    "oc",
-			CommandName: NewAppRecommendedCommandName,
-		},
+		BaseName:    "oc",
+		CommandName: NewAppRecommendedCommandName,
 	}
 
 	for testName, test := range tests {
@@ -321,13 +318,9 @@ func TestNewAppRunQueryActions(t *testing.T) {
 	}
 
 	o := &NewAppOptions{
-		ObjectGeneratorOptions: &ObjectGeneratorOptions{
-			Action: configcmd.BulkAction{
-				Out: ioutil.Discard,
-			},
-			BaseName:    "oc",
-			CommandName: NewAppRecommendedCommandName,
-		},
+		Out:         ioutil.Discard,
+		BaseName:    "oc",
+		CommandName: NewAppRecommendedCommandName,
 	}
 
 	for _, test := range tests {
