@@ -1855,29 +1855,6 @@ func TestValidateCommonSpec(t *testing.T) {
 			},
 		},
 		// 32
-		// jenkins strategy env fields can't use valueFrom syntax
-		{
-			string(field.ErrorTypeInvalid) + "strategy.jenkinsPipelineStrategy.env[0].valueFrom",
-			buildapi.CommonSpec{
-				Source: buildapi.BuildSource{
-					Git: &buildapi.GitBuildSource{
-						URI: "http://github.com/my/repository",
-					},
-				},
-				Strategy: buildapi.BuildStrategy{
-					JenkinsPipelineStrategy: &buildapi.JenkinsPipelineBuildStrategy{
-						JenkinsfilePath: "myJenkinsfile",
-						Env: []kapi.EnvVar{
-							{
-								Name:      "key",
-								ValueFrom: &kapi.EnvVarSource{},
-							},
-						},
-					},
-				},
-			},
-		},
-		// 33
 		{
 			string(field.ErrorTypeRequired) + "output.imageLabels[0].name",
 			buildapi.CommonSpec{
@@ -1899,7 +1876,7 @@ func TestValidateCommonSpec(t *testing.T) {
 				},
 			},
 		},
-		// 34
+		// 33
 		{
 			string(field.ErrorTypeInvalid) + "output.imageLabels[0].name",
 			buildapi.CommonSpec{
@@ -1921,7 +1898,7 @@ func TestValidateCommonSpec(t *testing.T) {
 				},
 			},
 		},
-		// 35
+		// 34
 		// duplicate labels
 		{
 			string(field.ErrorTypeInvalid) + "output.imageLabels[1].name",
@@ -1948,7 +1925,7 @@ func TestValidateCommonSpec(t *testing.T) {
 				},
 			},
 		},
-		// 36
+		// 35
 		// nonconsecutive duplicate labels
 		{
 			string(field.ErrorTypeInvalid) + "output.imageLabels[3].name",
@@ -1987,7 +1964,7 @@ func TestValidateCommonSpec(t *testing.T) {
 				},
 			},
 		},
-		// 37
+		// 36
 		// invalid nodeselector
 		{
 			string(field.ErrorTypeInvalid) + "nodeSelector[A@B!]",
@@ -2213,7 +2190,7 @@ func TestValidateCommonSpecSuccess(t *testing.T) {
 				},
 			},
 		},
-		// 8
+		// 6
 		{
 			CommonSpec: buildapi.CommonSpec{
 				Source: buildapi.BuildSource{
@@ -2229,7 +2206,7 @@ func TestValidateCommonSpecSuccess(t *testing.T) {
 				},
 			},
 		},
-		// 9
+		// 7
 		{
 			CommonSpec: buildapi.CommonSpec{
 				Source: buildapi.BuildSource{
@@ -2245,7 +2222,7 @@ func TestValidateCommonSpecSuccess(t *testing.T) {
 				},
 			},
 		},
-		// 10
+		// 8
 		{
 			CommonSpec: buildapi.CommonSpec{
 				Source: buildapi.BuildSource{
@@ -2265,7 +2242,7 @@ func TestValidateCommonSpecSuccess(t *testing.T) {
 				},
 			},
 		},
-		// 11
+		// 9
 		{
 			CommonSpec: buildapi.CommonSpec{
 				Source: buildapi.BuildSource{
@@ -2286,7 +2263,7 @@ func TestValidateCommonSpecSuccess(t *testing.T) {
 				},
 			},
 		},
-		// 12
+		// 10
 		{
 			CommonSpec: buildapi.CommonSpec{
 				Source: buildapi.BuildSource{
@@ -2298,27 +2275,6 @@ func TestValidateCommonSpecSuccess(t *testing.T) {
 					DockerStrategy: &buildapi.DockerBuildStrategy{},
 				},
 				NodeSelector: map[string]string{"A": "B", "C": "D"},
-			},
-		},
-		// 13
-		{
-			buildapi.CommonSpec{
-				Source: buildapi.BuildSource{
-					Git: &buildapi.GitBuildSource{
-						URI: "http://github.com/my/repository",
-					},
-				},
-				Strategy: buildapi.BuildStrategy{
-					JenkinsPipelineStrategy: &buildapi.JenkinsPipelineBuildStrategy{
-						JenkinsfilePath: "myJenkinsfile",
-						Env: []kapi.EnvVar{
-							{
-								Name:  "key",
-								Value: "value",
-							},
-						},
-					},
-				},
 			},
 		},
 	}

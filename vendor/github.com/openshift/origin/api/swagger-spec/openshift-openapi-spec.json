@@ -48009,7 +48009,7 @@
       "$ref": "#/definitions/v1.BinaryBuildSource"
      },
      "env": {
-      "description": "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
+      "description": "env contains additional environment variables you want to pass into a builder container",
       "type": "array",
       "items": {
        "$ref": "#/definitions/v1.EnvVar"
@@ -49288,7 +49288,7 @@
       "type": "string"
      },
      "env": {
-      "description": "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
+      "description": "env contains additional environment variables you want to pass into a builder container",
       "type": "array",
       "items": {
        "$ref": "#/definitions/v1.EnvVar"
@@ -49878,7 +49878,7 @@
       "type": "string"
      },
      "env": {
-      "description": "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
+      "description": "env contains additional environment variables you want to pass into a builder container",
       "type": "array",
       "items": {
        "$ref": "#/definitions/v1.EnvVar"
@@ -51620,13 +51620,6 @@
    "v1.JenkinsPipelineBuildStrategy": {
     "description": "JenkinsPipelineBuildStrategy holds parameters specific to a Jenkins Pipeline build. This strategy is in tech preview.",
     "properties": {
-     "env": {
-      "description": "env contains additional environment variables you want to pass into a build pipeline. ValueFrom is not supported.",
-      "type": "array",
-      "items": {
-       "$ref": "#/definitions/v1.EnvVar"
-      }
-     },
      "jenkinsfile": {
       "description": "Jenkinsfile defines the optional raw contents of a Jenkinsfile which defines a Jenkins pipeline build.",
       "type": "string"
@@ -55979,7 +55972,7 @@
     ],
     "properties": {
      "env": {
-      "description": "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
+      "description": "env contains additional environment variables you want to pass into a builder container",
       "type": "array",
       "items": {
        "$ref": "#/definitions/v1.EnvVar"
@@ -56002,14 +55995,14 @@
       "$ref": "#/definitions/v1.LocalObjectReference"
      },
      "runtimeArtifacts": {
-      "description": "runtimeArtifacts specifies a list of source/destination pairs that will be copied from the builder to the runtime image. sourcePath can be a file or directory. destinationDir must be a directory. destinationDir can also be empty or equal to \".\", in this case it just refers to the root of WORKDIR. Deprecated: This feature will be removed in a future release. Use ImageSource to copy binary artifacts created from one build into a separate runtime image.",
+      "description": "runtimeArtifacts specifies a list of source/destination pairs that will be copied from the builder to the runtime image. sourcePath can be a file or directory. destinationDir must be a directory. destinationDir can also be empty or equal to \".\", in this case it just refers to the root of WORKDIR. This field and the feature it enables are in tech preview.",
       "type": "array",
       "items": {
        "$ref": "#/definitions/v1.ImageSourcePath"
       }
      },
      "runtimeImage": {
-      "description": "runtimeImage is an optional image that is used to run an application without unneeded dependencies installed. The building of the application is still done in the builder image but, post build, you can copy the needed artifacts in the runtime image for use. Deprecated: This feature will be removed in a future release. Use ImageSource to copy binary artifacts created from one build into a separate runtime image.",
+      "description": "runtimeImage is an optional image that is used to run an application without unneeded dependencies installed. The building of the application is still done in the builder image but, post build, you can copy the needed artifacts in the runtime image for use. This field and the feature it enables are in tech preview.",
       "$ref": "#/definitions/v1.ObjectReference"
      },
      "scripts": {

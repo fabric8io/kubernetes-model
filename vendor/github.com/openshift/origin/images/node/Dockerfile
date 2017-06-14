@@ -10,14 +10,14 @@
 #
 FROM openshift/origin
 
+COPY centos-paas-sig-openshift-origin15.repo /etc/yum.repos.d/
 COPY usr/bin/* /usr/bin/
 COPY opt/cni/bin/* /opt/cni/bin/
 COPY etc/cni/net.d/* /etc/cni/net.d/
 COPY conf/openshift-sdn-ovs.conf /usr/lib/systemd/system/origin-node.service.d/
 COPY scripts/* /usr/local/bin/
 
-RUN curl -L -o /etc/yum.repos.d/origin-next-epel-7.repo https://copr.fedoraproject.org/coprs/maxamillion/origin-next/repo/epel-7/maxamillion-origin-next-epel-7.repo && \
-    INSTALL_PKGS="libmnl libnetfilter_conntrack conntrack-tools openvswitch \
+RUN INSTALL_PKGS="libmnl libnetfilter_conntrack conntrack-tools openvswitch \
       libnfnetlink iptables iproute bridge-utils procps-ng ethtool socat openssl \
       binutils xz kmod-libs kmod sysvinit-tools device-mapper-libs dbus \
       iscsi-initiator-utils" && \
@@ -33,7 +33,7 @@ VOLUME /etc/origin/node
 ENV KUBECONFIG=/etc/origin/node/node.kubeconfig
 
 # files required to run as a system container
-COPY system-container/system-container-wrapper.sh /usr/local/bin
+COPY system-container/system-container-wrapper.sh /usr/local/bin/
 COPY system-container/config.json.template system-container/service.template system-container/tmpfiles.template /exports/
 
 ENTRYPOINT [ "/usr/local/bin/origin-node-run.sh" ]

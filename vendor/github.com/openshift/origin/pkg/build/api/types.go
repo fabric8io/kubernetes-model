@@ -312,6 +312,10 @@ const (
 	// build has failed.
 	StatusReasonFetchSourceFailed StatusReason = "FetchSourceFailed"
 
+	// StatusReasonInvalidContextDirectory indicates that the supplied
+	// contextDir does not exist
+	StatusReasonInvalidContextDirectory StatusReason = "InvalidContextDirectory"
+
 	// StatusReasonCancelledBuild indicates that the build was cancelled by the
 	// user.
 	StatusReasonCancelledBuild StatusReason = "CancelledBuild"
@@ -338,6 +342,7 @@ const (
 	StatusMessagePushImageToRegistryFailed = "Failed to push the image to the registry."
 	StatusMessagePullBuilderImageFailed    = "Failed pulling builder image."
 	StatusMessageFetchSourceFailed         = "Failed to fetch the input source."
+	StatusMessageInvalidContextDirectory   = "The supplied context directory does not exist."
 	StatusMessageCancelledBuild            = "The build was cancelled by the user."
 	StatusMessageDockerBuildFailed         = "Docker build strategy has failed."
 	StatusMessageBuildPodExists            = "The pod for this build already exists and is older than the build."
@@ -550,8 +555,7 @@ type CustomBuildStrategy struct {
 	// registries
 	PullSecret *kapi.LocalObjectReference
 
-	// Env contains additional environment variables you want to pass into a builder container.
-	// ValueFrom is not supported.
+	// Env contains additional environment variables you want to pass into a builder container
 	Env []kapi.EnvVar
 
 	// ExposeDockerSocket will allow running Docker commands (and build Docker images) from
@@ -586,8 +590,7 @@ type DockerBuildStrategy struct {
 	// --no-cache=true flag
 	NoCache bool
 
-	// Env contains additional environment variables you want to pass into a builder container.
-	// ValueFrom is not supported.
+	// Env contains additional environment variables you want to pass into a builder container
 	Env []kapi.EnvVar
 
 	// ForcePull describes if the builder should pull the images from registry prior to building.
@@ -609,8 +612,7 @@ type SourceBuildStrategy struct {
 	// registries
 	PullSecret *kapi.LocalObjectReference
 
-	// Env contains additional environment variables you want to pass into a builder container.
-	// ValueFrom is not supported.
+	// Env contains additional environment variables you want to pass into a builder container
 	Env []kapi.EnvVar
 
 	// Scripts is the location of Source scripts
@@ -647,10 +649,6 @@ type JenkinsPipelineBuildStrategy struct {
 
 	// Jenkinsfile defines the optional raw contents of a Jenkinsfile which defines a Jenkins pipeline build.
 	Jenkinsfile string
-
-	// Env contains additional environment variables you want to pass into a build pipeline.
-	// ValueFrom is not supported.
-	Env []kapi.EnvVar
 }
 
 // A BuildPostCommitSpec holds a build post commit hook specification. The hook
@@ -916,8 +914,7 @@ type GenericWebHookEvent struct {
 	// Git is the git information, if any.
 	Git *GitInfo
 
-	// Env contains additional environment variables you want to pass into a builder container.
-	// ValueFrom is not supported.
+	// Env contains additional environment variables you want to pass into a builder container
 	Env []kapi.EnvVar
 }
 
@@ -969,7 +966,6 @@ type BuildRequest struct {
 	LastVersion *int64
 
 	// Env contains additional environment variables you want to pass into a builder container.
-	// ValueFrom is not supported.
 	Env []kapi.EnvVar
 
 	// TriggeredBy describes which triggers started the most recent update to the

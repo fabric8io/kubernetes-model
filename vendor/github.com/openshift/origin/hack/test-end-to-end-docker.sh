@@ -12,6 +12,11 @@ unset KUBECONFIG
 os::util::environment::use_sudo
 os::util::environment::setup_all_server_vars "test-end-to-end-docker/"
 
+# Allow setting $JUNIT_REPORT to toggle output behavior
+if [[ -n "${JUNIT_REPORT:-}" ]]; then
+	export JUNIT_REPORT_OUTPUT="${LOG_DIR}/raw_test_output.log"
+fi
+
 function cleanup()
 {
 	out=$?
@@ -24,11 +29,11 @@ function cleanup()
 	echo
 
 	set +e
-	os::cleanup::dump_container_logs
+	dump_container_logs
 
 	# pull information out of the server log so that we can get failure management in jenkins to highlight it and
 	# really have it smack people in their logs.  This is a severe correctness problem
-    grep -ra5 "CACHE.*ALTERED" ${LOG_DIR}/containers
+    grep -a5 "CACHE.*ALTERED" ${LOG_DIR}/container-origin.log
 
 	os::cleanup::dump_etcd
 
@@ -37,7 +42,10 @@ function cleanup()
 		docker stop origin
 		docker rm origin
 
-		os::cleanup::containers
+		os::log::info "Stopping k8s docker containers"; docker ps | awk 'index($NF,"k8s_")==1 { print $1 }' | xargs -l -r docker stop
+		if [[ -z "${SKIP_IMAGE_CLEANUP-}" ]]; then
+			os::log::info "Removing k8s docker containers"; docker ps -a | awk 'index($NF,"k8s_")==1 { print $1 }' | xargs -l -r docker rm
+		fi
 		set -u
 	fi
 
@@ -45,6 +53,7 @@ function cleanup()
 
 	delete_empty_logs
 	truncate_large_logs
+	os::test::junit::generate_oscmd_report
 	set -e
 
 	os::log::info "Exiting"

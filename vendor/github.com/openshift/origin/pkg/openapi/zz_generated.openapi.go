@@ -8214,7 +8214,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					},
 					"env": {
 						SchemaProps: spec.SchemaProps{
-							Description: "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
+							Description: "env contains additional environment variables you want to pass into a builder container",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -10354,7 +10354,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					},
 					"env": {
 						SchemaProps: spec.SchemaProps{
-							Description: "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
+							Description: "env contains additional environment variables you want to pass into a builder container",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -11408,7 +11408,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					},
 					"env": {
 						SchemaProps: spec.SchemaProps{
-							Description: "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
+							Description: "env contains additional environment variables you want to pass into a builder container",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -12513,7 +12513,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					},
 					"env": {
 						SchemaProps: spec.SchemaProps{
-							Description: "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
+							Description: "env contains additional environment variables you want to pass into a builder container",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -14483,24 +14483,10 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 							Format:      "",
 						},
 					},
-					"env": {
-						SchemaProps: spec.SchemaProps{
-							Description: "env contains additional environment variables you want to pass into a build pipeline. ValueFrom is not supported.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Ref: spec.MustCreateRef("#/definitions/v1.EnvVar"),
-									},
-								},
-							},
-						},
-					},
 				},
 			},
 		},
-		Dependencies: []string{
-			"v1.EnvVar"},
+		Dependencies: []string{},
 	},
 	"v1.Job": {
 		Schema: spec.Schema{
@@ -22919,7 +22905,7 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					},
 					"env": {
 						SchemaProps: spec.SchemaProps{
-							Description: "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported.",
+							Description: "env contains additional environment variables you want to pass into a builder container",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -22953,13 +22939,13 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 					},
 					"runtimeImage": {
 						SchemaProps: spec.SchemaProps{
-							Description: "runtimeImage is an optional image that is used to run an application without unneeded dependencies installed. The building of the application is still done in the builder image but, post build, you can copy the needed artifacts in the runtime image for use. Deprecated: This feature will be removed in a future release. Use ImageSource to copy binary artifacts created from one build into a separate runtime image.",
+							Description: "runtimeImage is an optional image that is used to run an application without unneeded dependencies installed. The building of the application is still done in the builder image but, post build, you can copy the needed artifacts in the runtime image for use. This field and the feature it enables are in tech preview.",
 							Ref:         spec.MustCreateRef("#/definitions/v1.ObjectReference"),
 						},
 					},
 					"runtimeArtifacts": {
 						SchemaProps: spec.SchemaProps{
-							Description: "runtimeArtifacts specifies a list of source/destination pairs that will be copied from the builder to the runtime image. sourcePath can be a file or directory. destinationDir must be a directory. destinationDir can also be empty or equal to \".\", in this case it just refers to the root of WORKDIR. Deprecated: This feature will be removed in a future release. Use ImageSource to copy binary artifacts created from one build into a separate runtime image.",
+							Description: "runtimeArtifacts specifies a list of source/destination pairs that will be copied from the builder to the runtime image. sourcePath can be a file or directory. destinationDir must be a directory. destinationDir can also be empty or equal to \".\", in this case it just refers to the root of WORKDIR. This field and the feature it enables are in tech preview.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{

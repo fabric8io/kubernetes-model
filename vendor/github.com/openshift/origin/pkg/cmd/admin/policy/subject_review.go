@@ -31,7 +31,7 @@ var (
 	`)
 	subjectReviewExamples = templates.Examples(`# Check whether user bob can create a pod specified in myresource.yaml
 	$ %[1]s -u bob -f myresource.yaml
-	
+
 	# Check whether user bob who belongs to projectAdmin group can create a pod specified in myresource.yaml
 	$ %[1]s -u bob -g projectAdmin -f myresource.yaml
 

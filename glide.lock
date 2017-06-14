@@ -1,5 +1,5 @@
-hash: dd5bc345434aa2f7c85a0e5811e2c8e3a3dc49bc507164af9bb27d0f34da7449
-updated: 2017-02-27T15:30:16.219454594Z
+hash: 74e3884e990b03b7fea5ed0726d9787752eb20fc9fc2382ffe309a98c5d895df
+updated: 2017-06-14T17:11:08.343631344+01:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -259,7 +259,7 @@ imports:
   subpackages:
   - pbutil
 - name: github.com/openshift/origin
-  version: 4bfdac87b805d28cff9c534c334d635fbd6f00f7
+  version: 7b451fc9cade386042723a2c03c2deee626b579c
   subpackages:
   - pkg/api
   - pkg/api/extension
