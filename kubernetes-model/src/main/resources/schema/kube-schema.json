@@ -5426,6 +5426,159 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "kubernetes_autoscaling_CrossVersionObjectReference": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": ""
+        },
+        "kind": {
+          "type": "string",
+          "description": ""
+        },
+        "name": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.CrossVersionObjectReference",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_autoscaling_HorizontalPodAutoscaler": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "autoscaling/v1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "HorizontalPodAutoscaler",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/kubernetes_autoscaling_HorizontalPodAutoscalerSpec",
+          "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscalerSpec"
+        },
+        "status": {
+          "$ref": "#/definitions/kubernetes_autoscaling_HorizontalPodAutoscalerStatus",
+          "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscalerStatus"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscaler",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_autoscaling_HorizontalPodAutoscalerList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "autoscaling/v1",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_autoscaling_HorizontalPodAutoscaler",
+            "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscaler"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "HorizontalPodAutoscalerList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/api_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscalerList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kubernetes_autoscaling_HorizontalPodAutoscalerSpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "maxReplicas": {
+          "type": "integer",
+          "description": ""
+        },
+        "minReplicas": {
+          "type": "integer",
+          "description": ""
+        },
+        "scaleTargetRef": {
+          "$ref": "#/definitions/kubernetes_autoscaling_CrossVersionObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.CrossVersionObjectReference"
+        },
+        "targetCPUUtilizationPercentage": {
+          "type": "integer",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscalerSpec",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_autoscaling_HorizontalPodAutoscalerStatus": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "currentCPUUtilizationPercentage": {
+          "type": "integer",
+          "description": ""
+        },
+        "currentReplicas": {
+          "type": "integer",
+          "description": ""
+        },
+        "desiredReplicas": {
+          "type": "integer",
+          "description": ""
+        },
+        "lastScaleTime": {
+          "type": "string",
+          "description": ""
+        },
+        "observedGeneration": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscalerStatus",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "kubernetes_batch_CronJob": {
       "type": "object",
       "description": "",
@@ -5763,21 +5916,6 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.extensions.APIVersion",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
-      ]
-    },
-    "kubernetes_extensions_CPUTargetUtilization": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "targetPercentage": {
-          "type": "integer",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.CPUTargetUtilization",
       "javaInterfaces": [
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
@@ -6189,136 +6327,6 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
-    "kubernetes_extensions_HorizontalPodAutoscaler": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "apiVersion": {
-          "type": "string",
-          "description": "",
-          "default": "extensions/v1beta1",
-          "required": true
-        },
-        "kind": {
-          "type": "string",
-          "description": "",
-          "default": "HorizontalPodAutoscaler",
-          "required": true
-        },
-        "metadata": {
-          "$ref": "#/definitions/kubernetes_ObjectMeta",
-          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
-        },
-        "spec": {
-          "$ref": "#/definitions/kubernetes_extensions_HorizontalPodAutoscalerSpec",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscalerSpec"
-        },
-        "status": {
-          "$ref": "#/definitions/kubernetes_extensions_HorizontalPodAutoscalerStatus",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscalerStatus"
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscaler",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.HasMetadata"
-      ]
-    },
-    "kubernetes_extensions_HorizontalPodAutoscalerList": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "apiVersion": {
-          "type": "string",
-          "description": "",
-          "default": "extensions/v1beta1",
-          "required": true
-        },
-        "items": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "$ref": "#/definitions/kubernetes_extensions_HorizontalPodAutoscaler",
-            "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscaler"
-          }
-        },
-        "kind": {
-          "type": "string",
-          "description": "",
-          "default": "HorizontalPodAutoscalerList",
-          "required": true
-        },
-        "metadata": {
-          "$ref": "#/definitions/api_ListMeta",
-          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscalerList",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource",
-        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
-      ]
-    },
-    "kubernetes_extensions_HorizontalPodAutoscalerSpec": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "cpuUtilization": {
-          "$ref": "#/definitions/kubernetes_extensions_CPUTargetUtilization",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.CPUTargetUtilization"
-        },
-        "maxReplicas": {
-          "type": "integer",
-          "description": ""
-        },
-        "minReplicas": {
-          "type": "integer",
-          "description": ""
-        },
-        "scaleRef": {
-          "$ref": "#/definitions/kubernetes_extensions_SubresourceReference",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.SubresourceReference"
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscalerSpec",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
-      ]
-    },
-    "kubernetes_extensions_HorizontalPodAutoscalerStatus": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "currentCPUUtilizationPercentage": {
-          "type": "integer",
-          "description": ""
-        },
-        "currentReplicas": {
-          "type": "integer",
-          "description": ""
-        },
-        "desiredReplicas": {
-          "type": "integer",
-          "description": ""
-        },
-        "lastScaleTime": {
-          "type": "string",
-          "description": ""
-        },
-        "observedGeneration": {
-          "type": "integer",
-          "description": "",
-          "javaType": "Long"
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscalerStatus",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
-      ]
-    },
     "kubernetes_extensions_Ingress": {
       "type": "object",
       "description": "",
@@ -6512,6 +6520,161 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "kubernetes_extensions_NetworkPolicy": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "extensions/v1beta1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "NetworkPolicy",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/kubernetes_extensions_NetworkPolicySpec",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicySpec"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicy",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_extensions_NetworkPolicyIngressRule": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "from": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyPeer",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPeer"
+          }
+        },
+        "ports": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyPort",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPort"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyIngressRule",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_extensions_NetworkPolicyList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "extensions/v1beta1",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicy",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicy"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "NetworkPolicyList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/api_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kubernetes_extensions_NetworkPolicyPeer": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "namespaceSelector": {
+          "$ref": "#/definitions/api_LabelSelector",
+          "javaType": "io.fabric8.kubernetes.api.model.LabelSelector"
+        },
+        "podSelector": {
+          "$ref": "#/definitions/api_LabelSelector",
+          "javaType": "io.fabric8.kubernetes.api.model.LabelSelector"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPeer",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_extensions_NetworkPolicyPort": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "port": {
+          "$ref": "#/definitions/kubernetes_intstr_IntOrString",
+          "javaType": "io.fabric8.kubernetes.api.model.IntOrString"
+        },
+        "protocol": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPort",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_extensions_NetworkPolicySpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "ingress": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyIngressRule",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyIngressRule"
+          }
+        },
+        "podSelector": {
+          "$ref": "#/definitions/api_LabelSelector",
+          "javaType": "io.fabric8.kubernetes.api.model.LabelSelector"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicySpec",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "kubernetes_extensions_ReplicaSet": {
       "type": "object",
       "description": "",
@@ -6681,161 +6844,6 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
-    "kubernetes_extensions_NetworkPolicy": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "apiVersion": {
-          "type": "string",
-          "description": "",
-          "default": "extensions/v1beta1",
-          "required": true
-        },
-        "kind": {
-          "type": "string",
-          "description": "",
-          "default": "NetworkPolicy",
-          "required": true
-        },
-        "metadata": {
-          "$ref": "#/definitions/kubernetes_ObjectMeta",
-          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
-        },
-        "spec": {
-          "$ref": "#/definitions/kubernetes_extensions_NetworkPolicySpec",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicySpec"
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicy",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.HasMetadata"
-      ]
-    },
-    "kubernetes_extensions_NetworkPolicyList": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "apiVersion": {
-          "type": "string",
-          "description": "",
-          "default": "extensions/v1beta1",
-          "required": true
-        },
-        "items": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicy",
-            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicy"
-          }
-        },
-        "kind": {
-          "type": "string",
-          "description": "",
-          "default": "NetworkPolicyList",
-          "required": true
-        },
-        "metadata": {
-          "$ref": "#/definitions/api_ListMeta",
-          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyList",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource",
-        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
-      ]
-    },
-    "kubernetes_extensions_NetworkPolicySpec": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "ingress": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyIngressRule",
-            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyIngressRule"
-          }
-        },
-        "podSelector": {
-          "$ref": "#/definitions/api_LabelSelector",
-          "javaType": "io.fabric8.kubernetes.api.model.LabelSelector"
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicySpec",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
-      ]
-    },
-    "kubernetes_extensions_NetworkPolicyIngressRule": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "from": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyPeer",
-            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPeer"
-          }
-        },
-        "ports": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyPort",
-            "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPort"
-          }
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyIngressRule",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
-      ]
-    },
-    "kubernetes_extensions_NetworkPolicyPeer": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "namespaceSelector": {
-          "$ref": "#/definitions/api_LabelSelector",
-          "javaType": "io.fabric8.kubernetes.api.model.LabelSelector"
-        },
-        "podSelector": {
-          "$ref": "#/definitions/api_LabelSelector",
-          "javaType": "io.fabric8.kubernetes.api.model.LabelSelector"
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPeer",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
-      ]
-    },
-    "kubernetes_extensions_NetworkPolicyPort": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "port": {
-          "type": "integer",
-          "description": ""
-        },
-        "protocol": {
-          "type": "string",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPort",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
-      ]
-    },
     "kubernetes_extensions_RollbackConfig": {
       "type": "object",
       "description": "",
@@ -6945,33 +6953,6 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.kubernetes.api.model.extensions.ScaleStatus",
-      "javaInterfaces": [
-        "io.fabric8.kubernetes.api.model.KubernetesResource"
-      ]
-    },
-    "kubernetes_extensions_SubresourceReference": {
-      "type": "object",
-      "description": "",
-      "properties": {
-        "apiVersion": {
-          "type": "string",
-          "description": ""
-        },
-        "kind": {
-          "type": "string",
-          "description": ""
-        },
-        "name": {
-          "type": "string",
-          "description": ""
-        },
-        "subresource": {
-          "type": "string",
-          "description": ""
-        }
-      },
-      "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.SubresourceReference",
       "javaInterfaces": [
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
@@ -12010,12 +11991,12 @@
       "javaType": "io.fabric8.openshift.api.model.GroupList"
     },
     "HorizontalPodAutoscaler": {
-      "$ref": "#/definitions/kubernetes_extensions_HorizontalPodAutoscaler",
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscaler"
+      "$ref": "#/definitions/kubernetes_autoscaling_HorizontalPodAutoscaler",
+      "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscaler"
     },
     "HorizontalPodAutoscalerList": {
-      "$ref": "#/definitions/kubernetes_extensions_HorizontalPodAutoscalerList",
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscalerList"
+      "$ref": "#/definitions/kubernetes_autoscaling_HorizontalPodAutoscalerList",
+      "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscalerList"
     },
     "Identity": {
       "$ref": "#/definitions/os_user_Identity",
@@ -12072,6 +12053,14 @@
     "NamespaceList": {
       "$ref": "#/definitions/kubernetes_NamespaceList",
       "javaType": "io.fabric8.kubernetes.api.model.NamespaceList"
+    },
+    "NetworkPolicy": {
+      "$ref": "#/definitions/kubernetes_extensions_NetworkPolicy",
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicy"
+    },
+    "NetworkPolicyList": {
+      "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyList",
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyList"
     },
     "Node": {
       "$ref": "#/definitions/kubernetes_Node",
@@ -12184,14 +12173,6 @@
     "ReplicaSetList": {
       "$ref": "#/definitions/kubernetes_extensions_ReplicaSetList",
       "javaType": "io.fabric8.kubernetes.api.model.extensions.ReplicaSetList"
-    },
-    "NetworkPolicy": {
-      "$ref": "#/definitions/kubernetes_extensions_NetworkPolicy",
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicy"
-    },
-    "NetworkPolicyList": {
-      "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyList",
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyList"
     },
     "ReplicationControllerList": {
       "$ref": "#/definitions/kubernetes_ReplicationControllerList",
