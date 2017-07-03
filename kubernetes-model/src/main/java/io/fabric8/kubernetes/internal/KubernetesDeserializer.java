@@ -34,6 +34,7 @@ public class KubernetesDeserializer extends JsonDeserializer<KubernetesResource>
 
     private static final String KUBERNETES_PACKAGE_PREFIX = "io.fabric8.kubernetes.api.model.";
     private static final String KUBERNETES_EXTENSIONS_PACKAGE_PREFIX = "io.fabric8.kubernetes.api.model.extensions.";
+    private static final String KUBERNETES_APIEXTENSIONS_PACKAGE_PREFIX = "io.fabric8.kubernetes.api.model.apiextensions.";
     private static final String OPENSHIFT_PACKAGE_PREFIX = "io.fabric8.openshift.api.model.";
 
     private static final Map<String, Class<? extends KubernetesResource>> MAP = new HashMap<>();
@@ -68,6 +69,9 @@ public class KubernetesDeserializer extends JsonDeserializer<KubernetesResource>
                 result = loadClassIfExists(KUBERNETES_EXTENSIONS_PACKAGE_PREFIX + name);
                 if (result == null) {
                     result = loadClassIfExists(OPENSHIFT_PACKAGE_PREFIX + name);
+                    if (result == null) {
+                        result = loadClassIfExists(KUBERNETES_APIEXTENSIONS_PACKAGE_PREFIX + name);
+                    }
                 }
             }
         }
