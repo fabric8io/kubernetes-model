@@ -33,6 +33,7 @@ import (
 	routeapi "github.com/openshift/origin/pkg/route/api/v1"
 	templateapi "github.com/openshift/origin/pkg/template/api/v1"
 	userapi "github.com/openshift/origin/pkg/user/api/v1"
+	apiextensions "k8s.io/apiextensions-server/pkg/apis/apiextensions/v1beta1"
 	resourceapi "k8s.io/kubernetes/pkg/api/resource"
 	rapi "k8s.io/kubernetes/pkg/api/unversioned"
 	kapi "k8s.io/kubernetes/pkg/api/v1"
@@ -156,6 +157,12 @@ type Schema struct {
 	ConfigMap                      kapi.ConfigMap
 	ConfigMapList                  kapi.ConfigMapList
 	Toleration										 kapi.Toleration
+	CustomResourceDefinition          apiextensions.CustomResourceDefinition
+	CustomResourceDefinitionList      apiextensions.CustomResourceDefinitionList
+	CustomResourceDefinitionSpec      apiextensions.CustomResourceDefinitionSpec
+	CustomResourceDefinitionNames     apiextensions.CustomResourceDefinitionNames
+	CustomResourceDefinitionCondition apiextensions.CustomResourceDefinitionCondition
+	CustomResourceDefinitionStatus    apiextensions.CustomResourceDefinitionStatus
 }
 
 func main() {
@@ -185,6 +192,8 @@ func main() {
 		{"k8s.io/kubernetes/pkg/apis/apps/v1beta1", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_apps_"},
 		{"k8s.io/kubernetes/pkg/apis/batch/v2alpha1", "io.fabric8.kubernetes.api.model", "kubernetes_batch_"},
 		{"k8s.io/kubernetes/pkg/apis/autoscaling/v1", "io.fabric8.kubernetes.api.model", "kubernetes_autoscaling_"},
+		{"k8s.io/apiextensions-server/pkg/apis/apiextensions/v1beta1", "io.fabric8.kubernetes.api.model.apiextensions", "k8s_io_apiextensions_"},
+		{"k8s.io/apimachinery/pkg/apis/meta/v1", "io.fabric8.kubernetes.api.model", "k8s_io_apimachinery_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{
