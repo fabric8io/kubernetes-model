@@ -6,9 +6,15 @@ import:
   version: 43a9be421799afb8a9c02d3541212a6e623c9053
   repo: https://github.com/openshift/kubernetes.git
   vcs: git
-- package: github.com/golang/glog
-  version: 44145f04b68cf362d9c4df2182967c2275eaefed
-  repo: https://github.com/openshift/glog.git
+- package: k8s.io/apiextensions-server
+  version: 0d76ea1d086ac835c111312c999014d5b4b14c85
+  repo: https://github.com/kubernetes/apiextensions-apiserver.git
   vcs: git
+#- package: github.com/golang/glog
+#  version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
+#  repo: https://github.com/openshift/glog.git
+#  vcs: git
 - package: github.com/dgrijalva/jwt-go
   version: 01aeca54ebda6e0fbfafd0a524d234159c05ec20
+- package: github.com/gogo/protobuf/proto
+  version: c0656edd0d9eab7c66d1eb0c568f9039345796f7
