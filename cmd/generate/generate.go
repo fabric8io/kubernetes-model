@@ -155,6 +155,7 @@ type Schema struct {
 	NetworkPolicyList              extensions.NetworkPolicyList
 	ConfigMap                      kapi.ConfigMap
 	ConfigMapList                  kapi.ConfigMapList
+	Toleration										 kapi.Toleration
 }
 
 func main() {

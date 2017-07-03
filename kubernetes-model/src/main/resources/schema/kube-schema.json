@@ -5034,6 +5034,33 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "kubernetes_Toleration": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "effect": {
+          "type": "string",
+          "description": ""
+        },
+        "key": {
+          "type": "string",
+          "description": ""
+        },
+        "operator": {
+          "type": "string",
+          "description": ""
+        },
+        "value": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.Toleration",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "kubernetes_Volume": {
       "type": "object",
       "description": "",
@@ -12277,6 +12304,10 @@
     "ThirdPartyResourceList": {
       "$ref": "#/definitions/kubernetes_extensions_ThirdPartyResourceList",
       "javaType": "io.fabric8.kubernetes.api.model.extensions.ThirdPartyResourceList"
+    },
+    "Toleration": {
+      "$ref": "#/definitions/kubernetes_Toleration",
+      "javaType": "io.fabric8.kubernetes.api.model.Toleration"
     },
     "User": {
       "$ref": "#/definitions/os_user_User",
