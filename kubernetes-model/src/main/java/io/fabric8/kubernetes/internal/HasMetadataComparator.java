@@ -30,22 +30,28 @@ public class HasMetadataComparator implements Comparator<HasMetadata> {
                 case "Project":
                 case "ProjectRequest":
                     return 1;
-                case "Secret":
+                case "LimitRange":
                     return 2;
-                case "ServiceAccount":
+                case "ResourceQuota":
                     return 3;
-                case "OAuthClient":
+                case "RoleBindingRestriction":
                     return 4;
+                case "Secret":
+                    return 12;
+                case "ServiceAccount":
+                    return 13;
+                case "OAuthClient":
+                    return 14;
                 case "Service":
-                    return 5;
+                    return 15;
                 case "PolicyBinding":
-                    return 6;
+                    return 16;
                 case "ClusterPolicyBinding":
-                    return 7;
+                    return 17;
                 case "Role":
-                    return 8;
+                    return 18;
                 case "RoleBinding":
-                    return 9;
+                    return 19;
                 case "PersistentVolume":
                     return 20;
                 case "PersistentVolumeClaim":
