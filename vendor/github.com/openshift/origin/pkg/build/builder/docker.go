@@ -68,17 +68,9 @@ func (d *DockerBuilder) Build() error {
 	}
 	sourceInfo, err := fetchSource(d.dockerClient, buildDir, d.build, initialURLCheckTimeout, os.Stdin, d.gitClient)
 	if err != nil {
-		switch err.(type) {
-		case contextDirNotFoundError:
-			d.build.Status.Phase = api.BuildPhaseFailed
-			d.build.Status.Reason = api.StatusReasonInvalidContextDirectory
-			d.build.Status.Message = api.StatusMessageInvalidContextDirectory
-		default:
-			d.build.Status.Phase = api.BuildPhaseFailed
-			d.build.Status.Reason = api.StatusReasonFetchSourceFailed
-			d.build.Status.Message = api.StatusMessageFetchSourceFailed
-		}
-
+		d.build.Status.Phase = api.BuildPhaseFailed
+		d.build.Status.Reason = api.StatusReasonFetchSourceFailed
+		d.build.Status.Message = api.StatusMessageFetchSourceFailed
 		handleBuildStatusUpdate(d.build, d.client, nil)
 		return err
 	}

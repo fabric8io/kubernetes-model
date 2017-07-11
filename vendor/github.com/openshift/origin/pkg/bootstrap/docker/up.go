@@ -608,12 +608,10 @@ func (c *CommonStartConfig) CheckNsenterMounter(out io.Writer) error {
 
 // CheckDockerVersion checks that the appropriate Docker version is installed based on whether we are using the nsenter mounter
 // or shared volumes for OpenShift
-func (c *CommonStartConfig) CheckDockerVersion(out io.Writer) error {
+func (c *CommonStartConfig) CheckDockerVersion(io.Writer) error {
 	ver, rh, err := c.DockerHelper().Version()
 	if err != nil {
-		glog.V(1).Infof("Failed to check Docker version: %v", err)
-		fmt.Fprintf(out, "WARNING: Cannot verify Docker version\n")
-		return nil
+		return err
 	}
 	needVersion := dockerVersion19
 	if !rh {

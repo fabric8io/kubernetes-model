@@ -33,7 +33,6 @@ func createTestImageReactor(t *testing.T, client *testclient.Fake, serverURL *ur
 	testImage, err := registrytest.NewImageForManifest(
 		fmt.Sprintf("%s/%s", namespace, repo),
 		string(testManifestSchema1),
-		"",
 		false)
 	if err != nil {
 		t.Fatal(err)
@@ -126,10 +125,21 @@ func TestTagGet(t *testing.T) {
 
 		localTagService := newTestTagService(nil)
 
-		r := newTestRepositoryForPullthrough(t, ctx, nil, namespace, repo, client, tc.pullthrough)
+		cachedLayers, err := newDigestToRepositoryCache(10)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		ts := &tagService{
 			TagService: localTagService,
-			repo:       r,
+			repo: &repository{
+				ctx:              ctx,
+				namespace:        namespace,
+				name:             repo,
+				pullthrough:      tc.pullthrough,
+				cachedLayers:     cachedLayers,
+				registryOSClient: client,
+			},
 		}
 
 		resultDesc, err := ts.Get(ctx, tc.tagName)
@@ -181,15 +191,27 @@ func TestTagGetWithoutImageStream(t *testing.T) {
 
 	localTagService := newTestTagService(nil)
 
+	cachedLayers, err := newDigestToRepositoryCache(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	r := newTestRepositoryForPullthrough(t, ctx, &testRepository{name: named}, namespace, repo, client, true)
 	ts := &tagService{
 		TagService: localTagService,
-		repo:       r,
+		repo: &repository{
+			Repository:       &testRepository{name: named},
+			ctx:              ctx,
+			namespace:        namespace,
+			name:             repo,
+			pullthrough:      true,
+			cachedLayers:     cachedLayers,
+			registryOSClient: client,
+		},
 	}
 
 	_, err = ts.Get(ctx, tag)
@@ -261,14 +283,27 @@ func TestTagCreation(t *testing.T) {
 
 		localTagService := newTestTagService(nil)
 
+		cachedLayers, err := newDigestToRepositoryCache(10)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
 		if err != nil {
 			t.Fatal(err)
 		}
-		r := newTestRepositoryForPullthrough(t, ctx, &testRepository{name: named}, namespace, repo, client, tc.pullthrough)
+
 		ts := &tagService{
 			TagService: localTagService,
-			repo:       r,
+			repo: &repository{
+				Repository:       &testRepository{name: named},
+				ctx:              ctx,
+				namespace:        namespace,
+				name:             repo,
+				pullthrough:      tc.pullthrough,
+				cachedLayers:     cachedLayers,
+				registryOSClient: client,
+			},
 		}
 
 		err = ts.Tag(ctx, tc.tagName, tc.tagValue)
@@ -309,14 +344,27 @@ func TestTagCreationWithoutImageStream(t *testing.T) {
 
 	localTagService := newTestTagService(nil)
 
+	cachedLayers, err := newDigestToRepositoryCache(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := newTestRepositoryForPullthrough(t, ctx, &testRepository{name: named}, namespace, repo, client, true)
+
 	ts := &tagService{
 		TagService: localTagService,
-		repo:       r,
+		repo: &repository{
+			Repository:       &testRepository{name: named},
+			ctx:              ctx,
+			namespace:        namespace,
+			name:             repo,
+			pullthrough:      true,
+			cachedLayers:     cachedLayers,
+			registryOSClient: client,
+		},
 	}
 
 	err = ts.Tag(ctx, tag, distribution.Descriptor{Digest: digest.Digest(testImage.Name)})
@@ -396,15 +444,27 @@ func TestTagDeletion(t *testing.T) {
 
 		localTagService := newTestTagService(nil)
 
+		cachedLayers, err := newDigestToRepositoryCache(10)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		r := newTestRepositoryForPullthrough(t, ctx, &testRepository{name: named}, namespace, repo, client, tc.pullthrough)
 		ts := &tagService{
 			TagService: localTagService,
-			repo:       r,
+			repo: &repository{
+				Repository:       &testRepository{name: named},
+				ctx:              ctx,
+				namespace:        namespace,
+				name:             repo,
+				pullthrough:      tc.pullthrough,
+				cachedLayers:     cachedLayers,
+				registryOSClient: client,
+			},
 		}
 
 		err = ts.Untag(ctx, tc.tagName)
@@ -450,14 +510,27 @@ func TestTagDeletionWithoutImageStream(t *testing.T) {
 
 	localTagService := newTestTagService(nil)
 
+	cachedLayers, err := newDigestToRepositoryCache(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := newTestRepositoryForPullthrough(t, ctx, &testRepository{name: named}, namespace, repo, client, true)
+
 	ts := &tagService{
 		TagService: localTagService,
-		repo:       r,
+		repo: &repository{
+			Repository:       &testRepository{name: named},
+			ctx:              ctx,
+			namespace:        namespace,
+			name:             repo,
+			pullthrough:      true,
+			cachedLayers:     cachedLayers,
+			registryOSClient: client,
+		},
 	}
 
 	err = ts.Untag(ctx, tag)
@@ -524,14 +597,27 @@ func TestTagGetAll(t *testing.T) {
 
 		localTagService := newTestTagService(nil)
 
+		cachedLayers, err := newDigestToRepositoryCache(10)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
 		if err != nil {
 			t.Fatal(err)
 		}
-		r := newTestRepositoryForPullthrough(t, ctx, &testRepository{name: named}, namespace, repo, client, tc.pullthrough)
+
 		ts := &tagService{
 			TagService: localTagService,
-			repo:       r,
+			repo: &repository{
+				Repository:       &testRepository{name: named},
+				ctx:              ctx,
+				namespace:        namespace,
+				name:             repo,
+				pullthrough:      tc.pullthrough,
+				cachedLayers:     cachedLayers,
+				registryOSClient: client,
+			},
 		}
 
 		result, err := ts.All(ctx)
@@ -569,14 +655,27 @@ func TestTagGetAllWithoutImageStream(t *testing.T) {
 
 	localTagService := newTestTagService(nil)
 
+	cachedLayers, err := newDigestToRepositoryCache(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := newTestRepositoryForPullthrough(t, ctx, &testRepository{name: named}, namespace, repo, client, true)
+
 	ts := &tagService{
 		TagService: localTagService,
-		repo:       r,
+		repo: &repository{
+			Repository:       &testRepository{name: named},
+			ctx:              ctx,
+			namespace:        namespace,
+			name:             repo,
+			pullthrough:      true,
+			cachedLayers:     cachedLayers,
+			registryOSClient: client,
+		},
 	}
 
 	_, err = ts.All(ctx)
@@ -654,14 +753,27 @@ func TestTagLookup(t *testing.T) {
 
 		localTagService := newTestTagService(nil)
 
+		cachedLayers, err := newDigestToRepositoryCache(10)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
 		if err != nil {
 			t.Fatal(err)
 		}
-		r := newTestRepositoryForPullthrough(t, ctx, &testRepository{name: named}, namespace, repo, client, tc.pullthrough)
+
 		ts := &tagService{
 			TagService: localTagService,
-			repo:       r,
+			repo: &repository{
+				Repository:       &testRepository{name: named},
+				ctx:              ctx,
+				namespace:        namespace,
+				name:             repo,
+				pullthrough:      tc.pullthrough,
+				cachedLayers:     cachedLayers,
+				registryOSClient: client,
+			},
 		}
 
 		result, err := ts.Lookup(ctx, tc.tagValue)
@@ -706,15 +818,27 @@ func TestTagLookupWithoutImageStream(t *testing.T) {
 
 	localTagService := newTestTagService(nil)
 
+	cachedLayers, err := newDigestToRepositoryCache(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	r := newTestRepositoryForPullthrough(t, ctx, &testRepository{name: named}, namespace, repo, client, true)
 	ts := &tagService{
 		TagService: localTagService,
-		repo:       r,
+		repo: &repository{
+			Repository:       &testRepository{name: named},
+			ctx:              ctx,
+			namespace:        namespace,
+			name:             repo,
+			pullthrough:      true,
+			cachedLayers:     cachedLayers,
+			registryOSClient: client,
+		},
 	}
 
 	_, err = ts.Lookup(ctx, distribution.Descriptor{Digest: digest.Digest(testImage.Name)})

@@ -150,11 +150,11 @@ func execPostCommitHook(client DockerClient, postCommitSpec api.BuildPostCommitS
 			Memory:     limits.MemoryLimitBytes,
 			MemorySwap: limits.MemorySwap,
 		},
-	}, docker.AttachToContainerOptions{
+	}, docker.LogsOptions{
 		// Stream logs to stdout and stderr.
 		OutputStream: os.Stdout,
 		ErrorStream:  os.Stderr,
-		Stream:       true,
+		Follow:       true,
 		Stdout:       true,
 		Stderr:       true,
 	})

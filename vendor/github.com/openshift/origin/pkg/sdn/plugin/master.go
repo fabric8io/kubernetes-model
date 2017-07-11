@@ -155,8 +155,7 @@ func (master *OsdnMaster) validateNetworkConfig() error {
 		return err
 	}
 	for _, svc := range services.Items {
-		svcIP := net.ParseIP(svc.Spec.ClusterIP)
-		if svcIP != nil && !ni.ServiceNetwork.Contains(svcIP) {
+		if !ni.ServiceNetwork.Contains(net.ParseIP(svc.Spec.ClusterIP)) {
 			errList = append(errList, fmt.Errorf("Error: Existing service with IP: %s is not part of service network: %s", svc.Spec.ClusterIP, ni.ServiceNetwork.String()))
 		}
 	}

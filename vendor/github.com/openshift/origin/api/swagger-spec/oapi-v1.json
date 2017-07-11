@@ -23237,7 +23237,7 @@
       "items": {
        "$ref": "v1.EnvVar"
       },
-      "description": "env contains additional environment variables you want to pass into a builder container"
+      "description": "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported."
      },
      "forcePull": {
       "type": "boolean",
@@ -23384,7 +23384,7 @@
       "items": {
        "$ref": "v1.EnvVar"
       },
-      "description": "env contains additional environment variables you want to pass into a builder container"
+      "description": "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported."
      },
      "scripts": {
       "type": "string",
@@ -23400,14 +23400,14 @@
      },
      "runtimeImage": {
       "$ref": "v1.ObjectReference",
-      "description": "runtimeImage is an optional image that is used to run an application without unneeded dependencies installed. The building of the application is still done in the builder image but, post build, you can copy the needed artifacts in the runtime image for use. This field and the feature it enables are in tech preview."
+      "description": "runtimeImage is an optional image that is used to run an application without unneeded dependencies installed. The building of the application is still done in the builder image but, post build, you can copy the needed artifacts in the runtime image for use. Deprecated: This feature will be removed in a future release. Use ImageSource to copy binary artifacts created from one build into a separate runtime image."
      },
      "runtimeArtifacts": {
       "type": "array",
       "items": {
        "$ref": "v1.ImageSourcePath"
       },
-      "description": "runtimeArtifacts specifies a list of source/destination pairs that will be copied from the builder to the runtime image. sourcePath can be a file or directory. destinationDir must be a directory. destinationDir can also be empty or equal to \".\", in this case it just refers to the root of WORKDIR. This field and the feature it enables are in tech preview."
+      "description": "runtimeArtifacts specifies a list of source/destination pairs that will be copied from the builder to the runtime image. sourcePath can be a file or directory. destinationDir must be a directory. destinationDir can also be empty or equal to \".\", in this case it just refers to the root of WORKDIR. Deprecated: This feature will be removed in a future release. Use ImageSource to copy binary artifacts created from one build into a separate runtime image."
      }
     }
    },
@@ -23431,7 +23431,7 @@
       "items": {
        "$ref": "v1.EnvVar"
       },
-      "description": "env contains additional environment variables you want to pass into a builder container"
+      "description": "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported."
      },
      "exposeDockerSocket": {
       "type": "boolean",
@@ -23483,6 +23483,13 @@
      "jenkinsfile": {
       "type": "string",
       "description": "Jenkinsfile defines the optional raw contents of a Jenkinsfile which defines a Jenkins pipeline build."
+     },
+     "env": {
+      "type": "array",
+      "items": {
+       "$ref": "v1.EnvVar"
+      },
+      "description": "env contains additional environment variables you want to pass into a build pipeline. ValueFrom is not supported."
      }
     }
    },
@@ -23769,7 +23776,7 @@
       "items": {
        "$ref": "v1.EnvVar"
       },
-      "description": "env contains additional environment variables you want to pass into a builder container"
+      "description": "env contains additional environment variables you want to pass into a builder container. ValueFrom is not supported."
      },
      "triggeredBy": {
       "type": "array",

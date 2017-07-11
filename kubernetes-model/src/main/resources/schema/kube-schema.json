@@ -9764,6 +9764,14 @@
       "type": "object",
       "description": "",
       "properties": {
+        "env": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_EnvVar",
+            "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
+          }
+        },
         "jenkinsfile": {
           "type": "string",
           "description": ""

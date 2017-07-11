@@ -139,9 +139,9 @@ func DumpNamedBuildLogs(buildName string, oc *CLI) {
 
 // DumpBuildLogs will dump the latest build logs for a BuildConfig for debug purposes
 func DumpBuildLogs(bc string, oc *CLI) {
-	buildOuput, err := oc.Run("logs").Args("-f", "bc/"+bc, "--timestamps").Output()
+	buildOutput, err := oc.Run("logs").Args("-f", "bc/"+bc, "--timestamps").Output()
 	if err == nil {
-		fmt.Fprintf(g.GinkgoWriter, "\n\n  build logs : %s\n\n", buildOuput)
+		fmt.Fprintf(g.GinkgoWriter, "\n\n  build logs : %s\n\n", buildOutput)
 	} else {
 		fmt.Fprintf(g.GinkgoWriter, "\n\n  got error on build logs %+v\n\n", err)
 	}
@@ -592,9 +592,9 @@ func WaitForAnImageStream(client client.ImageStreamInterface,
 }
 
 // WaitForAnImageStreamTag waits until an image stream with given name has non-empty history for given tag.
-// Defaults to waiting for 300 seconds
+// Defaults to waiting for 60 seconds
 func WaitForAnImageStreamTag(oc *CLI, namespace, name, tag string) error {
-	return TimedWaitForAnImageStreamTag(oc, namespace, name, tag, time.Second*300)
+	return TimedWaitForAnImageStreamTag(oc, namespace, name, tag, time.Second*60)
 }
 
 // TimedWaitForAnImageStreamTag waits until an image stream with given name has non-empty history for given tag.
