@@ -219,17 +219,11 @@ os::build::internal::build_binaries() {
       local platform_gotags_envvar=OS_GOFLAGS_TAGS_$(echo ${platform} | tr '[:lower:]/' '[:upper:]_')
       local platform_gotags_test_envvar=OS_GOFLAGS_TAGS_TEST_$(echo ${platform} | tr '[:lower:]/' '[:upper:]_')
 
-      # work around https://github.com/golang/go/issues/11887
-      local local_ldflags="${version_ldflags}"
-      if [[ "${platform}" == "darwin/amd64" ]]; then
-        local_ldflags+=" -s"
-      fi
-
       if [[ ${#nonstatics[@]} -gt 0 ]]; then
         GOOS=${platform%/*} GOARCH=${platform##*/} go install \
           -pkgdir "${OS_OUTPUT_PKGDIR}/${platform}" \
           -tags "${OS_GOFLAGS_TAGS-} ${!platform_gotags_envvar:-}" \
-          -ldflags="${local_ldflags}" \
+          -ldflags "${version_ldflags}" \
           "${goflags[@]:+${goflags[@]}}" \
           "${nonstatics[@]}"
 
@@ -243,10 +237,10 @@ os::build::internal::build_binaries() {
       for test in "${tests[@]:+${tests[@]}}"; do
         local outfile="${OS_OUTPUT_BINPATH}/${platform}/$(basename ${test})"
         # disabling cgo allows use of delve
-        CGO_ENABLED="${OS_TEST_CGO_ENABLED:-}" GOOS=${platform%/*} GOARCH=${platform##*/} go test \
+        CGO_ENABLED=0 GOOS=${platform%/*} GOARCH=${platform##*/} go test \
           -pkgdir "${OS_OUTPUT_PKGDIR}/${platform}" \
           -tags "${OS_GOFLAGS_TAGS-} ${!platform_gotags_test_envvar:-}" \
-          -ldflags "${local_ldflags}" \
+          -ldflags "${version_ldflags}" \
           -i -c -o "${outfile}" \
           "${goflags[@]:+${goflags[@]}}" \
           "$(dirname ${test})"
@@ -732,20 +726,16 @@ function os::build::image() {
   local directory=$1
   local tag=$2
   local dockerfile="${3-}"
-  local extra_tag="${4-}"
   local options="${OS_BUILD_IMAGE_ARGS-}"
   local mode="${OS_BUILD_IMAGE_TYPE:-imagebuilder}"
 
   if [[ "${mode}" == "imagebuilder" ]]; then
     if os::util::find::system_binary 'imagebuilder'; then
-      if [[ -n "${extra_tag}" ]]; then
-        extra_tag="-t '${extra_tag}'"
-      fi
       if [[ -n "${dockerfile}" ]]; then
-        eval "imagebuilder -f '${dockerfile}' -t '${tag}' ${extra_tag} ${options} '${directory}'"
+        eval "imagebuilder -f '${dockerfile}' -t '${tag}' ${options} '${directory}'"
         return $?
       fi
-      eval "imagebuilder -t '${tag}' ${extra_tag} ${options} '${directory}'"
+      eval "imagebuilder -t '${tag}' ${options} '${directory}'"
       return $?
     fi
 
@@ -756,15 +746,9 @@ function os::build::image() {
 
   if [[ -n "${dockerfile}" ]]; then
     eval "docker build -f '${dockerfile}' -t '${tag}' ${options} '${directory}'"
-    if [[ -n "${extra_tag}" ]]; then
-      docker tag "${tag}" "${extra_tag}"
-    fi
     return $?
   fi
   eval "docker build -t '${tag}' ${options} '${directory}'"
-  if [[ -n "${extra_tag}" ]]; then
-    docker tag "${tag}" "${extra_tag}"
-  fi
   return $?
 }
 readonly -f os::build::image

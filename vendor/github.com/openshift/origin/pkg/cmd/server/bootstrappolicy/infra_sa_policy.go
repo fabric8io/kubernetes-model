@@ -745,11 +745,7 @@ func init() {
 					Verbs:     sets.NewString("list", "watch"),
 					Resources: sets.NewString("replicationcontrollers"),
 				},
-				{
-					APIGroups: []string{apps.GroupName},
-					Verbs:     sets.NewString("list", "watch"),
-					Resources: sets.NewString("statefulsets"),
-				},
+				// DisruptionBudgetController.dStore.ListWatch
 				{
 					APIGroups: []string{policy.GroupName},
 					Verbs:     sets.NewString("get", "list", "watch"),

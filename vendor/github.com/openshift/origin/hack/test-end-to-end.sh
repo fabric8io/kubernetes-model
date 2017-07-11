@@ -32,7 +32,6 @@ function cleanup()
 	echo
 
 	cleanup_openshift
-	os::test::junit::generate_oscmd_report
 	os::log::info "Exiting"
 	ENDTIME=$(date +%s); echo "$0 took $(($ENDTIME - $STARTTIME)) seconds"
 	exit $out
@@ -45,11 +44,6 @@ trap "cleanup" EXIT
 # Start All-in-one server and wait for health
 os::util::environment::use_sudo
 os::util::environment::setup_all_server_vars "test-end-to-end/"
-
-# Allow setting $JUNIT_REPORT to toggle output behavior
-if [[ -n "${JUNIT_REPORT:-}" ]]; then
-	export JUNIT_REPORT_OUTPUT="${LOG_DIR}/raw_test_output.log"
-fi
 
 os::log::system::start
 

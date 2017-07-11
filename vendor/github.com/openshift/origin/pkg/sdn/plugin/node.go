@@ -120,7 +120,6 @@ func NewNodePlugin(pluginName string, osClient *osclient.Client, kClient *kclien
 		osClient:           osClient,
 		ovs:                ovsif,
 		localIP:            selfIP,
-		podManager:         newPodManager(kClient, policy, mtu, ovsif),
 		hostName:           hostname,
 		podNetworkReady:    make(chan struct{}),
 		kubeletInitReady:   make(chan struct{}),
@@ -202,16 +201,14 @@ func (node *OsdnNode) Start() error {
 		return fmt.Errorf("Failed to get network information: %v", err)
 	}
 
-	node.localSubnetCIDR, err = node.getLocalSubnet()
-	if err != nil {
-		return err
-	}
-
-	//**** After this point, all OsdnNode fields except node.host have been initialized
-
 	nodeIPTables := newNodeIPTables(node.networkInfo.ClusterNetwork.String(), node.iptablesSyncPeriod)
 	if err = nodeIPTables.Setup(); err != nil {
 		return fmt.Errorf("Failed to set up iptables: %v", err)
+	}
+
+	node.localSubnetCIDR, err = node.getLocalSubnet()
+	if err != nil {
+		return err
 	}
 
 	networkChanged, err := node.SetupSDN()
@@ -241,8 +238,12 @@ func (node *OsdnNode) Start() error {
 			return true, nil
 		})
 
-	log.V(5).Infof("Starting openshift-sdn pod manager")
-	if err := node.podManager.Start(cniserver.CNIServerSocketPath, node.host, node.localSubnetCIDR, node.networkInfo.ClusterNetwork); err != nil {
+	log.V(5).Infof("Creating and initializing openshift-sdn pod manager")
+	node.podManager, err = newPodManager(node.host, node.localSubnetCIDR, node.networkInfo, node.kClient, node.policy, node.mtu, node.ovs)
+	if err != nil {
+		return err
+	}
+	if err := node.podManager.Start(cniserver.CNIServerSocketPath); err != nil {
 		return err
 	}
 

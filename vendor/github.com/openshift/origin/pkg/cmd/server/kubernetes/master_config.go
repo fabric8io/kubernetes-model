@@ -50,7 +50,6 @@ import (
 	"github.com/openshift/origin/pkg/api"
 	"github.com/openshift/origin/pkg/cmd/flagtypes"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	"github.com/openshift/origin/pkg/cmd/server/crypto"
 	"github.com/openshift/origin/pkg/cmd/server/election"
 	cmdflags "github.com/openshift/origin/pkg/cmd/util/flags"
 	"github.com/openshift/origin/pkg/controller/shared"
@@ -299,14 +298,9 @@ func BuildKubernetesMasterConfig(options configapi.MasterConfig, requestContextM
 	genericConfig.LegacyAPIGroupPrefixes = LegacyAPIGroupPrefixes
 	genericConfig.SecureServingInfo.BindAddress = options.ServingInfo.BindAddress
 	genericConfig.SecureServingInfo.BindNetwork = options.ServingInfo.BindNetwork
-	genericConfig.SecureServingInfo.MinTLSVersion = crypto.TLSVersionOrDie(options.ServingInfo.MinTLSVersion)
-	genericConfig.SecureServingInfo.CipherSuites = crypto.CipherSuitesOrDie(options.ServingInfo.CipherSuites)
-	oAuthClientCertCAs, err := configapi.GetOAuthClientCertCAs(options)
+	genericConfig.SecureServingInfo.ExtraClientCACerts, err = configapi.GetOAuthClientCertCAs(options)
 	if err != nil {
 		glog.Fatalf("Error setting up OAuth2 client certificates: %v", err)
-	}
-	for _, cert := range oAuthClientCertCAs {
-		genericConfig.SecureServingInfo.ClientCA.AddCert(cert)
 	}
 	url, err := url.Parse(options.MasterPublicURL)
 	if err != nil {

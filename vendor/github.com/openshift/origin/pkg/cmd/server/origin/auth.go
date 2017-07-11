@@ -70,7 +70,7 @@ import (
 const (
 	OpenShiftOAuthAPIPrefix      = "/oauth"
 	openShiftLoginPrefix         = "/login"
-	openShiftApproveSubpath      = "approve"
+	OpenShiftApprovePrefix       = "/oauth/approve"
 	OpenShiftOAuthCallbackPrefix = "/oauth2callback"
 	OpenShiftWebConsoleClientID  = "openshift-web-console"
 	OpenShiftBrowserClientID     = "openshift-browser-client"
@@ -359,13 +359,11 @@ func (c *AuthConfig) getGrantHandler(mux cmdutil.Mux, auth authenticator.Request
 	// Since any OAuth client could require prompting, we will unconditionally
 	// start the GrantServer here.
 	grantServer := grant.NewGrant(c.getCSRF(), auth, grant.DefaultFormRenderer, clientregistry, authregistry)
-	grantServer.Install(mux, path.Join(OpenShiftOAuthAPIPrefix, osinserver.AuthorizePath, openShiftApproveSubpath))
+	grantServer.Install(mux, OpenShiftApprovePrefix)
 
 	// Set defaults for standard clients. These can be overridden.
-	return handlers.NewPerClientGrant(
-		handlers.NewRedirectGrant(openShiftApproveSubpath),
-		oauthapi.GrantHandlerType(c.Options.GrantConfig.Method),
-	)
+	return handlers.NewPerClientGrant(handlers.NewRedirectGrant(OpenShiftApprovePrefix),
+		oauthapi.GrantHandlerType(c.Options.GrantConfig.Method))
 }
 
 // getAuthenticationFinalizer returns an authentication finalizer which is called just prior to writing a response to an authorization request

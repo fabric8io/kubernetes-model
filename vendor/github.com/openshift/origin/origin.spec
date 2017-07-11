@@ -351,7 +351,7 @@ mkdir -p $RPM_BUILD_ROOT/usr/sbin
 
 # Install openshift-excluder script
 sed "s|@@CONF_FILE-VARIABLE@@|${OS_CONF_FILE}|" contrib/excluder/excluder-template > $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
-sed -i "s|@@PACKAGE_LIST-VARIABLE@@|%{name} %{name}-clients %{name}-clients-redistributable %{name}-dockerregistry %{name}-master %{name}-node %{name}-pod %{name}-recycle %{name}-sdn-ovs %{name}-tests tuned-profiles-%{name}-node|" $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
+sed -i "s|@@PACKAGE_LIST-VARIABLE@@|%{name} %{name}-clients %{name}-clients-redistributable %{name}-dockerregistry %{name}-master %{name}-node %{name}-pod %{name}-recycle %{name}-sdn-ovs %{name}-tests tuned-profiles-%{name}-node %{name}-excluder %{name}-docker-excluder|" $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
 chmod 0744 $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
 
 # Install docker-excluder script
@@ -547,19 +547,12 @@ fi
 %files excluder
 /usr/sbin/%{name}-excluder
 
-%pretrans excluder
-# we always want to clear this out using the last
-#   versions script.  Otherwise excludes might get left in
-if [ -s /usr/sbin/%{name}-excluder ] ; then
-  /usr/sbin/%{name}-excluder unexclude
+%post excluder
+if [ "$1" -eq 1 ] ; then
+  %{name}-excluder exclude
 fi
 
-%posttrans excluder
-# we always want to run this after an install or update
-/usr/sbin/%{name}-excluder exclude
-
 %preun excluder
-# If we are the last one, clean things up
 if [ "$1" -eq 0 ] ; then
   /usr/sbin/%{name}-excluder unexclude
 fi
@@ -567,22 +560,15 @@ fi
 %files docker-excluder
 /usr/sbin/%{name}-docker-excluder
 
-%pretrans docker-excluder
-# we always want to clear this out using the last
-#   versions script.  Otherwise excludes might get left in
-if [ -s /usr/sbin/%{name}-docker-excluder ] ; then
-  /usr/sbin/%{name}-docker-excluder unexclude
-fi
-
-%posttrans docker-excluder
-# we always want to run this after an install or update
-/usr/sbin/%{name}-docker-excluder exclude
+%post docker-excluder
+# we always want to run this, since the
+#   package-list may be different with each version
+%{name}-docker-excluder exclude
 
 %preun docker-excluder
-# If we are the last one, clean things up
-if [ "$1" -eq 0 ] ; then
-  /usr/sbin/%{name}-docker-excluder unexclude
-fi
+# we always want to clear this out, since the
+#   package-list may be different with each version
+/usr/sbin/%{name}-docker-excluder unexclude
 
 %changelog
 * Fri Sep 18 2015 Scott Dodson <sdodson@redhat.com> 0.2-9
