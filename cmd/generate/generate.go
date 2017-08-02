@@ -39,7 +39,8 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api/v1"
 	appsapi "k8s.io/kubernetes/pkg/apis/apps/v1beta1"
 	autoscalingapi "k8s.io/kubernetes/pkg/apis/autoscaling/v1"
-	batchapi "k8s.io/kubernetes/pkg/apis/batch/v2alpha1"
+	batchapiv2alpha1 "k8s.io/kubernetes/pkg/apis/batch/v2alpha1"
+	batchapiv1 "k8s.io/kubernetes/pkg/apis/batch/v1"
 	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 	configapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api/v1"
 	watch "k8s.io/kubernetes/pkg/watch/json"
@@ -132,10 +133,10 @@ type Schema struct {
 	ProjectList                    projectapi.ProjectList
 	ProjectRequest                 projectapi.ProjectRequest
 	ListMeta                       rapi.ListMeta
-	Job                            batchapi.Job
-	JobList                        batchapi.JobList
-	CronJob                        batchapi.CronJob
-	CronJobList                    batchapi.CronJobList
+	Job                            batchapiv1.Job
+	JobList                        batchapiv1.JobList
+	CronJob                        batchapiv2alpha1.CronJob
+	CronJobList                    batchapiv2alpha1.CronJobList
 	Scale                          extensions.Scale
 	HorizontalPodAutoscaler        autoscalingapi.HorizontalPodAutoscaler
 	HorizontalPodAutoscalerList    autoscalingapi.HorizontalPodAutoscalerList
