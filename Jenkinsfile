@@ -16,11 +16,23 @@
  */
 @Library('github.com/fabric8io/fabric8-pipeline-library@master')
 def dummy
-clientsTemplate{
+goTemplate{
   mavenNode {
     ws{
+
+
+    def buildPath = "/home/jenkins/go/src/github.com/fabric8io/kubernetes-model"
+
+    sh "mkdir -p ${buildPath}"
+
+    dir(buildPath) {
       checkout scm
       readTrusted 'release.groovy'
+
+      container(name: 'go') {
+        sh 'make gobuild'
+      }
+
       if (env.BRANCH_NAME.startsWith('PR-')){
         echo 'Running CI pipeline'
         container(name: 'maven') {
@@ -41,6 +53,7 @@ clientsTemplate{
         stage 'Update downstream dependencies'
         pipeline.updateDownstreamDependencies(stagedProject)
       }
+    }
     }
   }
 }
