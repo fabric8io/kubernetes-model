@@ -1492,6 +1492,29 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "kubernetes_Ip": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "ip": {
+          "type": "string",
+          "description": ""
+        },
+        "hostnames": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.Ip",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "kubernetes_Container": {
       "type": "object",
       "description": "",
@@ -4199,6 +4222,14 @@
           "items": {
             "$ref": "#/definitions/kubernetes_Volume",
             "javaType": "io.fabric8.kubernetes.api.model.Volume"
+          }
+        },
+        "hostAliases": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_Ip",
+            "javaType": "io.fabric8.kubernetes.api.model.Ip"
           }
         }
       },
@@ -12875,3 +12906,4 @@
   },
   "additionalProperties": true
 }
+
