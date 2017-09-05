@@ -10,6 +10,14 @@ Pre-requisits
 Install [go](https://golang.org/doc/install)   
 Install [godep](https://github.com/GoogleCloudPlatform/kubernetes/blob/master/docs/devel/development.md#godep-and-dependency-management)   
 
+
+Getting the code
+----------------
+```
+git clone https://github.com/fabric8io/kubernetes-model $GOPATH/src/github.com/fabric8io/kubernetes-model
+```
+
+
 Building
 --------
 To build, clone repo and run:  
