@@ -7631,6 +7631,82 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "kubernetes_storageclass_StorageClass": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "storage/v1beta1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "StorageClass",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "parameters": {
+          "type": "object",
+          "description": "",
+          "additionalProperties": {
+            "type": "string",
+            "description": ""
+          },
+          "javaType": "java.util.Map\u003cString,String\u003e"
+        },
+        "provisioner": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.StorageClass",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_storageclass_StorageClassList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "storage/v1beta1",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_storageclass_StorageClass",
+            "javaType": "io.fabric8.kubernetes.api.model.StorageClass"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "StorageClassList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/api_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.StorageClassList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
     "kubernetes_watch_WatchEvent": {
       "type": "object",
       "description": "",
@@ -12827,6 +12903,14 @@
     "Status": {
       "$ref": "#/definitions/api_Status",
       "javaType": "io.fabric8.kubernetes.api.model.Status"
+    },
+    "StorageClass": {
+      "$ref": "#/definitions/kubernetes_storageclass_StorageClass",
+      "javaType": "io.fabric8.kubernetes.api.model.StorageClass"
+    },
+    "StorageClassList": {
+      "$ref": "#/definitions/kubernetes_storageclass_StorageClassList",
+      "javaType": "io.fabric8.kubernetes.api.model.StorageClassList"
     },
     "SubjectAccessReview": {
       "$ref": "#/definitions/os_authorization_SubjectAccessReview",

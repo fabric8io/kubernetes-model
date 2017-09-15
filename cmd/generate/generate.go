@@ -42,6 +42,7 @@ import (
 	batchapiv1 "k8s.io/kubernetes/pkg/apis/batch/v1"
 	batchapiv2alpha1 "k8s.io/kubernetes/pkg/apis/batch/v2alpha1"
 	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
+	storageclassapi "k8s.io/kubernetes/pkg/apis/storage/v1beta1"
 	configapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api/v1"
 	watch "k8s.io/kubernetes/pkg/watch/json"
 
@@ -164,6 +165,8 @@ type Schema struct {
 	CustomResourceDefinitionNames     apiextensions.CustomResourceDefinitionNames
 	CustomResourceDefinitionCondition apiextensions.CustomResourceDefinitionCondition
 	CustomResourceDefinitionStatus    apiextensions.CustomResourceDefinitionStatus
+	StorageClass                      storageclassapi.StorageClass
+	StorageClassList                  storageclassapi.StorageClassList
 }
 
 func main() {
@@ -196,6 +199,7 @@ func main() {
 		{"k8s.io/kubernetes/pkg/apis/autoscaling/v1", "io.fabric8.kubernetes.api.model", "kubernetes_autoscaling_"},
 		{"k8s.io/apiextensions-server/pkg/apis/apiextensions/v1beta1", "io.fabric8.kubernetes.api.model.apiextensions", "k8s_io_apiextensions_"},
 		{"k8s.io/apimachinery/pkg/apis/meta/v1", "io.fabric8.kubernetes.api.model", "k8s_io_apimachinery_"},
+		{"k8s.io/kubernetes/pkg/apis/storage/v1beta1", "io.fabric8.kubernetes.api.model", "kubernetes_storageclass_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{
