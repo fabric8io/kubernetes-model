@@ -22,6 +22,7 @@ type JSONSchema struct {
 	Definitions map[string]JSONPropertyDescriptor `json:"definitions"`
 	JSONDescriptor
 	*JSONObjectDescriptor
+	Resources Resource
 }
 
 type JSONDescriptor struct {
@@ -72,4 +73,9 @@ type JSONPropertyDescriptor struct {
 
 type JSONMapDescriptor struct {
 	MapValueType JSONPropertyDescriptor `json:"additionalProperty"`
+}
+
+type Resource struct {
+	Kubernetes	map[string]*JSONObjectDescriptor `json:"kubernetes,omitempty"`
+	OpenShift	map[string]*JSONObjectDescriptor `json:"openshift,omitempty"`
 }

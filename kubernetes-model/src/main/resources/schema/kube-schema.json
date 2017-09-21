@@ -13617,6 +13617,10 @@
       "$ref": "#/definitions/kubernetes_extensions_Deployment",
       "javaType": "io.fabric8.kubernetes.api.model.extensions.Deployment"
     },
+    "DeploymentConfig": {
+      "$ref": "#/definitions/os_deploy_DeploymentConfig",
+      "javaType": "io.fabric8.openshift.api.model.DeploymentConfig"
+    },
     "DeploymentConfigList": {
       "$ref": "#/definitions/os_deploy_DeploymentConfigList",
       "javaType": "io.fabric8.openshift.api.model.DeploymentConfigList"
@@ -13872,6 +13876,10 @@
     "RootPaths": {
       "$ref": "#/definitions/k8s_io_apimachinery_RootPaths",
       "javaType": "io.fabric8.kubernetes.api.model.RootPaths"
+    },
+    "Route": {
+      "$ref": "#/definitions/os_route_Route",
+      "javaType": "io.fabric8.openshift.api.model.Route"
     },
     "RouteList": {
       "$ref": "#/definitions/os_route_RouteList",
