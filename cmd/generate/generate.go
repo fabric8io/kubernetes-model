@@ -24,7 +24,8 @@ import (
 	"strings"
 	"time"
 
-	authapi "github.com/openshift/origin/pkg/authorization/api/v1"
+	authenticationapi "k8s.io/kubernetes/pkg/apis/authentication/v1beta1"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/api/v1"
 	buildapi "github.com/openshift/origin/pkg/build/api/v1"
 	deployapi "github.com/openshift/origin/pkg/deploy/api/v1"
 	imageapi "github.com/openshift/origin/pkg/image/api/v1"
@@ -103,24 +104,25 @@ type Schema struct {
 	OAuthAuthorizeTokenList           oauthapi.OAuthAuthorizeTokenList
 	OAuthClientList                   oauthapi.OAuthClientList
 	OAuthClientAuthorizationList      oauthapi.OAuthClientAuthorizationList
-	ClusterPolicy                     authapi.ClusterPolicy
-	ClusterPolicyList                 authapi.ClusterPolicyList
-	ClusterPolicyBinding              authapi.ClusterPolicyBinding
-	ClusterPolicyBindingList          authapi.ClusterPolicyBindingList
-	Policy                            authapi.Policy
-	PolicyList                        authapi.PolicyList
-	PolicyBinding                     authapi.PolicyBinding
-	PolicyBindingList                 authapi.PolicyBindingList
-	Role                              authapi.Role
-	RoleList                          authapi.RoleList
-	RoleBinding                       authapi.RoleBinding
-	RoleBindingList                   authapi.RoleBindingList
-	RoleBindingRestriction            authapi.RoleBindingRestriction
-	LocalSubjectAccessReview          authapi.LocalSubjectAccessReview
-	SubjectAccessReview               authapi.SubjectAccessReview
-	SubjectAccessReviewResponse       authapi.SubjectAccessReviewResponse
-	ClusterRoleBinding                authapi.ClusterRoleBinding
-	ClusterRoleBindingList            authapi.ClusterRoleBindingList
+	TokenReview                       authenticationapi.TokenReview
+	ClusterPolicy                     authorizationapi.ClusterPolicy
+	ClusterPolicyList                 authorizationapi.ClusterPolicyList
+	ClusterPolicyBinding              authorizationapi.ClusterPolicyBinding
+	ClusterPolicyBindingList          authorizationapi.ClusterPolicyBindingList
+	Policy                            authorizationapi.Policy
+	PolicyList                        authorizationapi.PolicyList
+	PolicyBinding                     authorizationapi.PolicyBinding
+	PolicyBindingList                 authorizationapi.PolicyBindingList
+	Role                              authorizationapi.Role
+	RoleList                          authorizationapi.RoleList
+	RoleBinding                       authorizationapi.RoleBinding
+	RoleBindingList                   authorizationapi.RoleBindingList
+	RoleBindingRestriction            authorizationapi.RoleBindingRestriction
+	LocalSubjectAccessReview          authorizationapi.LocalSubjectAccessReview
+	SubjectAccessReview               authorizationapi.SubjectAccessReview
+	SubjectAccessReviewResponse       authorizationapi.SubjectAccessReviewResponse
+	ClusterRoleBinding                authorizationapi.ClusterRoleBinding
+	ClusterRoleBindingList            authorizationapi.ClusterRoleBindingList
 	User                              userapi.User
 	UserList                          userapi.UserList
 	Group                             userapi.Group
@@ -193,6 +195,7 @@ func main() {
 		{"k8s.io/kubernetes/pkg/api/unversioned", "io.fabric8.kubernetes.api.model", "api_"},
 		{"k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api/v1", "io.fabric8.kubernetes.api.model", "clientcmd_api_"},
 		{"k8s.io/kubernetes/pkg/apis/extensions/v1beta1", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_extensions_"},
+		{"k8s.io/kubernetes/pkg/apis/authentication/v1beta1", "io.fabric8.kubernetes.api.model.authentication", "kubernetes_authentication_"},
 		{"k8s.io/kubernetes/pkg/apis/apps/v1beta1", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_apps_"},
 		{"k8s.io/kubernetes/pkg/apis/batch/v2alpha1", "io.fabric8.kubernetes.api.model", "kubernetes_batch_"},
 		{"k8s.io/kubernetes/pkg/apis/batch/v1", "io.fabric8.kubernetes.api.model", "kubernetes_batch_"},
