@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	ResourceOpenshift = "openshift"
+	ResourceOpenshift  = "openshift"
 	ResourceKubernetes = "kubernetes"
 )
 
@@ -89,18 +89,18 @@ func (g *schemaGenerator) qualifiedName(t reflect.Type) string {
 
 func (g *schemaGenerator) resourceDetails(t reflect.Type) (string, string) {
 	pckDesc, ok := g.packages[pkgPath(t)]
-	var kind string = nil
+	var kind string
 	var name = strings.ToLower(t.Name())
 
 	if ok {
-		if strings.Compare(strings.Split(pckDesc.Prefix, "_")[0], "os")  == 0 {
+		if strings.Compare(strings.Split(pckDesc.Prefix, "_")[0], "os") == 0 {
 			kind = ResourceOpenshift
 		} else {
 			kind = ResourceKubernetes
 		}
 	}
 
-	return kind, name;
+	return kind, name
 }
 
 func (g *schemaGenerator) generateReference(t reflect.Type) string {
@@ -214,9 +214,9 @@ func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
 	s.JSONObjectDescriptor = g.generateObjectDescriptor(t)
 	if len(g.types) > 0 {
 		s.Definitions = make(map[string]JSONPropertyDescriptor)
-		s.Resources = Resource {
+		s.Resources = Resource{
 			Kubernetes: make(map[string]*JSONObjectDescriptor),
-			OpenShift: make(map[string]*JSONObjectDescriptor),
+			OpenShift:  make(map[string]*JSONObjectDescriptor),
 		}
 		for k, v := range g.types {
 			name := g.qualifiedName(k)
@@ -234,7 +234,7 @@ func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
 				},
 			}
 			s.Definitions[name] = value
-			if(kind != nil) {
+			if kind != "" {
 				s.Resources.add(kind, resource, v)
 			}
 		}
