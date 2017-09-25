@@ -123,7 +123,7 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 		t = t.Elem()
 	}
 	pkgDesc, ok := g.packages[pkgPath(t)]
-	if ok {
+	if t.Kind() == reflect.Struct && ok {
 		switch t.Name() {
 		case "RawExtension":
 			return "io.fabric8.kubernetes.api.model.HasMetadata"
