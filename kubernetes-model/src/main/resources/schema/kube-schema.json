@@ -5972,6 +5972,119 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "kubernetes_authentication_TokenReview": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "authentication/v1beta1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "TokenReview",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/kubernetes_authentication_TokenReviewSpec",
+          "javaType": "io.fabric8.kubernetes.api.model.authentication.TokenReviewSpec"
+        },
+        "status": {
+          "$ref": "#/definitions/kubernetes_authentication_TokenReviewStatus",
+          "javaType": "io.fabric8.kubernetes.api.model.authentication.TokenReviewStatus"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.authentication.TokenReview",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_authentication_TokenReviewSpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.authentication.TokenReviewSpec",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_authentication_TokenReviewStatus": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "authenticated": {
+          "type": "boolean",
+          "description": ""
+        },
+        "error": {
+          "type": "string",
+          "description": ""
+        },
+        "user": {
+          "$ref": "#/definitions/kubernetes_authentication_UserInfo",
+          "javaType": "io.fabric8.kubernetes.api.model.authentication.UserInfo"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.authentication.TokenReviewStatus",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_authentication_UserInfo": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "extra": {
+          "type": "object",
+          "description": "",
+          "additionalProperties": {
+            "type": "array",
+            "description": "",
+            "items": {
+              "type": "string",
+              "description": ""
+            }
+          },
+          "javaType": "java.util.Map\u003cString,java.util.ArrayList\u003cString\u003e\u003e"
+        },
+        "groups": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "uid": {
+          "type": "string",
+          "description": ""
+        },
+        "username": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.authentication.UserInfo",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "kubernetes_autoscaling_CrossVersionObjectReference": {
       "type": "object",
       "description": "",
@@ -12939,6 +13052,10 @@
     "ThirdPartyResourceList": {
       "$ref": "#/definitions/kubernetes_extensions_ThirdPartyResourceList",
       "javaType": "io.fabric8.kubernetes.api.model.extensions.ThirdPartyResourceList"
+    },
+    "TokenReview": {
+      "$ref": "#/definitions/kubernetes_authentication_TokenReview",
+      "javaType": "io.fabric8.kubernetes.api.model.authentication.TokenReview"
     },
     "Toleration": {
       "$ref": "#/definitions/kubernetes_Toleration",
