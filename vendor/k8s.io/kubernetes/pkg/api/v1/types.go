@@ -218,6 +218,11 @@ const (
 	NamespaceAll string = ""
 )
 
+type Ip struct {
+	Ip string `json:"ip" protobuf:"bytes,1,opt,name=ip"`
+	Hostnames []string `json:"hostnames" protobuf:"bytes,2,rep,name=hostnames"`
+}
+
 // Volume represents a named volume in a pod that may be accessed by any container in the pod.
 type Volume struct {
 	// Volume's name.
@@ -2011,6 +2016,8 @@ type PodSpec struct {
 	// More info: http://kubernetes.io/docs/user-guide/volumes
 	// +optional
 	Volumes []Volume `json:"volumes,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,1,rep,name=volumes"`
+	//HostAliases
+	HostAliases []Ip `json:"hostAliases,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,1,rep,name=hostAliases"`
 	// List of initialization containers belonging to the pod.
 	// Init containers are executed in order prior to containers being started. If any
 	// init container fails, the pod is considered to have failed and is handled according
