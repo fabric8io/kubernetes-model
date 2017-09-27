@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -13,7 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
+	"github.com/openshift/origin/pkg/build/builder/timing"
 	"github.com/openshift/origin/pkg/generate/git"
 )
 
@@ -177,9 +179,10 @@ func TestUnqualifiedClone(t *testing.T) {
 	destDir, err := ioutil.TempDir("", "clone-dest-")
 	defer os.RemoveAll(destDir)
 	client := git.NewRepositoryWithEnv([]string{})
-	source := &api.GitBuildSource{URI: "file://" + repo.Path}
-	revision := api.SourceRevision{Git: &api.GitSourceRevision{}}
-	if _, err = extractGitSource(client, source, &revision, destDir, 10*time.Second); err != nil {
+	source := &buildapi.GitBuildSource{URI: "file://" + repo.Path}
+	revision := buildapi.SourceRevision{Git: &buildapi.GitSourceRevision{}}
+	ctx := timing.NewContext(context.Background())
+	if _, err = extractGitSource(ctx, client, source, &revision, destDir, 10*time.Second); err != nil {
 		t.Errorf("%v", err)
 	}
 	for _, f := range repo.Files {
@@ -220,12 +223,13 @@ func TestCloneFromRef(t *testing.T) {
 	if err != nil {
 		t.Errorf("%v", err)
 	}
-	source := &api.GitBuildSource{
+	source := &buildapi.GitBuildSource{
 		URI: "file://" + repo.Path,
 		Ref: firstCommitRef,
 	}
-	revision := api.SourceRevision{Git: &api.GitSourceRevision{}}
-	if _, err = extractGitSource(client, source, &revision, destDir, 10*time.Second); err != nil {
+	revision := buildapi.SourceRevision{Git: &buildapi.GitSourceRevision{}}
+	ctx := timing.NewContext(context.Background())
+	if _, err = extractGitSource(ctx, client, source, &revision, destDir, 10*time.Second); err != nil {
 		t.Errorf("%v", err)
 	}
 	for _, f := range repo.Files[:len(repo.Files)-1] {
@@ -274,12 +278,13 @@ func TestCloneFromBranch(t *testing.T) {
 	destDir, err := ioutil.TempDir("", "branch-dest-")
 	defer os.RemoveAll(destDir)
 	client := git.NewRepositoryWithEnv([]string{})
-	source := &api.GitBuildSource{
+	source := &buildapi.GitBuildSource{
 		URI: "file://" + repo.Path,
 		Ref: "test",
 	}
-	revision := api.SourceRevision{Git: &api.GitSourceRevision{}}
-	if _, err = extractGitSource(client, source, &revision, destDir, 10*time.Second); err != nil {
+	revision := buildapi.SourceRevision{Git: &buildapi.GitSourceRevision{}}
+	ctx := timing.NewContext(context.Background())
+	if _, err = extractGitSource(ctx, client, source, &revision, destDir, 10*time.Second); err != nil {
 		t.Errorf("%v", err)
 	}
 	for _, f := range repo.Files[:len(repo.Files)-1] {

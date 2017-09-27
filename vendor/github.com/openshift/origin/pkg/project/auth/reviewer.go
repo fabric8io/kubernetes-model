@@ -1,9 +1,10 @@
 package auth
 
 import (
+	kauthorizer "k8s.io/apiserver/pkg/authorization/authorizer"
 	kapi "k8s.io/kubernetes/pkg/api"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	"github.com/openshift/origin/pkg/authorization/authorizer"
 	"github.com/openshift/origin/pkg/client"
 )
@@ -92,22 +93,23 @@ func (r *reviewer) Review(name string) (Review, error) {
 }
 
 type authorizerReviewer struct {
-	policyChecker authorizer.Authorizer
+	policyChecker authorizer.SubjectLocator
 }
 
-func NewAuthorizerReviewer(policyChecker authorizer.Authorizer) Reviewer {
+func NewAuthorizerReviewer(policyChecker authorizer.SubjectLocator) Reviewer {
 	return &authorizerReviewer{policyChecker: policyChecker}
 }
 
 func (r *authorizerReviewer) Review(namespaceName string) (Review, error) {
-	attributes := authorizer.DefaultAuthorizationAttributes{
-		Verb:         "get",
-		Resource:     "namespaces",
-		ResourceName: namespaceName,
+	attributes := kauthorizer.AttributesRecord{
+		Verb:            "get",
+		Namespace:       namespaceName,
+		Resource:        "namespaces",
+		Name:            namespaceName,
+		ResourceRequest: true,
 	}
 
-	ctx := kapi.WithNamespace(kapi.NewContext(), namespaceName)
-	users, groups, err := r.policyChecker.GetAllowedSubjects(ctx, attributes)
+	users, groups, err := r.policyChecker.GetAllowedSubjects(attributes)
 	review := &defaultReview{
 		users:  users.List(),
 		groups: groups.List(),

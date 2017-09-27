@@ -1,5 +1,6 @@
 from tito.common import run_command, get_latest_commit
 
+
 def inject_os_git_vars(spec_file):
     """
     Determine the OpenShift version variables as dictated by the Origin
@@ -21,7 +22,8 @@ def inject_os_git_vars(spec_file):
             " ".join(["{}={}".format(key, value) for key, value in os_git_vars.items()]),
             spec_file
         )
-    output = run_command(update_os_git_vars)
+    run_command(update_os_git_vars)
+
 
 def get_os_git_vars():
     """
@@ -32,7 +34,7 @@ def get_os_git_vars():
     for var in ["COMMIT", "VERSION", "MAJOR", "MINOR"]:
         var_name = "OS_GIT_{}".format(var)
         git_vars[var_name] = run_command(
-            "bash -c 'source ./hack/lib/init.sh; os::build::os_version_vars; echo ${}'".format(var_name)
+            "bash -c 'source ./hack/lib/init.sh; os::build::version::openshift_vars; echo ${}'".format(var_name)
         )
 
     # we hard-code this to a clean state as tito will have dirtied up the tree
@@ -41,6 +43,7 @@ def get_os_git_vars():
     git_vars["OS_GIT_TREE_STATE"] = "clean"
     git_vars["OS_GIT_VERSION"] = git_vars["OS_GIT_VERSION"].replace("-dirty", "")
     return git_vars
+
 
 def update_global_hash(spec_file):
     """
@@ -57,4 +60,4 @@ def update_global_hash(spec_file):
             git_hash,
             spec_file
         )
-    output = run_command(update_commit)
+    run_command(update_commit)

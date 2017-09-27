@@ -5,7 +5,7 @@ import (
 	"path"
 	"time"
 
-	"k8s.io/kubernetes/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
@@ -15,6 +15,8 @@ const (
 	CAFilePrefix     = "ca"
 	CABundlePrefix   = "ca-bundle"
 	MasterFilePrefix = "master"
+
+	FrontProxyCAFilePrefix = "frontproxy-ca"
 )
 
 type ClientCertInfo struct {
@@ -116,6 +118,18 @@ func DefaultOpenshiftLoopbackClientCertInfo(certDir string) ClientCertInfo {
 		UnqualifiedUser: bootstrappolicy.MasterUnqualifiedUsername,
 		User:            bootstrappolicy.MasterUsername,
 		Groups:          sets.NewString(bootstrappolicy.MastersGroup),
+	}
+}
+
+func DefaultAggregatorClientCertInfo(certDir string) ClientCertInfo {
+	return ClientCertInfo{
+		CertLocation: configapi.CertInfo{
+			CertFile: DefaultCertFilename(certDir, bootstrappolicy.AggregatorUnqualifiedUsername),
+			KeyFile:  DefaultKeyFilename(certDir, bootstrappolicy.AggregatorUnqualifiedUsername),
+		},
+		UnqualifiedUser: bootstrappolicy.AggregatorUnqualifiedUsername,
+		User:            bootstrappolicy.AggregatorUsername,
+		Groups:          sets.String{},
 	}
 }
 

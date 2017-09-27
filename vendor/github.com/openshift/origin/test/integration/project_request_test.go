@@ -4,24 +4,22 @@ import (
 	"testing"
 	"time"
 
+	kapierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
 	kapi "k8s.io/kubernetes/pkg/api"
-	kapierrors "k8s.io/kubernetes/pkg/api/errors"
 	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/watch"
 
-	projectapi "github.com/openshift/origin/pkg/project/api"
+	projectapi "github.com/openshift/origin/pkg/project/apis/project"
 	"github.com/openshift/origin/pkg/project/registry/projectrequest/delegated"
-	templateapi "github.com/openshift/origin/pkg/template/api"
+	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
 
 func TestProjectRequestError(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-
 	const (
 		ns                = "testns"
 		templateNamespace = "default"
@@ -31,6 +29,7 @@ func TestProjectRequestError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating config: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
 	masterConfig.ProjectConfig.ProjectRequestTemplate = templateNamespace + "/" + templateName
 
@@ -53,11 +52,11 @@ func TestProjectRequestError(t *testing.T) {
 
 	additionalObjects := []runtime.Object{
 		// Append an object that will succeed
-		&kapi.ConfigMap{ObjectMeta: kapi.ObjectMeta{Name: "configmapname"}},
+		&kapi.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "configmapname"}},
 		// Append a custom object that will fail validation
 		&kapi.ConfigMap{},
 		// Append another object that should never be created, since we short circuit
-		&kapi.ConfigMap{ObjectMeta: kapi.ObjectMeta{Name: "configmapname2"}},
+		&kapi.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "configmapname2"}},
 	}
 	if err := templateapi.AddObjectsToTemplate(template, additionalObjects, kapiv1.SchemeGroupVersion); err != nil {
 		t.Fatal(err)
@@ -67,21 +66,21 @@ func TestProjectRequestError(t *testing.T) {
 	}
 
 	// Watch the project, rolebindings, and configmaps
-	nswatch, err := kubeClientset.Core().Namespaces().Watch(kapi.ListOptions{FieldSelector: fields.OneTermEqualSelector("metadata.name", ns)})
+	nswatch, err := kubeClientset.Core().Namespaces().Watch(metav1.ListOptions{FieldSelector: fields.OneTermEqualSelector("metadata.name", ns).String()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	policywatch, err := openshiftClient.PolicyBindings(ns).Watch(kapi.ListOptions{})
+	roleWatch, err := kubeClientset.Rbac().RoleBindings(ns).Watch(metav1.ListOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmwatch, err := kubeClientset.Core().ConfigMaps(ns).Watch(kapi.ListOptions{})
+	cmwatch, err := kubeClientset.Core().ConfigMaps(ns).Watch(metav1.ListOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Create project request
-	_, err = openshiftClient.ProjectRequests().Create(&projectapi.ProjectRequest{ObjectMeta: kapi.ObjectMeta{Name: ns}})
+	_, err = openshiftClient.ProjectRequests().Create(&projectapi.ProjectRequest{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 	if err == nil || err.Error() != `Internal error occurred: ConfigMap "" is invalid: metadata.name: Required value: name or generateName is required` {
 		t.Fatalf("Expected internal error creating project, got %v", err)
 	}
@@ -116,11 +115,11 @@ func TestProjectRequestError(t *testing.T) {
 		}
 		t.Errorf("expected 1 namespace to be added and deleted, got %d added / %d deleted", added, deleted)
 	}
-	if added, deleted, events := pairCreationDeletion(policywatch); added != deleted || added != 1 {
+	if added, deleted, events := pairCreationDeletion(roleWatch); added != deleted || added != 4 {
 		for _, e := range events {
 			t.Logf("%s %#v", e.Type, e.Object)
 		}
-		t.Errorf("expected 1 policybinding to be added and deleted, got %d added / %d deleted", added, deleted)
+		t.Errorf("expected 4 (1 admin + 3 SA) roleBindings to be added and deleted, got %d added / %d deleted", added, deleted)
 	}
 	if added, deleted, events := pairCreationDeletion(cmwatch); added != deleted || added != 1 {
 		for _, e := range events {
@@ -130,7 +129,7 @@ func TestProjectRequestError(t *testing.T) {
 	}
 
 	// Verify project is deleted
-	if nsObj, err := kubeClientset.Core().Namespaces().Get(ns); !kapierrors.IsNotFound(err) {
+	if nsObj, err := kubeClientset.Core().Namespaces().Get(ns, metav1.GetOptions{}); !kapierrors.IsNotFound(err) {
 		t.Errorf("Expected namespace to be gone, got %#v, %#v", nsObj, err)
 	}
 }

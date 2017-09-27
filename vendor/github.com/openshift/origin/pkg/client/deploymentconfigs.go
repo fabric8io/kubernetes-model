@@ -1,14 +1,15 @@
 package client
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/watch"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apis/extensions"
 	extensionsv1beta1 "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 	"k8s.io/kubernetes/pkg/client/retry"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/watch"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 )
 
 // DeploymentConfigsNamespacer has methods to work with DeploymentConfig resources in a namespace
@@ -18,17 +19,17 @@ type DeploymentConfigsNamespacer interface {
 
 // DeploymentConfigInterface contains methods for working with DeploymentConfigs
 type DeploymentConfigInterface interface {
-	List(opts kapi.ListOptions) (*deployapi.DeploymentConfigList, error)
-	Get(name string) (*deployapi.DeploymentConfig, error)
+	List(opts metav1.ListOptions) (*deployapi.DeploymentConfigList, error)
+	Get(name string, options metav1.GetOptions) (*deployapi.DeploymentConfig, error)
 	Create(config *deployapi.DeploymentConfig) (*deployapi.DeploymentConfig, error)
 	Update(config *deployapi.DeploymentConfig) (*deployapi.DeploymentConfig, error)
+	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *deployapi.DeploymentConfig, err error)
 	Delete(name string) error
-	Watch(opts kapi.ListOptions) (watch.Interface, error)
-	Generate(name string) (*deployapi.DeploymentConfig, error)
+	Watch(opts metav1.ListOptions) (watch.Interface, error)
 	Rollback(config *deployapi.DeploymentConfigRollback) (*deployapi.DeploymentConfig, error)
 	RollbackDeprecated(config *deployapi.DeploymentConfigRollback) (*deployapi.DeploymentConfig, error)
-	GetScale(name string) (*extensions.Scale, error)
-	UpdateScale(scale *extensions.Scale) (*extensions.Scale, error)
+	GetScale(name string) (*extensionsv1beta1.Scale, error)
+	UpdateScale(scale *extensionsv1beta1.Scale) (*extensionsv1beta1.Scale, error)
 	UpdateStatus(config *deployapi.DeploymentConfig) (*deployapi.DeploymentConfig, error)
 	Instantiate(request *deployapi.DeploymentRequest) (*deployapi.DeploymentConfig, error)
 }
@@ -48,7 +49,7 @@ func newDeploymentConfigs(c *Client, namespace string) *deploymentConfigs {
 }
 
 // List takes a label and field selectors, and returns the list of deploymentConfigs that match that selectors
-func (c *deploymentConfigs) List(opts kapi.ListOptions) (result *deployapi.DeploymentConfigList, err error) {
+func (c *deploymentConfigs) List(opts metav1.ListOptions) (result *deployapi.DeploymentConfigList, err error) {
 	result = &deployapi.DeploymentConfigList{}
 	err = c.r.Get().
 		Namespace(c.ns).
@@ -60,9 +61,9 @@ func (c *deploymentConfigs) List(opts kapi.ListOptions) (result *deployapi.Deplo
 }
 
 // Get returns information about a particular deploymentConfig
-func (c *deploymentConfigs) Get(name string) (result *deployapi.DeploymentConfig, err error) {
+func (c *deploymentConfigs) Get(name string, options metav1.GetOptions) (result *deployapi.DeploymentConfig, err error) {
 	result = &deployapi.DeploymentConfig{}
-	err = c.r.Get().Namespace(c.ns).Resource("deploymentConfigs").Name(name).Do().Into(result)
+	err = c.r.Get().Namespace(c.ns).Resource("deploymentConfigs").Name(name).VersionedParams(&options, kapi.ParameterCodec).Do().Into(result)
 	return
 }
 
@@ -80,26 +81,27 @@ func (c *deploymentConfigs) Update(deploymentConfig *deployapi.DeploymentConfig)
 	return
 }
 
+// Patch takes the partial representation of a deployment config and updates it.
+// Returns the server's representation of the deployment config, and an error, if there is any.
+func (c *deploymentConfigs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *deployapi.DeploymentConfig, err error) {
+	result = &deployapi.DeploymentConfig{}
+	err = c.r.Patch(types.StrategicMergePatchType).Namespace(c.ns).Resource("deploymentConfigs").SubResource(subresources...).Name(name).Body(data).Do().Into(result)
+	return
+}
+
 // Delete deletes an existing deploymentConfig.
 func (c *deploymentConfigs) Delete(name string) error {
 	return c.r.Delete().Namespace(c.ns).Resource("deploymentConfigs").Name(name).Do().Error()
 }
 
 // Watch returns a watch.Interface that watches the requested deploymentConfigs.
-func (c *deploymentConfigs) Watch(opts kapi.ListOptions) (watch.Interface, error) {
+func (c *deploymentConfigs) Watch(opts metav1.ListOptions) (watch.Interface, error) {
 	return c.r.Get().
 		Prefix("watch").
 		Namespace(c.ns).
 		Resource("deploymentConfigs").
 		VersionedParams(&opts, kapi.ParameterCodec).
 		Watch()
-}
-
-// Generate generates a new deploymentConfig for the given name.
-func (c *deploymentConfigs) Generate(name string) (result *deployapi.DeploymentConfig, err error) {
-	result = &deployapi.DeploymentConfig{}
-	err = c.r.Get().Namespace(c.ns).Resource("generateDeploymentConfigs").Name(name).Do().Into(result)
-	return
 }
 
 // Rollback rolls a deploymentConfig back to a previous configuration
@@ -129,15 +131,15 @@ func (c *deploymentConfigs) RollbackDeprecated(config *deployapi.DeploymentConfi
 }
 
 // GetScale returns information about a particular deploymentConfig via its scale subresource
-func (c *deploymentConfigs) GetScale(name string) (result *extensions.Scale, err error) {
-	result = &extensions.Scale{}
+func (c *deploymentConfigs) GetScale(name string) (result *extensionsv1beta1.Scale, err error) {
+	result = &extensionsv1beta1.Scale{}
 	err = c.r.Get().Namespace(c.ns).Resource("deploymentConfigs").Name(name).SubResource("scale").Do().Into(result)
 	return
 }
 
 // UpdateScale scales an existing deploymentConfig via its scale subresource
-func (c *deploymentConfigs) UpdateScale(scale *extensions.Scale) (result *extensions.Scale, err error) {
-	result = &extensions.Scale{}
+func (c *deploymentConfigs) UpdateScale(scale *extensionsv1beta1.Scale) (result *extensionsv1beta1.Scale, err error) {
+	result = &extensionsv1beta1.Scale{}
 
 	// TODO fix by making the client understand how to encode using different codecs for different resources
 	encodedBytes, err := runtime.Encode(kapi.Codecs.LegacyCodec(extensionsv1beta1.SchemeGroupVersion), scale)
@@ -176,7 +178,7 @@ func UpdateConfigWithRetries(dn DeploymentConfigsNamespacer, namespace, name str
 
 	resultErr := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		var err error
-		config, err = dn.DeploymentConfigs(namespace).Get(name)
+		config, err = dn.DeploymentConfigs(namespace).Get(name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}

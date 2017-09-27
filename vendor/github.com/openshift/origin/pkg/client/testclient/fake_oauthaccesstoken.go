@@ -1,11 +1,11 @@
 package testclient
 
 import (
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/client/testing/core"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	clientgotesting "k8s.io/client-go/testing"
 
-	oauthapi "github.com/openshift/origin/pkg/oauth/api"
+	oauthapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
 )
 
 // FakeOAuthAccessTokens implements OAuthAccessTokenInterface. Meant to be embedded into a struct to get a default
@@ -14,15 +14,16 @@ type FakeOAuthAccessTokens struct {
 	Fake *Fake
 }
 
-var oAuthAccessTokensResource = unversioned.GroupVersionResource{Group: "", Version: "", Resource: "oauthaccesstokens"}
+var oAuthAccessTokensResource = schema.GroupVersionResource{Group: "", Version: "", Resource: "oauthaccesstokens"}
+var oAuthAccessTokensKind = schema.GroupVersionKind{Group: "", Version: "", Kind: "OAuthAccessToken"}
 
 func (c *FakeOAuthAccessTokens) Delete(name string) error {
-	_, err := c.Fake.Invokes(core.NewRootDeleteAction(oAuthAccessTokensResource, name), &oauthapi.OAuthAccessToken{})
+	_, err := c.Fake.Invokes(clientgotesting.NewRootDeleteAction(oAuthAccessTokensResource, name), &oauthapi.OAuthAccessToken{})
 	return err
 }
 
 func (c *FakeOAuthAccessTokens) Create(inObj *oauthapi.OAuthAccessToken) (*oauthapi.OAuthAccessToken, error) {
-	obj, err := c.Fake.Invokes(core.NewRootCreateAction(oAuthAccessTokensResource, inObj), inObj)
+	obj, err := c.Fake.Invokes(clientgotesting.NewRootCreateAction(oAuthAccessTokensResource, inObj), inObj)
 	if obj == nil {
 		return nil, err
 	}
@@ -31,8 +32,8 @@ func (c *FakeOAuthAccessTokens) Create(inObj *oauthapi.OAuthAccessToken) (*oauth
 }
 
 // Get returns information about a particular image and error if one occurs.
-func (c *FakeOAuthAccessTokens) Get(name string) (*oauthapi.OAuthAccessToken, error) {
-	obj, err := c.Fake.Invokes(core.NewRootGetAction(oAuthAccessTokensResource, name), &oauthapi.OAuthAccessToken{})
+func (c *FakeOAuthAccessTokens) Get(name string, options metav1.GetOptions) (*oauthapi.OAuthAccessToken, error) {
+	obj, err := c.Fake.Invokes(clientgotesting.NewRootGetAction(oAuthAccessTokensResource, name), &oauthapi.OAuthAccessToken{})
 	if obj == nil {
 		return nil, err
 	}
@@ -40,8 +41,8 @@ func (c *FakeOAuthAccessTokens) Get(name string) (*oauthapi.OAuthAccessToken, er
 	return obj.(*oauthapi.OAuthAccessToken), err
 }
 
-func (c *FakeOAuthAccessTokens) List(opts kapi.ListOptions) (*oauthapi.OAuthAccessTokenList, error) {
-	obj, err := c.Fake.Invokes(core.NewRootListAction(oAuthAccessTokensResource, opts), &oauthapi.OAuthAccessTokenList{})
+func (c *FakeOAuthAccessTokens) List(opts metav1.ListOptions) (*oauthapi.OAuthAccessTokenList, error) {
+	obj, err := c.Fake.Invokes(clientgotesting.NewRootListAction(oAuthAccessTokensResource, oAuthAccessTokensKind, opts), &oauthapi.OAuthAccessTokenList{})
 	if obj == nil {
 		return nil, err
 	}

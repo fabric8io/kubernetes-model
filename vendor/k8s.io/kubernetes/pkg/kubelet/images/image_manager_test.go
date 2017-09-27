@@ -22,17 +22,120 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/record"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/flowcontrol"
+	"k8s.io/kubernetes/pkg/api/v1"
 	. "k8s.io/kubernetes/pkg/kubelet/container"
 	ctest "k8s.io/kubernetes/pkg/kubelet/container/testing"
-	"k8s.io/kubernetes/pkg/util/clock"
-	"k8s.io/kubernetes/pkg/util/flowcontrol"
 )
 
+type pullerExpects struct {
+	calls []string
+	err   error
+}
+
+type pullerTestCase struct {
+	containerImage string
+	policy         v1.PullPolicy
+	inspectErr     error
+	pullerErr      error
+	expected       []pullerExpects
+}
+
+func pullerTestCases() []pullerTestCase {
+	return []pullerTestCase{
+		{ // pull missing image
+			containerImage: "missing_image",
+			policy:         v1.PullIfNotPresent,
+			inspectErr:     nil,
+			pullerErr:      nil,
+			expected: []pullerExpects{
+				{[]string{"GetImageRef", "PullImage"}, nil},
+			}},
+
+		{ // image present, don't pull
+			containerImage: "present_image",
+			policy:         v1.PullIfNotPresent,
+			inspectErr:     nil,
+			pullerErr:      nil,
+			expected: []pullerExpects{
+				{[]string{"GetImageRef"}, nil},
+				{[]string{"GetImageRef"}, nil},
+				{[]string{"GetImageRef"}, nil},
+			}},
+		// image present, pull it
+		{containerImage: "present_image",
+			policy:     v1.PullAlways,
+			inspectErr: nil,
+			pullerErr:  nil,
+			expected: []pullerExpects{
+				{[]string{"GetImageRef", "PullImage"}, nil},
+				{[]string{"GetImageRef", "PullImage"}, nil},
+				{[]string{"GetImageRef", "PullImage"}, nil},
+			}},
+		// missing image, error PullNever
+		{containerImage: "missing_image",
+			policy:     v1.PullNever,
+			inspectErr: nil,
+			pullerErr:  nil,
+			expected: []pullerExpects{
+				{[]string{"GetImageRef"}, ErrImageNeverPull},
+				{[]string{"GetImageRef"}, ErrImageNeverPull},
+				{[]string{"GetImageRef"}, ErrImageNeverPull},
+			}},
+		// missing image, unable to inspect
+		{containerImage: "missing_image",
+			policy:     v1.PullIfNotPresent,
+			inspectErr: errors.New("unknown inspectError"),
+			pullerErr:  nil,
+			expected: []pullerExpects{
+				{[]string{"GetImageRef"}, ErrImageInspect},
+				{[]string{"GetImageRef"}, ErrImageInspect},
+				{[]string{"GetImageRef"}, ErrImageInspect},
+			}},
+		// missing image, unable to fetch
+		{containerImage: "typo_image",
+			policy:     v1.PullIfNotPresent,
+			inspectErr: nil,
+			pullerErr:  errors.New("404"),
+			expected: []pullerExpects{
+				{[]string{"GetImageRef", "PullImage"}, ErrImagePull},
+				{[]string{"GetImageRef", "PullImage"}, ErrImagePull},
+				{[]string{"GetImageRef"}, ErrImagePullBackOff},
+				{[]string{"GetImageRef", "PullImage"}, ErrImagePull},
+				{[]string{"GetImageRef"}, ErrImagePullBackOff},
+				{[]string{"GetImageRef"}, ErrImagePullBackOff},
+			}},
+	}
+}
+
+func pullerTestEnv(c pullerTestCase, serialized bool) (puller ImageManager, fakeClock *clock.FakeClock, fakeRuntime *ctest.FakeRuntime, container *v1.Container) {
+	container = &v1.Container{
+		Name:            "container_name",
+		Image:           c.containerImage,
+		ImagePullPolicy: c.policy,
+	}
+
+	backOff := flowcontrol.NewBackOff(time.Second, time.Minute)
+	fakeClock = clock.NewFakeClock(time.Now())
+	backOff.Clock = fakeClock
+
+	fakeRuntime = &ctest.FakeRuntime{}
+	fakeRecorder := &record.FakeRecorder{}
+
+	fakeRuntime.ImageList = []Image{{ID: "present_image:latest"}}
+	fakeRuntime.Err = c.pullerErr
+	fakeRuntime.InspectErr = c.inspectErr
+
+	puller = NewImageManager(fakeRecorder, fakeRuntime, backOff, serialized, 0, 0)
+	return
+}
+
 func TestParallelPuller(t *testing.T) {
-	pod := &api.Pod{
-		ObjectMeta: api.ObjectMeta{
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:            "test_pod",
 			Namespace:       "test-ns",
 			UID:             "bar",
@@ -40,90 +143,24 @@ func TestParallelPuller(t *testing.T) {
 			SelfLink:        "/api/v1/pods/foo",
 		}}
 
-	cases := []struct {
-		containerImage  string
-		policy          api.PullPolicy
-		calledFunctions []string
-		inspectErr      error
-		pullerErr       error
-		expectedErr     []error
-	}{
-		{ // pull missing image
-			containerImage:  "missing_image",
-			policy:          api.PullIfNotPresent,
-			calledFunctions: []string{"IsImagePresent", "PullImage"},
-			inspectErr:      nil,
-			pullerErr:       nil,
-			expectedErr:     []error{nil}},
-
-		{ // image present, don't pull
-			containerImage:  "present_image",
-			policy:          api.PullIfNotPresent,
-			calledFunctions: []string{"IsImagePresent"},
-			inspectErr:      nil,
-			pullerErr:       nil,
-			expectedErr:     []error{nil, nil, nil}},
-		// image present, pull it
-		{containerImage: "present_image",
-			policy:          api.PullAlways,
-			calledFunctions: []string{"IsImagePresent", "PullImage"},
-			inspectErr:      nil,
-			pullerErr:       nil,
-			expectedErr:     []error{nil, nil, nil}},
-		// missing image, error PullNever
-		{containerImage: "missing_image",
-			policy:          api.PullNever,
-			calledFunctions: []string{"IsImagePresent"},
-			inspectErr:      nil,
-			pullerErr:       nil,
-			expectedErr:     []error{ErrImageNeverPull, ErrImageNeverPull, ErrImageNeverPull}},
-		// missing image, unable to inspect
-		{containerImage: "missing_image",
-			policy:          api.PullIfNotPresent,
-			calledFunctions: []string{"IsImagePresent"},
-			inspectErr:      errors.New("unknown inspectError"),
-			pullerErr:       nil,
-			expectedErr:     []error{ErrImageInspect, ErrImageInspect, ErrImageInspect}},
-		// missing image, unable to fetch
-		{containerImage: "typo_image",
-			policy:          api.PullIfNotPresent,
-			calledFunctions: []string{"IsImagePresent", "PullImage"},
-			inspectErr:      nil,
-			pullerErr:       errors.New("404"),
-			expectedErr:     []error{ErrImagePull, ErrImagePull, ErrImagePullBackOff, ErrImagePull, ErrImagePullBackOff, ErrImagePullBackOff}},
-	}
+	cases := pullerTestCases()
 
 	for i, c := range cases {
-		container := &api.Container{
-			Name:            "container_name",
-			Image:           c.containerImage,
-			ImagePullPolicy: c.policy,
-		}
+		puller, fakeClock, fakeRuntime, container := pullerTestEnv(c, false)
 
-		backOff := flowcontrol.NewBackOff(time.Second, time.Minute)
-		fakeClock := clock.NewFakeClock(time.Now())
-		backOff.Clock = fakeClock
-
-		fakeRuntime := &ctest.FakeRuntime{}
-		fakeRecorder := &record.FakeRecorder{}
-		puller := NewImageManager(fakeRecorder, fakeRuntime, backOff, false, 0, 0)
-
-		fakeRuntime.ImageList = []Image{{ID: "present_image", Size: 1}}
-		fakeRuntime.Err = c.pullerErr
-		fakeRuntime.InspectErr = c.inspectErr
-
-		for tick, expected := range c.expectedErr {
+		for tick, expected := range c.expected {
+			fakeRuntime.CalledFunctions = nil
 			fakeClock.Step(time.Second)
-			err, _ := puller.EnsureImageExists(pod, container, nil)
-			fakeRuntime.AssertCalls(c.calledFunctions)
-			assert.Equal(t, expected, err, "in test %d tick=%d", i, tick)
+			_, _, err := puller.EnsureImageExists(pod, container, nil)
+			assert.NoError(t, fakeRuntime.AssertCalls(expected.calls), "in test %d tick=%d", i, tick)
+			assert.Equal(t, expected.err, err, "in test %d tick=%d", i, tick)
 		}
 	}
 }
 
 func TestSerializedPuller(t *testing.T) {
-	pod := &api.Pod{
-		ObjectMeta: api.ObjectMeta{
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:            "test_pod",
 			Namespace:       "test-ns",
 			UID:             "bar",
@@ -131,83 +168,17 @@ func TestSerializedPuller(t *testing.T) {
 			SelfLink:        "/api/v1/pods/foo",
 		}}
 
-	cases := []struct {
-		containerImage  string
-		policy          api.PullPolicy
-		calledFunctions []string
-		inspectErr      error
-		pullerErr       error
-		expectedErr     []error
-	}{
-		{ // pull missing image
-			containerImage:  "missing_image",
-			policy:          api.PullIfNotPresent,
-			calledFunctions: []string{"IsImagePresent", "PullImage"},
-			inspectErr:      nil,
-			pullerErr:       nil,
-			expectedErr:     []error{nil}},
-
-		{ // image present, don't pull
-			containerImage:  "present_image",
-			policy:          api.PullIfNotPresent,
-			calledFunctions: []string{"IsImagePresent"},
-			inspectErr:      nil,
-			pullerErr:       nil,
-			expectedErr:     []error{nil, nil, nil}},
-		// image present, pull it
-		{containerImage: "present_image",
-			policy:          api.PullAlways,
-			calledFunctions: []string{"IsImagePresent", "PullImage"},
-			inspectErr:      nil,
-			pullerErr:       nil,
-			expectedErr:     []error{nil, nil, nil}},
-		// missing image, error PullNever
-		{containerImage: "missing_image",
-			policy:          api.PullNever,
-			calledFunctions: []string{"IsImagePresent"},
-			inspectErr:      nil,
-			pullerErr:       nil,
-			expectedErr:     []error{ErrImageNeverPull, ErrImageNeverPull, ErrImageNeverPull}},
-		// missing image, unable to inspect
-		{containerImage: "missing_image",
-			policy:          api.PullIfNotPresent,
-			calledFunctions: []string{"IsImagePresent"},
-			inspectErr:      errors.New("unknown inspectError"),
-			pullerErr:       nil,
-			expectedErr:     []error{ErrImageInspect, ErrImageInspect, ErrImageInspect}},
-		// missing image, unable to fetch
-		{containerImage: "typo_image",
-			policy:          api.PullIfNotPresent,
-			calledFunctions: []string{"IsImagePresent", "PullImage"},
-			inspectErr:      nil,
-			pullerErr:       errors.New("404"),
-			expectedErr:     []error{ErrImagePull, ErrImagePull, ErrImagePullBackOff, ErrImagePull, ErrImagePullBackOff, ErrImagePullBackOff}},
-	}
+	cases := pullerTestCases()
 
 	for i, c := range cases {
-		container := &api.Container{
-			Name:            "container_name",
-			Image:           c.containerImage,
-			ImagePullPolicy: c.policy,
-		}
+		puller, fakeClock, fakeRuntime, container := pullerTestEnv(c, true)
 
-		backOff := flowcontrol.NewBackOff(time.Second, time.Minute)
-		fakeClock := clock.NewFakeClock(time.Now())
-		backOff.Clock = fakeClock
-
-		fakeRuntime := &ctest.FakeRuntime{}
-		fakeRecorder := &record.FakeRecorder{}
-		puller := NewImageManager(fakeRecorder, fakeRuntime, backOff, true, 0, 0)
-
-		fakeRuntime.ImageList = []Image{{ID: "present_image"}}
-		fakeRuntime.Err = c.pullerErr
-		fakeRuntime.InspectErr = c.inspectErr
-
-		for tick, expected := range c.expectedErr {
+		for tick, expected := range c.expected {
+			fakeRuntime.CalledFunctions = nil
 			fakeClock.Step(time.Second)
-			err, _ := puller.EnsureImageExists(pod, container, nil)
-			fakeRuntime.AssertCalls(c.calledFunctions)
-			assert.Equal(t, expected, err, "in test %d tick=%d", i, tick)
+			_, _, err := puller.EnsureImageExists(pod, container, nil)
+			assert.NoError(t, fakeRuntime.AssertCalls(expected.calls), "in test %d tick=%d", i, tick)
+			assert.Equal(t, expected.err, err, "in test %d tick=%d", i, tick)
 		}
 	}
 }

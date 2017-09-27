@@ -1,13 +1,8 @@
-package(default_visibility = ["//visibility:public"])
-
 licenses(["notice"])
 
 load(
     "@io_bazel_rules_go//go:def.bzl",
-    "go_binary",
     "go_library",
-    "go_test",
-    "cgo_library",
 )
 
 go_library(
@@ -17,10 +12,28 @@ go_library(
         "types.go",
     ],
     tags = ["automanaged"],
+    visibility = [
+        "//build/visible_to:pkg_kubectl_testing_CONSUMERS",
+    ],
     deps = [
-        "//pkg/api:go_default_library",
-        "//pkg/api/unversioned:go_default_library",
-        "//pkg/types:go_default_library",
-        "//vendor:github.com/ugorji/go/codec",
+        "//vendor/github.com/ugorji/go/codec:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/runtime/schema:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/types:go_default_library",
+    ],
+)
+
+filegroup(
+    name = "package-srcs",
+    srcs = glob(["**"]),
+    tags = ["automanaged"],
+)
+
+filegroup(
+    name = "all-srcs",
+    srcs = [":package-srcs"],
+    tags = ["automanaged"],
+    visibility = [
+        "//build/visible_to:pkg_kubectl_testing_CONSUMERS",
     ],
 )

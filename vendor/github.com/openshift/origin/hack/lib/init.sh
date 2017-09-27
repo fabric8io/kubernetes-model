@@ -9,6 +9,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+OS_SCRIPT_START_TIME="$( date +%s )"; export OS_SCRIPT_START_TIME
+
 # os::util::absolute_path returns the absolute path to the directory provided
 function os::util::absolute_path() {
 	local relative_path="$1"
@@ -33,12 +35,7 @@ OS_ROOT="$( os::util::absolute_path "${init_source}" )"
 export OS_ROOT
 cd "${OS_ROOT}"
 
-library_files=( $( find "${OS_ROOT}/hack/lib" -type f -name '*.sh' -not -path '*/hack/lib/init.sh' ) )
-# TODO(skuzmets): Move the contents of the following files into respective library files.
-library_files+=( "${OS_ROOT}/hack/common.sh" )
-library_files+=( "${OS_ROOT}/hack/util.sh" )
-
-for library_file in "${library_files[@]}"; do
+for library_file in $( find "${OS_ROOT}/hack/lib" -type f -name '*.sh' -not -path '*/hack/lib/init.sh' ); do
 	source "${library_file}"
 done
 
@@ -52,3 +49,7 @@ os::log::stacktrace::install
 # binaries that we build so we don't have to find
 # them before every invocation.
 os::util::environment::update_path_var
+
+if [[ -z "${OS_TMP_ENV_SET-}" ]]; then
+	os::util::environment::setup_tmpdir_vars "$( basename "$0" ".sh" )"
+fi

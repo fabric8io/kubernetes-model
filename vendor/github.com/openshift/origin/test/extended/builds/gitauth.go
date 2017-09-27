@@ -1,11 +1,8 @@
 package builds
 
-// these tests are diabled because the xip.io dns hook was proving way too unreliable;
-// we will reenable once an agreeable alternative is derived to get name resolution for the routes
-
-/*import (
-	"net"
+import (
 	"fmt"
+	"net"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -13,9 +10,10 @@ package builds
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	exutil "github.com/openshift/origin/test/extended/util"
 	testutil "github.com/openshift/origin/test/util"
-
 )
 
 // hostname returns the hostname from a hostport specification
@@ -30,7 +28,7 @@ var _ = g.Describe("[builds][Slow] can use private repositories as build input",
 	const (
 		gitServerDeploymentConfigName = "gitserver"
 		sourceSecretName              = "sourcesecret"
-		hostNameSuffix                = "xip.io"
+		hostNameSuffix                = "nip.io"
 		gitUserName                   = "gituser"
 		gitPassword                   = "gituserpassword"
 		buildConfigName               = "gitauthtest"
@@ -62,6 +60,13 @@ var _ = g.Describe("[builds][Slow] can use private repositories as build input",
 		o.Expect(err).NotTo(o.HaveOccurred())
 		host, err := hostname(hostURL.Host)
 		o.Expect(err).NotTo(o.HaveOccurred())
+		if ip := net.ParseIP(host); ip == nil {
+			// we have a hostname, not an IP, but need to prefix
+			// nip.io addresses with an IP
+			ips, err := net.LookupIP(host)
+			o.Expect(err).NotTo(o.HaveOccurred())
+			host = ips[0].String()
+		}
 		routeSuffix := fmt.Sprintf("%s.%s", host, hostNameSuffix)
 
 		g.By(fmt.Sprintf("calling oc new-app -f %q -p ROUTE_SUFFIX=%s", gitServerYaml, routeSuffix))
@@ -69,28 +74,23 @@ var _ = g.Describe("[builds][Slow] can use private repositories as build input",
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("expecting the deployment of the gitserver to be in the Complete phase")
-		err = exutil.WaitForADeploymentToComplete(oc.KubeClient().Core().ReplicationControllers(oc.Namespace()), gitServerDeploymentConfigName)
+		err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), oc.Namespace(), gitServerDeploymentConfigName, 1, oc)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		sourceSecretName := secretFunc()
 
 		sourceURL := fmt.Sprintf(urlTemplate, routeSuffix)
-		g.By(fmt.Sprintf("creating a new BuildConfig by calling oc new-app -f %q -p SOURCE_SECRET=%s,SOURCE_URL=%s",
+		g.By(fmt.Sprintf("creating a new BuildConfig by calling oc new-app -f %q -p SOURCE_SECRET=%s -p SOURCE_URL=%s",
 			testBuildFixture, sourceSecretName, sourceURL))
-		err = oc.Run("new-app").Args("-f", testBuildFixture, "-p", fmt.Sprintf("SOURCE_SECRET=%s,SOURCE_URL=%s",
-			sourceSecretName, sourceURL)).Execute()
+		err = oc.Run("new-app").Args("-f", testBuildFixture, "-p", fmt.Sprintf("SOURCE_SECRET=%s", sourceSecretName), "-p", fmt.Sprintf("SOURCE_URL=%s", sourceURL)).Execute()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("starting a test build")
-		buildName, err := oc.Run("start-build").Args(buildConfigName).Output()
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		g.By(fmt.Sprintf("expecting build %s to complete successfully", buildName))
-		err = exutil.WaitForABuild(oc.Client().Builds(oc.Namespace()), buildName, nil, nil, nil)
-		if err != nil {
-			exutil.DumpBuildLogs(buildConfigName, oc)
+		br, _ := exutil.StartBuildAndWait(oc, buildConfigName)
+		if !br.BuildSuccess {
+			exutil.DumpApplicationPodLogs(gitServerDeploymentConfigName, oc)
 		}
-		o.Expect(err).NotTo(o.HaveOccurred())
+		br.AssertSuccess()
 	}
 
 	g.Describe("Build using a username, password, and CA certificate", func() {
@@ -118,7 +118,7 @@ var _ = g.Describe("[builds][Slow] can use private repositories as build input",
 				o.Expect(err).NotTo(o.HaveOccurred())
 
 				g.By("getting the token secret name for the builder service account")
-				sa, err := oc.KubeClient().Core().ServiceAccounts(oc.Namespace()).Get("builder")
+				sa, err := oc.KubeClient().Core().ServiceAccounts(oc.Namespace()).Get("builder", metav1.GetOptions{})
 				o.Expect(err).NotTo(o.HaveOccurred())
 				for _, s := range sa.Secrets {
 					if strings.Contains(s.Name, "token") {
@@ -129,4 +129,4 @@ var _ = g.Describe("[builds][Slow] can use private repositories as build input",
 			})
 		})
 	})
-})*/
+})

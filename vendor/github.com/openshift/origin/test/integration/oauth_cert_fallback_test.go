@@ -7,8 +7,9 @@ import (
 	"testing"
 
 	oclient "github.com/openshift/origin/pkg/client"
-	"k8s.io/kubernetes/pkg/auth/user"
-	"k8s.io/kubernetes/pkg/client/restclient"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apiserver/pkg/authentication/user"
+	restclient "k8s.io/client-go/rest"
 
 	"github.com/openshift/origin/pkg/cmd/server/admin"
 	"github.com/openshift/origin/pkg/cmd/util"
@@ -37,13 +38,12 @@ func TestOAuthCertFallback(t *testing.T) {
 		anonymousError    = `User "system:anonymous" cannot get users at the cluster scope`
 	)
 
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
 	// Build master config
 	masterOptions, err := testserver.DefaultMasterOptions()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterOptions)
 
 	// Start server
 	clusterAdminKubeConfig, err := testserver.StartConfiguredMaster(masterOptions)
@@ -167,7 +167,7 @@ func TestOAuthCertFallback(t *testing.T) {
 
 		client := oclient.NewOrDie(&config)
 
-		user, err := client.Users().Get("~")
+		user, err := client.Users().Get("~", metav1.GetOptions{})
 
 		if user.Name != test.expectedUser {
 			t.Errorf("%s: unexpected user %q", k, user.Name)

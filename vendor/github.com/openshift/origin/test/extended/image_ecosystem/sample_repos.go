@@ -7,6 +7,8 @@ import (
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 
+	e2e "k8s.io/kubernetes/test/e2e/framework"
+
 	exutil "github.com/openshift/origin/test/extended/util"
 )
 
@@ -32,7 +34,7 @@ func NewSampleRepoTest(c SampleRepoConfig) func() {
 
 		g.JustBeforeEach(func() {
 			g.By("Waiting for builder service account")
-			err := exutil.WaitForBuilderAccount(oc.KubeClient().Core().ServiceAccounts(oc.Namespace()))
+			err := exutil.WaitForBuilderAccount(oc.KubeClient().CoreV1().ServiceAccounts(oc.Namespace()))
 			o.Expect(err).NotTo(o.HaveOccurred())
 		})
 
@@ -57,12 +59,12 @@ func NewSampleRepoTest(c SampleRepoConfig) func() {
 				o.Expect(err).NotTo(o.HaveOccurred())
 
 				g.By("expecting the app deployment to be complete")
-				err = exutil.WaitForADeploymentToComplete(oc.KubeClient().Core().ReplicationControllers(oc.Namespace()), c.deploymentConfigName, oc)
+				err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), oc.Namespace(), c.deploymentConfigName, 1, oc)
 				o.Expect(err).NotTo(o.HaveOccurred())
 
 				if len(c.dbDeploymentConfigName) > 0 {
 					g.By("expecting the db deployment to be complete")
-					err = exutil.WaitForADeploymentToComplete(oc.KubeClient().Core().ReplicationControllers(oc.Namespace()), c.dbDeploymentConfigName, oc)
+					err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), oc.Namespace(), c.dbDeploymentConfigName, 1, oc)
 					o.Expect(err).NotTo(o.HaveOccurred())
 
 					g.By("expecting the db service is available")
@@ -71,7 +73,7 @@ func NewSampleRepoTest(c SampleRepoConfig) func() {
 					o.Expect(serviceIP).ShouldNot(o.Equal(""))
 
 					g.By("expecting a db endpoint is available")
-					err = oc.KubeFramework().WaitForAnEndpoint(c.dbServiceName)
+					err = e2e.WaitForEndpoint(oc.KubeFramework().ClientSet, oc.Namespace(), c.dbServiceName)
 					o.Expect(err).NotTo(o.HaveOccurred())
 				}
 
@@ -81,7 +83,7 @@ func NewSampleRepoTest(c SampleRepoConfig) func() {
 				o.Expect(serviceIP).ShouldNot(o.Equal(""))
 
 				g.By("expecting an app endpoint is available")
-				err = oc.KubeFramework().WaitForAnEndpoint(c.serviceName)
+				err = e2e.WaitForEndpoint(oc.KubeFramework().ClientSet, oc.Namespace(), c.serviceName)
 				o.Expect(err).NotTo(o.HaveOccurred())
 
 				g.By("verifying string from app request")

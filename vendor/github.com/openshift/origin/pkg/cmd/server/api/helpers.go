@@ -6,17 +6,19 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
+	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/client/restclient"
-	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
+	kclientsetexternal "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
+	kclientsetinternal "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/sets"
 
 	"github.com/openshift/origin/pkg/client"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
@@ -239,7 +241,18 @@ func GetMasterFileReferences(config *MasterConfig) []*string {
 
 		refs = append(refs, &config.KubernetesMasterConfig.ProxyClientInfo.CertFile)
 		refs = append(refs, &config.KubernetesMasterConfig.ProxyClientInfo.KeyFile)
+
+		refs = appendFlagsWithFileExtensions(refs, config.KubernetesMasterConfig.APIServerArguments)
+		refs = appendFlagsWithFileExtensions(refs, config.KubernetesMasterConfig.SchedulerArguments)
+		refs = appendFlagsWithFileExtensions(refs, config.KubernetesMasterConfig.ControllerArguments)
 	}
+
+	if config.AuthConfig.RequestHeader != nil {
+		refs = append(refs, &config.AuthConfig.RequestHeader.ClientCA)
+	}
+
+	refs = append(refs, &config.AggregatorConfig.ProxyClientInfo.CertFile)
+	refs = append(refs, &config.AggregatorConfig.ProxyClientInfo.KeyFile)
 
 	refs = append(refs, &config.ServiceAccountConfig.MasterCA)
 	refs = append(refs, &config.ServiceAccountConfig.PrivateKeyFile)
@@ -262,6 +275,21 @@ func GetMasterFileReferences(config *MasterConfig) []*string {
 	return refs
 }
 
+func appendFlagsWithFileExtensions(refs []*string, args ExtendedArguments) []*string {
+	for key, s := range args {
+		if len(s) == 0 {
+			continue
+		}
+		if !strings.HasSuffix(key, "-file") && !strings.HasSuffix(key, "-dir") {
+			continue
+		}
+		for i := range s {
+			refs = append(refs, &s[i])
+		}
+	}
+	return refs
+}
+
 func RelativizeNodeConfigPaths(config *NodeConfig, base string) error {
 	return cmdutil.RelativizePathWithNoBacksteps(GetNodeFileReferences(config), base)
 }
@@ -281,6 +309,8 @@ func GetNodeFileReferences(config *NodeConfig) []*string {
 		refs = append(refs, &config.ServingInfo.NamedCertificates[i].KeyFile)
 	}
 
+	refs = append(refs, &config.DNSRecursiveResolvConf)
+
 	refs = append(refs, &config.MasterKubeConfig)
 
 	refs = append(refs, &config.VolumeDirectory)
@@ -288,6 +318,8 @@ func GetNodeFileReferences(config *NodeConfig) []*string {
 	if config.PodManifestConfig != nil {
 		refs = append(refs, &config.PodManifestConfig.Path)
 	}
+
+	refs = appendFlagsWithFileExtensions(refs, config.KubeletArguments)
 
 	return refs
 }
@@ -304,7 +336,7 @@ func SetProtobufClientDefaults(overrides *ClientConnectionOverrides) {
 
 // TODO: clients should be copied and instantiated from a common client config, tweaked, then
 // given to individual controllers and other infrastructure components.
-func GetKubeClient(kubeConfigFile string, overrides *ClientConnectionOverrides) (*kclientset.Clientset, *restclient.Config, error) {
+func GetInternalKubeClient(kubeConfigFile string, overrides *ClientConnectionOverrides) (kclientsetinternal.Interface, *restclient.Config, error) {
 	loadingRules := &clientcmd.ClientConfigLoadingRules{}
 	loadingRules.ExplicitPath = kubeConfigFile
 	loader := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
@@ -317,7 +349,29 @@ func GetKubeClient(kubeConfigFile string, overrides *ClientConnectionOverrides) 
 	applyClientConnectionOverrides(overrides, kubeConfig)
 
 	kubeConfig.WrapTransport = DefaultClientTransport
-	clientset, err := kclientset.NewForConfig(kubeConfig)
+	clientset, err := kclientsetinternal.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	return clientset, kubeConfig, nil
+}
+
+// TODO: clients should be copied and instantiated from a common client config, tweaked, then
+// given to individual controllers and other infrastructure components.
+func GetExternalKubeClient(kubeConfigFile string, overrides *ClientConnectionOverrides) (kclientsetexternal.Interface, *restclient.Config, error) {
+	loadingRules := &clientcmd.ClientConfigLoadingRules{}
+	loadingRules.ExplicitPath = kubeConfigFile
+	loader := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
+
+	kubeConfig, err := loader.ClientConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	applyClientConnectionOverrides(overrides, kubeConfig)
+
+	kubeConfig.WrapTransport = DefaultClientTransport
+	clientset, err := kclientsetexternal.NewForConfig(kubeConfig)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -375,10 +429,6 @@ func DefaultClientTransport(rt http.RoundTripper) http.RoundTripper {
 	return transport
 }
 
-func UseTLS(servingInfo ServingInfo) bool {
-	return len(servingInfo.ServerCert.CertFile) > 0
-}
-
 // GetAPIClientCertCAPool returns the cert pool used to validate client certificates to the API server
 func GetAPIClientCertCAPool(options MasterConfig) (*x509.CertPool, error) {
 	return cmdutil.CertPoolFromFile(options.ServingInfo.ClientCA)
@@ -430,10 +480,6 @@ func GetClientCertCAPool(options MasterConfig) (*x509.CertPool, error) {
 }
 
 func GetOAuthClientCertCAs(options MasterConfig) ([]*x509.Certificate, error) {
-	if !UseTLS(options.ServingInfo.ServingInfo) {
-		return nil, nil
-	}
-
 	allCerts := []*x509.Certificate{}
 
 	if options.OAuthConfig != nil {
@@ -457,11 +503,19 @@ func GetOAuthClientCertCAs(options MasterConfig) ([]*x509.Certificate, error) {
 	return allCerts, nil
 }
 
-func getAPIClientCertCAs(options MasterConfig) ([]*x509.Certificate, error) {
-	if !UseTLS(options.ServingInfo.ServingInfo) {
+func GetRequestHeaderClientCertCAs(options MasterConfig) ([]*x509.Certificate, error) {
+	if options.AuthConfig.RequestHeader == nil {
 		return nil, nil
 	}
 
+	certs, err := cmdutil.CertificatesFromFile(options.AuthConfig.RequestHeader.ClientCA)
+	if err != nil {
+		return nil, fmt.Errorf("Error reading %s: %s", options.AuthConfig.RequestHeader.ClientCA, err)
+	}
+	return certs, nil
+}
+
+func getAPIClientCertCAs(options MasterConfig) ([]*x509.Certificate, error) {
 	return cmdutil.CertificatesFromFile(options.ServingInfo.ClientCA)
 }
 
@@ -472,7 +526,6 @@ func GetKubeletClientConfig(options MasterConfig) *kubeletclient.KubeletClientCo
 			string(api.NodeHostName),
 			string(api.NodeInternalIP),
 			string(api.NodeExternalIP),
-			string(api.NodeLegacyHostIP),
 		},
 	}
 
@@ -546,7 +599,34 @@ func HasOpenShiftAPILevel(config MasterConfig, apiLevel string) bool {
 	return apiLevelSet.Has(apiLevel)
 }
 
-// GetEnabledAPIVersionsForGroup returns the list of API Versions that are enabled for that group
+const kubeAPIEnablementFlag = "runtime-config"
+
+// GetKubeAPIServerFlagAPIEnablement parses the available flag at the groupVersion level
+// with no support for individual resources and no support for the legacy API.
+func GetKubeAPIServerFlagAPIEnablement(flagValue []string) map[schema.GroupVersion]bool {
+	versions := map[schema.GroupVersion]bool{}
+	for _, val := range flagValue {
+		// skip bad flags
+		if !strings.HasPrefix(val, "apis/") {
+			continue
+		}
+		tokens := strings.Split(val[len("apis/"):], "=")
+		if len(tokens) != 2 {
+			continue
+		}
+		gv, err := schema.ParseGroupVersion(tokens[0])
+		if err != nil {
+			continue
+		}
+		enabled, _ := strconv.ParseBool(tokens[1])
+		versions[gv] = enabled
+	}
+
+	return versions
+}
+
+// GetEnabledAPIVersionsForGroup returns the list of API Versions that are enabled for that group.
+// It respects the extended args which are used to enable and disable versions in kube too.
 func GetEnabledAPIVersionsForGroup(config KubernetesMasterConfig, apiGroup string) []string {
 	allowedVersions := KubeAPIGroupsToAllowedVersions[apiGroup]
 	blacklist := sets.NewString(config.DisabledAPIGroupVersions[apiGroup]...)
@@ -555,26 +635,61 @@ func GetEnabledAPIVersionsForGroup(config KubernetesMasterConfig, apiGroup strin
 		return []string{}
 	}
 
-	enabledVersions := []string{}
+	flagVersions := GetKubeAPIServerFlagAPIEnablement(config.APIServerArguments[kubeAPIEnablementFlag])
+
+	enabledVersions := sets.String{}
 	for _, currVersion := range allowedVersions {
-		if !blacklist.Has(currVersion) {
-			enabledVersions = append(enabledVersions, currVersion)
+		if blacklist.Has(currVersion) {
+			continue
 		}
+		gv := schema.GroupVersion{Group: apiGroup, Version: currVersion}
+		// if this was explicitly disabled via flag, skip it
+		if enabled, ok := flagVersions[gv]; ok && !enabled {
+			continue
+		}
+
+		enabledVersions.Insert(currVersion)
 	}
 
-	return enabledVersions
+	for currVersion, enabled := range flagVersions {
+		if !enabled {
+			continue
+		}
+		if blacklist.Has(currVersion.Version) {
+			continue
+		}
+		if currVersion.Group != apiGroup {
+			continue
+		}
+		enabledVersions.Insert(currVersion.Version)
+	}
+
+	return enabledVersions.List()
 }
 
-// GetDisabledAPIVersionsForGroup returns the list of API Versions that are disabled for that group
+// It respects the extended args which are used to enable and disable versions in kube too.
+// GetDisabledAPIVersionsForGroup returns the list of API Versions that are disabled for that group.
 func GetDisabledAPIVersionsForGroup(config KubernetesMasterConfig, apiGroup string) []string {
 	allowedVersions := sets.NewString(KubeAPIGroupsToAllowedVersions[apiGroup]...)
 	enabledVersions := sets.NewString(GetEnabledAPIVersionsForGroup(config, apiGroup)...)
-	return allowedVersions.Difference(enabledVersions).List()
-}
+	disabledVersions := allowedVersions.Difference(enabledVersions)
+	disabledVersions.Insert(config.DisabledAPIGroupVersions[apiGroup]...)
 
-func HasKubernetesAPIVersion(config KubernetesMasterConfig, groupVersion unversioned.GroupVersion) bool {
-	enabledVersions := GetEnabledAPIVersionsForGroup(config, groupVersion.Group)
-	return sets.NewString(enabledVersions...).Has(groupVersion.Version)
+	flagVersions := GetKubeAPIServerFlagAPIEnablement(config.APIServerArguments[kubeAPIEnablementFlag])
+	for currVersion, enabled := range flagVersions {
+		if enabled {
+			continue
+		}
+		if disabledVersions.Has(currVersion.Version) {
+			continue
+		}
+		if currVersion.Group != apiGroup {
+			continue
+		}
+		disabledVersions.Insert(currVersion.Version)
+	}
+
+	return disabledVersions.List()
 }
 
 func CIDRsOverlap(cidr1, cidr2 string) bool {

@@ -18,20 +18,19 @@ package app
 
 import (
 	"fmt"
-	"io/ioutil"
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 
 	"github.com/golang/glog"
 
-	unversionedcertificates "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/certificates/internalversion"
-	"k8s.io/kubernetes/pkg/client/restclient"
-	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-	clientcmdapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api"
+	"k8s.io/apimachinery/pkg/types"
+	certificates "k8s.io/client-go/kubernetes/typed/certificates/v1beta1"
+	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/kubernetes/pkg/kubelet/util/csr"
-	"k8s.io/kubernetes/pkg/types"
-	certutil "k8s.io/kubernetes/pkg/util/cert"
 )
 
 const (
@@ -43,7 +42,7 @@ const (
 // The kubeconfig at bootstrapPath is used to request a client certificate from the API server.
 // On success, a kubeconfig file referencing the generated key and obtained certificate is written to kubeconfigPath.
 // The certificate and key file are stored in certDir.
-func bootstrapClientCert(kubeconfigPath string, bootstrapPath string, certDir string, nodeName types.NodeName) error {
+func BootstrapClientCert(kubeconfigPath string, bootstrapPath string, certDir string, nodeName types.NodeName) error {
 	// Short-circuit if the kubeconfig file already exists.
 	// TODO: inspect the kubeconfig, ensure a rest client can be built from it, verify client cert expiration, etc.
 	_, err := os.Stat(kubeconfigPath)
@@ -62,7 +61,7 @@ func bootstrapClientCert(kubeconfigPath string, bootstrapPath string, certDir st
 	if err != nil {
 		return fmt.Errorf("unable to load bootstrap kubeconfig: %v", err)
 	}
-	bootstrapClient, err := unversionedcertificates.NewForConfig(bootstrapClientConfig)
+	bootstrapClient, err := certificates.NewForConfig(bootstrapClientConfig)
 	if err != nil {
 		return fmt.Errorf("unable to create certificates signing request client: %v", err)
 	}
@@ -74,18 +73,9 @@ func bootstrapClientCert(kubeconfigPath string, bootstrapPath string, certDir st
 	if err != nil {
 		return fmt.Errorf("unable to build bootstrap key path: %v", err)
 	}
-	keyData, generatedKeyFile, err := loadOrGenerateKeyFile(keyPath)
+	keyData, _, err := certutil.LoadOrGenerateKeyFile(keyPath)
 	if err != nil {
 		return err
-	}
-	if generatedKeyFile {
-		defer func() {
-			if !success {
-				if err := os.Remove(keyPath); err != nil {
-					glog.Warningf("Cannot clean up the key file %q: %v", keyPath, err)
-				}
-			}
-		}()
 	}
 
 	// Get the cert.
@@ -160,23 +150,4 @@ func loadRESTClientConfig(kubeconfig string) (*restclient.Config, error) {
 		&clientcmd.ConfigOverrides{},
 		loader,
 	).ClientConfig()
-}
-
-func loadOrGenerateKeyFile(keyPath string) (data []byte, wasGenerated bool, err error) {
-	loadedData, err := ioutil.ReadFile(keyPath)
-	if err == nil {
-		return loadedData, false, err
-	}
-	if !os.IsNotExist(err) {
-		return nil, false, fmt.Errorf("error loading key from %s: %v", keyPath, err)
-	}
-
-	generatedData, err := certutil.MakeEllipticPrivateKeyPEM()
-	if err != nil {
-		return nil, false, fmt.Errorf("error generating key: %v", err)
-	}
-	if err := certutil.WriteKey(keyPath, generatedData); err != nil {
-		return nil, false, fmt.Errorf("error writing key to %s: %v", keyPath, err)
-	}
-	return generatedData, true, nil
 }

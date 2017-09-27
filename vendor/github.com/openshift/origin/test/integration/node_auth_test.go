@@ -1,22 +1,24 @@
 package integration
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	restclient "k8s.io/client-go/rest"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/restclient"
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
 
 	"github.com/openshift/origin/pkg/authorization/authorizer/scope"
-	"github.com/openshift/origin/pkg/cmd/admin/policy"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
-	"github.com/openshift/origin/pkg/cmd/server/origin"
 	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	oauthapi "github.com/openshift/origin/pkg/oauth/api"
+	oauthapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
+	oauthapiserver "github.com/openshift/origin/pkg/oauth/apiserver"
+	"github.com/openshift/origin/pkg/oc/admin/policy"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -28,13 +30,12 @@ type testRequest struct {
 }
 
 func TestNodeAuth(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
 	// Server config
 	masterConfig, nodeConfig, adminKubeConfigFile, err := testserver.StartTestAllInOne()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
 	// Cluster admin clients and client configs
 	adminClient, err := testutil.GetClusterAdminKubeClient(adminKubeConfigFile)
@@ -52,6 +53,15 @@ func TestNodeAuth(t *testing.T) {
 
 	// Client configs for lesser users
 	masterKubeletClientConfig := configapi.GetKubeletClientConfig(*masterConfig)
+	_, nodePort, err := net.SplitHostPort(nodeConfig.ServingInfo.BindAddress)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	nodePortInt, err := strconv.ParseInt(nodePort, 0, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	masterKubeletClientConfig.Port = uint(nodePortInt)
 
 	anonymousConfig := clientcmd.AnonymousClientConfig(adminConfig)
 
@@ -74,13 +84,13 @@ func TestNodeAuth(t *testing.T) {
 	}
 
 	// create a scoped token for bob that is only good for getting user info
-	bobUser, err := bobClient.Users().Get("~")
+	bobUser, err := bobClient.Users().Get("~", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	whoamiOnlyBobToken := &oauthapi.OAuthAccessToken{
-		ObjectMeta: kapi.ObjectMeta{Name: "whoami-token-plus-some-padding-here-to-make-the-limit"},
-		ClientName: origin.OpenShiftCLIClientID,
+		ObjectMeta: metav1.ObjectMeta{Name: "whoami-token-plus-some-padding-here-to-make-the-limit"},
+		ClientName: oauthapiserver.OpenShiftCLIClientID,
 		ExpiresIn:  200,
 		Scopes:     []string{scope.UserInfo},
 		UserName:   bobUser.Name,
@@ -110,20 +120,10 @@ func TestNodeAuth(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	_, nodePort, err := net.SplitHostPort(nodeConfig.ServingInfo.BindAddress)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	nodePortInt, err := strconv.ParseInt(nodePort, 0, 0)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	nodeTLS := configapi.UseTLS(nodeConfig.ServingInfo)
-
 	kubeletClientConfig := func(config *restclient.Config) *kubeletclient.KubeletClientConfig {
 		return &kubeletclient.KubeletClientConfig{
 			Port:            uint(nodePortInt),
-			EnableHttps:     nodeTLS,
+			EnableHttps:     true,
 			TLSClientConfig: config.TLSClientConfig,
 			BearerToken:     config.BearerToken,
 		}
@@ -221,15 +221,15 @@ func TestNodeAuth(t *testing.T) {
 
 			// not found admin requests
 			{"GET", "/containerLogs/mynamespace/mypod/mycontainer", adminResultMissing},
-			{"POST", "/exec/mynamespace/mypod/mycontainer", adminResultMissing},
+			{"POST", "/exec/mynamespace/mypod/mycontainer?output=1", adminResultMissing},
 			{"POST", "/run/mynamespace/mypod/mycontainer", adminResultMissing},
-			{"POST", "/attach/mynamespace/mypod/mycontainer", adminResultMissing},
+			{"POST", "/attach/mynamespace/mypod/mycontainer?output=1", adminResultMissing},
 			{"POST", "/portForward/mynamespace/mypod/mycontainer", adminResultMissing},
 
 			// GET is supported in origin on /exec and /attach for backwards compatibility
 			// make sure node admin permissions are required
-			{"GET", "/exec/mynamespace/mypod/mycontainer", adminResultMissing},
-			{"GET", "/attach/mynamespace/mypod/mycontainer", adminResultMissing},
+			{"GET", "/exec/mynamespace/mypod/mycontainer?output=1", adminResultMissing},
+			{"GET", "/attach/mynamespace/mypod/mycontainer?output=1", adminResultMissing},
 		}
 
 		rt, err := kubeletclient.MakeTransport(tc.KubeletClientConfig)
@@ -239,7 +239,7 @@ func TestNodeAuth(t *testing.T) {
 		}
 
 		for _, r := range requests {
-			req, err := http.NewRequest(r.Method, "https://"+nodeConfig.NodeName+":10250"+r.Path, nil)
+			req, err := http.NewRequest(r.Method, fmt.Sprintf("https://%s:%d", nodeConfig.NodeName, nodePortInt)+r.Path, nil)
 			if err != nil {
 				t.Errorf("%s: %s: unexpected error: %v", k, r.Path, err)
 				continue

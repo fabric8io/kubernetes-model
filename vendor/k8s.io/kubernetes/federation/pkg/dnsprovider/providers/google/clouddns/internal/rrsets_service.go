@@ -22,7 +22,7 @@ import (
 	"k8s.io/kubernetes/federation/pkg/dnsprovider/rrstype"
 )
 
-// Compile time check for interface adeherence
+// Compile time check for interface adherence
 var _ interfaces.ResourceRecordSetsService = &ResourceRecordSetsService{}
 
 type ResourceRecordSetsService struct {
@@ -31,6 +31,10 @@ type ResourceRecordSetsService struct {
 
 func (service ResourceRecordSetsService) List(project string, managedZone string) interfaces.ResourceRecordSetsListCall {
 	return &ResourceRecordSetsListCall{service.impl.List(project, managedZone)}
+}
+
+func (service ResourceRecordSetsService) Get(project, managedZone, name string) interfaces.ResourceRecordSetsListCall {
+	return &ResourceRecordSetsListCall{service.impl.List(project, managedZone).Name(name)}
 }
 
 func (service ResourceRecordSetsService) NewResourceRecordSet(name string, rrdatas []string, ttl int64, type_ rrstype.RrsType) interfaces.ResourceRecordSet {

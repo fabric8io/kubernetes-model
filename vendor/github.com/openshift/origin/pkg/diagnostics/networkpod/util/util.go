@@ -5,15 +5,17 @@ import (
 	"io"
 	"strings"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
-	kerrors "k8s.io/kubernetes/pkg/api/errors"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	kubecmd "k8s.io/kubernetes/pkg/kubectl/cmd"
 
 	osclient "github.com/openshift/origin/pkg/client"
 	osclientcmd "github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	"github.com/openshift/origin/pkg/sdn/api"
-	sdnapi "github.com/openshift/origin/pkg/sdn/api"
+	"github.com/openshift/origin/pkg/cmd/util/variable"
+	"github.com/openshift/origin/pkg/sdn"
+	sdnapi "github.com/openshift/origin/pkg/sdn/apis/network"
 	"github.com/openshift/origin/pkg/util/netutils"
 )
 
@@ -24,30 +26,35 @@ const (
 	NetworkDiagSCCNamePrefix         = "network-diag-privileged"
 	NetworkDiagSecretName            = "network-diag-secret"
 
-	NetworkDiagTestPodNamePrefix     = "network-diag-test-pod"
-	NetworkDiagTestServiceNamePrefix = "network-diag-test-service"
-	NetworkDiagContainerMountPath    = "/host"
-	NetworkDiagDefaultLogDir         = "/tmp/openshift/"
-	NetworkDiagNodeLogDirPrefix      = "/nodes"
-	NetworkDiagMasterLogDirPrefix    = "/master"
-	NetworkDiagPodLogDirPrefix       = "/pods"
+	NetworkDiagTestPodNamePrefix      = "network-diag-test-pod"
+	NetworkDiagTestServiceNamePrefix  = "network-diag-test-service"
+	NetworkDiagContainerMountPath     = "/host"
+	NetworkDiagDefaultLogDir          = "/tmp/openshift/"
+	NetworkDiagNodeLogDirPrefix       = "/nodes"
+	NetworkDiagMasterLogDirPrefix     = "/master"
+	NetworkDiagPodLogDirPrefix        = "/pods"
+	NetworkDiagDefaultTestPodProtocol = string(kapi.ProtocolTCP)
+	NetworkDiagDefaultTestPodPort     = 8080
+)
 
-	NetworkDiagDefaultPodImage = "openshift/origin"
+var (
+	NetworkDiagDefaultPodImage     = variable.DefaultImagePrefix
+	NetworkDiagDefaultTestPodImage = variable.DefaultImagePrefix + "-deployer"
 )
 
 func GetOpenShiftNetworkPlugin(osClient *osclient.Client) (string, bool, error) {
-	cn, err := osClient.ClusterNetwork().Get(api.ClusterNetworkDefault)
+	cn, err := osClient.ClusterNetwork().Get(sdnapi.ClusterNetworkDefault, metav1.GetOptions{})
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			return "", false, nil
 		}
 		return "", false, err
 	}
-	return cn.PluginName, sdnapi.IsOpenShiftNetworkPlugin(cn.PluginName), nil
+	return cn.PluginName, sdn.IsOpenShiftNetworkPlugin(cn.PluginName), nil
 }
 
 func GetNodes(kubeClient kclientset.Interface) ([]kapi.Node, error) {
-	nodeList, err := kubeClient.Core().Nodes().List(kapi.ListOptions{})
+	nodeList, err := kubeClient.Core().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("Listing nodes in the cluster failed. Error: %s", err)
 	}
@@ -86,7 +93,7 @@ func GetSchedulableNodes(kubeClient kclientset.Interface) ([]kapi.Node, error) {
 }
 
 func GetLocalNode(kubeClient kclientset.Interface) (string, string, error) {
-	nodeList, err := kubeClient.Core().Nodes().List(kapi.ListOptions{})
+	nodeList, err := kubeClient.Core().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		return "", "", err
 	}
@@ -148,7 +155,7 @@ func GetGlobalAndNonGlobalPods(pods []kapi.Pod, vnidMap map[string]uint32) ([]ka
 	globalPods := []kapi.Pod{}
 	nonGlobalPods := []kapi.Pod{}
 	for _, pod := range pods {
-		if vnidMap[pod.Namespace] == api.GlobalVNID {
+		if vnidMap[pod.Namespace] == sdn.GlobalVNID {
 			globalPods = append(globalPods, pod)
 		} else {
 			nonGlobalPods = append(nonGlobalPods, pod)
@@ -166,7 +173,7 @@ func ExpectedConnectionStatus(ns1, ns2 string, vnidMap map[string]uint32) bool {
 	} // else multitenant
 
 	// Check if one of the pods belongs to global network
-	if vnidMap[ns1] == api.GlobalVNID || vnidMap[ns2] == api.GlobalVNID {
+	if vnidMap[ns1] == sdn.GlobalVNID || vnidMap[ns2] == sdn.GlobalVNID {
 		return true
 	}
 
@@ -201,7 +208,7 @@ func Execute(factory *osclientcmd.Factory, command []string, pod *kapi.Pod, in i
 			Stdin:         in != nil,
 		},
 		Executor:  &kubecmd.DefaultRemoteExecutor{},
-		PodClient: client,
+		PodClient: client.Core(),
 		Config:    config,
 		Command:   command,
 	}
@@ -213,7 +220,7 @@ func Execute(factory *osclientcmd.Factory, command []string, pod *kapi.Pod, in i
 }
 
 func getSDNRunningPods(kubeClient kclientset.Interface) ([]kapi.Pod, error) {
-	podList, err := kubeClient.Core().Pods(kapi.NamespaceAll).List(kapi.ListOptions{})
+	podList, err := kubeClient.Core().Pods(metav1.NamespaceAll).List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}

@@ -4,10 +4,12 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/kubernetes/pkg/util/wait"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	extensionsv1beta1 "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
-	deploytest "github.com/openshift/origin/pkg/deploy/api/test"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	deploytest "github.com/openshift/origin/pkg/deploy/apis/apps/test"
 	deployutil "github.com/openshift/origin/pkg/deploy/util"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
@@ -16,12 +18,11 @@ import (
 func TestDeployScale(t *testing.T) {
 	const namespace = "test-deploy-scale"
 
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +52,7 @@ func TestDeployScale(t *testing.T) {
 	generation := dc.Generation
 
 	condition := func() (bool, error) {
-		config, err := osClient.DeploymentConfigs(namespace).Get(dc.Name)
+		config, err := osClient.DeploymentConfigs(namespace).Get(dc.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
 		}
@@ -71,8 +72,11 @@ func TestDeployScale(t *testing.T) {
 
 	scaleUpdate := deployapi.ScaleFromConfig(dc)
 	scaleUpdate.Spec.Replicas = 3
-
-	updatedScale, err := osClient.DeploymentConfigs(namespace).UpdateScale(scaleUpdate)
+	scaleUpdatev1beta1 := &extensionsv1beta1.Scale{}
+	if err := extensionsv1beta1.Convert_extensions_Scale_To_v1beta1_Scale(scaleUpdate, scaleUpdatev1beta1, nil); err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	updatedScale, err := osClient.DeploymentConfigs(namespace).UpdateScale(scaleUpdatev1beta1)
 	if err != nil {
 		// If this complains about "Scale" not being registered in "v1", check the kind overrides in the API registration in SubresourceGroupVersionKind
 		t.Fatalf("Couldn't update DeploymentConfig scale to %#v: %v", scaleUpdate, err)

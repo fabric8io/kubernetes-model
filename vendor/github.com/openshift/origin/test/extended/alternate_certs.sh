@@ -3,42 +3,17 @@
 # This scripts starts the OpenShift server with custom TLS certs, and verifies generated kubeconfig files can be used to talk to it.
 source "$(dirname "${BASH_SOURCE}")/../../hack/lib/init.sh"
 
-os::util::environment::setup_all_server_vars "test-extended-alternate-certs/"
+os::cleanup::tmpdir
+os::util::environment::setup_all_server_vars
 
-export EXTENDED_TEST_PATH="${OS_ROOT}/test/extended"
-
-function cleanup()
-{
-	out=$?
-	kill $OS_PID
-
-	# TODO(skuznets): un-hack this nonsense once traps are in a better state
-	if [[ -n "${JUNIT_REPORT_OUTPUT:-}" ]]; then
-		# get the jUnit output file into a workable state in case we crashed in
-		# the middle of testing something
-		os::test::junit::reconcile_output
-
-		# check that we didn't mangle jUnit output
-		os::test::junit::check_test_counters
-
-		# use the junitreport tool to generate us a report
-		os::util::ensure::built_binary_exists 'junitreport'
-
-		cat "${JUNIT_REPORT_OUTPUT}" \
-			| junitreport --type oscmd \
-			--suites nested \
-			--roots github.com/openshift/origin \
-			--output "${ARTIFACT_DIR}/report.xml"
-		cat "${ARTIFACT_DIR}/report.xml" | junitreport summarize
-	fi
-
-	os::log::info "Exiting"
-	exit $out
+function cleanup() {
+	return_code=$?
+	os::test::junit::generate_report
+	os::cleanup::all
+	os::util::describe_return_code "${return_code}"
+	exit "${return_code}"
 }
-
-trap "exit" INT TERM
 trap "cleanup" EXIT
-
 
 os::log::info "Starting server as distinct processes"
 os::log::info "`openshift version`"
@@ -62,8 +37,8 @@ pushd "${SERVER_CONFIG_DIR}"
 os::test::junit::declare_suite_start "extended/alternate_certs"
 
 # Make custom CA and server cert
-os::cmd::expect_success 'oadm ca create-signer-cert --overwrite=true --cert=master/custom-ca.crt --key=master/custom-ca.key --serial=master/custom-ca.txt --name=my-custom-ca@`date +%s`'
-os::cmd::expect_success 'oadm ca create-server-cert --cert=master/custom.crt --key=master/custom.key --hostnames=localhost,customhost.com --signer-cert=master/custom-ca.crt --signer-key=master/custom-ca.key --signer-serial=master/custom-ca.txt'
+os::cmd::expect_success 'oc adm ca create-signer-cert --overwrite=true --cert=master/custom-ca.crt --key=master/custom-ca.key --serial=master/custom-ca.txt --name=my-custom-ca@`date +%s`'
+os::cmd::expect_success 'oc adm ca create-server-cert --cert=master/custom.crt --key=master/custom.key --hostnames=localhost,customhost.com --signer-cert=master/custom-ca.crt --signer-key=master/custom-ca.key --signer-serial=master/custom-ca.txt'
 
 # Create master/node configs
 os::cmd::expect_success "openshift start --master=https://localhost:${API_PORT} --write-config=. --hostname=mynode --etcd-dir=./etcd --certificate-authority=master/custom-ca.crt"

@@ -27,12 +27,27 @@ kube::golang::setup_env
 KUBE_CACHE_MUTATION_DETECTOR="${KUBE_CACHE_MUTATION_DETECTOR:-true}"
 export KUBE_CACHE_MUTATION_DETECTOR
 
+# panic the server on watch decode errors since they are considered coder mistakes
+KUBE_PANIC_WATCH_DECODE_ERROR="${KUBE_PANIC_WATCH_DECODE_ERROR:-true}"
+export KUBE_PANIC_WATCH_DECODE_ERROR
+
+# Handle case where OS has sha#sum commands, instead of shasum.
+if which shasum >/dev/null 2>&1; then
+  SHA1SUM="shasum -a1"
+elif which sha1sum >/dev/null 2>&1; then
+  SHA1SUM="sha1sum"
+else
+  echo "Failed to find shasum or sha1sum utility." >&2
+  exit 1
+fi
+
 kube::test::find_dirs() {
   (
     cd ${KUBE_ROOT}
     find -L . -not \( \
         \( \
           -path './_artifacts/*' \
+          -o -path './bazel-*/*' \
           -o -path './_output/*' \
           -o -path './_gopath/*' \
           -o -path './cmd/kubeadm/test/*' \
@@ -43,18 +58,43 @@ kube::test::find_dirs() {
           -o -path './test/e2e/*' \
           -o -path './test/e2e_node/*' \
           -o -path './test/integration/*' \
-          -o -path './test/component/scheduler/perf/*' \
           -o -path './third_party/*' \
           -o -path './staging/*' \
           -o -path './vendor/*' \
         \) -prune \
-      \) -name '*_test.go' -print0 | xargs -0n1 dirname | sed 's|^\./||' | LC_ALL=C sort -u
+      \) -name '*_test.go' -print0 | xargs -0n1 dirname | sed "s|^\./|${KUBE_GO_PACKAGE}/|" | LC_ALL=C sort -u
 
     find -L . \
         -path './_output' -prune \
         -o -path './vendor/k8s.io/client-go/*' \
+        -o -path './vendor/k8s.io/apiserver/*' \
         -o -path './test/e2e_node/system/*' \
-      -name '*_test.go' -print0 | xargs -0n1 dirname | sed 's|^\./||' | LC_ALL=C sort -u
+      -name '*_test.go' -print0 | xargs -0n1 dirname | sed "s|^\./|${KUBE_GO_PACKAGE}/|" | LC_ALL=C sort -u
+
+    # run tests for client-go
+    find ./staging/src/k8s.io/client-go -name '*_test.go' \
+      -name '*_test.go' -print0 | xargs -0n1 dirname | sed 's|^\./staging/src/|./vendor/|' | LC_ALL=C sort -u
+
+    # run tests for apiserver
+    find ./staging/src/k8s.io/apiserver -name '*_test.go' \
+      -name '*_test.go' -print0 | xargs -0n1 dirname | sed 's|^\./staging/src/|./vendor/|' | LC_ALL=C sort -u
+
+    # run tests for apimachinery
+    find ./staging/src/k8s.io/apimachinery -name '*_test.go' \
+      -name '*_test.go' -print0 | xargs -0n1 dirname | sed 's|^\./staging/src/|./vendor/|' | LC_ALL=C sort -u
+
+    find ./staging/src/k8s.io/kube-aggregator -name '*_test.go' \
+      -name '*_test.go' -print0 | xargs -0n1 dirname | sed 's|^\./staging/src/|./vendor/|' | LC_ALL=C sort -u
+
+    find ./staging/src/k8s.io/apiextensions-apiserver -not \( \
+        \( \
+          -path '*/test/integration/*' \
+        \) -prune \
+      \) -name '*_test.go' \
+      -name '*_test.go' -print0 | xargs -0n1 dirname | sed 's|^\./staging/src/|./vendor/|' | LC_ALL=C sort -u
+
+    find ./staging/src/k8s.io/sample-apiserver -name '*_test.go' \
+      -name '*_test.go' -print0 | xargs -0n1 dirname | sed 's|^\./staging/src/|./vendor/|' | LC_ALL=C sort -u
   )
 }
 
@@ -166,8 +206,8 @@ junitFilenamePrefix() {
   # exceeding 255 character filename limit. KUBE_TEST_API
   # barely fits there and in coverage mode test names are
   # appended to generated file names, easily exceeding
-  # 255 chars in length. So let's just sha1sum it.
-  local KUBE_TEST_API_HASH="$(echo -n "${KUBE_TEST_API//\//-}"|sha1sum|awk '{print $1}')"
+  # 255 chars in length. So let's just use a sha1 hash of it.
+  local KUBE_TEST_API_HASH="$(echo -n "${KUBE_TEST_API//\//-}"| ${SHA1SUM} |awk '{print $1}')"
   echo "${KUBE_JUNIT_REPORT_DIR}/junit_${KUBE_TEST_API_HASH}_$(kube::util::sortable_date)"
 }
 
@@ -205,10 +245,10 @@ runTests() {
     # the build artifacts but doesn't run the tests.  The two together provide
     # a large speedup for tests that do not need to be rebuilt.
     go test -i "${goflags[@]:+${goflags[@]}}" \
-      ${KUBE_RACE} ${KUBE_TIMEOUT} "${@+${@/#/${KUBE_GO_PACKAGE}/}}" \
+      ${KUBE_RACE} ${KUBE_TIMEOUT} "${@}" \
      "${testargs[@]:+${testargs[@]}}"
     go test "${goflags[@]:+${goflags[@]}}" \
-      ${KUBE_RACE} ${KUBE_TIMEOUT} "${@+${@/#/${KUBE_GO_PACKAGE}/}}" \
+      ${KUBE_RACE} ${KUBE_TIMEOUT} "${@}" \
      "${testargs[@]:+${testargs[@]}}" \
      | tee ${junit_filename_prefix:+"${junit_filename_prefix}.stdout"} \
      | grep "${go_test_grep_pattern}" && rc=$? || rc=$?
@@ -217,7 +257,8 @@ runTests() {
   fi
 
   # Create coverage report directories.
-  cover_report_dir="/tmp/k8s_coverage/${KUBE_TEST_API}/$(kube::util::sortable_date)"
+  KUBE_TEST_API_HASH="$(echo -n "${KUBE_TEST_API//\//-}"| ${SHA1SUM} |awk '{print $1}')"
+  cover_report_dir="/tmp/k8s_coverage/${KUBE_TEST_API_HASH}/$(kube::util::sortable_date)"
   cover_profile="coverage.out"  # Name for each individual coverage profile
   kube::log::status "Saving coverage output in '${cover_report_dir}'"
   mkdir -p "${@+${@/#/${cover_report_dir}/}}"
@@ -245,25 +286,28 @@ runTests() {
   # `go test` does not install the things it builds. `go test -i` installs
   # the build artifacts but doesn't run the tests.  The two together provide
   # a large speedup for tests that do not need to be rebuilt.
-  printf "%s\n" "${@}" | grep -Ev $cover_ignore_dirs | xargs -I{} -n1 -P${KUBE_COVERPROCS} \
-    bash -c "set -o pipefail; _pkg=\"{}\"; _pkg_out=\${_pkg//\//_}; \
-        go test -i ${goflags[@]:+${goflags[@]}} \
-          ${KUBE_RACE} \
-          ${KUBE_TIMEOUT} \
-          -cover -covermode=\"${KUBE_COVERMODE}\" \
-          -coverprofile=\"${cover_report_dir}/\${_pkg}/${cover_profile}\" \
-          \"${KUBE_GO_PACKAGE}/\${_pkg}\" \
-          ${testargs[@]:+${testargs[@]}}
-        go test ${goflags[@]:+${goflags[@]}} \
-          ${KUBE_RACE} \
-          ${KUBE_TIMEOUT} \
-          -cover -covermode=\"${KUBE_COVERMODE}\" \
-          -coverprofile=\"${cover_report_dir}/\${_pkg}/${cover_profile}\" \
-          \"${KUBE_GO_PACKAGE}/\${_pkg}\" \
-          ${testargs[@]:+${testargs[@]}} \
-        | tee ${junit_filename_prefix:+\"${junit_filename_prefix}-\$_pkg_out.stdout\"} \
-        | grep \"${go_test_grep_pattern}\"" \
-      && test_result=$? || test_result=$?
+  printf "%s\n" "${@}" \
+    | grep -Ev $cover_ignore_dirs \
+    | xargs -I{} -n 1 -P ${KUBE_COVERPROCS} \
+    bash -c "set -o pipefail; _pkg=\"\$0\"; _pkg_out=\${_pkg//\//_}; \
+      go test -i ${goflags[@]:+${goflags[@]}} \
+        ${KUBE_RACE} \
+        ${KUBE_TIMEOUT} \
+        -cover -covermode=\"${KUBE_COVERMODE}\" \
+        -coverprofile=\"${cover_report_dir}/\${_pkg}/${cover_profile}\" \
+        \"\${_pkg}\" \
+        ${testargs[@]:+${testargs[@]}}
+      go test ${goflags[@]:+${goflags[@]}} \
+        ${KUBE_RACE} \
+        ${KUBE_TIMEOUT} \
+        -cover -covermode=\"${KUBE_COVERMODE}\" \
+        -coverprofile=\"${cover_report_dir}/\${_pkg}/${cover_profile}\" \
+        \"\${_pkg}\" \
+        ${testargs[@]:+${testargs[@]}} \
+      | tee ${junit_filename_prefix:+\"${junit_filename_prefix}-\$_pkg_out.stdout\"} \
+      | grep \"${go_test_grep_pattern}\"" \
+    {} \
+    && test_result=$? || test_result=$?
 
   produceJUnitXMLReport "${junit_filename_prefix}"
 

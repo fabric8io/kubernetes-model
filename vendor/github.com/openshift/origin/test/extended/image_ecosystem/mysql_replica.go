@@ -7,13 +7,14 @@ import (
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 
-	templateapi "github.com/openshift/origin/pkg/template/api"
+	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 	exutil "github.com/openshift/origin/test/extended/util"
 	"github.com/openshift/origin/test/extended/util/db"
 	testutil "github.com/openshift/origin/test/util"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/clientset/typed/core/v1"
+	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
 
 type testCase struct {
@@ -77,7 +78,7 @@ func cleanup(oc *exutil.CLI) {
 	oc.AsAdmin().Run("delete").Args("all", "--all", "-n", oc.Namespace()).Execute()
 	exutil.DumpImageStreams(oc)
 	oc.AsAdmin().Run("delete").Args("pvc", "--all", "-n", oc.Namespace()).Execute()
-	exutil.CleanupHostPathVolumes(oc.AdminKubeClient().Core().PersistentVolumes(), oc.Namespace())
+	exutil.CleanupHostPathVolumes(oc.AdminKubeClient().CoreV1().PersistentVolumes(), oc.Namespace())
 }
 
 func replicationTestFactory(oc *exutil.CLI, tc testCase) func() {
@@ -85,7 +86,7 @@ func replicationTestFactory(oc *exutil.CLI, tc testCase) func() {
 		oc.SetOutputDir(exutil.TestContext.OutputDir)
 		defer cleanup(oc)
 
-		_, err := exutil.SetupHostPathVolumes(oc.AdminKubeClient().Core().PersistentVolumes(), oc.Namespace(), "1Gi", 2)
+		_, err := exutil.SetupHostPathVolumes(oc.AdminKubeClient().CoreV1().PersistentVolumes(), oc.Namespace(), "1Gi", 2)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		err = testutil.WaitForPolicyUpdate(oc.Client(), oc.Namespace(), "create", templateapi.Resource("templates"), true)
@@ -101,11 +102,11 @@ func replicationTestFactory(oc *exutil.CLI, tc testCase) func() {
 		// oc.KubeFramework().WaitForAnEndpoint currently will wait forever;  for now, prefacing with our WaitForADeploymentToComplete,
 		// which does have a timeout, since in most cases a failure in the service coming up stems from a failed deployment
 		g.By("waiting for the deployment to complete")
-		err = exutil.WaitForADeploymentToComplete(oc.KubeClient().Core().ReplicationControllers(oc.Namespace()), helperName, oc)
+		err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), oc.Namespace(), helperName, 1, oc)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("waiting for an endpoint")
-		err = oc.KubeFramework().WaitForAnEndpoint(helperName)
+		err = e2e.WaitForEndpoint(oc.KubeFramework().ClientSet, oc.Namespace(), helperName)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		tableCounter := 0
@@ -114,13 +115,14 @@ func replicationTestFactory(oc *exutil.CLI, tc testCase) func() {
 			table := fmt.Sprintf("table_%0.2d", tableCounter)
 
 			g.By("creating replication helpers")
-			master, slaves, helper := CreateMySQLReplicationHelpers(oc.KubeClient().Core().Pods(oc.Namespace()), masterDeployment, slaveDeployment, fmt.Sprintf("%s-1", helperName), slaveCount)
+			master, slaves, helper := CreateMySQLReplicationHelpers(oc.KubeClient().CoreV1().Pods(oc.Namespace()), masterDeployment, slaveDeployment, fmt.Sprintf("%s-1", helperName), slaveCount)
 			o.Expect(exutil.WaitUntilAllHelpersAreUp(oc, []exutil.Database{master, helper})).NotTo(o.HaveOccurred())
 			o.Expect(exutil.WaitUntilAllHelpersAreUp(oc, slaves)).NotTo(o.HaveOccurred())
 
 			// Test if we can query as root
 			g.By("wait for mysql-master endpoint")
-			oc.KubeFramework().WaitForAnEndpoint("mysql-master")
+			err = e2e.WaitForEndpoint(oc.KubeFramework().ClientSet, oc.Namespace(), "mysql-master")
+			o.Expect(err).NotTo(o.HaveOccurred())
 			err := helper.TestRemoteLogin(oc, "mysql-master")
 			o.Expect(err).NotTo(o.HaveOccurred())
 
@@ -156,24 +158,24 @@ func replicationTestFactory(oc *exutil.CLI, tc testCase) func() {
 		g.By("after master is restarted by changing the Deployment Config")
 		err = oc.Run("env").Args("dc", "mysql-master", "MYSQL_ROOT_PASSWORD=newpass").Execute()
 		o.Expect(err).NotTo(o.HaveOccurred())
-		err = exutil.WaitUntilPodIsGone(oc.KubeClient().Core().Pods(oc.Namespace()), master.PodName(), 1*time.Minute)
+		err = exutil.WaitUntilPodIsGone(oc.KubeClient().CoreV1().Pods(oc.Namespace()), master.PodName(), 1*time.Minute)
 		master, _, _ = assertReplicationIsWorking("mysql-master-2", "mysql-slave-1", 1)
 
 		g.By("after master is restarted by deleting the pod")
 		err = oc.Run("delete").Args("pod", "-l", "deployment=mysql-master-2").Execute()
 		o.Expect(err).NotTo(o.HaveOccurred())
-		err = exutil.WaitUntilPodIsGone(oc.KubeClient().Core().Pods(oc.Namespace()), master.PodName(), 1*time.Minute)
+		err = exutil.WaitUntilPodIsGone(oc.KubeClient().CoreV1().Pods(oc.Namespace()), master.PodName(), 1*time.Minute)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		_, slaves, _ := assertReplicationIsWorking("mysql-master-2", "mysql-slave-1", 1)
 
 		g.By("after slave is restarted by deleting the pod")
 		err = oc.Run("delete").Args("pod", "-l", "deployment=mysql-slave-1").Execute()
 		o.Expect(err).NotTo(o.HaveOccurred())
-		err = exutil.WaitUntilPodIsGone(oc.KubeClient().Core().Pods(oc.Namespace()), slaves[0].PodName(), 1*time.Minute)
+		err = exutil.WaitUntilPodIsGone(oc.KubeClient().CoreV1().Pods(oc.Namespace()), slaves[0].PodName(), 1*time.Minute)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		assertReplicationIsWorking("mysql-master-2", "mysql-slave-1", 1)
 
-		pods, err := oc.KubeClient().Core().Pods(oc.Namespace()).List(kapi.ListOptions{LabelSelector: exutil.ParseLabelsOrDie("deployment=mysql-slave-1")})
+		pods, err := oc.KubeClient().CoreV1().Pods(oc.Namespace()).List(metav1.ListOptions{LabelSelector: exutil.ParseLabelsOrDie("deployment=mysql-slave-1").String()})
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(pods.Items)).To(o.Equal(1))
 
@@ -182,7 +184,7 @@ func replicationTestFactory(oc *exutil.CLI, tc testCase) func() {
 			g.By("after slave is scaled to 0 and then back to 4 replicas")
 			err = oc.Run("scale").Args("dc", "mysql-slave", "--replicas=0").Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
-			err = exutil.WaitUntilPodIsGone(oc.KubeClient().Core().Pods(oc.Namespace()), pods.Items[0].Name, 1*time.Minute)
+			err = exutil.WaitUntilPodIsGone(oc.KubeClient().CoreV1().Pods(oc.Namespace()), pods.Items[0].Name, 1*time.Minute)
 			o.Expect(err).NotTo(o.HaveOccurred())
 			err = oc.Run("scale").Args("dc", "mysql-slave", "--replicas=4").Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())

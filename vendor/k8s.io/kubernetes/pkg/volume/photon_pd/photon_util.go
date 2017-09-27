@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/cloudprovider/providers/photon"
 	"k8s.io/kubernetes/pkg/volume"
@@ -80,14 +80,14 @@ func verifyDevicePath(path string) (string, error) {
 }
 
 // CreateVolume creates a PhotonController persistent disk.
-func (util *PhotonDiskUtil) CreateVolume(p *photonPersistentDiskProvisioner) (pdID string, capacityGB int, err error) {
+func (util *PhotonDiskUtil) CreateVolume(p *photonPersistentDiskProvisioner) (pdID string, capacityGB int, fstype string, err error) {
 	cloud, err := getCloudProvider(p.plugin.host.GetCloudProvider())
 	if err != nil {
 		glog.Errorf("Photon Controller Util: CreateVolume failed to get cloud provider. Error [%v]", err)
-		return "", 0, err
+		return "", 0, "", err
 	}
 
-	capacity := p.options.PVC.Spec.Resources.Requests[api.ResourceName(api.ResourceStorage)]
+	capacity := p.options.PVC.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)]
 	volSizeBytes := capacity.Value()
 	// PhotonController works with GB, convert to GB with rounding up
 	volSizeGB := int(volume.RoundUpSize(volSizeBytes, 1024*1024*1024))
@@ -102,20 +102,23 @@ func (util *PhotonDiskUtil) CreateVolume(p *photonPersistentDiskProvisioner) (pd
 		switch strings.ToLower(parameter) {
 		case "flavor":
 			volumeOptions.Flavor = value
+		case volume.VolumeParameterFSType:
+			fstype = value
+			glog.V(4).Infof("Photon Controller Util: Setting fstype to %s", fstype)
 		default:
 			glog.Errorf("Photon Controller Util: invalid option %s for volume plugin %s.", parameter, p.plugin.GetPluginName())
-			return "", 0, fmt.Errorf("Photon Controller Util: invalid option %s for volume plugin %s.", parameter, p.plugin.GetPluginName())
+			return "", 0, "", fmt.Errorf("Photon Controller Util: invalid option %s for volume plugin %s.", parameter, p.plugin.GetPluginName())
 		}
 	}
 
 	pdID, err = cloud.CreateDisk(volumeOptions)
 	if err != nil {
 		glog.Errorf("Photon Controller Util: failed to CreateDisk. Error [%v]", err)
-		return "", 0, err
+		return "", 0, "", err
 	}
 
 	glog.V(4).Infof("Successfully created Photon Controller persistent disk %s", name)
-	return pdID, volSizeGB, nil
+	return pdID, volSizeGB, "", nil
 }
 
 // DeleteVolume deletes a vSphere volume.

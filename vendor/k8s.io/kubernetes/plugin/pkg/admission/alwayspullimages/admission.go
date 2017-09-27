@@ -27,15 +27,14 @@ package alwayspullimages
 import (
 	"io"
 
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-
-	"k8s.io/kubernetes/pkg/admission"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/kubernetes/pkg/api"
-	apierrors "k8s.io/kubernetes/pkg/api/errors"
 )
 
-func init() {
-	admission.RegisterPlugin("AlwaysPullImages", func(client clientset.Interface, config io.Reader) (admission.Interface, error) {
+// Register registers a plugin
+func Register(plugins *admission.Plugins) {
+	plugins.Register("AlwaysPullImages", func(config io.Reader) (admission.Interface, error) {
 		return NewAlwaysPullImages(), nil
 	})
 }
@@ -70,6 +69,6 @@ func (a *alwaysPullImages) Admit(attributes admission.Attributes) (err error) {
 // NewAlwaysPullImages creates a new always pull images admission control handler
 func NewAlwaysPullImages() admission.Interface {
 	return &alwaysPullImages{
-		Handler: admission.NewHandler(admission.Create, admission.Update),
+		Handler: admission.NewHandler(admission.Create),
 	}
 }

@@ -6,6 +6,15 @@
 		"./third_party",
 		"./plugin",
 		"./test",
-		"./federation"
-	]
+		"./federation",
+		"./examples"
+	],
+	"SkippedPaths": [
+		"^_.*",
+		"^staging.*",
+		"_vendor"
+	],
+	"AddSourcesRules": true,
+	"VendorMultipleBuildFiles": true,
+	"K8sOpenAPIGen": true
 }

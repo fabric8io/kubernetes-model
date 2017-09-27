@@ -4,10 +4,11 @@ import (
 	"errors"
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubernetes/pkg/kubectl"
 
 	"github.com/openshift/origin/pkg/client"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	deployutil "github.com/openshift/origin/pkg/deploy/util"
 )
 
@@ -25,7 +26,7 @@ var _ kubectl.StatusViewer = &DeploymentConfigStatusViewer{}
 
 // Status returns a message describing deployment status, and a bool value indicating if the status is considered done
 func (s *DeploymentConfigStatusViewer) Status(namespace, name string, desiredRevision int64) (string, bool, error) {
-	config, err := s.dn.DeploymentConfigs(namespace).Get(name)
+	config, err := s.dn.DeploymentConfigs(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", false, err
 	}
@@ -49,13 +50,16 @@ func (s *DeploymentConfigStatusViewer) Status(namespace, name string, desiredRev
 
 	if config.Generation <= config.Status.ObservedGeneration {
 		switch {
-		case cond != nil && cond.Reason == deployutil.NewRcAvailableReason:
+		case cond != nil && cond.Reason == deployapi.NewRcAvailableReason:
 			return fmt.Sprintf("%s\n", cond.Message), true, nil
 
-		case cond != nil && cond.Reason == deployutil.TimedOutReason:
+		case cond != nil && cond.Reason == deployapi.TimedOutReason:
 			return "", true, errors.New(cond.Message)
 
-		case cond != nil && cond.Reason == deployutil.PausedDeployReason:
+		case cond != nil && cond.Reason == deployapi.CancelledRolloutReason:
+			return "", true, errors.New(cond.Message)
+
+		case cond != nil && cond.Reason == deployapi.PausedConfigReason:
 			return "", true, fmt.Errorf("Deployment config %q is paused. Resume to continue watching the status of the rollout.\n", config.Name)
 
 		case config.Status.UpdatedReplicas < config.Spec.Replicas:

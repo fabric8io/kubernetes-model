@@ -6,12 +6,13 @@ import (
 
 	"github.com/gonum/graph"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/runtime"
 
 	osgraph "github.com/openshift/origin/pkg/api/graph"
 	kubegraph "github.com/openshift/origin/pkg/api/kubegraph/nodes"
-	"github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	nodes "github.com/openshift/origin/pkg/deploy/graph/nodes"
 )
 
@@ -23,7 +24,7 @@ func TestNamespaceEdgeMatching(t *testing.T) {
 	g := osgraph.New()
 
 	fn := func(namespace string, g osgraph.Interface) {
-		dc := &api.DeploymentConfig{}
+		dc := &deployapi.DeploymentConfig{}
 		dc.Namespace = namespace
 		dc.Name = "the-dc"
 		dc.Spec.Selector = map[string]string{"a": "1"}
@@ -32,7 +33,7 @@ func TestNamespaceEdgeMatching(t *testing.T) {
 		rc := &kapi.ReplicationController{}
 		rc.Namespace = namespace
 		rc.Name = "the-rc"
-		rc.Annotations = map[string]string{api.DeploymentConfigAnnotation: "the-dc"}
+		rc.Annotations = map[string]string{deployapi.DeploymentConfigAnnotation: "the-dc"}
 		kubegraph.EnsureReplicationControllerNode(g, rc)
 	}
 
@@ -62,11 +63,11 @@ func namespaceFor(node graph.Node) (string, error) {
 	obj := node.(objectifier).Object()
 	switch t := obj.(type) {
 	case runtime.Object:
-		meta, err := kapi.ObjectMetaFor(t)
+		meta, err := meta.Accessor(t)
 		if err != nil {
 			return "", err
 		}
-		return meta.Namespace, nil
+		return meta.GetNamespace(), nil
 	case *kapi.PodSpec:
 		return node.(*kubegraph.PodSpecNode).Namespace, nil
 	case *kapi.ReplicationControllerSpec:

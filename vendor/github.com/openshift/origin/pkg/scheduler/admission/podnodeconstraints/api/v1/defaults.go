@@ -1,19 +1,19 @@
 package v1
 
 import (
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime"
+	kubeletapis "k8s.io/kubernetes/pkg/kubelet/apis"
 )
 
 func SetDefaults_PodNodeConstraintsConfig(obj *PodNodeConstraintsConfig) {
 	if obj.NodeSelectorLabelBlacklist == nil {
 		obj.NodeSelectorLabelBlacklist = []string{
-			unversioned.LabelHostname,
+			kubeletapis.LabelHostname,
 		}
 	}
 }
+
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
-	return scheme.AddDefaultingFuncs(
-		SetDefaults_PodNodeConstraintsConfig,
-	)
+	scheme.AddTypeDefaultingFunc(&PodNodeConstraintsConfig{}, func(obj interface{}) { SetDefaults_PodNodeConstraintsConfig(obj.(*PodNodeConstraintsConfig)) })
+	return nil
 }

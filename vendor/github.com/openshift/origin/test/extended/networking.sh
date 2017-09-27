@@ -16,15 +16,11 @@ export SHELLOPTS
 #
 # The EmptyDir test is a canary; it will fail if mount propagation is
 # not properly configured on the host.
-NETWORKING_E2E_FOCUS="${NETWORKING_E2E_FOCUS:-etworking|Services should be able to create a functioning NodePort service|EmptyDir volumes should support \(root,0644,tmpfs\)}"
+NETWORKING_E2E_FOCUS="${NETWORKING_E2E_FOCUS:-etworking|Feature:OSNetworkPolicy|EmptyDir volumes should support \(root,0644,tmpfs\)}"
 NETWORKING_E2E_SKIP="${NETWORKING_E2E_SKIP:-}"
 
-# Limit the scope of execution to minimize runtime
-NETWORKING_E2E_MINIMAL="${NETWORKING_E2E_MINIMAL:-}"
-
 DEFAULT_SKIP_LIST=(
-  # TODO(marun) This should work with docker >= 1.10
-  "openshift router"
+  # Requires lots of setup that this script doesn't so
   "\[Feature:Federation\]"
 
   # Skipped until https://github.com/openshift/origin/issues/11042 is resolved
@@ -51,8 +47,25 @@ DEFAULT_SKIP_LIST=(
   "Networking.*should check kube-proxy urls"
 )
 
+NETWORKING_E2E_MINIMAL="${NETWORKING_E2E_MINIMAL:-}"
+
+# Tests that are skipped when running networking-minimal.sh because they're slow
+# and unlikely to be broken by changes outside of the SDN code.
 MINIMAL_SKIP_LIST=(
   "OVS"
+  "multicast"
+)
+
+NETWORKING_E2E_EXTERNAL="${NETWORKING_E2E_EXTERNAL:-}"
+
+# Tests that are are openshift-sdn-specific, so shouldn't be run against external plugins
+EXTERNAL_PLUGIN_SKIP_LIST=(
+  # Tests OpenShift-SDN-specific behavior. Would not necessarily apply even to other
+  # OVS-based plugins
+  "OVS"
+
+  # Relies on an OpenShift-specific annotation, and is not a "required" feature for
+  # network plugins
   "multicast"
 )
 
@@ -152,6 +165,7 @@ function test-osdn-plugin() {
   local name=$1
   local plugin=$2
   local isolation=$3
+  local networkpolicy=$4
 
   os::log::info "Targeting ${name} plugin: ${plugin}"
 
@@ -167,7 +181,8 @@ function test-osdn-plugin() {
 
     local kubeconfig="$(get-kubeconfig-from-root "${OPENSHIFT_CONFIG_ROOT}")"
     if ! TEST_REPORT_FILE_NAME=networking_${name}_${isolation} \
-         OPENSHIFT_NETWORK_ISOLATION="${isolation}" \
+         NETWORKING_E2E_ISOLATION="${isolation}" \
+         NETWORKING_E2E_NETWORKPOLICY="${networkpolicy}" \
          run-extended-tests "${kubeconfig}" "${log_dir}/test.log"; then
       tests_failed=1
       os::log::error "e2e tests failed for plugin: ${plugin}"
@@ -207,13 +222,21 @@ function run-extended-tests() {
     if [[ -n "${NETWORKING_E2E_MINIMAL}" ]]; then
       skip_regex="${skip_regex}|$(join '|' "${MINIMAL_SKIP_LIST[@]}")"
     fi
+    if [[ -n "${NETWORKING_E2E_EXTERNAL}" ]]; then
+      skip_regex="${skip_regex}|$(join '|' "${EXTERNAL_PLUGIN_SKIP_LIST[@]}")"
+    fi
   fi
 
   export KUBECONFIG="${kubeconfig}"
-  export EXTENDED_TEST_PATH="${OS_ROOT}/test/extended"
 
   local test_args="--test.v '--ginkgo.skip=${skip_regex}' \
 '--ginkgo.focus=${focus_regex}' ${TEST_EXTRA_ARGS}"
+
+  # this ${FOCUS} value will override the $focus_regex in the same way that
+  # the --ginkgo.focus argument did previously.
+  if [[ -n "${FOCUS:-}" ]]; then
+    test_args="${test_args} --ginkgo.focus=${FOCUS}"
+  fi
 
   if [[ -n "${dlv_debug}" ]]; then
     # run tests using delve debugger
@@ -226,13 +249,13 @@ function run-extended-tests() {
 
   if [[ -n "${log_path}" ]]; then
     if [[ -n "${dlv_debug}" ]]; then
-      os::log::warn "Not logging to file since DLV_DEBUG is enabled"
+      os::log::warning "Not logging to file since DLV_DEBUG is enabled"
     else
       test_cmd="${test_cmd} | tee ${log_path}"
     fi
   fi
 
-  pushd "${EXTENDED_TEST_PATH}/networking" > /dev/null
+  pushd "${OS_ROOT}/test/extended/networking" > /dev/null
     eval "${test_cmd}; "'exit_status=${PIPESTATUS[0]}'
   popd > /dev/null
 
@@ -266,9 +289,13 @@ esac
 
 TEST_EXTRA_ARGS="$@"
 
+if [[ "$@[@]" =~ "ginkgo.focus" ]]; then
+      os::log::fatal "the --ginkgo.focus flag is no longer supported, use FOCUS=foo <suite.sh> instead."
+fi
+
 if [[ -n "${OPENSHIFT_SKIP_BUILD:-}" ]] &&
      os::util::find::built_binary 'extended.test' >/dev/null 2>&1; then
-  os::log::warn "Skipping rebuild of test binary due to OPENSHIFT_SKIP_BUILD=1"
+  os::log::warning "Skipping rebuild of test binary due to OPENSHIFT_SKIP_BUILD=1"
 else
   hack/build-go.sh test/extended/extended.test
 fi
@@ -296,6 +323,25 @@ function disable-selinux() {
   fi
 }
 
+function kernel-supports-networkpolicy() {
+  # There's really no good way to test this "correctly" if OVS isn't installed.
+  # The mainline kernel got support for OVS NAT support in 4.6. RHEL kernels have
+  # it in 3.10.0-514 and later.
+  version="$(uname -r)"
+  case "${version}" in
+    3.10.0-*.el7.*)
+      build=$(sed -e 's/.*-\([0-9]*\)\..*/\1/' <<< "${version}")
+      if [[ "${build}" -lt 514 ]]; then
+        return 1
+      fi
+      ;;
+    [0-3].*|4.[0-5].*)
+      return 1
+      ;;
+  esac
+  return 0
+}
+
 os::log::info "Starting 'networking' extended tests"
 if [[ -n "${CONFIG_ROOT}" ]]; then
   KUBECONFIG="$(get-kubeconfig-from-root "${CONFIG_ROOT}")"
@@ -318,7 +364,14 @@ else
     "${OPENSHIFT_CLUSTER_ID}-node-2"
   )
 
-  os::util::environment::setup_tmpdir_vars "test-extended/networking"
+  os::cleanup::tmpdir
+
+  # Allow setting $JUNIT_REPORT to toggle output behavior
+  if [[ -n "${JUNIT_REPORT:-}" ]]; then
+    export JUNIT_REPORT_OUTPUT="${LOG_DIR}/raw_test_output.log"
+    # the Ginkgo tests also generate jUnit but expect different envars
+    export TEST_REPORT_DIR="${ARTIFACT_DIR}"
+  fi
 
   os::log::system::start
 
@@ -353,12 +406,17 @@ else
   # Docker-in-docker is not compatible with selinux
   disable-selinux
 
-  # Skip the subnet tests during a minimal test run
+  # Skip subnet and networkpolicy tests during a minimal test run
   if [[ -z "${NETWORKING_E2E_MINIMAL}" ]]; then
     # Ignore deployment errors for a given plugin to allow other plugins
     # to be tested.
-    test-osdn-plugin "subnet" "redhat/openshift-ovs-subnet" "false" || true
+    test-osdn-plugin "subnet" "redhat/openshift-ovs-subnet" "false" "false" || true
+    if kernel-supports-networkpolicy; then
+      test-osdn-plugin "networkpolicy" "redhat/openshift-ovs-networkpolicy" "false" "true" || true
+    else
+      os::log::warning "Skipping networkpolicy tests due to kernel version"
+    fi
   fi
 
-  test-osdn-plugin "multitenant" "redhat/openshift-ovs-multitenant" "true" || true
+  test-osdn-plugin "multitenant" "redhat/openshift-ovs-multitenant" "true" "false" || true
 fi

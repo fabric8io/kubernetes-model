@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/api/validation"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/validation/field"
 )
 
 func TestCompatibility_v1_Pod(t *testing.T) {
@@ -48,73 +48,6 @@ func TestCompatibility_v1_Pod(t *testing.T) {
 	)
 }
 
-// TestCompatibility_v1_VolumeSource tests that the metadata field in volume
-// sources gets properly round-tripped
-func TestCompatibility_v1_VolumeSource(t *testing.T) {
-	// Test volume source compatibility
-	path := "test/volume/source/compat"
-
-	metadata := []byte(fmt.Sprintf(`
-{
-	"kind":"Pod",
-	"apiVersion":"v1",
-	"metadata":{"name":"my-pod-name", "namespace":"my-pod-namespace"},
-	"spec": {
-		"containers":[{
-			"name":"my-container-name",
-			"image":"my-container-image",
-			"ports":[{"containerPort":1,"protocol":"TCP"}]
-		}],
-		"volumes":[{
-			"name":"a-metadata-volume",
-			"metadata":{"items":[{"name":"%s","fieldRef":{"apiVersion":"v1","fieldPath":"metadata.name"}}]}
-		}]
-	}
-}
-`, path))
-
-	downward := []byte(fmt.Sprintf(`
-{
-	"kind":"Pod",
-	"apiVersion":"v1",
-	"metadata":{"name":"my-pod-name", "namespace":"my-pod-namespace"},
-	"spec": {
-		"containers":[{
-			"name":"my-container-name",
-			"image":"my-container-image",
-			"ports":[{"containerPort":1,"protocol":"TCP"}]
-		}],
-		"volumes":[{
-			"name":"a-downwardapi-volume",
-			"downwardAPI":{"items":[{"path":"%s","fieldRef":{"apiVersion":"v1","fieldPath":"metadata.name"}}]}
-		}]
-	}
-}
-`, path))
-
-	t.Log("Testing 1.0.6 v1 migration added in PR #4663")
-	testCompatibility(
-		t, "v1", metadata,
-		func(obj runtime.Object) field.ErrorList {
-			return validation.ValidatePod(obj.(*api.Pod))
-		},
-		map[string]string{
-			"spec.volumes[0].metadata.items[0].name":    path,
-			"spec.volumes[0].downwardAPI.items[0].path": path,
-		},
-	)
-	testCompatibility(
-		t, "v1", downward,
-		func(obj runtime.Object) field.ErrorList {
-			return validation.ValidatePod(obj.(*api.Pod))
-		},
-		map[string]string{
-			"spec.volumes[0].metadata.items[0].name":    path,
-			"spec.volumes[0].downwardAPI.items[0].path": path,
-		},
-	)
-}
-
 func testCompatibility(
 	t *testing.T,
 	version string,
@@ -136,7 +69,7 @@ func testCompatibility(
 	}
 
 	// Encode
-	output := runtime.EncodeOrDie(api.Codecs.LegacyCodec(unversioned.GroupVersion{Group: "", Version: version}), obj)
+	output := runtime.EncodeOrDie(api.Codecs.LegacyCodec(schema.GroupVersion{Group: "", Version: version}), obj)
 
 	// Validate old and new fields are encoded
 	generic := map[string]interface{}{}
@@ -154,14 +87,14 @@ func testCompatibility(
 }
 
 func TestAllowedGrouplessVersion(t *testing.T) {
-	versions := map[string]unversioned.GroupVersion{
+	versions := map[string]schema.GroupVersion{
 		"v1":      {Group: "", Version: "v1"},
 		"v1beta3": {Group: "", Version: "v1beta3"},
 		"1.0":     {Group: "", Version: "1.0"},
 		"pre012":  {Group: "", Version: "pre012"},
 	}
 	for apiVersion, expectedGroupVersion := range versions {
-		groupVersion, err := unversioned.ParseGroupVersion(apiVersion)
+		groupVersion, err := schema.ParseGroupVersion(apiVersion)
 		if err != nil {
 			t.Errorf("%s: unexpected error parsing: %v", apiVersion, err)
 			continue

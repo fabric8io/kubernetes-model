@@ -4,32 +4,36 @@ import (
 	"fmt"
 	"strconv"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	kapi "k8s.io/kubernetes/pkg/api"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/util/intstr"
 
-	"github.com/openshift/origin/pkg/route/api"
+	routeapi "github.com/openshift/origin/pkg/route/apis/route"
 )
 
 // UnsecuredRoute will return a route with enough info so that it can direct traffic to
 // the service provided by --service. Callers of this helper are responsible for providing
 // tls configuration, path, and the hostname of the route.
-func UnsecuredRoute(kc kclientset.Interface, namespace, routeName, serviceName, portString string) (*api.Route, error) {
+// forcePort always sets a port, even when there is only one and it has no name.
+// The kubernetes generator, when no port is present incorrectly selects the service Port
+// instead of the service TargetPort for the route TargetPort.
+func UnsecuredRoute(kc kclientset.Interface, namespace, routeName, serviceName, portString string, forcePort bool) (*routeapi.Route, error) {
 	if len(routeName) == 0 {
 		routeName = serviceName
 	}
 
-	svc, err := kc.Core().Services(namespace).Get(serviceName)
+	svc, err := kc.Core().Services(namespace).Get(serviceName, metav1.GetOptions{})
 	if err != nil {
 		if len(portString) == 0 {
 			return nil, fmt.Errorf("you need to provide a route port via --port when exposing a non-existent service")
 		}
-		return &api.Route{
-			ObjectMeta: kapi.ObjectMeta{
+		return &routeapi.Route{
+			ObjectMeta: metav1.ObjectMeta{
 				Name: routeName,
 			},
-			Spec: api.RouteSpec{
-				To: api.RouteTargetReference{
+			Spec: routeapi.RouteSpec{
+				To: routeapi.RouteTargetReference{
 					Name: serviceName,
 				},
 				Port: resolveRoutePort(portString),
@@ -42,22 +46,28 @@ func UnsecuredRoute(kc kclientset.Interface, namespace, routeName, serviceName, 
 		return nil, fmt.Errorf("service %q doesn't support TCP", svc.Name)
 	}
 
-	route := &api.Route{
-		ObjectMeta: kapi.ObjectMeta{
+	route := &routeapi.Route{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:   routeName,
 			Labels: svc.Labels,
 		},
-		Spec: api.RouteSpec{
-			To: api.RouteTargetReference{
+		Spec: routeapi.RouteSpec{
+			To: routeapi.RouteTargetReference{
 				Name: serviceName,
 			},
 		},
 	}
 
-	// If the service has multiple ports and the user didn't specify --port,
-	// then default the route port to a service port name.
-	if len(port.Name) > 0 && len(portString) == 0 {
-		route.Spec.Port = resolveRoutePort(port.Name)
+	// When route.Spec.Port is not set, the generator will pick a service port.
+
+	// If the user didn't specify --port, and either the service has a port.Name
+	// or forcePort is set, set route.Spec.Port
+	if (len(port.Name) > 0 || forcePort) && len(portString) == 0 {
+		if len(port.Name) == 0 {
+			route.Spec.Port = resolveRoutePort(svc.Spec.Ports[0].TargetPort.String())
+		} else {
+			route.Spec.Port = resolveRoutePort(port.Name)
+		}
 	}
 	// --port uber alles
 	if len(portString) > 0 {
@@ -67,7 +77,7 @@ func UnsecuredRoute(kc kclientset.Interface, namespace, routeName, serviceName, 
 	return route, nil
 }
 
-func resolveRoutePort(portString string) *api.RoutePort {
+func resolveRoutePort(portString string) *routeapi.RoutePort {
 	if len(portString) == 0 {
 		return nil
 	}
@@ -78,7 +88,7 @@ func resolveRoutePort(portString string) *api.RoutePort {
 	} else {
 		routePort = intstr.FromInt(integer)
 	}
-	return &api.RoutePort{
+	return &routeapi.RoutePort{
 		TargetPort: routePort,
 	}
 }

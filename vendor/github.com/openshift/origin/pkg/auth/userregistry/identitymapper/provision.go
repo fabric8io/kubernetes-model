@@ -2,22 +2,23 @@ package identitymapper
 
 import (
 	"github.com/golang/glog"
+	kerrs "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
+	kuser "k8s.io/apiserver/pkg/authentication/user"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	kapi "k8s.io/kubernetes/pkg/api"
-	kerrs "k8s.io/kubernetes/pkg/api/errors"
-	kuser "k8s.io/kubernetes/pkg/auth/user"
-	"k8s.io/kubernetes/pkg/util/sets"
 
 	authapi "github.com/openshift/origin/pkg/auth/api"
-	userapi "github.com/openshift/origin/pkg/user/api"
-	identityregistry "github.com/openshift/origin/pkg/user/registry/identity"
-	userregistry "github.com/openshift/origin/pkg/user/registry/user"
+	userapi "github.com/openshift/origin/pkg/user/apis/user"
+	userclient "github.com/openshift/origin/pkg/user/generated/internalclientset/typed/user/internalversion"
 )
 
 // UserForNewIdentityGetter is responsible for creating or locating the persisted User for the given Identity.
 // The preferredUserName is available to the strategies
 type UserForNewIdentityGetter interface {
 	// UserForNewIdentity returns a persisted User object for the given Identity, creating it if needed
-	UserForNewIdentity(ctx kapi.Context, preferredUserName string, identity *userapi.Identity) (*userapi.User, error)
+	UserForNewIdentity(ctx apirequest.Context, preferredUserName string, identity *userapi.Identity) (*userapi.User, error)
 }
 
 var _ = authapi.UserIdentityMapper(&provisioningIdentityMapper{})
@@ -27,8 +28,8 @@ var _ = authapi.UserIdentityMapper(&provisioningIdentityMapper{})
 // If an identity does not exist, it creates an Identity referencing the user returned from provisioningStrategy.UserForNewIdentity
 // Otherwise an error is returned
 type provisioningIdentityMapper struct {
-	identity             identityregistry.Registry
-	user                 userregistry.Registry
+	identity             userclient.IdentityInterface
+	user                 userclient.UserResourceInterface
 	provisioningStrategy UserForNewIdentityGetter
 }
 
@@ -45,9 +46,9 @@ func (p *provisioningIdentityMapper) UserFor(info authapi.UserIdentityInfo) (kus
 }
 
 func (p *provisioningIdentityMapper) userForWithRetries(info authapi.UserIdentityInfo, allowedRetries int) (kuser.Info, error) {
-	ctx := kapi.NewContext()
+	ctx := apirequest.NewContext()
 
-	identity, err := p.identity.GetIdentity(ctx, info.GetIdentityName())
+	identity, err := p.identity.Get(info.GetIdentityName(), metav1.GetOptions{})
 
 	if kerrs.IsNotFound(err) {
 		user, err := p.createIdentityAndMapping(ctx, info)
@@ -72,10 +73,10 @@ func (p *provisioningIdentityMapper) userForWithRetries(info authapi.UserIdentit
 }
 
 // createIdentityAndMapping creates an identity with a valid user reference for the given identity info
-func (p *provisioningIdentityMapper) createIdentityAndMapping(ctx kapi.Context, info authapi.UserIdentityInfo) (kuser.Info, error) {
+func (p *provisioningIdentityMapper) createIdentityAndMapping(ctx apirequest.Context, info authapi.UserIdentityInfo) (kuser.Info, error) {
 	// Build the part of the identity we know about
 	identity := &userapi.Identity{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: info.GetIdentityName(),
 		},
 		ProviderName:     info.GetProviderName(),
@@ -83,18 +84,18 @@ func (p *provisioningIdentityMapper) createIdentityAndMapping(ctx kapi.Context, 
 		Extra:            info.GetExtra(),
 	}
 
-	// Get or create a persisted user pointing to the identity
+	// GetIdentities or create a persisted user pointing to the identity
 	persistedUser, err := p.provisioningStrategy.UserForNewIdentity(ctx, getPreferredUserName(identity), identity)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create the identity pointing to the persistedUser
+	// CreateIdentity the identity pointing to the persistedUser
 	identity.User = kapi.ObjectReference{
 		Name: persistedUser.Name,
 		UID:  persistedUser.UID,
 	}
-	if _, err := p.identity.CreateIdentity(ctx, identity); err != nil {
+	if _, err := p.identity.Create(identity); err != nil {
 		return nil, err
 	}
 
@@ -105,11 +106,11 @@ func (p *provisioningIdentityMapper) createIdentityAndMapping(ctx kapi.Context, 
 	}, nil
 }
 
-func (p *provisioningIdentityMapper) getMapping(ctx kapi.Context, identity *userapi.Identity) (kuser.Info, error) {
+func (p *provisioningIdentityMapper) getMapping(ctx apirequest.Context, identity *userapi.Identity) (kuser.Info, error) {
 	if len(identity.User.Name) == 0 {
 		return nil, kerrs.NewNotFound(userapi.Resource("useridentitymapping"), identity.Name)
 	}
-	u, err := p.user.GetUser(ctx, identity.User.Name)
+	u, err := p.user.Get(identity.User.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}

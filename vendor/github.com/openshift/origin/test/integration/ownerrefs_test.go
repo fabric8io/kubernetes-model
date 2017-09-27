@@ -4,22 +4,22 @@ import (
 	"strings"
 	"testing"
 
+	kapierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
-	kapierrors "k8s.io/kubernetes/pkg/api/errors"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
 
 func TestOwnerRefRestriction(t *testing.T) {
 	// functionality of the plugin has a unit test, we just need to make sure its called.
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
 	clientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
@@ -31,7 +31,7 @@ func TestOwnerRefRestriction(t *testing.T) {
 	}
 
 	_, err = originClient.ClusterRoles().Create(&authorizationapi.ClusterRole{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "create-svc",
 		},
 		Rules: []authorizationapi.PolicyRule{
@@ -51,7 +51,7 @@ func TestOwnerRefRestriction(t *testing.T) {
 	}
 
 	_, err = originClient.RoleBindings("foo").Create(&authorizationapi.RoleBinding{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "create-svc",
 		},
 		RoleRef:  kapi.ObjectReference{Name: "create-svc"},
@@ -65,9 +65,9 @@ func TestOwnerRefRestriction(t *testing.T) {
 	}
 
 	_, err = creatorClient.Core().Services("foo").Create(&kapi.Service{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:            "my-service",
-			OwnerReferences: []kapi.OwnerReference{{}},
+			OwnerReferences: []metav1.OwnerReference{{}},
 		},
 	})
 	if err == nil {

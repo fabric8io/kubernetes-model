@@ -53,12 +53,12 @@ import (
 	"reflect"
 	"time"
 
-	"k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/api/unversioned"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/apis/componentconfig"
 	rl "k8s.io/kubernetes/pkg/client/leaderelection/resourcelock"
-	"k8s.io/kubernetes/pkg/util/runtime"
-	"k8s.io/kubernetes/pkg/util/wait"
 
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
@@ -71,7 +71,7 @@ const (
 	DefaultRetryPeriod   = 2 * time.Second
 )
 
-// NewLeadereElector creates a LeaderElector from a LeaderElecitionConfig
+// NewLeaderElector creates a LeaderElector from a LeaderElectionConfig
 func NewLeaderElector(lec LeaderElectionConfig) (*LeaderElector, error) {
 	if lec.LeaseDuration <= lec.RenewDeadline {
 		return nil, fmt.Errorf("leaseDuration must be greater than renewDeadline")
@@ -176,16 +176,17 @@ func (le *LeaderElector) IsLeader() bool {
 // acquire loops calling tryAcquireOrRenew and returns immediately when tryAcquireOrRenew succeeds.
 func (le *LeaderElector) acquire() {
 	stop := make(chan struct{})
+	glog.Infof("attempting to acquire leader lease...")
 	wait.JitterUntil(func() {
 		succeeded := le.tryAcquireOrRenew()
 		le.maybeReportTransition()
 		desc := le.config.Lock.Describe()
 		if !succeeded {
-			glog.V(4).Infof("failed to renew lease %v", desc)
+			glog.V(4).Infof("failed to acquire lease %v", desc)
 			return
 		}
 		le.config.Lock.RecordEvent("became leader")
-		glog.Infof("sucessfully acquired lease %v", desc)
+		glog.Infof("successfully acquired lease %v", desc)
 		close(stop)
 	}, le.config.RetryPeriod, JitterFactor, true, stop)
 }
@@ -200,7 +201,7 @@ func (le *LeaderElector) renew() {
 		le.maybeReportTransition()
 		desc := le.config.Lock.Describe()
 		if err == nil {
-			glog.V(4).Infof("succesfully renewed lease %v", desc)
+			glog.V(4).Infof("successfully renewed lease %v", desc)
 			return
 		}
 		le.config.Lock.RecordEvent("stopped leading")
@@ -213,7 +214,7 @@ func (le *LeaderElector) renew() {
 // else it tries to renew the lease if it has already been acquired. Returns true
 // on success else returns false.
 func (le *LeaderElector) tryAcquireOrRenew() bool {
-	now := unversioned.Now()
+	now := metav1.Now()
 	leaderElectionRecord := rl.LeaderElectionRecord{
 		HolderIdentity:       le.config.Lock.Identity(),
 		LeaseDurationSeconds: int(le.config.LeaseDuration / time.Second),
@@ -244,7 +245,7 @@ func (le *LeaderElector) tryAcquireOrRenew() bool {
 	}
 	if le.observedTime.Add(le.config.LeaseDuration).After(now.Time) &&
 		oldLeaderElectionRecord.HolderIdentity != le.config.Lock.Identity() {
-		glog.Infof("lock is held by %v and has not yet expired", oldLeaderElectionRecord.HolderIdentity)
+		glog.V(4).Infof("lock is held by %v and has not yet expired", oldLeaderElectionRecord.HolderIdentity)
 		return false
 	}
 
@@ -252,6 +253,7 @@ func (le *LeaderElector) tryAcquireOrRenew() bool {
 	// here. Let's correct it before updating.
 	if oldLeaderElectionRecord.HolderIdentity == le.config.Lock.Identity() {
 		leaderElectionRecord.AcquireTime = oldLeaderElectionRecord.AcquireTime
+		leaderElectionRecord.LeaderTransitions = oldLeaderElectionRecord.LeaderTransitions
 	} else {
 		leaderElectionRecord.LeaderTransitions = oldLeaderElectionRecord.LeaderTransitions + 1
 	}
@@ -279,9 +281,10 @@ func (l *LeaderElector) maybeReportTransition() {
 func DefaultLeaderElectionConfiguration() componentconfig.LeaderElectionConfiguration {
 	return componentconfig.LeaderElectionConfiguration{
 		LeaderElect:   false,
-		LeaseDuration: unversioned.Duration{Duration: DefaultLeaseDuration},
-		RenewDeadline: unversioned.Duration{Duration: DefaultRenewDeadline},
-		RetryPeriod:   unversioned.Duration{Duration: DefaultRetryPeriod},
+		LeaseDuration: metav1.Duration{Duration: DefaultLeaseDuration},
+		RenewDeadline: metav1.Duration{Duration: DefaultRenewDeadline},
+		RetryPeriod:   metav1.Duration{Duration: DefaultRetryPeriod},
+		ResourceLock:  rl.EndpointsResourceLock,
 	}
 }
 
@@ -304,4 +307,7 @@ func BindFlags(l *componentconfig.LeaderElectionConfiguration, fs *pflag.FlagSet
 	fs.DurationVar(&l.RetryPeriod.Duration, "leader-elect-retry-period", l.RetryPeriod.Duration, ""+
 		"The duration the clients should wait between attempting acquisition and renewal "+
 		"of a leadership. This is only applicable if leader election is enabled.")
+	fs.StringVar(&l.ResourceLock, "leader-elect-resource-lock", l.ResourceLock, ""+
+		"The type of resource resource object that is used for locking during"+
+		"leader election. Supported options are `endpoints` (default) and `configmap`.")
 }

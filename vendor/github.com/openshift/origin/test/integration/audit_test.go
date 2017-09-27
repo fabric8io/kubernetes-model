@@ -3,7 +3,7 @@ package integration
 import (
 	"testing"
 
-	kapi "k8s.io/kubernetes/pkg/api"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
 	"github.com/openshift/origin/pkg/client"
@@ -11,8 +11,7 @@ import (
 	testserver "github.com/openshift/origin/test/util/server"
 )
 
-func setupAuditTest(t *testing.T) (*kclientset.Clientset, *client.Client) {
-	testutil.RequireEtcd(t)
+func setupAuditTest(t *testing.T) (kclientset.Interface, *client.Client, func()) {
 	masterConfig, err := testserver.DefaultMasterOptions()
 	if err != nil {
 		t.Fatalf("error creating config: %v", err)
@@ -30,15 +29,16 @@ func setupAuditTest(t *testing.T) (*kclientset.Clientset, *client.Client) {
 	if err != nil {
 		t.Fatalf("error getting openshift client: %v", err)
 	}
-	return kubeClient, openshiftClient
-
+	return kubeClient, openshiftClient, func() {
+		testserver.CleanupMasterEtcd(t, masterConfig)
+	}
 }
 
 func TestBasicFunctionalityWithAudit(t *testing.T) {
-	kubeClient, _ := setupAuditTest(t)
-	defer testutil.DumpEtcdOnFailure(t)
+	kubeClient, _, fn := setupAuditTest(t)
+	defer fn()
 
-	if _, err := kubeClient.Core().Pods(kapi.NamespaceDefault).Watch(kapi.ListOptions{}); err != nil {
+	if _, err := kubeClient.Core().Pods(metav1.NamespaceDefault).Watch(metav1.ListOptions{}); err != nil {
 		t.Errorf("Unexpected error watching pods: %v", err)
 	}
 

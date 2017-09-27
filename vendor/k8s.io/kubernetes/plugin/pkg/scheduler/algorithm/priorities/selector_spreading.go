@@ -20,18 +20,18 @@ import (
 	"sync"
 
 	"github.com/golang/glog"
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/labels"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/util/workqueue"
+	"k8s.io/kubernetes/pkg/api/v1"
 	utilnode "k8s.io/kubernetes/pkg/util/node"
-	"k8s.io/kubernetes/pkg/util/workqueue"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm"
 	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/schedulercache"
 )
 
 // The maximum priority value to give to a node
-// Prioritiy values range from 0-maxPriority
+// Priority values range from 0-maxPriority
 const maxPriority float32 = 10
 
 // When zone information is present, give 2/3 of the weighting to zone spreading, 1/3 to node spreading
@@ -39,26 +39,29 @@ const maxPriority float32 = 10
 const zoneWeighting = 2.0 / 3.0
 
 type SelectorSpread struct {
-	serviceLister    algorithm.ServiceLister
-	controllerLister algorithm.ControllerLister
-	replicaSetLister algorithm.ReplicaSetLister
+	serviceLister     algorithm.ServiceLister
+	controllerLister  algorithm.ControllerLister
+	replicaSetLister  algorithm.ReplicaSetLister
+	statefulSetLister algorithm.StatefulSetLister
 }
 
 func NewSelectorSpreadPriority(
 	serviceLister algorithm.ServiceLister,
 	controllerLister algorithm.ControllerLister,
-	replicaSetLister algorithm.ReplicaSetLister) algorithm.PriorityFunction {
+	replicaSetLister algorithm.ReplicaSetLister,
+	statefulSetLister algorithm.StatefulSetLister) algorithm.PriorityFunction {
 	selectorSpread := &SelectorSpread{
-		serviceLister:    serviceLister,
-		controllerLister: controllerLister,
-		replicaSetLister: replicaSetLister,
+		serviceLister:     serviceLister,
+		controllerLister:  controllerLister,
+		replicaSetLister:  replicaSetLister,
+		statefulSetLister: statefulSetLister,
 	}
 	return selectorSpread.CalculateSpreadPriority
 }
 
 // Returns selectors of services, RCs and RSs matching the given pod.
-func getSelectors(pod *api.Pod, sl algorithm.ServiceLister, cl algorithm.ControllerLister, rsl algorithm.ReplicaSetLister) []labels.Selector {
-	selectors := make([]labels.Selector, 0, 3)
+func getSelectors(pod *v1.Pod, sl algorithm.ServiceLister, cl algorithm.ControllerLister, rsl algorithm.ReplicaSetLister, ssl algorithm.StatefulSetLister) []labels.Selector {
+	var selectors []labels.Selector
 	if services, err := sl.GetPodServices(pod); err == nil {
 		for _, service := range services {
 			selectors = append(selectors, labels.SelectorFromSet(service.Spec.Selector))
@@ -71,7 +74,14 @@ func getSelectors(pod *api.Pod, sl algorithm.ServiceLister, cl algorithm.Control
 	}
 	if rss, err := rsl.GetPodReplicaSets(pod); err == nil {
 		for _, rs := range rss {
-			if selector, err := unversioned.LabelSelectorAsSelector(rs.Spec.Selector); err == nil {
+			if selector, err := metav1.LabelSelectorAsSelector(rs.Spec.Selector); err == nil {
+				selectors = append(selectors, selector)
+			}
+		}
+	}
+	if sss, err := ssl.GetPodStatefulSets(pod); err == nil {
+		for _, ss := range sss {
+			if selector, err := metav1.LabelSelectorAsSelector(ss.Spec.Selector); err == nil {
 				selectors = append(selectors, selector)
 			}
 		}
@@ -79,8 +89,8 @@ func getSelectors(pod *api.Pod, sl algorithm.ServiceLister, cl algorithm.Control
 	return selectors
 }
 
-func (s *SelectorSpread) getSelectors(pod *api.Pod) []labels.Selector {
-	return getSelectors(pod, s.serviceLister, s.controllerLister, s.replicaSetLister)
+func (s *SelectorSpread) getSelectors(pod *v1.Pod) []labels.Selector {
+	return getSelectors(pod, s.serviceLister, s.controllerLister, s.replicaSetLister, s.statefulSetLister)
 }
 
 // CalculateSpreadPriority spreads pods across hosts and zones, considering pods belonging to the same service or replication controller.
@@ -89,7 +99,7 @@ func (s *SelectorSpread) getSelectors(pod *api.Pod) []labels.Selector {
 // i.e. it pushes the scheduler towards a node where there's the smallest number of
 // pods which match the same service, RC or RS selectors as the pod being scheduled.
 // Where zone information is included on the nodes, it favors nodes in zones with fewer existing matching pods.
-func (s *SelectorSpread) CalculateSpreadPriority(pod *api.Pod, nodeNameToInfo map[string]*schedulercache.NodeInfo, nodes []*api.Node) (schedulerapi.HostPriorityList, error) {
+func (s *SelectorSpread) CalculateSpreadPriority(pod *v1.Pod, nodeNameToInfo map[string]*schedulercache.NodeInfo, nodes []*v1.Node) (schedulerapi.HostPriorityList, error) {
 	selectors := s.getSelectors(pod)
 
 	// Count similar pods by node
@@ -196,11 +206,26 @@ func NewServiceAntiAffinityPriority(podLister algorithm.PodLister, serviceLister
 	return antiAffinity.CalculateAntiAffinityPriority
 }
 
+// Classifies nodes into ones with labels and without labels.
+func (s *ServiceAntiAffinity) getNodeClassificationByLabels(nodes []*v1.Node) (map[string]string, []string) {
+	labeledNodes := map[string]string{}
+	nonLabeledNodes := []string{}
+	for _, node := range nodes {
+		if labels.Set(node.Labels).Has(s.label) {
+			label := labels.Set(node.Labels).Get(s.label)
+			labeledNodes[node.Name] = label
+		} else {
+			nonLabeledNodes = append(nonLabeledNodes, node.Name)
+		}
+	}
+	return labeledNodes, nonLabeledNodes
+}
+
 // CalculateAntiAffinityPriority spreads pods by minimizing the number of pods belonging to the same service
 // on machines with the same value for a particular label.
 // The label to be considered is provided to the struct (ServiceAntiAffinity).
-func (s *ServiceAntiAffinity) CalculateAntiAffinityPriority(pod *api.Pod, nodeNameToInfo map[string]*schedulercache.NodeInfo, nodes []*api.Node) (schedulerapi.HostPriorityList, error) {
-	var nsServicePods []*api.Pod
+func (s *ServiceAntiAffinity) CalculateAntiAffinityPriority(pod *v1.Pod, nodeNameToInfo map[string]*schedulercache.NodeInfo, nodes []*v1.Node) (schedulerapi.HostPriorityList, error) {
+	var nsServicePods []*v1.Pod
 	if services, err := s.serviceLister.GetPodServices(pod); err == nil && len(services) > 0 {
 		// just use the first service and get the other pods within the service
 		// TODO: a separate predicate can be created that tries to handle all services for the pod
@@ -218,17 +243,7 @@ func (s *ServiceAntiAffinity) CalculateAntiAffinityPriority(pod *api.Pod, nodeNa
 	}
 
 	// separate out the nodes that have the label from the ones that don't
-	otherNodes := []string{}
-	labeledNodes := map[string]string{}
-	for _, node := range nodes {
-		if labels.Set(node.Labels).Has(s.label) {
-			label := labels.Set(node.Labels).Get(s.label)
-			labeledNodes[node.Name] = label
-		} else {
-			otherNodes = append(otherNodes, node.Name)
-		}
-	}
-
+	labeledNodes, nonLabeledNodes := s.getNodeClassificationByLabels(nodes)
 	podCounts := map[string]int{}
 	for _, pod := range nsServicePods {
 		label, exists := labeledNodes[pod.Spec.NodeName]
@@ -237,7 +252,6 @@ func (s *ServiceAntiAffinity) CalculateAntiAffinityPriority(pod *api.Pod, nodeNa
 		}
 		podCounts[label]++
 	}
-
 	numServicePods := len(nsServicePods)
 	result := []schedulerapi.HostPriority{}
 	//score int - scale of 0-maxPriority
@@ -251,9 +265,8 @@ func (s *ServiceAntiAffinity) CalculateAntiAffinityPriority(pod *api.Pod, nodeNa
 		result = append(result, schedulerapi.HostPriority{Host: node, Score: int(fScore)})
 	}
 	// add the open nodes with a score of 0
-	for _, node := range otherNodes {
+	for _, node := range nonLabeledNodes {
 		result = append(result, schedulerapi.HostPriority{Host: node, Score: 0})
 	}
-
 	return result, nil
 }

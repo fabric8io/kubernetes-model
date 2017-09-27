@@ -31,9 +31,10 @@ import (
 
 	"gopkg.in/gcfg.v1"
 
-	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/cloudprovider"
-	"k8s.io/kubernetes/pkg/types"
+	"k8s.io/kubernetes/pkg/controller"
 )
 
 const ProviderName = "ovirt"
@@ -116,7 +117,10 @@ func newOVirtCloud(config io.Reader) (*OVirtCloud, error) {
 	return &OVirtCloud{VmsRequest: request}, nil
 }
 
-func (aws *OVirtCloud) Clusters() (cloudprovider.Clusters, bool) {
+// Initialize passes a Kubernetes clientBuilder interface to the cloud provider
+func (v *OVirtCloud) Initialize(clientBuilder controller.ControllerClientBuilder) {}
+
+func (v *OVirtCloud) Clusters() (cloudprovider.Clusters, bool) {
 	return nil, false
 }
 
@@ -151,7 +155,7 @@ func (v *OVirtCloud) Routes() (cloudprovider.Routes, bool) {
 }
 
 // NodeAddresses returns the NodeAddresses of the instance with the specified nodeName.
-func (v *OVirtCloud) NodeAddresses(nodeName types.NodeName) ([]api.NodeAddress, error) {
+func (v *OVirtCloud) NodeAddresses(nodeName types.NodeName) ([]v1.NodeAddress, error) {
 	name := mapNodeNameToInstanceName(nodeName)
 	instance, err := v.fetchInstance(name)
 	if err != nil {
@@ -173,11 +177,17 @@ func (v *OVirtCloud) NodeAddresses(nodeName types.NodeName) ([]api.NodeAddress, 
 		address = resolved[0]
 	}
 
-	return []api.NodeAddress{
-		{Type: api.NodeLegacyHostIP, Address: address.String()},
-		{Type: api.NodeInternalIP, Address: address.String()},
-		{Type: api.NodeExternalIP, Address: address.String()},
+	return []v1.NodeAddress{
+		{Type: v1.NodeInternalIP, Address: address.String()},
+		{Type: v1.NodeExternalIP, Address: address.String()},
 	}, nil
+}
+
+// NodeAddressesByProviderID returns the node addresses of an instances with the specified unique providerID
+// This method will not be called from the node that is requesting this ID. i.e. metadata service
+// and other local methods cannot be used here
+func (v *OVirtCloud) NodeAddressesByProviderID(providerID string) ([]v1.NodeAddress, error) {
+	return []v1.NodeAddress{}, errors.New("unimplemented")
 }
 
 // mapNodeNameToInstanceName maps from a k8s NodeName to an ovirt instance name (the hostname)
@@ -206,6 +216,13 @@ func (v *OVirtCloud) InstanceID(nodeName types.NodeName) (string, error) {
 	// TODO: define a way to identify the provider instance to complete
 	// the format <provider_instance_id>/<instance_id>.
 	return "/" + instance.UUID, err
+}
+
+// InstanceTypeByProviderID returns the cloudprovider instance type of the node with the specified unique providerID
+// This method will not be called from the node that is requesting this ID. i.e. metadata service
+// and other local methods cannot be used here
+func (v *OVirtCloud) InstanceTypeByProviderID(providerID string) (string, error) {
+	return "", errors.New("unimplemented")
 }
 
 // InstanceType returns the type of the specified instance.
@@ -285,19 +302,6 @@ func (m *OVirtInstanceMap) ListSortedNames() []string {
 	sort.Strings(names)
 
 	return names
-}
-
-// List enumerates the set of nodes instances known by the cloud provider
-func (v *OVirtCloud) List(filter string) ([]types.NodeName, error) {
-	instances, err := v.fetchAllInstances()
-	if err != nil {
-		return nil, err
-	}
-	var nodeNames []types.NodeName
-	for _, s := range instances.ListSortedNames() {
-		nodeNames = append(nodeNames, types.NodeName(s))
-	}
-	return nodeNames, nil
 }
 
 // Implementation of Instances.CurrentNodeName

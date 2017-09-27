@@ -18,13 +18,13 @@ import (
 	_ "github.com/docker/distribution/registry/storage/driver/inmemory"
 	"github.com/docker/libtrust"
 
-	kapi "k8s.io/kubernetes/pkg/api"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/origin/pkg/cmd/dockerregistry"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	"github.com/openshift/origin/pkg/cmd/util/tokencmd"
 	registryutil "github.com/openshift/origin/pkg/dockerregistry/testutil"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -77,12 +77,11 @@ func signedManifest(name string, blobs []digest.Digest) ([]byte, digest.Digest, 
 }
 
 func TestV2RegistryGetTags(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
 	if err != nil {
 		t.Fatalf("error starting master: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("error getting cluster admin client: %v", err)
@@ -123,7 +122,7 @@ middleware:
 	os.Setenv("OPENSHIFT_CERT_DATA", string(clusterAdminClientConfig.CertData))
 	os.Setenv("OPENSHIFT_KEY_DATA", string(clusterAdminClientConfig.KeyData))
 	os.Setenv("OPENSHIFT_MASTER", clusterAdminClientConfig.Host)
-	os.Setenv("DOCKER_REGISTRY_URL", "127.0.0.1:5000")
+	os.Setenv("OPENSHIFT_DEFAULT_REGISTRY", "127.0.0.1:5000")
 
 	go dockerregistry.Execute(strings.NewReader(config))
 
@@ -132,7 +131,7 @@ middleware:
 	}
 
 	stream := imageapi.ImageStream{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Namespace: testutil.Namespace(),
 			Name:      "test",
 		},
@@ -241,7 +240,7 @@ middleware:
 	}
 
 	// test auto provisioning
-	otherStream, err := adminClient.ImageStreams(testutil.Namespace()).Get("otherrepo")
+	otherStream, err := adminClient.ImageStreams(testutil.Namespace()).Get("otherrepo", metav1.GetOptions{})
 	t.Logf("otherStream=%#v, err=%v", otherStream, err)
 	if err == nil {
 		t.Fatalf("expected error getting otherrepo")
@@ -257,7 +256,7 @@ middleware:
 		t.Fatal(err)
 	}
 
-	otherStream, err = adminClient.ImageStreams(testutil.Namespace()).Get("otherrepo")
+	otherStream, err = adminClient.ImageStreams(testutil.Namespace()).Get("otherrepo", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error getting otherrepo: %s", err)
 	}
@@ -281,7 +280,7 @@ middleware:
 
 func putManifest(name, user, token string) (digest.Digest, error) {
 	creds := registryutil.NewBasicCredentialStore(user, token)
-	desc, _, err := registryutil.UploadTestBlob(&url.URL{Host: "127.0.0.1:5000", Scheme: "http"}, creds, testutil.Namespace()+"/"+name)
+	desc, _, err := registryutil.UploadRandomTestBlob(&url.URL{Host: "127.0.0.1:5000", Scheme: "http"}, creds, testutil.Namespace()+"/"+name)
 	if err != nil {
 		return "", err
 	}

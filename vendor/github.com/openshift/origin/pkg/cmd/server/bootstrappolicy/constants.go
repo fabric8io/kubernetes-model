@@ -12,9 +12,11 @@ const (
 	BuilderServiceAccountName  = "builder"
 	DeployerServiceAccountName = "deployer"
 
-	MasterUnqualifiedUsername = "openshift-master"
+	MasterUnqualifiedUsername     = "openshift-master"
+	AggregatorUnqualifiedUsername = "openshift-aggregator"
 
 	MasterUsername      = "system:" + MasterUnqualifiedUsername
+	AggregatorUsername  = "system:" + AggregatorUnqualifiedUsername
 	SystemAdminUsername = "system:admin"
 
 	// Not granted any API permissions, just an identity for a client certificate for the API proxy to use
@@ -62,28 +64,31 @@ const (
 	RegistryViewerRoleName = "registry-viewer"
 	RegistryEditorRoleName = "registry-editor"
 
+	TemplateServiceBrokerClientRoleName = "system:openshift:templateservicebroker-client"
+
 	BuildStrategyDockerRoleName          = "system:build-strategy-docker"
 	BuildStrategyCustomRoleName          = "system:build-strategy-custom"
 	BuildStrategySourceRoleName          = "system:build-strategy-source"
 	BuildStrategyJenkinsPipelineRoleName = "system:build-strategy-jenkinspipeline"
 
-	ImageAuditorRoleName      = "system:image-auditor"
-	ImagePullerRoleName       = "system:image-puller"
-	ImagePusherRoleName       = "system:image-pusher"
-	ImageBuilderRoleName      = "system:image-builder"
-	ImagePrunerRoleName       = "system:image-pruner"
-	ImageSignerRoleName       = "system:image-signer"
-	DeployerRoleName          = "system:deployer"
-	RouterRoleName            = "system:router"
-	RegistryRoleName          = "system:registry"
-	MasterRoleName            = "system:master"
-	NodeRoleName              = "system:node"
-	NodeProxierRoleName       = "system:node-proxier"
-	SDNReaderRoleName         = "system:sdn-reader"
-	SDNManagerRoleName        = "system:sdn-manager"
-	OAuthTokenDeleterRoleName = "system:oauth-token-deleter"
-	WebHooksRoleName          = "system:webhook"
-	DiscoveryRoleName         = "system:discovery"
+	ImageAuditorRoleName                = "system:image-auditor"
+	ImagePullerRoleName                 = "system:image-puller"
+	ImagePusherRoleName                 = "system:image-pusher"
+	ImageBuilderRoleName                = "system:image-builder"
+	ImagePrunerRoleName                 = "system:image-pruner"
+	ImageSignerRoleName                 = "system:image-signer"
+	DeployerRoleName                    = "system:deployer"
+	RouterRoleName                      = "system:router"
+	RegistryRoleName                    = "system:registry"
+	MasterRoleName                      = "system:master"
+	NodeRoleName                        = "system:node"
+	NodeProxierRoleName                 = "system:node-proxier"
+	SDNReaderRoleName                   = "system:sdn-reader"
+	SDNManagerRoleName                  = "system:sdn-manager"
+	OAuthTokenDeleterRoleName           = "system:oauth-token-deleter"
+	WebHooksRoleName                    = "system:webhook"
+	DiscoveryRoleName                   = "system:discovery"
+	PersistentVolumeProvisionerRoleName = "system:persistent-volume-provisioner"
 
 	// NodeAdmin has full access to the API provided by the kubelet
 	NodeAdminRoleName = "system:node-admin"
@@ -91,6 +96,8 @@ const (
 	NodeReaderRoleName = "system:node-reader"
 
 	OpenshiftSharedResourceViewRoleName = "shared-resource-viewer"
+
+	NodeBootstrapRoleName = "system:node-bootstrapper"
 )
 
 // RoleBindings

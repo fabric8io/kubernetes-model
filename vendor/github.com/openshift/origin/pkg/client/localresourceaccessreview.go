@@ -1,9 +1,9 @@
 package client
 
 import (
-	kapierrors "k8s.io/kubernetes/pkg/api/errors"
+	kapierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 )
 
 // LocalResourceAccessReviewsNamespacer has methods to work with LocalResourceAccessReview resources in a namespace

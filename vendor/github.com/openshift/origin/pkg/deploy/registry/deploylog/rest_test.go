@@ -6,20 +6,21 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/watch"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	genericrest "k8s.io/apiserver/pkg/registry/generic/rest"
+	clientgotesting "k8s.io/client-go/testing"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
-	"k8s.io/kubernetes/pkg/client/testing/core"
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
-	genericrest "k8s.io/kubernetes/pkg/registry/generic/rest"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/types"
-	"k8s.io/kubernetes/pkg/watch"
 
 	"github.com/openshift/origin/pkg/client/testclient"
-	"github.com/openshift/origin/pkg/deploy/api"
-	deploytest "github.com/openshift/origin/pkg/deploy/api/test"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	deploytest "github.com/openshift/origin/pkg/deploy/apis/apps/test"
 	deployutil "github.com/openshift/origin/pkg/deploy/util"
 
 	// install all APIs
@@ -29,8 +30,8 @@ import (
 var testSelector = map[string]string{"test": "rest"}
 
 func makeDeployment(version int64) kapi.ReplicationController {
-	deployment, _ := deployutil.MakeDeployment(deploytest.OkDeploymentConfig(version), kapi.Codecs.LegacyCodec(api.SchemeGroupVersion))
-	deployment.Namespace = kapi.NamespaceDefault
+	deployment, _ := deployutil.MakeDeployment(deploytest.OkDeploymentConfig(version), kapi.Codecs.LegacyCodec(deployapi.SchemeGroupVersion))
+	deployment.Namespace = metav1.NamespaceDefault
 	deployment.Spec.Selector = testSelector
 	return *deployment
 }
@@ -47,10 +48,10 @@ var (
 	fakePodList = &kapi.PodList{
 		Items: []kapi.Pod{
 			{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:              "config-5-application-pod-1",
-					Namespace:         kapi.NamespaceDefault,
-					CreationTimestamp: unversioned.Date(2016, time.February, 1, 1, 0, 1, 0, time.UTC),
+					Namespace:         metav1.NamespaceDefault,
+					CreationTimestamp: metav1.Date(2016, time.February, 1, 1, 0, 1, 0, time.UTC),
 					Labels:            testSelector,
 				},
 				Spec: kapi.PodSpec{
@@ -63,10 +64,10 @@ var (
 				},
 			},
 			{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:              "config-5-application-pod-2",
-					Namespace:         kapi.NamespaceDefault,
-					CreationTimestamp: unversioned.Date(2016, time.February, 1, 1, 0, 3, 0, time.UTC),
+					Namespace:         metav1.NamespaceDefault,
+					CreationTimestamp: metav1.Date(2016, time.February, 1, 1, 0, 3, 0, time.UTC),
 					Labels:            testSelector,
 				},
 				Spec: kapi.PodSpec{
@@ -84,7 +85,7 @@ var (
 
 type fakeConnectionInfoGetter struct{}
 
-func (*fakeConnectionInfoGetter) GetConnectionInfo(ctx kapi.Context, nodeName types.NodeName) (*kubeletclient.ConnectionInfo, error) {
+func (*fakeConnectionInfoGetter) GetConnectionInfo(nodeName types.NodeName) (*kubeletclient.ConnectionInfo, error) {
 	return &kubeletclient.ConnectionInfo{
 		Scheme:   "https",
 		Hostname: "some-host",
@@ -93,11 +94,11 @@ func (*fakeConnectionInfoGetter) GetConnectionInfo(ctx kapi.Context, nodeName ty
 }
 
 // mockREST mocks a DeploymentLog REST
-func mockREST(version, desired int64, status api.DeploymentStatus) *REST {
+func mockREST(version, desired int64, status deployapi.DeploymentStatus) *REST {
 	// Fake deploymentConfig
 	config := deploytest.OkDeploymentConfig(version)
 	fakeDn := testclient.NewSimpleFake(config)
-	fakeDn.PrependReactor("get", "deploymentconfigs", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+	fakeDn.PrependReactor("get", "deploymentconfigs", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, config, nil
 	})
 
@@ -113,33 +114,33 @@ func mockREST(version, desired int64, status api.DeploymentStatus) *REST {
 	// Fake deployments
 	fakeDeployments := makeDeploymentList(version)
 	fakeRn := fake.NewSimpleClientset(fakeDeployments)
-	fakeRn.PrependReactor("get", "replicationcontrollers", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+	fakeRn.PrependReactor("get", "replicationcontrollers", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, &fakeDeployments.Items[desired-1], nil
 	})
 
 	// Fake watcher for deployments
 	fakeWatch := watch.NewFake()
-	fakeRn.PrependWatchReactor("replicationcontrollers", core.DefaultWatchReactor(fakeWatch, nil))
+	fakeRn.PrependWatchReactor("replicationcontrollers", clientgotesting.DefaultWatchReactor(fakeWatch, nil))
 	obj := &fakeDeployments.Items[desired-1]
-	obj.Annotations[api.DeploymentStatusAnnotation] = string(status)
+	obj.Annotations[deployapi.DeploymentStatusAnnotation] = string(status)
 	go fakeWatch.Add(obj)
 
 	fakePn := fake.NewSimpleClientset()
-	if status == api.DeploymentStatusComplete {
+	if status == deployapi.DeploymentStatusComplete {
 		// If the deployment is complete, we will try to get the logs from the oldest
 		// application pod...
-		fakePn.PrependReactor("list", "pods", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+		fakePn.PrependReactor("list", "pods", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 			return true, fakePodList, nil
 		})
-		fakePn.PrependReactor("get", "pods", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+		fakePn.PrependReactor("get", "pods", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 			return true, &fakePodList.Items[0], nil
 		})
 	} else {
 		// ...otherwise try to get the logs from the deployer pod.
 		fakeDeployer := &kapi.Pod{
-			ObjectMeta: kapi.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:      deployutil.DeployerPodNameForDeployment(obj.Name),
-				Namespace: kapi.NamespaceDefault,
+				Namespace: metav1.NamespaceDefault,
 			},
 			Spec: kapi.PodSpec{
 				Containers: []kapi.Container{
@@ -153,7 +154,7 @@ func mockREST(version, desired int64, status api.DeploymentStatus) *REST {
 				Phase: kapi.PodRunning,
 			},
 		}
-		fakePn.PrependReactor("get", "pods", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+		fakePn.PrependReactor("get", "pods", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 			return true, fakeDeployer, nil
 		})
 	}
@@ -168,7 +169,7 @@ func mockREST(version, desired int64, status api.DeploymentStatus) *REST {
 }
 
 func TestRESTGet(t *testing.T) {
-	ctx := kapi.NewDefaultContext()
+	ctx := apirequest.NewDefaultContext()
 
 	tests := []struct {
 		testName    string
@@ -180,9 +181,9 @@ func TestRESTGet(t *testing.T) {
 	}{
 		{
 			testName: "running deployment",
-			rest:     mockREST(1, 1, api.DeploymentStatusRunning),
+			rest:     mockREST(1, 1, deployapi.DeploymentStatusRunning),
 			name:     "config",
-			opts:     &api.DeploymentLogOptions{Follow: true, Version: intp(1)},
+			opts:     &deployapi.DeploymentLogOptions{Follow: true, Version: intp(1)},
 			expected: &genericrest.LocationStreamer{
 				Location: &url.URL{
 					Scheme:   "https",
@@ -199,9 +200,9 @@ func TestRESTGet(t *testing.T) {
 		},
 		{
 			testName: "complete deployment",
-			rest:     mockREST(5, 5, api.DeploymentStatusComplete),
+			rest:     mockREST(5, 5, deployapi.DeploymentStatusComplete),
 			name:     "config",
-			opts:     &api.DeploymentLogOptions{Follow: true, Version: intp(5)},
+			opts:     &deployapi.DeploymentLogOptions{Follow: true, Version: intp(5)},
 			expected: &genericrest.LocationStreamer{
 				Location: &url.URL{
 					Scheme:   "https",
@@ -218,9 +219,9 @@ func TestRESTGet(t *testing.T) {
 		},
 		{
 			testName: "previous failed deployment",
-			rest:     mockREST(3, 2, api.DeploymentStatusFailed),
+			rest:     mockREST(3, 2, deployapi.DeploymentStatusFailed),
 			name:     "config",
-			opts:     &api.DeploymentLogOptions{Follow: false, Version: intp(2)},
+			opts:     &deployapi.DeploymentLogOptions{Follow: false, Version: intp(2)},
 			expected: &genericrest.LocationStreamer{
 				Location: &url.URL{
 					Scheme: "https",
@@ -236,9 +237,9 @@ func TestRESTGet(t *testing.T) {
 		},
 		{
 			testName: "previous deployment",
-			rest:     mockREST(3, 2, api.DeploymentStatusFailed),
+			rest:     mockREST(3, 2, deployapi.DeploymentStatusFailed),
 			name:     "config",
-			opts:     &api.DeploymentLogOptions{Follow: false, Previous: true},
+			opts:     &deployapi.DeploymentLogOptions{Follow: false, Previous: true},
 			expected: &genericrest.LocationStreamer{
 				Location: &url.URL{
 					Scheme: "https",
@@ -256,7 +257,7 @@ func TestRESTGet(t *testing.T) {
 			testName:    "non-existent previous deployment",
 			rest:        mockREST(1 /* won't be used */, 101, ""),
 			name:        "config",
-			opts:        &api.DeploymentLogOptions{Follow: false, Previous: true},
+			opts:        &deployapi.DeploymentLogOptions{Follow: false, Previous: true},
 			expected:    nil,
 			expectedErr: errors.NewBadRequest("no previous deployment exists for deploymentConfig \"config\""),
 		},

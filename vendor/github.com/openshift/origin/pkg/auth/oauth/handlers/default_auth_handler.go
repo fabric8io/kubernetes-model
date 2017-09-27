@@ -6,10 +6,10 @@ import (
 	"regexp"
 	"strings"
 
-	kerrors "k8s.io/kubernetes/pkg/util/errors"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	authapi "github.com/openshift/origin/pkg/auth/api"
-	oauthapi "github.com/openshift/origin/pkg/oauth/api"
+	oauthapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
 )
 
 // unionAuthenticationHandler is an oauth.AuthenticationHandler that muxes multiple challenge handlers and redirect handlers

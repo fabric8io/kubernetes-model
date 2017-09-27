@@ -4,8 +4,10 @@ import (
 	"reflect"
 	"testing"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/serviceaccount"
+	"k8s.io/apiserver/pkg/authentication/serviceaccount"
+
+	securityapi "github.com/openshift/origin/pkg/security/apis/security"
+	sccutil "github.com/openshift/origin/pkg/security/securitycontextconstraints/util"
 )
 
 func TestBootstrappedConstraints(t *testing.T) {
@@ -19,7 +21,7 @@ func TestBootstrappedConstraints(t *testing.T) {
 		SecurityContextConstraintsHostNetwork,
 	}
 	expectedGroups, expectedUsers := getExpectedAccess()
-	expectedVolumes := []kapi.FSType{kapi.FSTypeEmptyDir, kapi.FSTypeSecret, kapi.FSTypeDownwardAPI, kapi.FSTypeConfigMap, kapi.FSTypePersistentVolumeClaim}
+	expectedVolumes := []securityapi.FSType{securityapi.FSTypeEmptyDir, securityapi.FSTypeSecret, securityapi.FSTypeDownwardAPI, securityapi.FSTypeConfigMap, securityapi.FSTypePersistentVolumeClaim}
 
 	groups, users := GetBoostrapSCCAccess(DefaultOpenShiftInfraNamespace)
 	bootstrappedConstraints := GetBootstrapSecurityContextConstraints(groups, users)
@@ -40,7 +42,7 @@ func TestBootstrappedConstraints(t *testing.T) {
 		}
 
 		for _, expectedVolume := range expectedVolumes {
-			if !supportsFSType(expectedVolume, &constraint) {
+			if !sccutil.SCCAllowsFSType(constraint, expectedVolume) {
 				t.Errorf("%s does not support %v which is required for all default SCCs", constraint.Name, expectedVolume)
 			}
 		}
@@ -85,13 +87,4 @@ func getExpectedAccess() (map[string][]string, map[string][]string) {
 		SecurityContextConstraintHostMountAndAnyUID: {pvRecyclerControllerUsername},
 	}
 	return groups, users
-}
-
-func supportsFSType(fsType kapi.FSType, scc *kapi.SecurityContextConstraints) bool {
-	for _, v := range scc.Volumes {
-		if v == kapi.FSTypeAll || v == fsType {
-			return true
-		}
-	}
-	return false
 }

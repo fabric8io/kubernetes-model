@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
-	deploytest "github.com/openshift/origin/pkg/deploy/api/test"
-	deployv1 "github.com/openshift/origin/pkg/deploy/api/v1"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	deploytest "github.com/openshift/origin/pkg/deploy/apis/apps/test"
+	deployv1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
 
 	_ "github.com/openshift/origin/pkg/api/install"
 )
@@ -54,7 +54,7 @@ func podTemplateD() *kapi.PodTemplateSpec {
 
 func TestPodName(t *testing.T) {
 	deployment := &kapi.ReplicationController{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "testName",
 		},
 	}
@@ -162,17 +162,17 @@ func TestDeploymentsByLatestVersion_sorting(t *testing.T) {
 
 // TestSort verifies that builds are sorted by most recently created
 func TestSort(t *testing.T) {
-	present := unversioned.Now()
-	past := unversioned.NewTime(present.Time.Add(-1 * time.Minute))
+	present := metav1.Now()
+	past := metav1.NewTime(present.Time.Add(-1 * time.Minute))
 	controllers := []*kapi.ReplicationController{
 		{
-			ObjectMeta: kapi.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:              "past",
 				CreationTimestamp: past,
 			},
 		},
 		{
-			ObjectMeta: kapi.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:              "present",
 				CreationTimestamp: present,
 			},
@@ -354,16 +354,15 @@ func TestCanTransitionPhase(t *testing.T) {
 }
 
 var (
-	now     = unversioned.Now()
-	later   = unversioned.Time{Time: now.Add(time.Minute)}
-	earlier = unversioned.Time{Time: now.Add(-time.Minute)}
+	now     = metav1.Now()
+	later   = metav1.Time{Time: now.Add(time.Minute)}
+	earlier = metav1.Time{Time: now.Add(-time.Minute)}
 
 	condProgressing = func() deployapi.DeploymentCondition {
 		return deployapi.DeploymentCondition{
 			Type:               deployapi.DeploymentProgressing,
 			Status:             kapi.ConditionTrue,
 			LastTransitionTime: now,
-			Reason:             "ForSomeReason",
 		}
 	}
 
@@ -372,7 +371,6 @@ var (
 			Type:               deployapi.DeploymentProgressing,
 			Status:             kapi.ConditionTrue,
 			LastTransitionTime: later,
-			Reason:             "ForSomeReason",
 		}
 	}
 
@@ -381,7 +379,7 @@ var (
 			Type:               deployapi.DeploymentProgressing,
 			Status:             kapi.ConditionTrue,
 			LastTransitionTime: later,
-			Reason:             "BecauseItIs",
+			Reason:             deployapi.NewReplicationControllerReason,
 		}
 	}
 
@@ -391,7 +389,6 @@ var (
 			Status:             kapi.ConditionFalse,
 			LastUpdateTime:     earlier,
 			LastTransitionTime: earlier,
-			Reason:             "NotYet",
 		}
 	}
 
@@ -399,7 +396,6 @@ var (
 		return deployapi.DeploymentCondition{
 			Type:   deployapi.DeploymentAvailable,
 			Status: kapi.ConditionTrue,
-			Reason: "AwesomeController",
 		}
 	}
 )
@@ -417,7 +413,6 @@ func TestGetCondition(t *testing.T) {
 		status     deployapi.DeploymentConfigStatus
 		condType   deployapi.DeploymentConditionType
 		condStatus kapi.ConditionStatus
-		condReason string
 
 		expected bool
 	}{
@@ -515,7 +510,7 @@ func TestSetCondition(t *testing.T) {
 						// Note that LastTransitionTime stays the same.
 						LastTransitionTime: now,
 						// Only the reason changes.
-						Reason: "BecauseItIs",
+						Reason: deployapi.NewReplicationControllerReason,
 					},
 				},
 			},

@@ -2,16 +2,16 @@ package image
 
 import (
 	"testing"
-	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
 	kquota "k8s.io/kubernetes/pkg/quota"
 
-	oscache "github.com/openshift/origin/pkg/client/cache"
 	"github.com/openshift/origin/pkg/client/testclient"
 	imagetest "github.com/openshift/origin/pkg/image/admission/testutil"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageinformer "github.com/openshift/origin/pkg/image/generated/informers/internalversion"
+	imageinternal "github.com/openshift/origin/pkg/image/generated/internalclientset/fake"
 )
 
 func TestImageStreamTagEvaluatorUsage(t *testing.T) {
@@ -25,7 +25,7 @@ func TestImageStreamTagEvaluatorUsage(t *testing.T) {
 			name: "empty image stream",
 			iss: []imageapi.ImageStream{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "test",
 						Name:      "is",
 					},
@@ -33,7 +33,7 @@ func TestImageStreamTagEvaluatorUsage(t *testing.T) {
 				},
 			},
 			ist: imageapi.ImageStreamTag{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "test",
 					Name:      "is:dest",
 				},
@@ -52,7 +52,7 @@ func TestImageStreamTagEvaluatorUsage(t *testing.T) {
 		{
 			name: "no image stream",
 			ist: imageapi.ImageStreamTag{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "test",
 					Name:      "is:dest",
 				},
@@ -71,7 +71,7 @@ func TestImageStreamTagEvaluatorUsage(t *testing.T) {
 		{
 			name: "no image stream using image stream tag",
 			ist: imageapi.ImageStreamTag{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "test",
 					Name:      "is:dest",
 				},
@@ -90,12 +90,12 @@ func TestImageStreamTagEvaluatorUsage(t *testing.T) {
 		{
 			name: "no tag given",
 			ist: imageapi.ImageStreamTag{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "test",
 					Name:      "is:dest",
 				},
 				Image: imageapi.Image{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:        imagetest.MiscImageDigest,
 						Annotations: map[string]string{imageapi.ManagedByOpenShiftAnnotation: "true"},
 					},
@@ -109,7 +109,7 @@ func TestImageStreamTagEvaluatorUsage(t *testing.T) {
 		{
 			name: "missing from",
 			ist: imageapi.ImageStreamTag{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "test",
 					Name:      "is:dest",
 				},
@@ -117,7 +117,7 @@ func TestImageStreamTagEvaluatorUsage(t *testing.T) {
 					Name: "dest",
 				},
 				Image: imageapi.Image{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:        imagetest.MiscImageDigest,
 						Annotations: map[string]string{imageapi.ManagedByOpenShiftAnnotation: "true"},
 					},
@@ -132,7 +132,7 @@ func TestImageStreamTagEvaluatorUsage(t *testing.T) {
 			name: "update existing tag",
 			iss: []imageapi.ImageStream{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "test",
 						Name:      "havingtag",
 					},
@@ -151,7 +151,7 @@ func TestImageStreamTagEvaluatorUsage(t *testing.T) {
 				},
 			},
 			ist: imageapi.ImageStreamTag{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "test",
 					Name:      "havingtag:latest",
 				},
@@ -171,20 +171,20 @@ func TestImageStreamTagEvaluatorUsage(t *testing.T) {
 			name: "add a new tag with 2 image streams",
 			iss: []imageapi.ImageStream{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "test",
 						Name:      "is",
 					},
 				},
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "other",
 						Name:      "is2",
 					},
 				},
 			},
 			ist: imageapi.ImageStreamTag{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "test",
 					Name:      "destis:latest",
 				},
@@ -202,19 +202,17 @@ func TestImageStreamTagEvaluatorUsage(t *testing.T) {
 	} {
 		fakeClient := &testclient.Fake{}
 		fakeClient.AddReactor("get", "imagestreams", imagetest.GetFakeImageStreamGetHandler(t, tc.iss...))
-		isInformer := cache.NewSharedIndexInformer(
-			&cache.ListWatch{},
-			&imageapi.ImageStream{},
-			2*time.Minute,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		)
-		store := oscache.StoreToImageStreamLister{Indexer: isInformer.GetIndexer()}
+		imageInformers := imageinformer.NewSharedInformerFactory(imageinternal.NewSimpleClientset(), 0)
+		isInformer := imageInformers.Image().InternalVersion().ImageStreams()
 		for _, is := range tc.iss {
-			store.Indexer.Add(&is)
+			isInformer.Informer().GetIndexer().Add(&is)
 		}
-		evaluator := NewImageStreamTagEvaluator(&store, fakeClient)
+		evaluator := NewImageStreamTagEvaluator(isInformer.Lister(), fakeClient)
 
-		usage := evaluator.Usage(&tc.ist)
+		usage, err := evaluator.Usage(&tc.ist)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
 
 		expectedUsage := imagetest.ExpectedResourceListFor(tc.expectedISCount)
 		expectedResources := kquota.ResourceNames(expectedUsage)

@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"strconv"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
 
-	dapi "github.com/openshift/origin/pkg/deploy/api"
+	dapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	"github.com/openshift/origin/pkg/generate/app"
 	"github.com/openshift/origin/pkg/ipfailover"
 )
@@ -35,6 +36,7 @@ func generateEnvEntries(name string, options *ipfailover.IPFailoverConfigCmdOpti
 		"OPENSHIFT_HA_IPTABLES_CHAIN":    options.IptablesChain,
 		"OPENSHIFT_HA_NOTIFY_SCRIPT":     options.NotifyScript,
 		"OPENSHIFT_HA_CHECK_SCRIPT":      options.CheckScript,
+		"OPENSHIFT_HA_PREEMPTION":        options.Preemption,
 		"OPENSHIFT_HA_CHECK_INTERVAL":    interval,
 		// "OPENSHIFT_HA_UNICAST_PEERS":     "127.0.0.1",
 	})
@@ -138,7 +140,7 @@ func GenerateDeploymentConfig(name string, options *ipfailover.IPFailoverConfigC
 		"ipfailover": name,
 	}
 	podTemplate := &kapi.PodTemplateSpec{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Labels: labels,
 		},
 		Spec: kapi.PodSpec{
@@ -152,7 +154,7 @@ func GenerateDeploymentConfig(name string, options *ipfailover.IPFailoverConfigC
 		},
 	}
 	return &dapi.DeploymentConfig{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
 			Labels: labels,
 		},

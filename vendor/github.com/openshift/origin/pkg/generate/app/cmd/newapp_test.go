@@ -8,19 +8,20 @@ import (
 	"strings"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
+	clientgotesting "k8s.io/client-go/testing"
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
-	"k8s.io/kubernetes/pkg/client/testing/core"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/sets"
 
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	client "github.com/openshift/origin/pkg/client/testclient"
 	"github.com/openshift/origin/pkg/generate"
 	"github.com/openshift/origin/pkg/generate/app"
-	image "github.com/openshift/origin/pkg/image/api"
-	templateapi "github.com/openshift/origin/pkg/template/api"
-	"github.com/openshift/source-to-image/pkg/test"
+	image "github.com/openshift/origin/pkg/image/apis/image"
+	templateapi "github.com/openshift/origin/pkg/template/apis/template"
+	"github.com/openshift/source-to-image/pkg/scm/git"
 
 	_ "github.com/openshift/origin/pkg/api/install"
 )
@@ -195,7 +196,7 @@ func TestBuildTemplates(t *testing.T) {
 			continue
 		}
 
-		resolved, err := Resolve(&appCfg.Resolvers, &appCfg.ComponentInputs, &appCfg.GenerationInputs)
+		resolved, err := Resolve(&appCfg)
 		if err != nil {
 			t.Errorf("%s: Unexpected error: %v", n, err)
 			continue
@@ -207,7 +208,7 @@ func TestBuildTemplates(t *testing.T) {
 			t.Errorf("%s: Unexpected error: %v", n, err)
 			continue
 		}
-		_, _, err = appCfg.buildTemplates(components, app.Environment(parms), app.Environment(map[string]string{}))
+		_, _, err = appCfg.buildTemplates(components, app.Environment(parms), app.Environment(map[string]string{}), app.Environment(map[string]string{}))
 		if err != nil {
 			t.Errorf("%s: Unexpected error: %v", n, err)
 		}
@@ -234,7 +235,7 @@ func TestBuildTemplates(t *testing.T) {
 
 func fakeTemplateSearcher() app.Searcher {
 	client := &client.Fake{}
-	client.AddReactor("list", "templates", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+	client.AddReactor("list", "templates", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, templateList(), nil
 	})
 	return app.TemplateSearcher{
@@ -248,7 +249,7 @@ func templateList() *templateapi.TemplateList {
 		Items: []templateapi.Template{
 			{
 				Objects: []runtime.Object{},
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "first-stored-template",
 					Namespace: "default",
 				},
@@ -258,7 +259,10 @@ func templateList() *templateapi.TemplateList {
 }
 
 func TestEnsureHasSource(t *testing.T) {
-	gitLocalDir := test.CreateLocalGitDirectory(t)
+	gitLocalDir, err := git.CreateLocalGitDirectory()
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer os.RemoveAll(gitLocalDir)
 
 	tests := []struct {
@@ -403,7 +407,7 @@ func TestBuildPipelinesWithUnresolvedImage(t *testing.T) {
 
 	a := AppConfig{}
 	a.Out = &bytes.Buffer{}
-	group, err := a.buildPipelines(refs, app.Environment{})
+	group, err := a.buildPipelines(refs, app.Environment{}, app.Environment{})
 	if err != nil {
 		t.Error(err)
 	}
@@ -423,7 +427,7 @@ func TestBuildOutputCycleResilience(t *testing.T) {
 	config := &AppConfig{}
 
 	mockIS := &image.ImageStream{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "mockimagestream",
 		},
 		Spec: image.ImageStreamSpec{
@@ -439,7 +443,7 @@ func TestBuildOutputCycleResilience(t *testing.T) {
 
 	dfn := "mockdockerfilename"
 	malOutputBC := &buildapi.BuildConfig{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "buildCfgWithWeirdOutputObjectRef",
 		},
 		Spec: buildapi.BuildConfigSpec{
@@ -477,7 +481,7 @@ func TestBuildOutputCycleWithFollowingTag(t *testing.T) {
 	config := &AppConfig{}
 
 	mockIS := &image.ImageStream{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "mockimagestream",
 		},
 		Spec: image.ImageStreamSpec{
@@ -499,7 +503,7 @@ func TestBuildOutputCycleWithFollowingTag(t *testing.T) {
 
 	dfn := "mockdockerfilename"
 	followingTagCycleBC := &buildapi.BuildConfig{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "buildCfgWithWeirdOutputObjectRef",
 		},
 		Spec: buildapi.BuildConfigSpec{

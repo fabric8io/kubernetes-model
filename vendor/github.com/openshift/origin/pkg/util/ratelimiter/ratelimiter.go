@@ -1,10 +1,10 @@
 package ratelimiter
 
 import (
-	kcache "k8s.io/kubernetes/pkg/client/cache"
-	"k8s.io/kubernetes/pkg/util/flowcontrol"
-	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
-	utilwait "k8s.io/kubernetes/pkg/util/wait"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	utilwait "k8s.io/apimachinery/pkg/util/wait"
+	kcache "k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/flowcontrol"
 )
 
 // HandlerFunc defines function signature for a RateLimitedFunction.
@@ -53,8 +53,9 @@ func (rlf *RateLimitedFunction) pop() {
 	}
 }
 
-// Invoke adds a request if its not already present and waits for the
-// background processor to execute it.
+// Invoke adds a request if its not already present and returns immediately
+// unless the rate limited function is actually running, in which case it will
+// block until the current run completes
 func (rlf *RateLimitedFunction) Invoke(resource interface{}) {
 	rlf.queue.AddIfNotPresent(resource)
 }

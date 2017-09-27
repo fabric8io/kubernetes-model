@@ -21,14 +21,16 @@ import (
 	"net"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/errors"
+	"k8s.io/kubernetes/pkg/api/helper"
+	coreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 	"k8s.io/kubernetes/pkg/client/retry"
 	"k8s.io/kubernetes/pkg/registry/core/rangeallocation"
-	"k8s.io/kubernetes/pkg/registry/core/service"
 	"k8s.io/kubernetes/pkg/registry/core/service/ipallocator"
-	"k8s.io/kubernetes/pkg/util/runtime"
-	"k8s.io/kubernetes/pkg/util/wait"
 )
 
 // Repair is a controller loop that periodically examines all service ClusterIP allocations
@@ -47,11 +49,11 @@ import (
 // TODO: allocate new IPs if necessary
 // TODO: perform repair?
 type Repair struct {
-	interval time.Duration
-	registry service.Registry
-	network  *net.IPNet
-	alloc    rangeallocation.RangeRegistry
-	leaks    map[string]int // counter per leaked IP
+	interval      time.Duration
+	serviceClient coreclient.ServicesGetter
+	network       *net.IPNet
+	alloc         rangeallocation.RangeRegistry
+	leaks         map[string]int // counter per leaked IP
 }
 
 // How many times we need to detect a leak before we clean up.  This is to
@@ -60,13 +62,13 @@ const numRepairsBeforeLeakCleanup = 3
 
 // NewRepair creates a controller that periodically ensures that all clusterIPs are uniquely allocated across the cluster
 // and generates informational warnings for a cluster that is not in sync.
-func NewRepair(interval time.Duration, registry service.Registry, network *net.IPNet, alloc rangeallocation.RangeRegistry) *Repair {
+func NewRepair(interval time.Duration, serviceClient coreclient.ServicesGetter, network *net.IPNet, alloc rangeallocation.RangeRegistry) *Repair {
 	return &Repair{
-		interval: interval,
-		registry: registry,
-		network:  network,
-		alloc:    alloc,
-		leaks:    map[string]int{},
+		interval:      interval,
+		serviceClient: serviceClient,
+		network:       network,
+		alloc:         alloc,
+		leaks:         map[string]int{},
 	}
 }
 
@@ -114,13 +116,12 @@ func (c *Repair) runOnce() error {
 		return fmt.Errorf("unable to rebuild allocator from snapshot: %v", err)
 	}
 
-	ctx := api.WithNamespace(api.NewDefaultContext(), api.NamespaceAll)
 	// We explicitly send no resource version, since the resource version
 	// of 'snapshot' is from a different collection, it's not comparable to
 	// the service collection. The caching layer keeps per-collection RVs,
 	// and this is proper, since in theory the collections could be hosted
 	// in separate etcd (or even non-etcd) instances.
-	list, err := c.registry.ListServices(ctx, &api.ListOptions{})
+	list, err := c.serviceClient.Services(metav1.NamespaceAll).List(metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("unable to refresh the service IP block: %v", err)
 	}
@@ -128,7 +129,7 @@ func (c *Repair) runOnce() error {
 	rebuilt := ipallocator.NewCIDRRange(c.network)
 	// Check every Service's ClusterIP, and rebuild the state as we think it should be.
 	for _, svc := range list.Items {
-		if !api.IsServiceIPSet(&svc) {
+		if !helper.IsServiceIPSet(&svc) {
 			// didn't need a cluster IP
 			continue
 		}

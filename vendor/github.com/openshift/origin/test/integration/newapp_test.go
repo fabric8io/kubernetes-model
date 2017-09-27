@@ -22,17 +22,17 @@ import (
 	"github.com/elazarl/goproxy"
 	docker "github.com/fsouza/go-dockerclient"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilerrs "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
+	clientgotesting "k8s.io/client-go/testing"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/client/testing/core"
-	"k8s.io/kubernetes/pkg/runtime"
-	utilerrs "k8s.io/kubernetes/pkg/util/errors"
-	"k8s.io/kubernetes/pkg/util/sets"
 
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	client "github.com/openshift/origin/pkg/client/testclient"
-	clicmd "github.com/openshift/origin/pkg/cmd/cli/cmd"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	"github.com/openshift/origin/pkg/dockerregistry"
 	"github.com/openshift/origin/pkg/generate"
 	"github.com/openshift/origin/pkg/generate/app"
@@ -42,12 +42,14 @@ import (
 	"github.com/openshift/origin/pkg/generate/git"
 	"github.com/openshift/origin/pkg/generate/jenkinsfile"
 	"github.com/openshift/origin/pkg/generate/source"
-	imageapi "github.com/openshift/origin/pkg/image/api"
-	templateapi "github.com/openshift/origin/pkg/template/api"
-	"github.com/openshift/source-to-image/pkg/test"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	clicmd "github.com/openshift/origin/pkg/oc/cli/cmd"
+	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 
 	_ "github.com/openshift/origin/pkg/api/install"
 	"github.com/openshift/origin/test/util"
+
+	s2igit "github.com/openshift/source-to-image/pkg/scm/git"
 )
 
 func skipExternalGit(t *testing.T) {
@@ -195,7 +197,10 @@ func TestNewAppResolve(t *testing.T) {
 
 func TestNewAppDetectSource(t *testing.T) {
 	skipExternalGit(t)
-	gitLocalDir := test.CreateLocalGitDirectory(t)
+	gitLocalDir, err := s2igit.CreateLocalGitDirectory()
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer os.RemoveAll(gitLocalDir)
 
 	dockerSearcher := app.DockerRegistrySearcher{
@@ -309,7 +314,7 @@ func TestNewAppRunAll(t *testing.T) {
 		Client: dockerregistry.NewClient(10*time.Second, true),
 	}
 	failClient := &client.Fake{}
-	failClient.AddReactor("get", "images", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+	failClient.AddReactor("get", "images", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, nil, errors.NewInternalError(fmt.Errorf(""))
 	})
 	tests := []struct {
@@ -493,6 +498,49 @@ func TestNewAppRunAll(t *testing.T) {
 			expectedVolumes: nil,
 			expectedErr:     nil,
 		},
+		{
+			name: "failed app generation using missing context dir",
+			config: &cmd.AppConfig{
+				ComponentInputs: cmd.ComponentInputs{
+					SourceRepositories: []string{"https://github.com/openshift/sti-ruby"},
+				},
+				GenerationInputs: cmd.GenerationInputs{
+					ContextDir: "2.0/test/missing-dir",
+				},
+
+				Resolvers: cmd.Resolvers{
+					DockerSearcher:                  dockerSearcher,
+					ImageStreamSearcher:             fakeImageStreamSearcher(),
+					ImageStreamByAnnotationSearcher: app.NewImageStreamByAnnotationSearcher(&client.Fake{}, &client.Fake{}, []string{"default"}),
+					TemplateSearcher: app.TemplateSearcher{
+						Client: &client.Fake{},
+						TemplateConfigsNamespacer: &client.Fake{},
+						Namespaces:                []string{"openshift", "default"},
+					},
+					Detector: app.SourceRepositoryEnumerator{
+						Detectors:         source.DefaultDetectors,
+						DockerfileTester:  dockerfile.NewTester(),
+						JenkinsfileTester: jenkinsfile.NewTester(),
+					},
+				},
+
+				Typer:           kapi.Scheme,
+				OSClient:        &client.Fake{},
+				OriginNamespace: "default",
+			},
+			expected: map[string][]string{
+				"imageStream":      {"sti-ruby"},
+				"buildConfig":      {"sti-ruby"},
+				"deploymentConfig": {"sti-ruby"},
+				"service":          {"sti-ruby"},
+			},
+			expectedName:    "sti-ruby",
+			expectedVolumes: nil,
+			errFn: func(err error) bool {
+				return err.Error() == "supplied context directory '2.0/test/missing-dir' does not exist in 'https://github.com/openshift/sti-ruby'"
+			},
+		},
+
 		{
 			name: "insecure registry generation",
 			config: &cmd.AppConfig{
@@ -1929,7 +1977,12 @@ func setupLocalGitRepo(t *testing.T, passwordProtected bool, requireProxy bool) 
 	}
 
 	// Set initial repo contents
-	gitRepo := git.NewRepository()
+	gitRepo := git.NewRepositoryWithEnv([]string{
+		"GIT_AUTHOR_NAME=developer",
+		"GIT_AUTHOR_EMAIL=developer@example.com",
+		"GIT_COMMITTER_NAME=developer",
+		"GIT_COMMITTER_EMAIL=developer@example.com",
+	})
 	if err = gitRepo.Init(initialRepoDir, false); err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -2025,7 +2078,7 @@ insteadOf = %s
 
 func builderImageStream() *imageapi.ImageStream {
 	return &imageapi.ImageStream{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:            "ruby",
 			Namespace:       "default",
 			ResourceVersion: "1",
@@ -2102,13 +2155,13 @@ func dockerBuilderImage() *docker.Image {
 
 func fakeImageStreamSearcher() app.Searcher {
 	client := &client.Fake{}
-	client.AddReactor("get", "imagestreams", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+	client.AddReactor("get", "imagestreams", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, builderImageStream(), nil
 	})
-	client.AddReactor("list", "imagestreams", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+	client.AddReactor("list", "imagestreams", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, builderImageStreams(), nil
 	})
-	client.AddReactor("get", "imagestreamimages", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+	client.AddReactor("get", "imagestreamimages", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, builderImage(), nil
 	})
 
@@ -2121,7 +2174,7 @@ func fakeImageStreamSearcher() app.Searcher {
 
 func fakeTemplateSearcher() app.Searcher {
 	client := &client.Fake{}
-	client.AddReactor("list", "templates", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+	client.AddReactor("list", "templates", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, templateList(), nil
 	})
 
@@ -2136,7 +2189,7 @@ func templateList() *templateapi.TemplateList {
 		Items: []templateapi.Template{
 			{
 				Objects: []runtime.Object{},
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "first-stored-template",
 					Namespace: "default",
 				},

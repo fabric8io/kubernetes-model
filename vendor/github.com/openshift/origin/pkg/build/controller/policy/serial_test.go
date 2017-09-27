@@ -3,7 +3,7 @@ package policy
 import (
 	"testing"
 
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 )
 
 func TestSerialIsRunnableNewBuilds(t *testing.T) {
@@ -13,7 +13,7 @@ func TestSerialIsRunnableNewBuilds(t *testing.T) {
 		addBuild("build-3", "sample-bc", buildapi.BuildPhaseNew, buildapi.BuildRunPolicySerial),
 	}
 	client := newTestClient(allNewBuilds)
-	policy := SerialPolicy{BuildLister: client, BuildUpdater: client}
+	policy := SerialPolicy{BuildLister: client.Lister(), BuildUpdater: client}
 	runnableBuilds := []string{
 		"build-1",
 	}

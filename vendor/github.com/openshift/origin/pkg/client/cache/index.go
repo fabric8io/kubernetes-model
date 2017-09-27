@@ -3,14 +3,14 @@ package cache
 import (
 	"fmt"
 
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	buildutil "github.com/openshift/origin/pkg/build/util"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 )
 
 const (
-	ImageStreamReferenceIndex string = "imagestreamref"
+	ImageStreamReferenceIndex = "imagestreamref"
 )
 
 // ImageStreamReferenceIndexFunc is a default index function that indexes based on image stream references.

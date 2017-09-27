@@ -13,7 +13,5 @@
 # limitations under the License.
 
 FROM alpine
-MAINTAINER Bowei Du "bowei@google.com"
 
-RUN apk update --no-cache
-RUN apk add bind-tools
+RUN apk add --no-cache bind-tools

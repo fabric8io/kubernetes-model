@@ -1,12 +1,13 @@
 package builds
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	exutil "github.com/openshift/origin/test/extended/util"
 )
 
@@ -40,7 +41,7 @@ var _ = g.Describe("[builds][Slow] builds should have deadlines", func() {
 			o.Expect(br.Build.Status.Phase).Should(o.BeEquivalentTo(buildapi.BuildPhaseFailed)) // the build should have failed
 
 			g.By("verifying the build pod status")
-			pod, err := oc.KubeClient().Core().Pods(oc.Namespace()).Get(buildapi.GetBuildPodName(br.Build))
+			pod, err := oc.KubeClient().Core().Pods(oc.Namespace()).Get(buildapi.GetBuildPodName(br.Build), metav1.GetOptions{})
 			o.Expect(err).NotTo(o.HaveOccurred())
 			o.Expect(pod.Status.Phase).Should(o.BeEquivalentTo(kapi.PodFailed))
 			o.Expect(pod.Status.Reason).Should(o.ContainSubstring("DeadlineExceeded"))
@@ -64,7 +65,7 @@ var _ = g.Describe("[builds][Slow] builds should have deadlines", func() {
 			o.Expect(br.Build.Status.Phase).Should(o.BeEquivalentTo(buildapi.BuildPhaseFailed)) // the build should have failed
 
 			g.By("verifying the build pod status")
-			pod, err := oc.KubeClient().Core().Pods(oc.Namespace()).Get(buildapi.GetBuildPodName(br.Build))
+			pod, err := oc.KubeClient().Core().Pods(oc.Namespace()).Get(buildapi.GetBuildPodName(br.Build), metav1.GetOptions{})
 			o.Expect(err).NotTo(o.HaveOccurred())
 			o.Expect(pod.Status.Phase).Should(o.BeEquivalentTo(kapi.PodFailed))
 			o.Expect(pod.Status.Reason).Should(o.ContainSubstring("DeadlineExceeded"))

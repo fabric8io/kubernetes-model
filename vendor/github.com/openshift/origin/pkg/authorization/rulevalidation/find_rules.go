@@ -1,26 +1,25 @@
 package rulevalidation
 
 import (
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapierror "k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/auth/user"
-	kerrors "k8s.io/kubernetes/pkg/util/errors"
-	"k8s.io/kubernetes/pkg/util/sets"
+	kapierror "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apiserver/pkg/authentication/user"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
+	authorizationlister "github.com/openshift/origin/pkg/authorization/generated/listers/authorization/internalversion"
 	authorizationinterfaces "github.com/openshift/origin/pkg/authorization/interfaces"
-	"github.com/openshift/origin/pkg/client"
 )
 
 type DefaultRuleResolver struct {
-	policyGetter  client.PoliciesListerNamespacer
-	bindingLister client.PolicyBindingsListerNamespacer
+	policyGetter  authorizationlister.PolicyLister
+	bindingLister authorizationlister.PolicyBindingLister
 
-	clusterPolicyGetter  client.ClusterPolicyLister
-	clusterBindingLister client.ClusterPolicyBindingLister
+	clusterPolicyGetter  authorizationlister.ClusterPolicyLister
+	clusterBindingLister authorizationlister.ClusterPolicyBindingLister
 }
 
-func NewDefaultRuleResolver(policyGetter client.PoliciesListerNamespacer, bindingLister client.PolicyBindingsListerNamespacer, clusterPolicyGetter client.ClusterPolicyLister, clusterBindingLister client.ClusterPolicyBindingLister) *DefaultRuleResolver {
+func NewDefaultRuleResolver(policyGetter authorizationlister.PolicyLister, bindingLister authorizationlister.PolicyBindingLister, clusterPolicyGetter authorizationlister.ClusterPolicyLister, clusterBindingLister authorizationlister.ClusterPolicyBindingLister) *DefaultRuleResolver {
 	return &DefaultRuleResolver{policyGetter, bindingLister, clusterPolicyGetter, clusterBindingLister}
 }
 
@@ -34,32 +33,32 @@ type AuthorizationRuleResolver interface {
 }
 
 func (a *DefaultRuleResolver) GetRoleBindings(namespace string) ([]authorizationinterfaces.RoleBinding, error) {
-	clusterBindings, clusterErr := a.clusterBindingLister.List(kapi.ListOptions{})
+	clusterBindings, clusterErr := a.clusterBindingLister.List(labels.Everything())
 
-	var namespaceBindings *authorizationapi.PolicyBindingList
+	var namespaceBindings []*authorizationapi.PolicyBinding
 	var namespaceErr error
 	if a.bindingLister != nil && len(namespace) > 0 {
-		namespaceBindings, namespaceErr = a.bindingLister.PolicyBindings(namespace).List(kapi.ListOptions{})
+		namespaceBindings, namespaceErr = a.bindingLister.PolicyBindings(namespace).List(labels.Everything())
 	}
 
 	// return all loaded bindings
 	expect := 0
 	if clusterBindings != nil {
-		expect += len(clusterBindings.Items)
+		expect += len(clusterBindings)
 	}
 	if namespaceBindings != nil {
-		expect += len(namespaceBindings.Items)
+		expect += len(namespaceBindings)
 	}
 	bindings := make([]authorizationinterfaces.RoleBinding, 0, expect)
 	if clusterBindings != nil {
-		for _, policyBinding := range clusterBindings.Items {
+		for _, policyBinding := range clusterBindings {
 			for _, value := range policyBinding.RoleBindings {
 				bindings = append(bindings, authorizationinterfaces.NewClusterRoleBindingAdapter(value))
 			}
 		}
 	}
 	if namespaceBindings != nil {
-		for _, policyBinding := range namespaceBindings.Items {
+		for _, policyBinding := range namespaceBindings {
 			for _, value := range policyBinding.RoleBindings {
 				bindings = append(bindings, authorizationinterfaces.NewLocalRoleBindingAdapter(value))
 			}
@@ -149,18 +148,4 @@ func (a *DefaultRuleResolver) RulesFor(user user.Info, namespace string) ([]auth
 	}
 
 	return rules, kerrors.NewAggregate(errs)
-}
-
-func appliesToUser(ruleUsers, ruleGroups sets.String, user user.Info) bool {
-	if ruleUsers.Has(user.GetName()) {
-		return true
-	}
-
-	for _, currGroup := range user.GetGroups() {
-		if ruleGroups.Has(currGroup) {
-			return true
-		}
-	}
-
-	return false
 }

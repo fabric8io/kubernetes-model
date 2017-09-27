@@ -1,20 +1,18 @@
 package dns
 
 import (
-	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"net"
+	"sort"
 	"strings"
 
 	etcd "github.com/coreos/etcd/client"
 	"github.com/golang/glog"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
-	kendpoints "k8s.io/kubernetes/pkg/api/endpoints"
-	"k8s.io/kubernetes/pkg/api/errors"
-	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
-	"k8s.io/kubernetes/pkg/util/validation"
 
 	"github.com/skynetservices/skydns/msg"
 	"github.com/skynetservices/skydns/server"
@@ -27,7 +25,7 @@ import (
 type ServiceResolver struct {
 	config    *server.Config
 	accessor  ServiceAccessor
-	endpoints kcoreclient.EndpointsGetter
+	endpoints EndpointsAccessor
 	base      string
 	fallback  FallbackFunc
 }
@@ -42,7 +40,7 @@ type FallbackFunc func(name string, exact bool) (string, bool)
 
 // NewServiceResolver creates an object that will return DNS record entries for
 // SkyDNS based on service names.
-func NewServiceResolver(config *server.Config, accessor ServiceAccessor, endpoints kcoreclient.EndpointsGetter, fn FallbackFunc) *ServiceResolver {
+func NewServiceResolver(config *server.Config, accessor ServiceAccessor, endpoints EndpointsAccessor, fn FallbackFunc) *ServiceResolver {
 	domain := config.Domain
 	if !strings.HasSuffix(domain, ".") {
 		domain = domain + "."
@@ -116,7 +114,7 @@ func (b *ServiceResolver) Records(dnsName string, exact bool) ([]msg.Service, er
 			return nil, errNoSuchName
 		}
 		namespace, name := segments[1], segments[2]
-		svc, err := b.accessor.Services(namespace).Get(name)
+		svc, err := b.accessor.Services(namespace).Get(name, metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) && b.fallback != nil {
 				if fallback, ok := b.fallback(prefix, exact); ok {
@@ -209,14 +207,6 @@ func (b *ServiceResolver) Records(dnsName string, exact bool) ([]msg.Service, er
 			return nil, errNoSuchName
 		}
 
-		hostnameMappings := noHostnameMappings
-		if savedHostnames := endpoints.Annotations[kendpoints.PodHostnamesAnnotation]; len(savedHostnames) > 0 {
-			mapped := make(map[string]kendpoints.HostRecord)
-			if err = json.Unmarshal([]byte(savedHostnames), &mapped); err == nil {
-				hostnameMappings = mapped
-			}
-		}
-
 		matchHostname := len(segments) > 3 && !hasAllPrefixedSegments(segments[3:4], "_")
 
 		services := make([]msg.Service, 0, len(endpoints.Subsets)*4)
@@ -231,7 +221,7 @@ func (b *ServiceResolver) Records(dnsName string, exact bool) ([]msg.Service, er
 					Ttl:      30,
 				}
 				var endpointName string
-				if hostname, ok := getHostname(&a, hostnameMappings); ok {
+				if hostname, ok := getHostname(&a); ok {
 					endpointName = hostname
 				} else {
 					endpointName = getHash(defaultService.Host)
@@ -289,6 +279,9 @@ func (b *ServiceResolver) ReverseRecord(name string) (*msg.Service, error) {
 
 	svc, err := b.accessor.ServiceByClusterIP(clusterIP)
 	if err != nil {
+		if svc, endpointErr := b.reverseEndpointRecord(name, clusterIP); endpointErr == nil {
+			return svc, nil
+		}
 		return nil, err
 	}
 	port := 0
@@ -306,6 +299,60 @@ func (b *ServiceResolver) ReverseRecord(name string) (*msg.Service, error) {
 
 		Key: msg.Path(name),
 	}, nil
+}
+
+var errNoSuchHostname = fmt.Errorf("the requested endpoint address does not exist")
+
+// reverseEndpointRecord attempts to return a reverse record for a given endpoint address
+// IP in the form of a service entry. If multiple services have an entry, it will return
+// the oldest endpoint.
+func (b *ServiceResolver) reverseEndpointRecord(name, ip string) (*msg.Service, error) {
+	epts, err := b.endpoints.EndpointsByHostnameIP(ip)
+	if err != nil {
+		return nil, err
+	}
+	ept, hostname, ok := findAddressHostnameWithIP(epts, ip)
+	if !ok {
+		return nil, errNoSuchHostname
+	}
+	hostName := buildDNSName(b.base, "svc", ept.Namespace, ept.Name, hostname)
+	return &msg.Service{
+		Host: hostName,
+
+		Priority: 10,
+		Weight:   10,
+		Ttl:      30,
+
+		Key: msg.Path(name),
+	}, nil
+}
+
+// findAddressHostnameWithIP finds the oldest endpoint in epts that has an address with ip and
+// a set hostname. It returns the hostname it located, or false if no such address existed.
+func findAddressHostnameWithIP(epts []*kapi.Endpoints, ip string) (*kapi.Endpoints, string, bool) {
+	sort.Sort(oldestEndpoints(epts))
+	for _, ept := range epts {
+		for i := range ept.Subsets {
+			subset := &ept.Subsets[i]
+			for j := range subset.Addresses {
+				address := &subset.Addresses[j]
+				if address.IP == ip {
+					if len(address.Hostname) > 0 {
+						return ept, address.Hostname, true
+					}
+				}
+			}
+		}
+	}
+	return nil, "", false
+}
+
+type oldestEndpoints []*kapi.Endpoints
+
+func (s oldestEndpoints) Len() int      { return len(s) }
+func (s oldestEndpoints) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s oldestEndpoints) Less(i, j int) bool {
+	return !s[j].CreationTimestamp.Before(s[i].CreationTimestamp)
 }
 
 // arpaSuffix is the standard suffix for PTR IP reverse lookups.
@@ -357,12 +404,9 @@ func buildDNSName(labels ...string) string {
 }
 
 // getHostname returns true if the provided address has a hostname, or false otherwise.
-func getHostname(address *kapi.EndpointAddress, podHostnames map[string]kendpoints.HostRecord) (string, bool) {
+func getHostname(address *kapi.EndpointAddress) (string, bool) {
 	if len(address.Hostname) > 0 {
 		return address.Hostname, true
-	}
-	if hostRecord, exists := podHostnames[address.IP]; exists && len(validation.IsDNS1123Label(hostRecord.HostName)) == 0 {
-		return hostRecord.HostName, true
 	}
 	return "", false
 }
@@ -389,5 +433,3 @@ func hasAllPrefixedSegments(segments []string, prefix string) bool {
 	}
 	return true
 }
-
-var noHostnameMappings = map[string]kendpoints.HostRecord{}

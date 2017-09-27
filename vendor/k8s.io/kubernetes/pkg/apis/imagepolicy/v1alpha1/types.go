@@ -17,19 +17,18 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/api/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// +genclient=true
-// +nonNamespaced=true
-// +noMethods=true
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:noVerbs
 
 // ImageReview checks if the set of images in a pod are allowed.
 type ImageReview struct {
-	unversioned.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
 	// +optional
-	v1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
 	// Spec holds information about the pod being evaluated
 	Spec ImageReviewSpec `json:"spec" protobuf:"bytes,2,opt,name=spec"`

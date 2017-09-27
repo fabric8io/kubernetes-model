@@ -12,7 +12,9 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
-	kerrors "k8s.io/kubernetes/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
 	"github.com/openshift/origin/pkg/cmd/server/admin"
@@ -20,12 +22,11 @@ import (
 	configapilatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
 	"github.com/openshift/origin/pkg/cmd/server/api/validation"
 	"github.com/openshift/origin/pkg/cmd/server/crypto"
-	"github.com/openshift/origin/pkg/cmd/server/kubernetes"
-	"github.com/openshift/origin/pkg/cmd/templates"
+	kubernetes "github.com/openshift/origin/pkg/cmd/server/kubernetes/node"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	"github.com/openshift/origin/pkg/cmd/util/docker"
 	utilflags "github.com/openshift/origin/pkg/cmd/util/flags"
-	sdnapi "github.com/openshift/origin/pkg/sdn/api"
+	"github.com/openshift/origin/pkg/sdn"
 	"github.com/openshift/origin/pkg/version"
 )
 
@@ -181,7 +182,7 @@ func (o NodeOptions) StartNode() error {
 		return nil
 	}
 
-	go daemon.SdNotify("READY=1")
+	go daemon.SdNotify(false, "READY=1")
 	select {}
 }
 
@@ -300,8 +301,9 @@ func (o NodeOptions) createNodeConfig() (string, error) {
 		DNSBindAddress:      o.NodeArgs.DNSBindAddr,
 		DNSDomain:           o.NodeArgs.ClusterDomain,
 		DNSIP:               dnsIP,
-		ListenAddr:          o.NodeArgs.ListenArg.ListenAddr,
-		NetworkPluginName:   o.NodeArgs.NetworkPluginName,
+		DNSRecursiveResolvConf: o.NodeArgs.RecursiveResolvConf,
+		ListenAddr:             o.NodeArgs.ListenArg.ListenAddr,
+		NetworkPluginName:      o.NodeArgs.NetworkPluginName,
 
 		APIServerURL:     masterAddr.String(),
 		APIServerCAFiles: []string{admin.DefaultCABundleFile(o.NodeArgs.MasterCertDir)},
@@ -331,7 +333,7 @@ func StartNode(nodeConfig configapi.NodeConfig, components *utilflags.ComponentF
 		return err
 	}
 
-	if sdnapi.IsOpenShiftNetworkPlugin(config.KubeletServer.NetworkPluginName) {
+	if sdn.IsOpenShiftNetworkPlugin(config.KubeletServer.NetworkPluginName) {
 		// TODO: SDN plugin depends on the Kubelet registering as a Node and doesn't retry cleanly,
 		// and Kubelet also can't start the PodSync loop until the SDN plugin has loaded.
 		if components.Enabled(ComponentKubelet) != components.Enabled(ComponentPlugins) {
@@ -345,7 +347,7 @@ func StartNode(nodeConfig configapi.NodeConfig, components *utilflags.ComponentF
 		glog.Infof("Starting node networking %s (%s)", config.KubeletServer.HostnameOverride, version.Get().String())
 	}
 
-	_, kubeClientConfig, err := configapi.GetKubeClient(nodeConfig.MasterKubeConfig, nodeConfig.MasterClientConnectionOverrides)
+	_, kubeClientConfig, err := configapi.GetInternalKubeClient(nodeConfig.MasterKubeConfig, nodeConfig.MasterClientConnectionOverrides)
 	if err != nil {
 		return err
 	}
@@ -372,7 +374,7 @@ func StartNode(nodeConfig configapi.NodeConfig, components *utilflags.ComponentF
 		config.RunDNS()
 	}
 
-	config.RunServiceStores(components.Enabled(ComponentProxy), components.Enabled(ComponentDNS))
+	config.InternalKubeInformers.Start(wait.NeverStop)
 
 	return nil
 }

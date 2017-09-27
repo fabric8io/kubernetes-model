@@ -1,13 +1,8 @@
-package(default_visibility = ["//visibility:public"])
-
 licenses(["notice"])
 
 load(
     "@io_bazel_rules_go//go:def.bzl",
-    "go_binary",
     "go_library",
-    "go_test",
-    "cgo_library",
 )
 
 go_library(
@@ -21,19 +16,38 @@ go_library(
         "rollout_undo.go",
     ],
     tags = ["automanaged"],
+    visibility = [
+        "//build/visible_to:pkg_kubectl_cmd_rollout_CONSUMERS",
+    ],
     deps = [
-        "//pkg/api:go_default_library",
-        "//pkg/api/meta:go_default_library",
         "//pkg/kubectl:go_default_library",
         "//pkg/kubectl/cmd/set:go_default_library",
         "//pkg/kubectl/cmd/templates:go_default_library",
         "//pkg/kubectl/cmd/util:go_default_library",
         "//pkg/kubectl/resource:go_default_library",
-        "//pkg/runtime:go_default_library",
-        "//pkg/util/errors:go_default_library",
+        "//pkg/util/i18n:go_default_library",
         "//pkg/util/interrupt:go_default_library",
-        "//pkg/watch:go_default_library",
-        "//vendor:github.com/renstrom/dedent",
-        "//vendor:github.com/spf13/cobra",
+        "//vendor/github.com/renstrom/dedent:go_default_library",
+        "//vendor/github.com/spf13/cobra:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/api/meta:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/types:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/util/errors:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/watch:go_default_library",
+    ],
+)
+
+filegroup(
+    name = "package-srcs",
+    srcs = glob(["**"]),
+    tags = ["automanaged"],
+)
+
+filegroup(
+    name = "all-srcs",
+    srcs = [":package-srcs"],
+    tags = ["automanaged"],
+    visibility = [
+        "//build/visible_to:pkg_kubectl_cmd_rollout_CONSUMERS",
     ],
 )

@@ -17,19 +17,20 @@ limitations under the License.
 package v1_test
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/resource"
-	versioned "k8s.io/kubernetes/pkg/api/v1"
-	"k8s.io/kubernetes/pkg/runtime"
-	sccutil "k8s.io/kubernetes/pkg/securitycontextconstraints/util"
-	"k8s.io/kubernetes/pkg/util/intstr"
+	"k8s.io/kubernetes/pkg/api/v1"
 )
 
 func roundTrip(t *testing.T, obj runtime.Object) runtime.Object {
-	codec := api.Codecs.LegacyCodec(versioned.SchemeGroupVersion)
+	codec := api.Codecs.LegacyCodec(v1.SchemeGroupVersion)
 	data, err := runtime.Encode(codec, obj)
 	if err != nil {
 		t.Errorf("%v\n %#v", err, obj)
@@ -51,15 +52,15 @@ func roundTrip(t *testing.T, obj runtime.Object) runtime.Object {
 
 func TestSetDefaultReplicationController(t *testing.T) {
 	tests := []struct {
-		rc             *versioned.ReplicationController
+		rc             *v1.ReplicationController
 		expectLabels   bool
 		expectSelector bool
 	}{
 		{
-			rc: &versioned.ReplicationController{
-				Spec: versioned.ReplicationControllerSpec{
-					Template: &versioned.PodTemplateSpec{
-						ObjectMeta: versioned.ObjectMeta{
+			rc: &v1.ReplicationController{
+				Spec: v1.ReplicationControllerSpec{
+					Template: &v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{
 								"foo": "bar",
 							},
@@ -71,15 +72,15 @@ func TestSetDefaultReplicationController(t *testing.T) {
 			expectSelector: true,
 		},
 		{
-			rc: &versioned.ReplicationController{
-				ObjectMeta: versioned.ObjectMeta{
+			rc: &v1.ReplicationController{
+				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						"bar": "foo",
 					},
 				},
-				Spec: versioned.ReplicationControllerSpec{
-					Template: &versioned.PodTemplateSpec{
-						ObjectMeta: versioned.ObjectMeta{
+				Spec: v1.ReplicationControllerSpec{
+					Template: &v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{
 								"foo": "bar",
 							},
@@ -91,18 +92,18 @@ func TestSetDefaultReplicationController(t *testing.T) {
 			expectSelector: true,
 		},
 		{
-			rc: &versioned.ReplicationController{
-				ObjectMeta: versioned.ObjectMeta{
+			rc: &v1.ReplicationController{
+				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						"bar": "foo",
 					},
 				},
-				Spec: versioned.ReplicationControllerSpec{
+				Spec: v1.ReplicationControllerSpec{
 					Selector: map[string]string{
 						"some": "other",
 					},
-					Template: &versioned.PodTemplateSpec{
-						ObjectMeta: versioned.ObjectMeta{
+					Template: &v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{
 								"foo": "bar",
 							},
@@ -114,13 +115,13 @@ func TestSetDefaultReplicationController(t *testing.T) {
 			expectSelector: false,
 		},
 		{
-			rc: &versioned.ReplicationController{
-				Spec: versioned.ReplicationControllerSpec{
+			rc: &v1.ReplicationController{
+				Spec: v1.ReplicationControllerSpec{
 					Selector: map[string]string{
 						"some": "other",
 					},
-					Template: &versioned.PodTemplateSpec{
-						ObjectMeta: versioned.ObjectMeta{
+					Template: &v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{
 								"foo": "bar",
 							},
@@ -136,7 +137,7 @@ func TestSetDefaultReplicationController(t *testing.T) {
 	for _, test := range tests {
 		rc := test.rc
 		obj2 := roundTrip(t, runtime.Object(rc))
-		rc2, ok := obj2.(*versioned.ReplicationController)
+		rc2, ok := obj2.(*v1.ReplicationController)
 		if !ok {
 			t.Errorf("unexpected object: %v", rc2)
 			t.FailNow()
@@ -166,14 +167,14 @@ func newInt(val int32) *int32 {
 
 func TestSetDefaultReplicationControllerReplicas(t *testing.T) {
 	tests := []struct {
-		rc             versioned.ReplicationController
+		rc             v1.ReplicationController
 		expectReplicas int32
 	}{
 		{
-			rc: versioned.ReplicationController{
-				Spec: versioned.ReplicationControllerSpec{
-					Template: &versioned.PodTemplateSpec{
-						ObjectMeta: versioned.ObjectMeta{
+			rc: v1.ReplicationController{
+				Spec: v1.ReplicationControllerSpec{
+					Template: &v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{
 								"foo": "bar",
 							},
@@ -184,11 +185,11 @@ func TestSetDefaultReplicationControllerReplicas(t *testing.T) {
 			expectReplicas: 1,
 		},
 		{
-			rc: versioned.ReplicationController{
-				Spec: versioned.ReplicationControllerSpec{
+			rc: v1.ReplicationController{
+				Spec: v1.ReplicationControllerSpec{
 					Replicas: newInt(0),
-					Template: &versioned.PodTemplateSpec{
-						ObjectMeta: versioned.ObjectMeta{
+					Template: &v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{
 								"foo": "bar",
 							},
@@ -199,11 +200,11 @@ func TestSetDefaultReplicationControllerReplicas(t *testing.T) {
 			expectReplicas: 0,
 		},
 		{
-			rc: versioned.ReplicationController{
-				Spec: versioned.ReplicationControllerSpec{
+			rc: v1.ReplicationController{
+				Spec: v1.ReplicationControllerSpec{
 					Replicas: newInt(3),
-					Template: &versioned.PodTemplateSpec{
-						ObjectMeta: versioned.ObjectMeta{
+					Template: &v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{
 								"foo": "bar",
 							},
@@ -218,7 +219,7 @@ func TestSetDefaultReplicationControllerReplicas(t *testing.T) {
 	for _, test := range tests {
 		rc := &test.rc
 		obj2 := roundTrip(t, runtime.Object(rc))
-		rc2, ok := obj2.(*versioned.ReplicationController)
+		rc2, ok := obj2.(*v1.ReplicationController)
 		if !ok {
 			t.Errorf("unexpected object: %v", rc2)
 			t.FailNow()
@@ -231,34 +232,461 @@ func TestSetDefaultReplicationControllerReplicas(t *testing.T) {
 	}
 }
 
-func TestSetDefaultService(t *testing.T) {
-	svc := &versioned.Service{}
-	obj2 := roundTrip(t, runtime.Object(svc))
-	svc2 := obj2.(*versioned.Service)
-	if svc2.Spec.SessionAffinity != versioned.ServiceAffinityNone {
-		t.Errorf("Expected default session affinity type:%s, got: %s", versioned.ServiceAffinityNone, svc2.Spec.SessionAffinity)
+type InitContainerValidator func(got, expected *v1.Container) error
+
+func TestSetDefaultReplicationControllerInitContainers(t *testing.T) {
+	assertEnvFieldRef := func(got, expected *v1.Container) error {
+		if len(got.Env) != len(expected.Env) {
+			return fmt.Errorf("different number of env: got <%v>, expected <%v>", len(got.Env), len(expected.Env))
+		}
+
+		for j := range got.Env {
+			ge := &got.Env[j]
+			ee := &expected.Env[j]
+
+			if ge.Name != ee.Name {
+				return fmt.Errorf("different name of env: got <%v>, expected <%v>", ge.Name, ee.Name)
+			}
+
+			if ge.ValueFrom.FieldRef.APIVersion != ee.ValueFrom.FieldRef.APIVersion {
+				return fmt.Errorf("different api version of FieldRef <%v>: got <%v>, expected <%v>",
+					ge.Name, ge.ValueFrom.FieldRef.APIVersion, ee.ValueFrom.FieldRef.APIVersion)
+			}
+		}
+		return nil
 	}
-	if svc2.Spec.Type != versioned.ServiceTypeClusterIP {
-		t.Errorf("Expected default type:%s, got: %s", versioned.ServiceTypeClusterIP, svc2.Spec.Type)
+
+	assertImagePullPolicy := func(got, expected *v1.Container) error {
+		if got.ImagePullPolicy != expected.ImagePullPolicy {
+			return fmt.Errorf("different image pull poicy: got <%v>, expected <%v>", got.ImagePullPolicy, expected.ImagePullPolicy)
+		}
+		return nil
+	}
+
+	assertContainerPort := func(got, expected *v1.Container) error {
+		if len(got.Ports) != len(expected.Ports) {
+			return fmt.Errorf("different number of ports: got <%v>, expected <%v>", len(got.Ports), len(expected.Ports))
+		}
+
+		for i := range got.Ports {
+			gp := &got.Ports[i]
+			ep := &expected.Ports[i]
+
+			if gp.Name != ep.Name {
+				return fmt.Errorf("different name of port: got <%v>, expected <%v>", gp.Name, ep.Name)
+			}
+
+			if gp.Protocol != ep.Protocol {
+				return fmt.Errorf("different port protocol <%v>: got <%v>, expected <%v>", gp.Name, gp.Protocol, ep.Protocol)
+			}
+		}
+
+		return nil
+	}
+
+	assertResource := func(got, expected *v1.Container) error {
+		if len(got.Resources.Limits) != len(expected.Resources.Limits) {
+			return fmt.Errorf("different number of resources.Limits: got <%v>, expected <%v>", len(got.Resources.Limits), (expected.Resources.Limits))
+		}
+
+		for k, v := range got.Resources.Limits {
+			if ev, found := expected.Resources.Limits[v1.ResourceName(k)]; !found {
+				return fmt.Errorf("failed to find resource <%v> in expected resources.Limits.", k)
+			} else {
+				if ev.Value() != v.Value() {
+					return fmt.Errorf("different resource.Limits: got <%v>, expected <%v>.", v.Value(), ev.Value())
+				}
+			}
+		}
+
+		if len(got.Resources.Requests) != len(expected.Resources.Requests) {
+			return fmt.Errorf("different number of resources.Requests: got <%v>, expected <%v>", len(got.Resources.Requests), (expected.Resources.Requests))
+		}
+
+		for k, v := range got.Resources.Requests {
+			if ev, found := expected.Resources.Requests[v1.ResourceName(k)]; !found {
+				return fmt.Errorf("failed to find resource <%v> in expected resources.Requests.", k)
+			} else {
+				if ev.Value() != v.Value() {
+					return fmt.Errorf("different resource.Requests: got <%v>, expected <%v>.", v.Value(), ev.Value())
+				}
+			}
+		}
+
+		return nil
+	}
+
+	assertProb := func(got, expected *v1.Container) error {
+		// Assert LivenessProbe
+		if got.LivenessProbe.Handler.HTTPGet.Path != expected.LivenessProbe.Handler.HTTPGet.Path ||
+			got.LivenessProbe.Handler.HTTPGet.Scheme != expected.LivenessProbe.Handler.HTTPGet.Scheme ||
+			got.LivenessProbe.FailureThreshold != expected.LivenessProbe.FailureThreshold ||
+			got.LivenessProbe.SuccessThreshold != expected.LivenessProbe.SuccessThreshold ||
+			got.LivenessProbe.PeriodSeconds != expected.LivenessProbe.PeriodSeconds ||
+			got.LivenessProbe.TimeoutSeconds != expected.LivenessProbe.TimeoutSeconds {
+			return fmt.Errorf("different LivenessProbe: got <%v>, expected <%v>", got.LivenessProbe, expected.LivenessProbe)
+		}
+
+		// Assert ReadinessProbe
+		if got.ReadinessProbe.Handler.HTTPGet.Path != expected.ReadinessProbe.Handler.HTTPGet.Path ||
+			got.ReadinessProbe.Handler.HTTPGet.Scheme != expected.ReadinessProbe.Handler.HTTPGet.Scheme ||
+			got.ReadinessProbe.FailureThreshold != expected.ReadinessProbe.FailureThreshold ||
+			got.ReadinessProbe.SuccessThreshold != expected.ReadinessProbe.SuccessThreshold ||
+			got.ReadinessProbe.PeriodSeconds != expected.ReadinessProbe.PeriodSeconds ||
+			got.ReadinessProbe.TimeoutSeconds != expected.ReadinessProbe.TimeoutSeconds {
+			return fmt.Errorf("different ReadinessProbe: got <%v>, expected <%v>", got.ReadinessProbe, expected.ReadinessProbe)
+		}
+
+		return nil
+	}
+
+	assertLifeCycle := func(got, expected *v1.Container) error {
+		if got.Lifecycle.PostStart.HTTPGet.Path != expected.Lifecycle.PostStart.HTTPGet.Path ||
+			got.Lifecycle.PostStart.HTTPGet.Scheme != expected.Lifecycle.PostStart.HTTPGet.Scheme {
+			return fmt.Errorf("different LifeCycle: got <%v>, expected <%v>", got.Lifecycle, expected.Lifecycle)
+		}
+
+		return nil
+	}
+
+	cpu, _ := resource.ParseQuantity("100Gi")
+	mem, _ := resource.ParseQuantity("100Mi")
+
+	tests := []struct {
+		name       string
+		rc         v1.ReplicationController
+		expected   []v1.Container
+		validators []InitContainerValidator
+	}{
+		{
+			name: "imagePullIPolicy",
+			rc: v1.ReplicationController{
+				Spec: v1.ReplicationControllerSpec{
+					Template: &v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								"pod.beta.kubernetes.io/init-containers": `
+                                [
+                                    {
+                                        "name": "install",
+                                        "image": "busybox"
+                                    }
+                                ]`,
+							},
+						},
+					},
+				},
+			},
+			expected: []v1.Container{
+				{
+					ImagePullPolicy: v1.PullAlways,
+				},
+			},
+			validators: []InitContainerValidator{assertImagePullPolicy},
+		},
+		{
+			name: "FieldRef",
+			rc: v1.ReplicationController{
+				Spec: v1.ReplicationControllerSpec{
+					Template: &v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								"pod.beta.kubernetes.io/init-containers": `
+                                [
+                                    {
+                                    "name": "fun",
+                                    "image": "alpine",
+                                    "env": [
+                                      {
+                                        "name": "MY_POD_IP",
+                                        "valueFrom": {
+                                          "fieldRef": {
+                                            "apiVersion": "",
+                                            "fieldPath": "status.podIP"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  }
+                                ]`,
+							},
+						},
+					},
+				},
+			},
+			expected: []v1.Container{
+				{
+					Env: []v1.EnvVar{
+						{
+							Name: "MY_POD_IP",
+							ValueFrom: &v1.EnvVarSource{
+								FieldRef: &v1.ObjectFieldSelector{
+									APIVersion: "v1",
+									FieldPath:  "status.podIP",
+								},
+							},
+						},
+					},
+				},
+			},
+			validators: []InitContainerValidator{assertEnvFieldRef},
+		},
+		{
+			name: "ContainerPort",
+			rc: v1.ReplicationController{
+				Spec: v1.ReplicationControllerSpec{
+					Template: &v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								"pod.beta.kubernetes.io/init-containers": `
+                                [
+                                    {
+                                    "name": "fun",
+                                    "image": "alpine",
+                                    "ports": [
+                                      {
+                                        "name": "default"
+                                      }
+                                    ]
+                                  }
+                                ]`,
+							},
+						},
+					},
+				},
+			},
+			expected: []v1.Container{
+				{
+					Ports: []v1.ContainerPort{
+						{
+							Name:     "default",
+							Protocol: v1.ProtocolTCP,
+						},
+					},
+				},
+			},
+			validators: []InitContainerValidator{assertContainerPort},
+		},
+		{
+			name: "Resources",
+			rc: v1.ReplicationController{
+				Spec: v1.ReplicationControllerSpec{
+					Template: &v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								"pod.beta.kubernetes.io/init-containers": `
+                                [
+                                  {
+                                    "name": "fun",
+                                    "image": "alpine",
+                                    "resources": {
+                                        "limits": {
+                                            "cpu": "100Gi",
+                                            "memory": "100Mi"
+                                        },
+                                        "requests": {
+                                            "cpu": "100Gi",
+                                            "memory": "100Mi"
+                                        }
+                                    }
+                                  }
+                                ]`,
+							},
+						},
+					},
+				},
+			},
+			expected: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: v1.ResourceList{
+							v1.ResourceCPU:    cpu,
+							v1.ResourceMemory: mem,
+						},
+						Requests: v1.ResourceList{
+							v1.ResourceCPU:    cpu,
+							v1.ResourceMemory: mem,
+						},
+					},
+				},
+			},
+			validators: []InitContainerValidator{assertResource},
+		},
+		{
+			name: "Prob",
+			rc: v1.ReplicationController{
+				Spec: v1.ReplicationControllerSpec{
+					Template: &v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								"pod.beta.kubernetes.io/init-containers": `
+                                [
+                                    {
+                                    "name": "fun",
+                                    "image": "alpine",
+                                    "livenessProbe": {
+                                        "httpGet": {
+                                            "host": "localhost"
+                                        }
+                                    },
+                                    "readinessProbe": {
+                                        "httpGet": {
+                                            "host": "localhost"
+                                        }
+                                    }
+                                  }
+                                ]`,
+							},
+						},
+					},
+				},
+			},
+			expected: []v1.Container{
+				{
+					LivenessProbe: &v1.Probe{
+						Handler: v1.Handler{
+							HTTPGet: &v1.HTTPGetAction{
+								Path:   "/",
+								Scheme: v1.URISchemeHTTP,
+							},
+						},
+						TimeoutSeconds:   1,
+						PeriodSeconds:    10,
+						SuccessThreshold: 1,
+						FailureThreshold: 3,
+					},
+					ReadinessProbe: &v1.Probe{
+						Handler: v1.Handler{
+							HTTPGet: &v1.HTTPGetAction{
+								Path:   "/",
+								Scheme: v1.URISchemeHTTP,
+							},
+						},
+						TimeoutSeconds:   1,
+						PeriodSeconds:    10,
+						SuccessThreshold: 1,
+						FailureThreshold: 3,
+					},
+				},
+			},
+			validators: []InitContainerValidator{assertProb},
+		},
+		{
+			name: "LifeCycle",
+			rc: v1.ReplicationController{
+				Spec: v1.ReplicationControllerSpec{
+					Template: &v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								"pod.beta.kubernetes.io/init-containers": `
+                                [
+                                    {
+                                    "name": "fun",
+                                    "image": "alpine",
+                                    "lifecycle": {
+                                        "postStart": {
+                                            "httpGet": {
+                                                "host": "localhost"
+                                            }
+                                        },
+                                        "preStop": {
+                                            "httpGet": {
+                                                "host": "localhost"
+                                            }
+                                        }
+                                    }
+                                  }
+                                ]`,
+							},
+						},
+					},
+				},
+			},
+			expected: []v1.Container{
+				{
+					Lifecycle: &v1.Lifecycle{
+						PostStart: &v1.Handler{
+							HTTPGet: &v1.HTTPGetAction{
+								Path:   "/",
+								Scheme: v1.URISchemeHTTP,
+							},
+						},
+						PreStop: &v1.Handler{
+							HTTPGet: &v1.HTTPGetAction{
+								Path:   "/",
+								Scheme: v1.URISchemeHTTP,
+							},
+						},
+					},
+				},
+			},
+			validators: []InitContainerValidator{assertLifeCycle},
+		},
+	}
+
+	assertInitContainers := func(got, expected []v1.Container, validators []InitContainerValidator) error {
+		if len(got) != len(expected) {
+			return fmt.Errorf("different number of init container: got <%d>, expected <%d>",
+				len(got), len(expected))
+		}
+
+		for i := range got {
+			g := &got[i]
+			e := &expected[i]
+
+			for _, validator := range validators {
+				if err := validator(g, e); err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
+	}
+
+	for _, test := range tests {
+		rc := &test.rc
+		obj2 := roundTrip(t, runtime.Object(rc))
+		rc2, ok := obj2.(*v1.ReplicationController)
+		if !ok {
+			t.Errorf("unexpected object: %v", rc2)
+			t.FailNow()
+		}
+
+		if err := assertInitContainers(rc2.Spec.Template.Spec.InitContainers, test.expected, test.validators); err != nil {
+			t.Errorf("test %v failed: %v", test.name, err)
+		}
+	}
+}
+
+func TestSetDefaultService(t *testing.T) {
+	svc := &v1.Service{}
+	obj2 := roundTrip(t, runtime.Object(svc))
+	svc2 := obj2.(*v1.Service)
+	if svc2.Spec.SessionAffinity != v1.ServiceAffinityNone {
+		t.Errorf("Expected default session affinity type:%s, got: %s", v1.ServiceAffinityNone, svc2.Spec.SessionAffinity)
+	}
+	if svc2.Spec.Type != v1.ServiceTypeClusterIP {
+		t.Errorf("Expected default type:%s, got: %s", v1.ServiceTypeClusterIP, svc2.Spec.Type)
 	}
 }
 
 func TestSetDefaultSecretVolumeSource(t *testing.T) {
-	s := versioned.PodSpec{}
-	s.Volumes = []versioned.Volume{
+	s := v1.PodSpec{}
+	s.Volumes = []v1.Volume{
 		{
-			VolumeSource: versioned.VolumeSource{
-				Secret: &versioned.SecretVolumeSource{},
+			VolumeSource: v1.VolumeSource{
+				Secret: &v1.SecretVolumeSource{},
 			},
 		},
 	}
-	pod := &versioned.Pod{
+	pod := &v1.Pod{
 		Spec: s,
 	}
 	output := roundTrip(t, runtime.Object(pod))
-	pod2 := output.(*versioned.Pod)
+	pod2 := output.(*v1.Pod)
 	defaultMode := pod2.Spec.Volumes[0].VolumeSource.Secret.DefaultMode
-	expectedMode := versioned.SecretVolumeSourceDefaultMode
+	expectedMode := v1.SecretVolumeSourceDefaultMode
 
 	if defaultMode == nil || *defaultMode != expectedMode {
 		t.Errorf("Expected secret DefaultMode %v, got %v", expectedMode, defaultMode)
@@ -266,21 +694,21 @@ func TestSetDefaultSecretVolumeSource(t *testing.T) {
 }
 
 func TestSetDefaultConfigMapVolumeSource(t *testing.T) {
-	s := versioned.PodSpec{}
-	s.Volumes = []versioned.Volume{
+	s := v1.PodSpec{}
+	s.Volumes = []v1.Volume{
 		{
-			VolumeSource: versioned.VolumeSource{
-				ConfigMap: &versioned.ConfigMapVolumeSource{},
+			VolumeSource: v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{},
 			},
 		},
 	}
-	pod := &versioned.Pod{
+	pod := &v1.Pod{
 		Spec: s,
 	}
 	output := roundTrip(t, runtime.Object(pod))
-	pod2 := output.(*versioned.Pod)
+	pod2 := output.(*v1.Pod)
 	defaultMode := pod2.Spec.Volumes[0].VolumeSource.ConfigMap.DefaultMode
-	expectedMode := versioned.ConfigMapVolumeSourceDefaultMode
+	expectedMode := v1.ConfigMapVolumeSourceDefaultMode
 
 	if defaultMode == nil || *defaultMode != expectedMode {
 		t.Errorf("Expected ConfigMap DefaultMode %v, got %v", expectedMode, defaultMode)
@@ -288,72 +716,94 @@ func TestSetDefaultConfigMapVolumeSource(t *testing.T) {
 }
 
 func TestSetDefaultDownwardAPIVolumeSource(t *testing.T) {
-	s := versioned.PodSpec{}
-	s.Volumes = []versioned.Volume{
+	s := v1.PodSpec{}
+	s.Volumes = []v1.Volume{
 		{
-			VolumeSource: versioned.VolumeSource{
-				DownwardAPI: &versioned.DownwardAPIVolumeSource{},
+			VolumeSource: v1.VolumeSource{
+				DownwardAPI: &v1.DownwardAPIVolumeSource{},
 			},
 		},
 	}
-	pod := &versioned.Pod{
+	pod := &v1.Pod{
 		Spec: s,
 	}
 	output := roundTrip(t, runtime.Object(pod))
-	pod2 := output.(*versioned.Pod)
+	pod2 := output.(*v1.Pod)
 	defaultMode := pod2.Spec.Volumes[0].VolumeSource.DownwardAPI.DefaultMode
-	expectedMode := versioned.DownwardAPIVolumeSourceDefaultMode
+	expectedMode := v1.DownwardAPIVolumeSourceDefaultMode
 
 	if defaultMode == nil || *defaultMode != expectedMode {
 		t.Errorf("Expected DownwardAPI DefaultMode %v, got %v", expectedMode, defaultMode)
 	}
 }
 
-func TestSetDefaultSecret(t *testing.T) {
-	s := &versioned.Secret{}
-	obj2 := roundTrip(t, runtime.Object(s))
-	s2 := obj2.(*versioned.Secret)
+func TestSetDefaultProjectedVolumeSource(t *testing.T) {
+	s := v1.PodSpec{}
+	s.Volumes = []v1.Volume{
+		{
+			VolumeSource: v1.VolumeSource{
+				Projected: &v1.ProjectedVolumeSource{},
+			},
+		},
+	}
+	pod := &v1.Pod{
+		Spec: s,
+	}
+	output := roundTrip(t, runtime.Object(pod))
+	pod2 := output.(*v1.Pod)
+	defaultMode := pod2.Spec.Volumes[0].VolumeSource.Projected.DefaultMode
+	expectedMode := v1.ProjectedVolumeSourceDefaultMode
 
-	if s2.Type != versioned.SecretTypeOpaque {
-		t.Errorf("Expected secret type %v, got %v", versioned.SecretTypeOpaque, s2.Type)
+	if defaultMode == nil || *defaultMode != expectedMode {
+		t.Errorf("Expected ProjectedVolumeSource DefaultMode %v, got %v", expectedMode, defaultMode)
+	}
+}
+
+func TestSetDefaultSecret(t *testing.T) {
+	s := &v1.Secret{}
+	obj2 := roundTrip(t, runtime.Object(s))
+	s2 := obj2.(*v1.Secret)
+
+	if s2.Type != v1.SecretTypeOpaque {
+		t.Errorf("Expected secret type %v, got %v", v1.SecretTypeOpaque, s2.Type)
 	}
 }
 
 func TestSetDefaultPersistentVolume(t *testing.T) {
-	pv := &versioned.PersistentVolume{}
+	pv := &v1.PersistentVolume{}
 	obj2 := roundTrip(t, runtime.Object(pv))
-	pv2 := obj2.(*versioned.PersistentVolume)
+	pv2 := obj2.(*v1.PersistentVolume)
 
-	if pv2.Status.Phase != versioned.VolumePending {
-		t.Errorf("Expected volume phase %v, got %v", versioned.VolumePending, pv2.Status.Phase)
+	if pv2.Status.Phase != v1.VolumePending {
+		t.Errorf("Expected volume phase %v, got %v", v1.VolumePending, pv2.Status.Phase)
 	}
-	if pv2.Spec.PersistentVolumeReclaimPolicy != versioned.PersistentVolumeReclaimRetain {
-		t.Errorf("Expected pv reclaim policy %v, got %v", versioned.PersistentVolumeReclaimRetain, pv2.Spec.PersistentVolumeReclaimPolicy)
+	if pv2.Spec.PersistentVolumeReclaimPolicy != v1.PersistentVolumeReclaimRetain {
+		t.Errorf("Expected pv reclaim policy %v, got %v", v1.PersistentVolumeReclaimRetain, pv2.Spec.PersistentVolumeReclaimPolicy)
 	}
 }
 
 func TestSetDefaultPersistentVolumeClaim(t *testing.T) {
-	pvc := &versioned.PersistentVolumeClaim{}
+	pvc := &v1.PersistentVolumeClaim{}
 	obj2 := roundTrip(t, runtime.Object(pvc))
-	pvc2 := obj2.(*versioned.PersistentVolumeClaim)
+	pvc2 := obj2.(*v1.PersistentVolumeClaim)
 
-	if pvc2.Status.Phase != versioned.ClaimPending {
-		t.Errorf("Expected claim phase %v, got %v", versioned.ClaimPending, pvc2.Status.Phase)
+	if pvc2.Status.Phase != v1.ClaimPending {
+		t.Errorf("Expected claim phase %v, got %v", v1.ClaimPending, pvc2.Status.Phase)
 	}
 }
 
 func TestSetDefaulEndpointsProtocol(t *testing.T) {
-	in := &versioned.Endpoints{Subsets: []versioned.EndpointSubset{
-		{Ports: []versioned.EndpointPort{{}, {Protocol: "UDP"}, {}}},
+	in := &v1.Endpoints{Subsets: []v1.EndpointSubset{
+		{Ports: []v1.EndpointPort{{}, {Protocol: "UDP"}, {}}},
 	}}
 	obj := roundTrip(t, runtime.Object(in))
-	out := obj.(*versioned.Endpoints)
+	out := obj.(*v1.Endpoints)
 
 	for i := range out.Subsets {
 		for j := range out.Subsets[i].Ports {
 			if in.Subsets[i].Ports[j].Protocol == "" {
-				if out.Subsets[i].Ports[j].Protocol != versioned.ProtocolTCP {
-					t.Errorf("Expected protocol %s, got %s", versioned.ProtocolTCP, out.Subsets[i].Ports[j].Protocol)
+				if out.Subsets[i].Ports[j].Protocol != v1.ProtocolTCP {
+					t.Errorf("Expected protocol %s, got %s", v1.ProtocolTCP, out.Subsets[i].Ports[j].Protocol)
 				}
 			} else {
 				if out.Subsets[i].Ports[j].Protocol != in.Subsets[i].Ports[j].Protocol {
@@ -365,16 +815,16 @@ func TestSetDefaulEndpointsProtocol(t *testing.T) {
 }
 
 func TestSetDefaulServiceTargetPort(t *testing.T) {
-	in := &versioned.Service{Spec: versioned.ServiceSpec{Ports: []versioned.ServicePort{{Port: 1234}}}}
+	in := &v1.Service{Spec: v1.ServiceSpec{Ports: []v1.ServicePort{{Port: 1234}}}}
 	obj := roundTrip(t, runtime.Object(in))
-	out := obj.(*versioned.Service)
+	out := obj.(*v1.Service)
 	if out.Spec.Ports[0].TargetPort != intstr.FromInt(1234) {
 		t.Errorf("Expected TargetPort to be defaulted, got %v", out.Spec.Ports[0].TargetPort)
 	}
 
-	in = &versioned.Service{Spec: versioned.ServiceSpec{Ports: []versioned.ServicePort{{Port: 1234, TargetPort: intstr.FromInt(5678)}}}}
+	in = &v1.Service{Spec: v1.ServiceSpec{Ports: []v1.ServicePort{{Port: 1234, TargetPort: intstr.FromInt(5678)}}}}
 	obj = roundTrip(t, runtime.Object(in))
-	out = obj.(*versioned.Service)
+	out = obj.(*v1.Service)
 	if out.Spec.Ports[0].TargetPort != intstr.FromInt(5678) {
 		t.Errorf("Expected TargetPort to be unchanged, got %v", out.Spec.Ports[0].TargetPort)
 	}
@@ -382,79 +832,128 @@ func TestSetDefaulServiceTargetPort(t *testing.T) {
 
 func TestSetDefaultServicePort(t *testing.T) {
 	// Unchanged if set.
-	in := &versioned.Service{Spec: versioned.ServiceSpec{
-		Ports: []versioned.ServicePort{
+	in := &v1.Service{Spec: v1.ServiceSpec{
+		Ports: []v1.ServicePort{
 			{Protocol: "UDP", Port: 9376, TargetPort: intstr.FromString("p")},
 			{Protocol: "UDP", Port: 8675, TargetPort: intstr.FromInt(309)},
 		},
 	}}
-	out := roundTrip(t, runtime.Object(in)).(*versioned.Service)
-	if out.Spec.Ports[0].Protocol != versioned.ProtocolUDP {
-		t.Errorf("Expected protocol %s, got %s", versioned.ProtocolUDP, out.Spec.Ports[0].Protocol)
+	out := roundTrip(t, runtime.Object(in)).(*v1.Service)
+	if out.Spec.Ports[0].Protocol != v1.ProtocolUDP {
+		t.Errorf("Expected protocol %s, got %s", v1.ProtocolUDP, out.Spec.Ports[0].Protocol)
 	}
 	if out.Spec.Ports[0].TargetPort != intstr.FromString("p") {
 		t.Errorf("Expected port %v, got %v", in.Spec.Ports[0].Port, out.Spec.Ports[0].TargetPort)
 	}
-	if out.Spec.Ports[1].Protocol != versioned.ProtocolUDP {
-		t.Errorf("Expected protocol %s, got %s", versioned.ProtocolUDP, out.Spec.Ports[1].Protocol)
+	if out.Spec.Ports[1].Protocol != v1.ProtocolUDP {
+		t.Errorf("Expected protocol %s, got %s", v1.ProtocolUDP, out.Spec.Ports[1].Protocol)
 	}
 	if out.Spec.Ports[1].TargetPort != intstr.FromInt(309) {
 		t.Errorf("Expected port %v, got %v", in.Spec.Ports[1].Port, out.Spec.Ports[1].TargetPort)
 	}
 
 	// Defaulted.
-	in = &versioned.Service{Spec: versioned.ServiceSpec{
-		Ports: []versioned.ServicePort{
+	in = &v1.Service{Spec: v1.ServiceSpec{
+		Ports: []v1.ServicePort{
 			{Protocol: "", Port: 9376, TargetPort: intstr.FromString("")},
 			{Protocol: "", Port: 8675, TargetPort: intstr.FromInt(0)},
 		},
 	}}
-	out = roundTrip(t, runtime.Object(in)).(*versioned.Service)
-	if out.Spec.Ports[0].Protocol != versioned.ProtocolTCP {
-		t.Errorf("Expected protocol %s, got %s", versioned.ProtocolTCP, out.Spec.Ports[0].Protocol)
+	out = roundTrip(t, runtime.Object(in)).(*v1.Service)
+	if out.Spec.Ports[0].Protocol != v1.ProtocolTCP {
+		t.Errorf("Expected protocol %s, got %s", v1.ProtocolTCP, out.Spec.Ports[0].Protocol)
 	}
 	if out.Spec.Ports[0].TargetPort != intstr.FromInt(int(in.Spec.Ports[0].Port)) {
 		t.Errorf("Expected port %v, got %v", in.Spec.Ports[0].Port, out.Spec.Ports[0].TargetPort)
 	}
-	if out.Spec.Ports[1].Protocol != versioned.ProtocolTCP {
-		t.Errorf("Expected protocol %s, got %s", versioned.ProtocolTCP, out.Spec.Ports[1].Protocol)
+	if out.Spec.Ports[1].Protocol != v1.ProtocolTCP {
+		t.Errorf("Expected protocol %s, got %s", v1.ProtocolTCP, out.Spec.Ports[1].Protocol)
 	}
 	if out.Spec.Ports[1].TargetPort != intstr.FromInt(int(in.Spec.Ports[1].Port)) {
 		t.Errorf("Expected port %v, got %v", in.Spec.Ports[1].Port, out.Spec.Ports[1].TargetPort)
 	}
 }
 
-func TestSetDefaultNamespace(t *testing.T) {
-	s := &versioned.Namespace{}
-	obj2 := roundTrip(t, runtime.Object(s))
-	s2 := obj2.(*versioned.Namespace)
+func TestSetDefaulServiceExternalTraffic(t *testing.T) {
+	in := &v1.Service{}
+	obj := roundTrip(t, runtime.Object(in))
+	out := obj.(*v1.Service)
+	if out.Spec.ExternalTrafficPolicy != "" {
+		t.Errorf("Expected ExternalTrafficPolicy to be empty, got %v", out.Spec.ExternalTrafficPolicy)
+	}
 
-	if s2.Status.Phase != versioned.NamespaceActive {
-		t.Errorf("Expected phase %v, got %v", versioned.NamespaceActive, s2.Status.Phase)
+	in = &v1.Service{Spec: v1.ServiceSpec{Type: v1.ServiceTypeNodePort}}
+	obj = roundTrip(t, runtime.Object(in))
+	out = obj.(*v1.Service)
+	if out.Spec.ExternalTrafficPolicy != v1.ServiceExternalTrafficPolicyTypeCluster {
+		t.Errorf("Expected ExternalTrafficPolicy to be %v, got %v", v1.ServiceExternalTrafficPolicyTypeCluster, out.Spec.ExternalTrafficPolicy)
+	}
+
+	in = &v1.Service{Spec: v1.ServiceSpec{Type: v1.ServiceTypeLoadBalancer}}
+	obj = roundTrip(t, runtime.Object(in))
+	out = obj.(*v1.Service)
+	if out.Spec.ExternalTrafficPolicy != v1.ServiceExternalTrafficPolicyTypeCluster {
+		t.Errorf("Expected ExternalTrafficPolicy to be %v, got %v", v1.ServiceExternalTrafficPolicyTypeCluster, out.Spec.ExternalTrafficPolicy)
+	}
+
+	in = &v1.Service{
+		Spec: v1.ServiceSpec{Type: v1.ServiceTypeLoadBalancer},
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{v1.BetaAnnotationExternalTraffic: v1.AnnotationValueExternalTrafficLocal},
+		},
+	}
+	obj = roundTrip(t, runtime.Object(in))
+	out = obj.(*v1.Service)
+	if out.Spec.ExternalTrafficPolicy != "" {
+		t.Errorf("Expected ExternalTrafficPolicy to be empty, got %v", out.Spec.ExternalTrafficPolicy)
+	}
+}
+
+func TestSetDefaultNamespace(t *testing.T) {
+	s := &v1.Namespace{}
+	obj2 := roundTrip(t, runtime.Object(s))
+	s2 := obj2.(*v1.Namespace)
+
+	if s2.Status.Phase != v1.NamespaceActive {
+		t.Errorf("Expected phase %v, got %v", v1.NamespaceActive, s2.Status.Phase)
 	}
 }
 
 func TestSetDefaultPodSpecHostNetwork(t *testing.T) {
 	portNum := int32(8080)
-	s := versioned.PodSpec{}
+	s := v1.PodSpec{}
 	s.HostNetwork = true
-	s.Containers = []versioned.Container{
+	s.Containers = []v1.Container{
 		{
-			Ports: []versioned.ContainerPort{
+			Ports: []v1.ContainerPort{
 				{
 					ContainerPort: portNum,
 				},
 			},
 		},
 	}
-	pod := &versioned.Pod{
+	s.InitContainers = []v1.Container{
+		{
+			Ports: []v1.ContainerPort{
+				{
+					ContainerPort: portNum,
+				},
+			},
+		},
+	}
+	pod := &v1.Pod{
 		Spec: s,
 	}
 	obj2 := roundTrip(t, runtime.Object(pod))
-	pod2 := obj2.(*versioned.Pod)
+	pod2 := obj2.(*v1.Pod)
 	s2 := pod2.Spec
 
 	hostPortNum := s2.Containers[0].Ports[0].HostPort
+	if hostPortNum != portNum {
+		t.Errorf("Expected container port to be defaulted, was made %d instead of %d", hostPortNum, portNum)
+	}
+
+	hostPortNum = s2.InitContainers[0].Ports[0].HostPort
 	if hostPortNum != portNum {
 		t.Errorf("Expected container port to be defaulted, was made %d instead of %d", hostPortNum, portNum)
 	}
@@ -462,10 +961,10 @@ func TestSetDefaultPodSpecHostNetwork(t *testing.T) {
 
 func TestSetDefaultNodeExternalID(t *testing.T) {
 	name := "node0"
-	n := &versioned.Node{}
+	n := &v1.Node{}
 	n.Name = name
 	obj2 := roundTrip(t, runtime.Object(n))
-	n2 := obj2.(*versioned.Node)
+	n2 := obj2.(*v1.Node)
 	if n2.Spec.ExternalID != name {
 		t.Errorf("Expected default External ID: %s, got: %s", name, n2.Spec.ExternalID)
 	}
@@ -475,18 +974,18 @@ func TestSetDefaultNodeExternalID(t *testing.T) {
 }
 
 func TestSetDefaultNodeStatusAllocatable(t *testing.T) {
-	capacity := versioned.ResourceList{
-		versioned.ResourceCPU:    resource.MustParse("1000m"),
-		versioned.ResourceMemory: resource.MustParse("10G"),
+	capacity := v1.ResourceList{
+		v1.ResourceCPU:    resource.MustParse("1000m"),
+		v1.ResourceMemory: resource.MustParse("10G"),
 	}
-	allocatable := versioned.ResourceList{
-		versioned.ResourceCPU:    resource.MustParse("500m"),
-		versioned.ResourceMemory: resource.MustParse("5G"),
+	allocatable := v1.ResourceList{
+		v1.ResourceCPU:    resource.MustParse("500m"),
+		v1.ResourceMemory: resource.MustParse("5G"),
 	}
 	tests := []struct {
-		capacity            versioned.ResourceList
-		allocatable         versioned.ResourceList
-		expectedAllocatable versioned.ResourceList
+		capacity            v1.ResourceList
+		allocatable         v1.ResourceList
+		expectedAllocatable v1.ResourceList
 	}{{ // Everything set, no defaulting.
 		capacity:            capacity,
 		allocatable:         allocatable,
@@ -505,18 +1004,18 @@ func TestSetDefaultNodeStatusAllocatable(t *testing.T) {
 		expectedAllocatable: nil,
 	}}
 
-	copyResourceList := func(rl versioned.ResourceList) versioned.ResourceList {
+	copyResourceList := func(rl v1.ResourceList) v1.ResourceList {
 		if rl == nil {
 			return nil
 		}
-		copy := make(versioned.ResourceList, len(rl))
+		copy := make(v1.ResourceList, len(rl))
 		for k, v := range rl {
 			copy[k] = *v.Copy()
 		}
 		return copy
 	}
 
-	resourceListsEqual := func(a versioned.ResourceList, b versioned.ResourceList) bool {
+	resourceListsEqual := func(a v1.ResourceList, b v1.ResourceList) bool {
 		if len(a) != len(b) {
 			return false
 		}
@@ -533,13 +1032,13 @@ func TestSetDefaultNodeStatusAllocatable(t *testing.T) {
 	}
 
 	for i, testcase := range tests {
-		node := versioned.Node{
-			Status: versioned.NodeStatus{
+		node := v1.Node{
+			Status: v1.NodeStatus{
 				Capacity:    copyResourceList(testcase.capacity),
 				Allocatable: copyResourceList(testcase.allocatable),
 			},
 		}
-		node2 := roundTrip(t, runtime.Object(&node)).(*versioned.Node)
+		node2 := roundTrip(t, runtime.Object(&node)).(*v1.Node)
 		actual := node2.Status.Allocatable
 		expected := testcase.expectedAllocatable
 		if !resourceListsEqual(expected, actual) {
@@ -549,24 +1048,24 @@ func TestSetDefaultNodeStatusAllocatable(t *testing.T) {
 }
 
 func TestSetDefaultObjectFieldSelectorAPIVersion(t *testing.T) {
-	s := versioned.PodSpec{
-		Containers: []versioned.Container{
+	s := v1.PodSpec{
+		Containers: []v1.Container{
 			{
-				Env: []versioned.EnvVar{
+				Env: []v1.EnvVar{
 					{
-						ValueFrom: &versioned.EnvVarSource{
-							FieldRef: &versioned.ObjectFieldSelector{},
+						ValueFrom: &v1.EnvVarSource{
+							FieldRef: &v1.ObjectFieldSelector{},
 						},
 					},
 				},
 			},
 		},
 	}
-	pod := &versioned.Pod{
+	pod := &v1.Pod{
 		Spec: s,
 	}
 	obj2 := roundTrip(t, runtime.Object(pod))
-	pod2 := obj2.(*versioned.Pod)
+	pod2 := obj2.(*v1.Pod)
 	s2 := pod2.Spec
 
 	apiVersion := s2.Containers[0].Env[0].ValueFrom.FieldRef.APIVersion
@@ -577,88 +1076,128 @@ func TestSetDefaultObjectFieldSelectorAPIVersion(t *testing.T) {
 
 func TestSetMinimumScalePod(t *testing.T) {
 	// verify we default if limits are specified (and that request=0 is preserved)
-	s := versioned.PodSpec{}
-	s.Containers = []versioned.Container{
+	s := v1.PodSpec{}
+	s.Containers = []v1.Container{
 		{
-			Resources: versioned.ResourceRequirements{
-				Requests: versioned.ResourceList{
-					versioned.ResourceMemory: resource.MustParse("1n"),
+			Resources: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					v1.ResourceMemory: resource.MustParse("1n"),
 				},
-				Limits: versioned.ResourceList{
-					versioned.ResourceCPU: resource.MustParse("2n"),
+				Limits: v1.ResourceList{
+					v1.ResourceCPU: resource.MustParse("2n"),
 				},
 			},
 		},
 	}
-	pod := &versioned.Pod{
+	s.InitContainers = []v1.Container{
+		{
+			Resources: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					v1.ResourceMemory: resource.MustParse("1n"),
+				},
+				Limits: v1.ResourceList{
+					v1.ResourceCPU: resource.MustParse("2n"),
+				},
+			},
+		},
+	}
+	pod := &v1.Pod{
 		Spec: s,
 	}
-	versioned.SetObjectDefaults_Pod(pod)
+	v1.SetObjectDefaults_Pod(pod)
 
-	if expect := resource.MustParse("1m"); expect.Cmp(pod.Spec.Containers[0].Resources.Requests[versioned.ResourceMemory]) != 0 {
+	if expect := resource.MustParse("1m"); expect.Cmp(pod.Spec.Containers[0].Resources.Requests[v1.ResourceMemory]) != 0 {
 		t.Errorf("did not round resources: %#v", pod.Spec.Containers[0].Resources)
+	}
+	if expect := resource.MustParse("1m"); expect.Cmp(pod.Spec.InitContainers[0].Resources.Requests[v1.ResourceMemory]) != 0 {
+		t.Errorf("did not round resources: %#v", pod.Spec.InitContainers[0].Resources)
 	}
 }
 
 func TestSetDefaultRequestsPod(t *testing.T) {
 	// verify we default if limits are specified (and that request=0 is preserved)
-	s := versioned.PodSpec{}
-	s.Containers = []versioned.Container{
+	s := v1.PodSpec{}
+	s.Containers = []v1.Container{
 		{
-			Resources: versioned.ResourceRequirements{
-				Requests: versioned.ResourceList{
-					versioned.ResourceMemory: resource.MustParse("0"),
+			Resources: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					v1.ResourceMemory: resource.MustParse("0"),
 				},
-				Limits: versioned.ResourceList{
-					versioned.ResourceCPU:    resource.MustParse("100m"),
-					versioned.ResourceMemory: resource.MustParse("1Gi"),
+				Limits: v1.ResourceList{
+					v1.ResourceCPU:    resource.MustParse("100m"),
+					v1.ResourceMemory: resource.MustParse("1Gi"),
 				},
 			},
 		},
 	}
-	pod := &versioned.Pod{
+	s.InitContainers = []v1.Container{
+		{
+			Resources: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					v1.ResourceMemory: resource.MustParse("0"),
+				},
+				Limits: v1.ResourceList{
+					v1.ResourceCPU:    resource.MustParse("100m"),
+					v1.ResourceMemory: resource.MustParse("1Gi"),
+				},
+			},
+		},
+	}
+	pod := &v1.Pod{
 		Spec: s,
 	}
 	output := roundTrip(t, runtime.Object(pod))
-	pod2 := output.(*versioned.Pod)
+	pod2 := output.(*v1.Pod)
 	defaultRequest := pod2.Spec.Containers[0].Resources.Requests
-	if requestValue := defaultRequest[versioned.ResourceCPU]; requestValue.String() != "100m" {
+	if requestValue := defaultRequest[v1.ResourceCPU]; requestValue.String() != "100m" {
 		t.Errorf("Expected request cpu: %s, got: %s", "100m", requestValue.String())
 	}
-	if requestValue := defaultRequest[versioned.ResourceMemory]; requestValue.String() != "0" {
+	if requestValue := defaultRequest[v1.ResourceMemory]; requestValue.String() != "0" {
+		t.Errorf("Expected request memory: %s, got: %s", "0", requestValue.String())
+	}
+	defaultRequest = pod2.Spec.InitContainers[0].Resources.Requests
+	if requestValue := defaultRequest[v1.ResourceCPU]; requestValue.String() != "100m" {
+		t.Errorf("Expected request cpu: %s, got: %s", "100m", requestValue.String())
+	}
+	if requestValue := defaultRequest[v1.ResourceMemory]; requestValue.String() != "0" {
 		t.Errorf("Expected request memory: %s, got: %s", "0", requestValue.String())
 	}
 
 	// verify we do nothing if no limits are specified
-	s = versioned.PodSpec{}
-	s.Containers = []versioned.Container{{}}
-	pod = &versioned.Pod{
+	s = v1.PodSpec{}
+	s.Containers = []v1.Container{{}}
+	s.InitContainers = []v1.Container{{}}
+	pod = &v1.Pod{
 		Spec: s,
 	}
 	output = roundTrip(t, runtime.Object(pod))
-	pod2 = output.(*versioned.Pod)
+	pod2 = output.(*v1.Pod)
 	defaultRequest = pod2.Spec.Containers[0].Resources.Requests
-	if requestValue := defaultRequest[versioned.ResourceCPU]; requestValue.String() != "0" {
+	if requestValue := defaultRequest[v1.ResourceCPU]; requestValue.String() != "0" {
+		t.Errorf("Expected 0 request value, got: %s", requestValue.String())
+	}
+	defaultRequest = pod2.Spec.InitContainers[0].Resources.Requests
+	if requestValue := defaultRequest[v1.ResourceCPU]; requestValue.String() != "0" {
 		t.Errorf("Expected 0 request value, got: %s", requestValue.String())
 	}
 }
 
 func TestDefaultRequestIsNotSetForReplicationController(t *testing.T) {
-	s := versioned.PodSpec{}
-	s.Containers = []versioned.Container{
+	s := v1.PodSpec{}
+	s.Containers = []v1.Container{
 		{
-			Resources: versioned.ResourceRequirements{
-				Limits: versioned.ResourceList{
-					versioned.ResourceCPU: resource.MustParse("100m"),
+			Resources: v1.ResourceRequirements{
+				Limits: v1.ResourceList{
+					v1.ResourceCPU: resource.MustParse("100m"),
 				},
 			},
 		},
 	}
-	rc := &versioned.ReplicationController{
-		Spec: versioned.ReplicationControllerSpec{
+	rc := &v1.ReplicationController{
+		Spec: v1.ReplicationControllerSpec{
 			Replicas: newInt(3),
-			Template: &versioned.PodTemplateSpec{
-				ObjectMeta: versioned.ObjectMeta{
+			Template: &v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						"foo": "bar",
 					},
@@ -668,59 +1207,59 @@ func TestDefaultRequestIsNotSetForReplicationController(t *testing.T) {
 		},
 	}
 	output := roundTrip(t, runtime.Object(rc))
-	rc2 := output.(*versioned.ReplicationController)
+	rc2 := output.(*v1.ReplicationController)
 	defaultRequest := rc2.Spec.Template.Spec.Containers[0].Resources.Requests
-	requestValue := defaultRequest[versioned.ResourceCPU]
+	requestValue := defaultRequest[v1.ResourceCPU]
 	if requestValue.String() != "0" {
 		t.Errorf("Expected 0 request value, got: %s", requestValue.String())
 	}
 }
 
 func TestSetDefaultLimitRangeItem(t *testing.T) {
-	limitRange := &versioned.LimitRange{
-		ObjectMeta: versioned.ObjectMeta{
+	limitRange := &v1.LimitRange{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-defaults",
 		},
-		Spec: versioned.LimitRangeSpec{
-			Limits: []versioned.LimitRangeItem{{
-				Type: versioned.LimitTypeContainer,
-				Max: versioned.ResourceList{
-					versioned.ResourceCPU: resource.MustParse("100m"),
+		Spec: v1.LimitRangeSpec{
+			Limits: []v1.LimitRangeItem{{
+				Type: v1.LimitTypeContainer,
+				Max: v1.ResourceList{
+					v1.ResourceCPU: resource.MustParse("100m"),
 				},
-				Min: versioned.ResourceList{
-					versioned.ResourceMemory: resource.MustParse("100Mi"),
+				Min: v1.ResourceList{
+					v1.ResourceMemory: resource.MustParse("100Mi"),
 				},
-				Default:        versioned.ResourceList{},
-				DefaultRequest: versioned.ResourceList{},
+				Default:        v1.ResourceList{},
+				DefaultRequest: v1.ResourceList{},
 			}},
 		},
 	}
 
 	output := roundTrip(t, runtime.Object(limitRange))
-	limitRange2 := output.(*versioned.LimitRange)
+	limitRange2 := output.(*v1.LimitRange)
 	defaultLimit := limitRange2.Spec.Limits[0].Default
 	defaultRequest := limitRange2.Spec.Limits[0].DefaultRequest
 
 	// verify that default cpu was set to the max
-	defaultValue := defaultLimit[versioned.ResourceCPU]
+	defaultValue := defaultLimit[v1.ResourceCPU]
 	if defaultValue.String() != "100m" {
 		t.Errorf("Expected default cpu: %s, got: %s", "100m", defaultValue.String())
 	}
 	// verify that default request was set to the limit
-	requestValue := defaultRequest[versioned.ResourceCPU]
+	requestValue := defaultRequest[v1.ResourceCPU]
 	if requestValue.String() != "100m" {
 		t.Errorf("Expected request cpu: %s, got: %s", "100m", requestValue.String())
 	}
 	// verify that if a min is provided, it will be the default if no limit is specified
-	requestMinValue := defaultRequest[versioned.ResourceMemory]
+	requestMinValue := defaultRequest[v1.ResourceMemory]
 	if requestMinValue.String() != "100Mi" {
 		t.Errorf("Expected request memory: %s, got: %s", "100Mi", requestMinValue.String())
 	}
 }
 
 func TestSetDefaultProbe(t *testing.T) {
-	originalProbe := versioned.Probe{}
-	expectedProbe := versioned.Probe{
+	originalProbe := v1.Probe{}
+	expectedProbe := v1.Probe{
 		InitialDelaySeconds: 0,
 		TimeoutSeconds:      1,
 		PeriodSeconds:       10,
@@ -728,185 +1267,24 @@ func TestSetDefaultProbe(t *testing.T) {
 		FailureThreshold:    3,
 	}
 
-	pod := &versioned.Pod{
-		Spec: versioned.PodSpec{
-			Containers: []versioned.Container{{LivenessProbe: &originalProbe}},
+	pod := &v1.Pod{
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{{LivenessProbe: &originalProbe}},
 		},
 	}
 
-	output := roundTrip(t, runtime.Object(pod)).(*versioned.Pod)
+	output := roundTrip(t, runtime.Object(pod)).(*v1.Pod)
 	actualProbe := *output.Spec.Containers[0].LivenessProbe
 	if actualProbe != expectedProbe {
 		t.Errorf("Expected probe: %+v\ngot: %+v\n", expectedProbe, actualProbe)
 	}
 }
 
-func TestDefaultSecurityContextConstraints(t *testing.T) {
-	tests := map[string]struct {
-		scc              *versioned.SecurityContextConstraints
-		expectedFSGroup  versioned.FSGroupStrategyType
-		expectedSupGroup versioned.SupplementalGroupsStrategyType
-	}{
-		"shouldn't default": {
-			scc: &versioned.SecurityContextConstraints{
-				FSGroup: versioned.FSGroupStrategyOptions{
-					Type: versioned.FSGroupStrategyMustRunAs,
-				},
-				SupplementalGroups: versioned.SupplementalGroupsStrategyOptions{
-					Type: versioned.SupplementalGroupsStrategyMustRunAs,
-				},
-			},
-			expectedFSGroup:  versioned.FSGroupStrategyMustRunAs,
-			expectedSupGroup: versioned.SupplementalGroupsStrategyMustRunAs,
-		},
-		"default fsgroup runAsAny": {
-			scc: &versioned.SecurityContextConstraints{
-				RunAsUser: versioned.RunAsUserStrategyOptions{
-					Type: versioned.RunAsUserStrategyRunAsAny,
-				},
-				SupplementalGroups: versioned.SupplementalGroupsStrategyOptions{
-					Type: versioned.SupplementalGroupsStrategyMustRunAs,
-				},
-			},
-			expectedFSGroup:  versioned.FSGroupStrategyRunAsAny,
-			expectedSupGroup: versioned.SupplementalGroupsStrategyMustRunAs,
-		},
-		"default sup group runAsAny": {
-			scc: &versioned.SecurityContextConstraints{
-				RunAsUser: versioned.RunAsUserStrategyOptions{
-					Type: versioned.RunAsUserStrategyRunAsAny,
-				},
-				FSGroup: versioned.FSGroupStrategyOptions{
-					Type: versioned.FSGroupStrategyMustRunAs,
-				},
-			},
-			expectedFSGroup:  versioned.FSGroupStrategyMustRunAs,
-			expectedSupGroup: versioned.SupplementalGroupsStrategyRunAsAny,
-		},
-		"default fsgroup runAsAny with mustRunAs UID strat": {
-			scc: &versioned.SecurityContextConstraints{
-				RunAsUser: versioned.RunAsUserStrategyOptions{
-					Type: versioned.RunAsUserStrategyMustRunAsRange,
-				},
-				SupplementalGroups: versioned.SupplementalGroupsStrategyOptions{
-					Type: versioned.SupplementalGroupsStrategyMustRunAs,
-				},
-			},
-			expectedFSGroup:  versioned.FSGroupStrategyRunAsAny,
-			expectedSupGroup: versioned.SupplementalGroupsStrategyMustRunAs,
-		},
-		"default sup group runAsAny with mustRunAs UID strat": {
-			scc: &versioned.SecurityContextConstraints{
-				RunAsUser: versioned.RunAsUserStrategyOptions{
-					Type: versioned.RunAsUserStrategyMustRunAsRange,
-				},
-				FSGroup: versioned.FSGroupStrategyOptions{
-					Type: versioned.FSGroupStrategyMustRunAs,
-				},
-			},
-			expectedFSGroup:  versioned.FSGroupStrategyMustRunAs,
-			expectedSupGroup: versioned.SupplementalGroupsStrategyRunAsAny,
-		},
-	}
-	for k, v := range tests {
-		output := roundTrip(t, runtime.Object(v.scc))
-		scc := output.(*versioned.SecurityContextConstraints)
+func TestSetDefaultSchedulerName(t *testing.T) {
+	pod := &v1.Pod{}
 
-		if scc.FSGroup.Type != v.expectedFSGroup {
-			t.Errorf("%s has invalid fsgroup.  Expected: %v got: %v", k, v.expectedFSGroup, scc.FSGroup.Type)
-		}
-		if scc.SupplementalGroups.Type != v.expectedSupGroup {
-			t.Errorf("%s has invalid supplemental group.  Expected: %v got: %v", k, v.expectedSupGroup, scc.SupplementalGroups.Type)
-		}
-	}
-}
-
-func TestDefaultSCCVolumes(t *testing.T) {
-	tests := map[string]struct {
-		scc             *versioned.SecurityContextConstraints
-		expectedVolumes []versioned.FSType
-		expectedHostDir bool
-	}{
-		// this expects the volumes to default to all for an empty volume slice
-		// but since the host dir setting is false it should be all - host dir
-		"old client - default allow* fields, no volumes slice": {
-			scc:             &versioned.SecurityContextConstraints{},
-			expectedVolumes: versioned.StringSetToFSType(sccutil.GetAllFSTypesExcept(string(versioned.FSTypeHostPath))),
-			expectedHostDir: false,
-		},
-		// this expects the volumes to default to all for an empty volume slice
-		"old client - set allowHostDir true fields, no volumes slice": {
-			scc: &versioned.SecurityContextConstraints{
-				AllowHostDirVolumePlugin: true,
-			},
-			expectedVolumes: []versioned.FSType{versioned.FSTypeAll},
-			expectedHostDir: true,
-		},
-		"new client - allow* fields set with matching volume slice": {
-			scc: &versioned.SecurityContextConstraints{
-				Volumes:                  []versioned.FSType{versioned.FSTypeEmptyDir, versioned.FSTypeHostPath},
-				AllowHostDirVolumePlugin: true,
-			},
-			expectedVolumes: []versioned.FSType{versioned.FSTypeEmptyDir, versioned.FSTypeHostPath},
-			expectedHostDir: true,
-		},
-		"new client - allow* fields set with mismatch host dir volume slice": {
-			scc: &versioned.SecurityContextConstraints{
-				Volumes:                  []versioned.FSType{versioned.FSTypeEmptyDir, versioned.FSTypeHostPath},
-				AllowHostDirVolumePlugin: false,
-			},
-			expectedVolumes: []versioned.FSType{versioned.FSTypeEmptyDir},
-			expectedHostDir: false,
-		},
-		"new client - allow* fields set with mismatch FSTypeAll volume slice": {
-			scc: &versioned.SecurityContextConstraints{
-				Volumes:                  []versioned.FSType{versioned.FSTypeAll},
-				AllowHostDirVolumePlugin: false,
-			},
-			expectedVolumes: versioned.StringSetToFSType(sccutil.GetAllFSTypesExcept(string(versioned.FSTypeHostPath))),
-			expectedHostDir: false,
-		},
-		"new client - allow* fields unset with volume slice": {
-			scc: &versioned.SecurityContextConstraints{
-				Volumes: []versioned.FSType{versioned.FSTypeEmptyDir, versioned.FSTypeHostPath},
-			},
-			expectedVolumes: []versioned.FSType{versioned.FSTypeEmptyDir},
-			expectedHostDir: false,
-		},
-		"new client - extra volume params retained": {
-			scc: &versioned.SecurityContextConstraints{
-				Volumes: []versioned.FSType{versioned.FSTypeEmptyDir, versioned.FSTypeHostPath, versioned.FSTypeGitRepo},
-			},
-			expectedVolumes: []versioned.FSType{versioned.FSTypeEmptyDir, versioned.FSTypeGitRepo},
-			expectedHostDir: false,
-		},
-		"new client - empty volume slice, host dir true": {
-			scc: &versioned.SecurityContextConstraints{
-				Volumes:                  []versioned.FSType{},
-				AllowHostDirVolumePlugin: true,
-			},
-			expectedVolumes: []versioned.FSType{versioned.FSTypeHostPath},
-			expectedHostDir: true,
-		},
-		"new client - empty volume slice, host dir false": {
-			scc: &versioned.SecurityContextConstraints{
-				Volumes:                  []versioned.FSType{},
-				AllowHostDirVolumePlugin: false,
-			},
-			expectedVolumes: []versioned.FSType{},
-			expectedHostDir: false,
-		},
-	}
-	for k, v := range tests {
-		output := roundTrip(t, runtime.Object(v.scc))
-		scc := output.(*versioned.SecurityContextConstraints)
-
-		if !reflect.DeepEqual(scc.Volumes, v.expectedVolumes) {
-			t.Errorf("%s has invalid volumes.  Expected: %v got: %v", k, v.expectedVolumes, scc.Volumes)
-		}
-
-		if scc.AllowHostDirVolumePlugin != v.expectedHostDir {
-			t.Errorf("%s has invalid host dir.  Expected: %v got: %v", k, v.expectedHostDir, scc.AllowHostDirVolumePlugin)
-		}
+	output := roundTrip(t, runtime.Object(pod)).(*v1.Pod)
+	if output.Spec.SchedulerName != v1.DefaultSchedulerName {
+		t.Errorf("Expected scheduler name: %+v\ngot: %+v\n", v1.DefaultSchedulerName, output.Spec.SchedulerName)
 	}
 }

@@ -3,7 +3,7 @@ Hacking on OpenShift
 
 ## Building a Release
 
-To build an OpenShift release you run the `hack/build-release.sh` script on a
+To build an OpenShift release you create the `make release` target on a
 system with Docker, which will create a build environment image and then
 execute a cross platform Go build within it. The build output will be copied
 to `_output/releases` as a set of tars containing each version. It will also
@@ -12,11 +12,8 @@ OpenShift Docker images.
 
     $ make release
 
-NOTE:  Only committed code is built.
-
-To build the base and release images, run:
-
-    $ hack/build-base-images.sh
+NOTE:  Only committed code is built. Today, all of our container image builds
+require [imagebuilder](https://github.com/openshift/imagebuilder).
 
 Once a release has been created, it can be pushed:
 
@@ -37,6 +34,60 @@ hack/push-release.sh`. Your tag must match the Git tag.
 release.
 
 We generally cut a release before disruptive changes land.
+
+### Building on Non-Linux Systems
+
+We provide the `openshift/release` container in which all of our build
+dependencies live, so that one can build a full release of OpenShift without
+having to install anything other than a container runtime on their local system.
+To run scripts or `make` targets from the Origin repo inside of the container,
+use:
+
+    $ hack/env ${COMMAND}
+
+For instance, to build the `oc` binary:
+
+    $ hack/env make build WHAT=cmd/oc
+
+The release container works by streaming a copy of the repository into a volume,
+sharing that volume with the container as it's working directory, executing the
+desired command and streaming the results back to your filesystem.
+
+One can configure what files are uploaded to the container by setting the
+`$OS_BUILD_ENV_EXCLUDE` variable. By default, the entire repository is streamed
+into the container except for anything under `_output/`.
+
+Similarly, to configure what files are downloaded from the container after the
+action is taken, use `$OS_BUILD_ENV_PRESERVE`. By default, `_output/local/bin`,
+`_output/local/releases`, and `_output/scripts` will be downloaded.
+
+### Building Individual Binaries
+
+While `make release` and `make build` will both build all of the binaries required
+for a full release of OpenShift, it is also possible to build individual
+binaries. Binary entrypoints are kept under the `cmd/` directory and can be
+specified to build with the `WHAT` parameter, for instance, to build just `oc`:
+
+    $ make build WHAT=cmd/oc
+
+### Building Individual Images
+
+The `make release` will both build the entire suite of images necessary for an
+OpenShift release. This can take a very long time and will re-build the full
+RPM during the process. Individual images can be built by `ADD`-ing in updated
+binaries or files with the `hack/build-local-images.py` script. For example:
+
+    # see help-text
+    build-local-images.py -h
+
+    # build all images
+    build-local-images.py
+
+    # build only the f5-router image
+    build-local-images.py f5-router
+
+    # build with a different image prefix
+    OS_IMAGE_PREFIX=openshift3/ose build-local-images.sh
 
 
 ## Test Suites
@@ -369,9 +420,11 @@ All upstream commits should have a commit message where the first line is:
 
     UPSTREAM: <PR number|drop|carry>: <short description>
 
-`drop` indicates the commit should be removed during the next rebase. `carry`
-means that the change cannot go into upstream, and we should continue to use it
-during the next rebase.
+`drop` indicates the commit should be removed during the next
+rebase. `carry` means that the change cannot go into upstream, and we
+should continue to use it during the next rebase. `PR number` means
+that the commit will be dropped during a rebase, as long as that
+rebase includes the given PR number.
 
 You can also target repositories other than Kube by setting `UPSTREAM_REPO` and
 `UPSTREAM_PACKAGE` env vars.  `UPSTREAM_REPO` should be the full name of the Git
@@ -561,16 +614,16 @@ introduced in Kubernetes. Make sure:
 
 1. `make clean ; hack/build-go.sh` compiles without errors and the standalone
 server starts correctly.
-1. all of our generated code is up to date by running all `hack/update-*`
+2. all of our generated code is up to date by running all `hack/update-*`
 scripts.
-1. `hack/verify-open-ports.sh` runs without errors.
-1. `hack/copy-kube-artifacts.sh` so Kubernetes tests can be fully functional.
+3. `hack/verify-open-ports.sh` runs without errors.
+4. `hack/copy-kube-artifacts.sh` so Kubernetes tests can be fully functional.
 The diff resulting from this script should be squashed into the Kube bump
 commit.
-2. `TEST_KUBE=1 hack/test-go.sh` runs without errors.
-3. `hack/test-cmd.sh` runs without errors.
-3. `hack/test-integration.sh` runs without errors.
-3. `hack/test-end-to-end.sh` runs without errors.
+5. `TEST_KUBE=1 hack/test-go.sh` runs without errors.
+6. `hack/test-cmd.sh` runs without errors.
+7. `hack/test-integration.sh` runs without errors.
+8. `hack/test-end-to-end.sh` runs without errors.
     See *Building a Release* above for setting up the environment for the
 *test-end-to-end.sh* tests.
 
@@ -580,14 +633,9 @@ can potentially break or change any part of Origin, the most affected parts are
 usually:
 
 1. https://github.com/openshift/origin/blob/master/pkg/cmd/server/start
-2.
-https://github.com/openshift/origin/blob/master/pkg/cmd/server/kubernetes/master
-.go
-3.
-https://github.com/openshift/origin/blob/master/pkg/cmd/server/origin/master.go
-4.
-https://github.com/openshift/origin/blob/master/pkg/cmd/util/clientcmd/factory.g
-o
+2. https://github.com/openshift/origin/blob/master/pkg/cmd/server/kubernetes/master.go
+3. https://github.com/openshift/origin/blob/master/pkg/cmd/server/origin/master.go
+4. https://github.com/openshift/origin/blob/master/pkg/cmd/util/clientcmd/factory.go
 5. https://github.com/openshift/origin/blob/master/pkg/cmd/cli/cli.go
 6. https://github.com/openshift/origin/blob/master/pkg/api/meta/meta.go
 

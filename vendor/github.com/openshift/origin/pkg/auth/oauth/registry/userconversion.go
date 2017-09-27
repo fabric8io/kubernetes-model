@@ -3,9 +3,9 @@ package registry
 import (
 	"errors"
 
-	kuser "k8s.io/kubernetes/pkg/auth/user"
+	kuser "k8s.io/apiserver/pkg/authentication/user"
 
-	oapi "github.com/openshift/origin/pkg/oauth/api"
+	oapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
 )
 
 type UserConversion struct{}

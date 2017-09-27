@@ -12,21 +12,25 @@ import (
 	"strings"
 
 	g "github.com/onsi/ginkgo"
-	"github.com/spf13/cobra"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	apierrs "k8s.io/kubernetes/pkg/api/errors"
-	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apiserver/pkg/storage/names"
+	clientcmd "k8s.io/client-go/tools/clientcmd"
+	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
+	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
+	kinternalclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/client/retry"
-	clientcmd "k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-	"k8s.io/kubernetes/pkg/util/wait"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 
 	_ "github.com/openshift/origin/pkg/api/install"
 	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/cli/config"
+	oclientset "github.com/openshift/origin/pkg/client/clientset/clientset"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	projectapi "github.com/openshift/origin/pkg/project/api"
+	"github.com/openshift/origin/pkg/oc/cli/config"
+	projectapi "github.com/openshift/origin/pkg/project/apis/project"
+	templateclientset "github.com/openshift/origin/pkg/template/generated/internalclientset"
 	testutil "github.com/openshift/origin/test/util"
 )
 
@@ -47,7 +51,6 @@ type CLI struct {
 	stderr           io.Writer
 	verbose          bool
 	withoutNamespace bool
-	cmd              *cobra.Command
 	kubeFramework    *e2e.Framework
 }
 
@@ -57,7 +60,7 @@ type CLI struct {
 func NewCLI(project, adminConfigPath string) *CLI {
 	// Avoid every caller needing to provide a unique project name
 	// SetupProject already treats this as a baseName
-	uniqueProject := kapi.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-", project))
+	uniqueProject := names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-", project))
 
 	client := &CLI{}
 	client.kubeFramework = e2e.NewDefaultFramework(uniqueProject)
@@ -65,7 +68,7 @@ func NewCLI(project, adminConfigPath string) *CLI {
 	client.username = "admin"
 	client.execPath = "oc"
 	if len(adminConfigPath) == 0 {
-		FatalErr(fmt.Errorf("You must set the KUBECONFIG variable to admin kubeconfig."))
+		FatalErr(fmt.Errorf("you must set the KUBECONFIG variable to admin kubeconfig"))
 	}
 	client.adminConfigPath = adminConfigPath
 
@@ -123,8 +126,8 @@ func (c *CLI) ChangeUser(name string) *CLI {
 
 // SetNamespace sets a new namespace
 func (c *CLI) SetNamespace(ns string) *CLI {
-	c.kubeFramework.Namespace = &kapi.Namespace{
-		ObjectMeta: kapi.ObjectMeta{
+	c.kubeFramework.Namespace = &kapiv1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: ns,
 		},
 	}
@@ -146,21 +149,21 @@ func (c *CLI) SetOutputDir(dir string) *CLI {
 // SetupProject creates a new project and assign a random user to the project.
 // All resources will be then created within this project and Kubernetes E2E
 // suite will destroy the project after test case finish.
-func (c *CLI) SetupProject(name string, kubeClient kclientset.Interface, _ map[string]string) (*kapi.Namespace, error) {
-	newNamespace := kapi.SimpleNameGenerator.GenerateName(fmt.Sprintf("extended-test-%s-", name))
+func (c *CLI) SetupProject(name string, kubeClient kclientset.Interface, _ map[string]string) (*kapiv1.Namespace, error) {
+	newNamespace := names.SimpleNameGenerator.GenerateName(fmt.Sprintf("extended-test-%s-", name))
 	c.SetNamespace(newNamespace).ChangeUser(fmt.Sprintf("%s-user", c.Namespace()))
 	e2e.Logf("The user is now %q", c.Username())
 
 	e2e.Logf("Creating project %q", c.Namespace())
 	_, err := c.Client().ProjectRequests().Create(&projectapi.ProjectRequest{
-		ObjectMeta: kapi.ObjectMeta{Name: c.Namespace()},
+		ObjectMeta: metav1.ObjectMeta{Name: c.Namespace()},
 	})
 	if err != nil {
 		e2e.Logf("Failed to create a project and namespace %q: %v", c.Namespace(), err)
 		return nil, err
 	}
 	if err := wait.ExponentialBackoff(retry.DefaultBackoff, func() (bool, error) {
-		if _, err := c.KubeClient().Core().Pods(c.Namespace()).List(kapi.ListOptions{}); err != nil {
+		if _, err := c.KubeClient().Core().Pods(c.Namespace()).List(metav1.ListOptions{}); err != nil {
 			if apierrs.IsForbidden(err) {
 				e2e.Logf("Waiting for user to have access to the namespace")
 				return false, nil
@@ -170,7 +173,7 @@ func (c *CLI) SetupProject(name string, kubeClient kclientset.Interface, _ map[s
 	}); err != nil {
 		return nil, err
 	}
-	return &kapi.Namespace{ObjectMeta: kapi.ObjectMeta{Name: c.Namespace()}}, err
+	return &kapiv1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: c.Namespace()}}, err
 }
 
 // Verbose turns on printing verbose messages when executing OpenShift commands
@@ -182,17 +185,33 @@ func (c *CLI) Verbose() *CLI {
 // Client provides an OpenShift client for the current user. If the user is not
 // set, then it provides client for the cluster admin user
 func (c *CLI) Client() *client.Client {
-	_, clientConfig, err := configapi.GetKubeClient(c.configPath, nil)
+	_, clientConfig, err := configapi.GetInternalKubeClient(c.configPath, nil)
 	osClient, err := client.New(clientConfig)
 	if err != nil {
 		FatalErr(err)
 	}
 	return osClient
+}
+
+// Clientset provides the new OpenShift clientset for the current user. If the user is not
+// set, then it provides client for the cluster admin user
+func (c *CLI) Clientset() *oclientset.Clientset {
+	_, clientConfig, err := configapi.GetInternalKubeClient(c.configPath, nil)
+	if err != nil {
+		FatalErr(err)
+	}
+
+	cs, err := oclientset.NewForConfig(clientConfig)
+	if err != nil {
+		FatalErr(err)
+	}
+
+	return cs
 }
 
 // AdminClient provides an OpenShift client for the cluster admin user.
 func (c *CLI) AdminClient() *client.Client {
-	_, clientConfig, err := configapi.GetKubeClient(c.adminConfigPath, nil)
+	_, clientConfig, err := configapi.GetInternalKubeClient(c.adminConfigPath, nil)
 	osClient, err := client.New(clientConfig)
 	if err != nil {
 		FatalErr(err)
@@ -200,9 +219,39 @@ func (c *CLI) AdminClient() *client.Client {
 	return osClient
 }
 
+// Client provides an OpenShift client for the current user. If the user is not
+// set, then it provides client for the cluster admin user
+func (c *CLI) TemplateClient() templateclientset.Interface {
+	_, clientConfig, err := configapi.GetInternalKubeClient(c.configPath, nil)
+	client, err := templateclientset.NewForConfig(clientConfig)
+	if err != nil {
+		FatalErr(err)
+	}
+	return client
+}
+
+// AdminClient provides an OpenShift client for the cluster admin user.
+func (c *CLI) AdminTemplateClient() templateclientset.Interface {
+	_, clientConfig, err := configapi.GetInternalKubeClient(c.adminConfigPath, nil)
+	client, err := templateclientset.NewForConfig(clientConfig)
+	if err != nil {
+		FatalErr(err)
+	}
+	return client
+}
+
 // KubeClient provides a Kubernetes client for the current namespace
-func (c *CLI) KubeClient() *kclientset.Clientset {
-	kubeClient, _, err := configapi.GetKubeClient(c.configPath, nil)
+func (c *CLI) KubeClient() kclientset.Interface {
+	kubeClient, _, err := configapi.GetExternalKubeClient(c.configPath, nil)
+	if err != nil {
+		FatalErr(err)
+	}
+	return kubeClient
+}
+
+// KubeClient provides a Kubernetes client for the current namespace
+func (c *CLI) InternalKubeClient() kinternalclientset.Interface {
+	kubeClient, _, err := configapi.GetInternalKubeClient(c.configPath, nil)
 	if err != nil {
 		FatalErr(err)
 	}
@@ -210,8 +259,17 @@ func (c *CLI) KubeClient() *kclientset.Clientset {
 }
 
 // AdminKubeClient provides a Kubernetes client for the cluster admin user.
-func (c *CLI) AdminKubeClient() *kclientset.Clientset {
-	kubeClient, _, err := configapi.GetKubeClient(c.adminConfigPath, nil)
+func (c *CLI) AdminKubeClient() kclientset.Interface {
+	kubeClient, _, err := configapi.GetExternalKubeClient(c.adminConfigPath, nil)
+	if err != nil {
+		FatalErr(err)
+	}
+	return kubeClient
+}
+
+// AdminKubeClient provides a Kubernetes client for the cluster admin user.
+func (c *CLI) InternalAdminKubeClient() kinternalclientset.Interface {
+	kubeClient, _, err := configapi.GetInternalKubeClient(c.adminConfigPath, nil)
 	if err != nil {
 		FatalErr(err)
 	}
@@ -350,9 +408,9 @@ func (c *CLI) Outputs() (string, string, error) {
 }
 
 // Background executes the command in the background and returns the Cmd object
-// returns the Cmd which should be killed later via cmd.Process.Kill(), as well
-// as the stdout and stderr byte buffers assigned to the cmd.Stdout and cmd.Stderr
-// writers.
+// which may be killed later via cmd.Process.Kill().  It also returns buffers
+// holding the stdout & stderr of the command, which may be read from only after
+// calling cmd.Wait().
 func (c *CLI) Background() (*exec.Cmd, *bytes.Buffer, *bytes.Buffer, error) {
 	if c.verbose {
 		fmt.Printf("DEBUG: oc %s\n", c.printCmd())
@@ -367,6 +425,27 @@ func (c *CLI) Background() (*exec.Cmd, *bytes.Buffer, *bytes.Buffer, error) {
 
 	err := cmd.Start()
 	return cmd, &stdout, &stderr, err
+}
+
+// BackgroundRC executes the command in the background and returns the Cmd
+// object which may be killed later via cmd.Process.Kill().  It returns a
+// ReadCloser for stdout.  If in doubt, use Background().  Consult the os/exec
+// documentation.
+func (c *CLI) BackgroundRC() (*exec.Cmd, io.ReadCloser, error) {
+	if c.verbose {
+		fmt.Printf("DEBUG: oc %s\n", c.printCmd())
+	}
+	cmd := exec.Command(c.execPath, c.finalArgs...)
+	cmd.Stdin = c.stdin
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	e2e.Logf("Running '%s %s'", c.execPath, strings.Join(c.finalArgs, " "))
+
+	err = cmd.Start()
+	return cmd, stdout, err
 }
 
 // Stdout returns the current stdout writer

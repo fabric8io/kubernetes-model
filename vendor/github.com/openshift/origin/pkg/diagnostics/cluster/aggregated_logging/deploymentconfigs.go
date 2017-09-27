@@ -2,14 +2,14 @@ package aggregated_logging
 
 import (
 	"fmt"
-	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apimachinery/pkg/util/sets"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/selection"
-	"k8s.io/kubernetes/pkg/util/sets"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 )
 
 const (
@@ -19,15 +19,18 @@ const (
 	componentNameKibanaOps  = "kibana-ops"
 	componentNameCurator    = "curator"
 	componentNameCuratorOps = "curator-ops"
+	componentNameMux        = "mux"
 )
 
 // loggingComponents are those 'managed' by rep controllers (e.g. fluentd is deployed with a DaemonSet)
-var loggingComponents = sets.NewString(componentNameEs, componentNameEsOps, componentNameKibana, componentNameKibanaOps, componentNameCurator, componentNameCuratorOps)
+var expectedLoggingComponents = sets.NewString(componentNameEs, componentNameKibana, componentNameCurator)
+var optionalLoggingComponents = sets.NewString(componentNameEsOps, componentNameKibanaOps, componentNameCuratorOps, componentNameMux)
+var loggingComponents = expectedLoggingComponents.Union(optionalLoggingComponents)
 
-const deploymentConfigWarnMissingForOps = `
-Did not find a DeploymentConfig to support component '%s'.  If you require
-a separate ElasticSearch cluster to aggregate operations logs, please re-install
-or update logging and specify the appropriate switch to enable the ops cluster.
+const deploymentConfigWarnOptionalMissing = `
+Did not find a DeploymentConfig to support optional component '%s'. If you require
+this component, please re-install or update logging and specify the appropriate
+variable to enable it.
 `
 
 const deploymentConfigZeroPodsFound = `
@@ -45,9 +48,9 @@ the following commands for additional information:
   $ oc get events -n %[2]s
 `
 const deploymentConfigPodsNotRunning = `
-The Pod '%[1]s' matched by DeploymentConfig '%[2]s' is not in '%[3]s' status: %[4]s. 
+The Pod '%[1]s' matched by DeploymentConfig '%[2]s' is not in '%[3]s' status: %[4]s.
 
-Depending upon the state, this could mean there is an error running the image 
+Depending upon the state, this could mean there is an error running the image
 for one or more pod containers, the node could be pulling images, etc.  Try running
 the following commands for additional information:
 
@@ -57,10 +60,11 @@ the following commands for additional information:
 `
 
 func checkDeploymentConfigs(r diagnosticReporter, adapter deploymentConfigAdapter, project string) {
-	req, _ := labels.NewRequirement(loggingInfraKey, selection.Exists, nil)
-	selector := labels.NewSelector().Add(*req)
+	compReq, _ := labels.NewRequirement(componentKey, selection.In, loggingComponents.List())
+	provReq, _ := labels.NewRequirement(providerKey, selection.Equals, []string{openshiftValue})
+	selector := labels.NewSelector().Add(*compReq, *provReq)
 	r.Debug("AGL0040", fmt.Sprintf("Checking for DeploymentConfigs in project '%s' with selector '%s'", project, selector))
-	dcList, err := adapter.deploymentconfigs(project, kapi.ListOptions{LabelSelector: selector})
+	dcList, err := adapter.deploymentconfigs(project, metav1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
 		r.Error("AGL0045", err, fmt.Sprintf("There was an error while trying to retrieve the DeploymentConfigs in project '%s': %s", project, err))
 		return
@@ -76,10 +80,9 @@ func checkDeploymentConfigs(r diagnosticReporter, adapter deploymentConfigAdapte
 		r.Debug("AGL0050", fmt.Sprintf("Found DeploymentConfig '%s' for component '%s'", entry.ObjectMeta.Name, comp))
 	}
 	for _, entry := range loggingComponents.List() {
-		exists := found.Has(entry)
-		if !exists {
-			if strings.HasSuffix(entry, "-ops") {
-				r.Info("AGL0060", fmt.Sprintf(deploymentConfigWarnMissingForOps, entry))
+		if !found.Has(entry) {
+			if optionalLoggingComponents.Has(entry) {
+				r.Info("AGL0060", fmt.Sprintf(deploymentConfigWarnOptionalMissing, entry))
 			} else {
 				r.Error("AGL0065", nil, fmt.Sprintf("Did not find a DeploymentConfig to support component '%s'", entry))
 			}
@@ -93,7 +96,7 @@ func checkDeploymentConfigPods(r diagnosticReporter, adapter deploymentConfigAda
 	provReq, _ := labels.NewRequirement(providerKey, selection.Equals, []string{openshiftValue})
 	podSelector := labels.NewSelector().Add(*compReq, *provReq)
 	r.Debug("AGL0070", fmt.Sprintf("Getting pods that match selector '%s'", podSelector))
-	podList, err := adapter.pods(project, kapi.ListOptions{LabelSelector: podSelector})
+	podList, err := adapter.pods(project, metav1.ListOptions{LabelSelector: podSelector.String()})
 	if err != nil {
 		r.Error("AGL0075", err, fmt.Sprintf("There was an error while trying to retrieve the pods for the AggregatedLogging stack: %s", err))
 		return

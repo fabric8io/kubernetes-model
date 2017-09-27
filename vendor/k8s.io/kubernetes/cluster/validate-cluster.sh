@@ -30,7 +30,7 @@ if [ -f "${KUBE_ROOT}/cluster/env.sh" ]; then
   source "${KUBE_ROOT}/cluster/env.sh"
 fi
 
-source "${KUBE_ROOT}/cluster/lib/util.sh"
+source "${KUBE_ROOT}/hack/lib/util.sh"
 source "${KUBE_ROOT}/cluster/kube-util.sh"
 
 # Run kubectl and retry upon failure.
@@ -51,6 +51,7 @@ ALLOWED_NOTREADY_NODES="${ALLOWED_NOTREADY_NODES:-0}"
 CLUSTER_READY_ADDITIONAL_TIME_SECONDS="${CLUSTER_READY_ADDITIONAL_TIME_SECONDS:-30}"
 
 EXPECTED_NUM_NODES="${NUM_NODES}"
+
 if [[ "${KUBERNETES_PROVIDER:-}" == "gce" ]]; then
   echo "Validating gce cluster, MULTIZONE=${MULTIZONE:-}"
   # In multizone mode we need to add instances for all nodes in the region.
@@ -152,7 +153,7 @@ while true; do
   componentstatuses=$(echo "${cs_status}" | grep -c 'Healthy:') || true
   healthy=$(echo "${cs_status}" | grep -c 'Healthy:True') || true
 
-  if ((componentstatuses > healthy)); then
+  if ((componentstatuses > healthy)) || ((componentstatuses == 0)); then
     if ((attempt < 5)); then
       echo -e "${color_yellow}Cluster not working yet.${color_norm}"
       attempt=$((attempt+1))
@@ -169,7 +170,7 @@ while true; do
 done
 
 echo "Validate output:"
-kubectl_retry get cs
+kubectl_retry get cs || true
 if [ "${return_value}" == "0" ]; then
   echo -e "${color_green}Cluster validation succeeded${color_norm}"
 else

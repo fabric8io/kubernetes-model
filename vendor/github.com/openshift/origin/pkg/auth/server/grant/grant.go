@@ -4,19 +4,21 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/auth/user"
-	"k8s.io/kubernetes/pkg/serviceaccount"
-	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apiserver/pkg/authentication/serviceaccount"
+	"k8s.io/apiserver/pkg/authentication/user"
 
 	"github.com/golang/glog"
 	"github.com/openshift/origin/pkg/auth/authenticator"
 	"github.com/openshift/origin/pkg/auth/server/csrf"
 	scopeauthorizer "github.com/openshift/origin/pkg/authorization/authorizer/scope"
-	oapi "github.com/openshift/origin/pkg/oauth/api"
-	"github.com/openshift/origin/pkg/oauth/registry/oauthclient"
+	oapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
+	oauthclient "github.com/openshift/origin/pkg/oauth/generated/internalclientset/typed/oauth/internalversion"
+	oauthclientregistry "github.com/openshift/origin/pkg/oauth/registry/oauthclient"
 	"github.com/openshift/origin/pkg/oauth/registry/oauthclientauthorization"
 	"github.com/openshift/origin/pkg/oauth/scope"
 )
@@ -80,11 +82,11 @@ type Grant struct {
 	auth           authenticator.Request
 	csrf           csrf.CSRF
 	render         FormRenderer
-	clientregistry oauthclient.Getter
-	authregistry   oauthclientauthorization.Registry
+	clientregistry oauthclientregistry.Getter
+	authregistry   oauthclient.OAuthClientAuthorizationInterface
 }
 
-func NewGrant(csrf csrf.CSRF, auth authenticator.Request, render FormRenderer, clientregistry oauthclient.Getter, authregistry oauthclientauthorization.Registry) *Grant {
+func NewGrant(csrf csrf.CSRF, auth authenticator.Request, render FormRenderer, clientregistry oauthclientregistry.Getter, authregistry oauthclient.OAuthClientAuthorizationInterface) *Grant {
 	return &Grant{
 		auth:           auth,
 		csrf:           csrf,
@@ -127,7 +129,7 @@ func (l *Grant) handleForm(user user.Info, w http.ResponseWriter, req *http.Requ
 	scopes := scope.Split(q.Get(scopeParam))
 	redirectURI := q.Get(redirectURIParam)
 
-	client, err := l.clientregistry.GetClient(kapi.NewContext(), clientID)
+	client, err := l.clientregistry.Get(clientID, metav1.GetOptions{})
 	if err != nil || client == nil {
 		l.failed("Could not find client for client_id", w, req)
 		return
@@ -136,13 +138,6 @@ func (l *Grant) handleForm(user user.Info, w http.ResponseWriter, req *http.Requ
 	if err := scopeauthorizer.ValidateScopeRestrictions(client, scopes...); err != nil {
 		failure := fmt.Sprintf("%v requested illegal scopes (%v): %v", client.Name, scopes, err)
 		l.failed(failure, w, req)
-		return
-	}
-
-	uri, err := getBaseURL(req)
-	if err != nil {
-		glog.Errorf("Unable to generate base URL: %v", err)
-		http.Error(w, "Unable to determine URL", http.StatusInternalServerError)
 		return
 	}
 
@@ -157,8 +152,8 @@ func (l *Grant) handleForm(user user.Info, w http.ResponseWriter, req *http.Requ
 	grantedScopes := []Scope{}
 	requestedScopes := []Scope{}
 
-	clientAuthID := l.authregistry.ClientAuthorizationName(user.GetName(), client.Name)
-	if clientAuth, err := l.authregistry.GetClientAuthorization(kapi.NewContext(), clientAuthID); err == nil {
+	clientAuthID := oauthclientauthorization.ClientAuthorizationName(user.GetName(), client.Name)
+	if clientAuth, err := l.authregistry.Get(clientAuthID, metav1.GetOptions{}); err == nil {
 		grantedScopeNames = clientAuth.Scopes
 	}
 
@@ -169,8 +164,12 @@ func (l *Grant) handleForm(user user.Info, w http.ResponseWriter, req *http.Requ
 		grantedScopes = append(grantedScopes, getScopeData(s, grantedScopeNames))
 	}
 
+	// Submit to the current path, so we can target this page even via an auth proxy.
+	// Depends on any auth proxies matching at least the last segment of the URL.
+	_, lastSegment := path.Split(req.URL.Path)
+
 	form := Form{
-		Action:        uri.String(),
+		Action:        lastSegment,
 		GrantedScopes: grantedScopes,
 		Names: GrantFormFields{
 			Then:        thenParam,
@@ -201,16 +200,16 @@ func (l *Grant) handleForm(user user.Info, w http.ResponseWriter, req *http.Requ
 }
 
 func (l *Grant) handleGrant(user user.Info, w http.ResponseWriter, req *http.Request) {
-	if ok, err := l.csrf.Check(req, req.FormValue(csrfParam)); !ok || err != nil {
+	if ok, err := l.csrf.Check(req, req.PostFormValue(csrfParam)); !ok || err != nil {
 		glog.Errorf("Unable to check CSRF token: %v", err)
 		l.failed("Invalid CSRF token", w, req)
 		return
 	}
 
 	req.ParseForm()
-	then := req.FormValue(thenParam)
-	scopes := scope.Join(req.Form[scopeParam])
-	username := req.FormValue(userNameParam)
+	then := req.PostFormValue(thenParam)
+	scopes := scope.Join(req.PostForm[scopeParam])
+	username := req.PostFormValue(userNameParam)
 
 	if username != user.GetName() {
 		glog.Errorf("User (%v) did not match authenticated user (%v)", username, user.GetName())
@@ -218,7 +217,7 @@ func (l *Grant) handleGrant(user user.Info, w http.ResponseWriter, req *http.Req
 		return
 	}
 
-	if len(req.FormValue(approveParam)) == 0 || len(scopes) == 0 {
+	if len(req.PostFormValue(approveParam)) == 0 || len(scopes) == 0 {
 		// Redirect with an error param
 		url, err := url.Parse(then)
 		if len(then) == 0 || err != nil {
@@ -228,12 +227,13 @@ func (l *Grant) handleGrant(user user.Info, w http.ResponseWriter, req *http.Req
 		q := url.Query()
 		q.Set("error", "access_denied")
 		url.RawQuery = q.Encode()
-		http.Redirect(w, req, url.String(), http.StatusFound)
+		w.Header().Set("Location", url.String())
+		w.WriteHeader(http.StatusFound)
 		return
 	}
 
-	clientID := req.FormValue(clientIDParam)
-	client, err := l.clientregistry.GetClient(kapi.NewContext(), clientID)
+	clientID := req.PostFormValue(clientIDParam)
+	client, err := l.clientregistry.Get(clientID, metav1.GetOptions{})
 	if err != nil || client == nil {
 		l.failed("Could not find client for client_id", w, req)
 		return
@@ -244,14 +244,13 @@ func (l *Grant) handleGrant(user user.Info, w http.ResponseWriter, req *http.Req
 		return
 	}
 
-	clientAuthID := l.authregistry.ClientAuthorizationName(user.GetName(), client.Name)
+	clientAuthID := oauthclientauthorization.ClientAuthorizationName(user.GetName(), client.Name)
 
-	ctx := kapi.NewContext()
-	clientAuth, err := l.authregistry.GetClientAuthorization(ctx, clientAuthID)
+	clientAuth, err := l.authregistry.Get(clientAuthID, metav1.GetOptions{})
 	if err == nil && clientAuth != nil {
 		// Add new scopes and update
 		clientAuth.Scopes = scope.Add(clientAuth.Scopes, scope.Split(scopes))
-		if _, err = l.authregistry.UpdateClientAuthorization(ctx, clientAuth); err != nil {
+		if _, err = l.authregistry.Update(clientAuth); err != nil {
 			glog.Errorf("Unable to update authorization: %v", err)
 			l.failed("Could not update client authorization", w, req)
 			return
@@ -266,7 +265,7 @@ func (l *Grant) handleGrant(user user.Info, w http.ResponseWriter, req *http.Req
 		}
 		clientAuth.Name = clientAuthID
 
-		if _, err = l.authregistry.CreateClientAuthorization(ctx, clientAuth); err != nil {
+		if _, err = l.authregistry.Create(clientAuth); err != nil {
 			glog.Errorf("Unable to create authorization: %v", err)
 			l.failed("Could not create client authorization", w, req)
 			return
@@ -282,7 +281,8 @@ func (l *Grant) handleGrant(user user.Info, w http.ResponseWriter, req *http.Req
 	q := url.Query()
 	q.Set("scope", scopes)
 	url.RawQuery = q.Encode()
-	http.Redirect(w, req, url.String(), http.StatusFound)
+	w.Header().Set("Location", url.String())
+	w.WriteHeader(http.StatusFound)
 }
 
 func (l *Grant) failed(reason string, w http.ResponseWriter, req *http.Request) {
@@ -299,16 +299,8 @@ func (l *Grant) redirect(reason string, w http.ResponseWriter, req *http.Request
 		l.failed(reason, w, req)
 		return
 	}
-	http.Redirect(w, req, then, http.StatusFound)
-}
-
-func getBaseURL(req *http.Request) (*url.URL, error) {
-	uri, err := url.Parse(req.RequestURI)
-	if err != nil {
-		return nil, err
-	}
-	uri.Scheme, uri.Host, uri.RawQuery, uri.Fragment = req.URL.Scheme, req.URL.Host, "", ""
-	return uri, nil
+	w.Header().Set("Location", then)
+	w.WriteHeader(http.StatusFound)
 }
 
 func getScopeData(scopeName string, grantedScopeNames []string) Scope {

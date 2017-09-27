@@ -5,12 +5,15 @@ import (
 	"reflect"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apiserver/pkg/authentication/user"
+	kauthorizer "k8s.io/apiserver/pkg/authorization/authorizer"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/util/diff"
-	"k8s.io/kubernetes/pkg/util/sets"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
-	"github.com/openshift/origin/pkg/authorization/authorizer"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
+	"github.com/openshift/origin/pkg/authorization/registry/util"
 )
 
 type resourceAccessTest struct {
@@ -24,13 +27,13 @@ type testAuthorizer struct {
 	err              string
 	deniedNamespaces sets.String
 
-	actualAttributes authorizer.DefaultAuthorizationAttributes
+	actualAttributes kauthorizer.Attributes
 }
 
-func (a *testAuthorizer) Authorize(ctx kapi.Context, attributes authorizer.Action) (allowed bool, reason string, err error) {
+func (a *testAuthorizer) Authorize(attributes kauthorizer.Attributes) (allowed bool, reason string, err error) {
 	// allow the initial check for "can I run this RAR at all"
 	if attributes.GetResource() == "localresourceaccessreviews" {
-		if len(a.deniedNamespaces) != 0 && a.deniedNamespaces.Has(kapi.NamespaceValue(ctx)) {
+		if len(a.deniedNamespaces) != 0 && a.deniedNamespaces.Has(attributes.GetNamespace()) {
 			return false, "denied initial check", nil
 		}
 
@@ -39,13 +42,8 @@ func (a *testAuthorizer) Authorize(ctx kapi.Context, attributes authorizer.Actio
 
 	return false, "", errors.New("unsupported")
 }
-func (a *testAuthorizer) GetAllowedSubjects(ctx kapi.Context, passedAttributes authorizer.Action) (sets.String, sets.String, error) {
-	attributes, ok := passedAttributes.(authorizer.DefaultAuthorizationAttributes)
-	if !ok {
-		return nil, nil, errors.New("unexpected type for test")
-	}
-
-	a.actualAttributes = attributes
+func (a *testAuthorizer) GetAllowedSubjects(passedAttributes kauthorizer.Attributes) (sets.String, sets.String, error) {
+	a.actualAttributes = passedAttributes
 	if len(a.err) == 0 {
 		return a.users, a.groups, nil
 	}
@@ -107,7 +105,7 @@ func TestNoErrors(t *testing.T) {
 }
 
 func (r *resourceAccessTest) runTest(t *testing.T) {
-	storage := REST{r.authorizer}
+	storage := REST{r.authorizer, r.authorizer}
 
 	expectedResponse := &authorizationapi.ResourceAccessReviewResponse{
 		Namespace: r.reviewRequest.Action.Namespace,
@@ -115,10 +113,10 @@ func (r *resourceAccessTest) runTest(t *testing.T) {
 		Groups:    r.authorizer.groups,
 	}
 
-	expectedAttributes := authorizer.ToDefaultAuthorizationAttributes(r.reviewRequest.Action)
+	expectedAttributes := util.ToDefaultAuthorizationAttributes(nil, kapi.NamespaceAll, r.reviewRequest.Action)
 
-	ctx := kapi.WithNamespace(kapi.NewContext(), kapi.NamespaceAll)
-	obj, err := storage.Create(ctx, r.reviewRequest)
+	ctx := apirequest.WithNamespace(apirequest.WithUser(apirequest.NewContext(), &user.DefaultInfo{}), kapi.NamespaceAll)
+	obj, err := storage.Create(ctx, r.reviewRequest, false)
 	if err != nil && len(r.authorizer.err) == 0 {
 		t.Fatalf("unexpected error: %v", err)
 	}

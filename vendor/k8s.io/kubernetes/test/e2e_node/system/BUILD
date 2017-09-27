@@ -4,10 +4,8 @@ licenses(["notice"])
 
 load(
     "@io_bazel_rules_go//go:def.bzl",
-    "go_binary",
     "go_library",
     "go_test",
-    "cgo_library",
 )
 
 go_library(
@@ -17,17 +15,19 @@ go_library(
         "docker_validator.go",
         "kernel_validator.go",
         "os_validator.go",
+        "package_validator.go",
+        "report.go",
         "types.go",
-        "util.go",
         "validators.go",
     ],
     tags = ["automanaged"],
     deps = [
-        "//pkg/util/errors:go_default_library",
-        "//vendor:github.com/docker/engine-api/client",
-        "//vendor:github.com/docker/engine-api/types",
-        "//vendor:github.com/golang/glog",
-        "//vendor:golang.org/x/net/context",
+        "//vendor/github.com/blang/semver:go_default_library",
+        "//vendor/github.com/docker/engine-api/client:go_default_library",
+        "//vendor/github.com/docker/engine-api/types:go_default_library",
+        "//vendor/github.com/golang/glog:go_default_library",
+        "//vendor/golang.org/x/net/context:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/util/errors:go_default_library",
     ],
 )
 
@@ -38,11 +38,25 @@ go_test(
         "docker_validator_test.go",
         "kernel_validator_test.go",
         "os_validator_test.go",
+        "package_validator_test.go",
     ],
-    library = "go_default_library",
+    library = ":go_default_library",
     tags = ["automanaged"],
     deps = [
-        "//vendor:github.com/docker/engine-api/types",
-        "//vendor:github.com/stretchr/testify/assert",
+        "//vendor/github.com/docker/engine-api/types:go_default_library",
+        "//vendor/github.com/stretchr/testify/assert:go_default_library",
     ],
+)
+
+filegroup(
+    name = "package-srcs",
+    srcs = glob(["**"]),
+    tags = ["automanaged"],
+    visibility = ["//visibility:private"],
+)
+
+filegroup(
+    name = "all-srcs",
+    srcs = [":package-srcs"],
+    tags = ["automanaged"],
 )

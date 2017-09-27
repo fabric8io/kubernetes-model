@@ -1,13 +1,12 @@
 package etcd
 
 import (
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/registry/generic/registry"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/storage"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apiserver/pkg/registry/generic"
+	"k8s.io/apiserver/pkg/registry/generic/registry"
+	kapi "k8s.io/kubernetes/pkg/api"
 
-	"github.com/openshift/origin/pkg/user/api"
+	userapi "github.com/openshift/origin/pkg/user/apis/user"
 	"github.com/openshift/origin/pkg/user/registry/group"
 	"github.com/openshift/origin/pkg/util/restoptions"
 )
@@ -19,23 +18,19 @@ type REST struct {
 
 // NewREST returns a RESTStorage object that will work against groups
 func NewREST(optsGetter restoptions.Getter) (*REST, error) {
-
 	store := &registry.Store{
-		NewFunc:     func() runtime.Object { return &api.Group{} },
-		NewListFunc: func() runtime.Object { return &api.GroupList{} },
-		ObjectNameFunc: func(obj runtime.Object) (string, error) {
-			return obj.(*api.Group).Name, nil
-		},
-		PredicateFunc: func(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
-			return group.Matcher(label, field)
-		},
-		QualifiedResource: api.Resource("groups"),
+		Copier:                   kapi.Scheme,
+		NewFunc:                  func() runtime.Object { return &userapi.Group{} },
+		NewListFunc:              func() runtime.Object { return &userapi.GroupList{} },
+		DefaultQualifiedResource: userapi.Resource("groups"),
 
 		CreateStrategy: group.Strategy,
 		UpdateStrategy: group.Strategy,
+		DeleteStrategy: group.Strategy,
 	}
 
-	if err := restoptions.ApplyOptions(optsGetter, store, false, storage.NoTriggerPublisher); err != nil {
+	options := &generic.StoreOptions{RESTOptions: optsGetter}
+	if err := store.CompleteWithOptions(options); err != nil {
 		return nil, err
 	}
 

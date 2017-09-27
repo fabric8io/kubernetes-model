@@ -6,154 +6,73 @@
 # NOTE:  you only need to run this script if your code changes are part of
 # any images OpenShift runs internally such as origin-sti-builder, origin-docker-builder,
 # origin-deployer, etc.
-STARTTIME=$(date +%s)
 source "$(dirname "${BASH_SOURCE}")/lib/init.sh"
-source "${OS_ROOT}/contrib/node/install-sdn.sh"
 
-if [[ "${OS_RELEASE:-}" == "n" ]]; then
-	# Use local binaries
-	imagedir="${OS_OUTPUT_BINPATH}/linux/amd64"
-	# identical to build-cross.sh
-	os::build::os_version_vars
-	OS_RELEASE_COMMIT="${OS_GIT_VERSION//+/-}"
-	platform="$(os::build::host_platform)"
-	OS_BUILD_PLATFORMS=("${OS_IMAGE_COMPILE_PLATFORMS[@]:-${platform}}")
-	OS_IMAGE_COMPILE_TARGETS=("${OS_IMAGE_COMPILE_TARGETS[@]:-${OS_IMAGE_COMPILE_TARGETS_LINUX[@]}}")
-	OS_SCRATCH_IMAGE_COMPILE_TARGETS=("${OS_SCRATCH_IMAGE_COMPILE_TARGETS[@]:-${OS_SCRATCH_IMAGE_COMPILE_TARGETS_LINUX[@]}}")
+function cleanup() {
+    return_code=$?
+    os::util::describe_return_code "${return_code}"
+    exit "${return_code}"
+}
+trap "cleanup" EXIT
 
-	echo "Building images from source ${OS_RELEASE_COMMIT}:"
-	echo
-	os::build::build_static_binaries "${OS_IMAGE_COMPILE_TARGETS[@]-}" "${OS_SCRATCH_IMAGE_COMPILE_TARGETS[@]-}"
-	os::build::place_bins "${OS_IMAGE_COMPILE_BINARIES[@]}"
-	echo
-else
-	# Get the latest Linux release
-	if [[ ! -d _output/local/releases ]]; then
-		echo "No release has been built. Run hack/build-release.sh"
-		exit 1
-	fi
+os::util::ensure::gopath_binary_exists imagebuilder
+# image builds require RPMs to have been built
+os::build::release::check_for_rpms
+# OS_RELEASE_COMMIT is required by image-build
+os::build::archive::detect_local_release_tars $(os::build::host_platform_friendly)
 
-	# Extract the release archives to a staging area.
-	os::build::detect_local_release_tars "linux-64bit"
-
-	echo "Building images from release tars for commit ${OS_RELEASE_COMMIT}:"
-	echo " primary: $(basename ${OS_PRIMARY_RELEASE_TAR})"
-	echo " image:   $(basename ${OS_IMAGE_RELEASE_TAR})"
-
-	imagedir="${OS_OUTPUT}/images"
-	rm -rf ${imagedir}
-	mkdir -p ${imagedir}
-	os::build::extract_tar "${OS_PRIMARY_RELEASE_TAR}" "${imagedir}"
-	os::build::extract_tar "${OS_IMAGE_RELEASE_TAR}" "${imagedir}"
-fi
+# we need to mount RPMs into the container builds for installation
+OS_BUILD_IMAGE_ARGS="${OS_BUILD_IMAGE_ARGS:-} -mount ${OS_OUTPUT_RPMPATH}/:/srv/origin-local-release/"
 
 # Create link to file if the FS supports hardlinks, otherwise copy the file
 function ln_or_cp {
 	local src_file=$1
 	local dst_dir=$2
-	if os::build::is_hardlink_supported "${dst_dir}" ; then
+	if os::build::archive::internal::is_hardlink_supported "${dst_dir}" ; then
 		ln -f "${src_file}" "${dst_dir}"
 	else
 		cp -pf "${src_file}" "${dst_dir}"
 	fi
 }
 
-
-# image-build is wrapped to allow output to be captured
-function image-build() {
-	local tag=$1
-	local dir=$2
-	local dest="${tag}"
-	if [[ ! "${tag}" == *":"* ]]; then
-		dest="${tag}:latest"
-	fi
-
-	local STARTTIME
-	local ENDTIME
-	STARTTIME="$(date +%s)"
-
-	# build the image
-	if ! os::build::image "${dir}" "${dest}"; then
-		os::log::warn "Retrying build once"
-		os::build::image "${dir}" "${dest}"
-	fi
-
-	# tag to release commit unless we specified a hardcoded tag
-	if [[ ! "${tag}" == *":"* ]]; then
-		docker tag "${dest}" "${tag}:${OS_RELEASE_COMMIT}"
-	fi
-	# ensure the temporary contents are cleaned up
-	git clean -fdx "${dir}"
-
-	ENDTIME="$(date +%s)"
-	echo "Finished in $(($ENDTIME - $STARTTIME)) seconds"
-}
-
-# builds an image and tags it two ways - with latest, and with the release tag
-function image() {
-	local tag=$1
-	local dir=$2
-	local out
-	mkdir -p "${BASETMPDIR}"
-	out="$( mktemp "${BASETMPDIR}/imagelogs.XXXXX" )"
-	if ! image-build "${tag}" "${dir}" > "${out}" 2>&1; then
-		sed -e "s|^|$1: |" "${out}" 1>&2
-		os::log::error "Failed to build $1"
-		return 1
-	fi
-	sed -e "s|^|$1: |" "${out}"
-	return 0
-}
-
-# Link or copy primary binaries to the appropriate locations.
-ln_or_cp "${imagedir}/openshift" images/origin/bin
-
 # Link or copy image binaries to the appropriate locations.
-ln_or_cp "${imagedir}/pod"             images/pod/bin
-ln_or_cp "${imagedir}/hello-openshift" examples/hello-openshift/bin
-ln_or_cp "${imagedir}/gitserver"       examples/gitserver/bin
-ln_or_cp "${imagedir}/dockerregistry"  images/dockerregistry/bin
-
-# Copy SDN scripts into images/node
-os::provision::install-sdn "${OS_ROOT}" "${imagedir}" "${OS_ROOT}/images/node"
-mkdir -p images/node/conf/
-cp -pf "${OS_ROOT}/contrib/systemd/openshift-sdn-ovs.conf" images/node/conf/
+ln_or_cp "${OS_OUTPUT_BINPATH}/linux/amd64/hello-openshift" examples/hello-openshift/bin
+ln_or_cp "${OS_OUTPUT_BINPATH}/linux/amd64/gitserver"       examples/gitserver/bin
 
 # determine the correct tag prefix
 tag_prefix="${OS_IMAGE_PREFIX:-"openshift/origin"}"
 
-# images that depend on scratch / centos
-image "${tag_prefix}-pod"                   images/pod
-image openshift/openvswitch                 images/openvswitch
+# images that depend on "${tag_prefix}-source"
+( os::build::image "${tag_prefix}-pod"                   images/pod ) &
+( os::build::image "${tag_prefix}-cluster-capacity"      images/cluster-capacity ) &
+( os::build::image "${tag_prefix}-service-catalog"       images/service-catalog ) &
+
+for i in `jobs -p`; do wait $i; done
+
 # images that depend on "${tag_prefix}-base"
-image "${tag_prefix}"                       images/origin
-image "${tag_prefix}-haproxy-router"        images/router/haproxy
-image "${tag_prefix}-keepalived-ipfailover" images/ipfailover/keepalived
-image "${tag_prefix}-docker-registry"       images/dockerregistry
-image "${tag_prefix}-egress-router"         images/router/egress
+( os::build::image "${tag_prefix}"                       images/origin ) &
+( os::build::image "${tag_prefix}-haproxy-router"        images/router/haproxy ) &
+( os::build::image "${tag_prefix}-keepalived-ipfailover" images/ipfailover/keepalived ) &
+( os::build::image "${tag_prefix}-docker-registry"       images/dockerregistry ) &
+( os::build::image "${tag_prefix}-egress-router"         images/egress/router ) &
+( os::build::image "${tag_prefix}-egress-http-proxy"     images/egress/http-proxy ) &
+( os::build::image "${tag_prefix}-federation"            images/federation ) &
+
+for i in `jobs -p`; do wait $i; done
 
 # images that depend on "${tag_prefix}
-image "${tag_prefix}-gitserver"             examples/gitserver
-image "${tag_prefix}-deployer"              images/deployer
-image "${tag_prefix}-recycler"              images/recycler
-image "${tag_prefix}-docker-builder"        images/builder/docker/docker-builder
-image "${tag_prefix}-sti-builder"           images/builder/docker/sti-builder
-image "${tag_prefix}-f5-router"             images/router/f5
-image openshift/node                        images/node
+( os::build::image "${tag_prefix}-gitserver"             examples/gitserver ) &
+( os::build::image "${tag_prefix}-deployer"              images/deployer ) &
+( os::build::image "${tag_prefix}-recycler"              images/recycler ) &
+( os::build::image "${tag_prefix}-docker-builder"        images/builder/docker/docker-builder ) &
+( os::build::image "${tag_prefix}-sti-builder"           images/builder/docker/sti-builder ) &
+( os::build::image "${tag_prefix}-f5-router"             images/router/f5 ) &
+( os::build::image "openshift/node"                      images/node ) &
+
+for i in `jobs -p`; do wait $i; done
+
+# images that depend on "openshift/node"
+( os::build::image "openshift/openvswitch"               images/openvswitch ) &
 
 # extra images (not part of infrastructure)
-image openshift/hello-openshift       examples/hello-openshift
-
-ln_or_cp "${imagedir}/deployment" examples/deployment/bin
-image openshift/deployment-example:v1 examples/deployment
-ln_or_cp "${imagedir}/deployment" examples/deployment/bin
-image openshift/deployment-example:v2 examples/deployment examples/deployment/Dockerfile.v2
-
-echo
-echo
-echo "++ Active images"
-
-docker images | grep openshift/ | grep ${OS_RELEASE_COMMIT} | sort
-echo
-
-ret=$?; ENDTIME=$(date +%s); echo "$0 took $(($ENDTIME - $STARTTIME)) seconds"; exit "$ret"
+( os::build::image "openshift/hello-openshift"           examples/hello-openshift ) &

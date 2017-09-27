@@ -5,22 +5,21 @@ import (
 	"net/http"
 
 	context "github.com/docker/distribution/context"
+	"github.com/openshift/origin/pkg/dockerregistry/server/client"
 
-	"k8s.io/kubernetes/pkg/client/restclient"
-
-	"github.com/openshift/origin/pkg/client"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type tokenHandler struct {
-	ctx             context.Context
-	anonymousConfig restclient.Config
+	ctx    context.Context
+	client client.RegistryClient
 }
 
 // NewTokenHandler returns a handler that implements the docker token protocol
-func NewTokenHandler(ctx context.Context, client RegistryClient) http.Handler {
+func NewTokenHandler(ctx context.Context, client client.RegistryClient) http.Handler {
 	return &tokenHandler{
-		ctx:             ctx,
-		anonymousConfig: client.SafeClientConfig(),
+		ctx:    ctx,
+		client: client,
 	}
 }
 
@@ -47,16 +46,14 @@ func (t *tokenHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// TODO: if this doesn't validate as an API token, attempt to obtain an API token using the given username/password
-	copied := t.anonymousConfig
-	copied.BearerToken = token
-	osClient, err := client.New(&copied)
+	osClient, err := t.client.ClientFromToken(token)
 	if err != nil {
 		context.GetRequestLogger(ctx).Errorf("error building client: %v", err)
 		t.writeError(w, req)
 		return
 	}
 
-	if _, err := osClient.Users().Get("~"); err != nil {
+	if _, err := osClient.Users().Get("~", metav1.GetOptions{}); err != nil {
 		context.GetRequestLogger(ctx).Debugf("invalid token: %v", err)
 		t.writeUnauthorized(w, req)
 		return

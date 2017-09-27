@@ -9,20 +9,20 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/diff"
-	"k8s.io/kubernetes/pkg/util/validation/field"
 
-	"github.com/openshift/origin/pkg/template/api"
-	"github.com/openshift/origin/pkg/template/api/v1"
+	templateapi "github.com/openshift/origin/pkg/template/apis/template"
+	templateapiv1 "github.com/openshift/origin/pkg/template/apis/template/v1"
 	"github.com/openshift/origin/pkg/template/generator"
 
 	_ "github.com/openshift/origin/pkg/api/install"
 )
 
-func makeParameter(name, value, generate string, required bool) api.Parameter {
-	return api.Parameter{
+func makeParameter(name, value, generate string, required bool) templateapi.Parameter {
+	return templateapi.Parameter{
 		Name:     name,
 		Value:    value,
 		Generate: generate,
@@ -31,7 +31,7 @@ func makeParameter(name, value, generate string, required bool) api.Parameter {
 }
 
 func TestAddParameter(t *testing.T) {
-	var template api.Template
+	var template templateapi.Template
 
 	jsonData, _ := ioutil.ReadFile("../../test/templates/testdata/guestbook.json")
 	json.Unmarshal(jsonData, &template)
@@ -78,10 +78,10 @@ func (g EmptyGenerator) GenerateValue(expression string) (interface{}, error) {
 
 func TestParameterGenerators(t *testing.T) {
 	tests := []struct {
-		parameter  api.Parameter
+		parameter  templateapi.Parameter
 		generators map[string]generator.Generator
 		shouldPass bool
-		expected   api.Parameter
+		expected   templateapi.Parameter
 		errType    field.ErrorType
 		fieldPath  string
 	}{
@@ -153,7 +153,7 @@ func TestParameterGenerators(t *testing.T) {
 
 	for i, test := range tests {
 		processor := NewProcessor(test.generators)
-		template := api.Template{Parameters: []api.Parameter{test.parameter}}
+		template := templateapi.Template{Parameters: []templateapi.Parameter{test.parameter}}
 		err := processor.GenerateParameterValues(&template)
 		if err != nil && test.shouldPass {
 			t.Errorf("test[%v]: Unexpected error %v", i, err)
@@ -178,7 +178,7 @@ func TestParameterGenerators(t *testing.T) {
 }
 
 func TestProcessValue(t *testing.T) {
-	var template api.Template
+	var template templateapi.Template
 	if err := runtime.DecodeInto(kapi.Codecs.UniversalDecoder(), []byte(`{
 		"kind":"Template", "apiVersion":"v1",
 		"objects": [
@@ -228,11 +228,11 @@ func TestProcessValue(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("unexpected error: %v", errs)
 	}
-	result, err := runtime.Encode(kapi.Codecs.LegacyCodec(v1.SchemeGroupVersion), &template)
+	result, err := runtime.Encode(kapi.Codecs.LegacyCodec(templateapiv1.SchemeGroupVersion), &template)
 	if err != nil {
 		t.Fatalf("unexpected error during encoding Config: %#v", err)
 	}
-	expect := `{"kind":"Template","apiVersion":"v1","metadata":{"creationTimestamp":null},"objects":[{"apiVersion":"v1","kind":"Service","metadata":{"labels":{"i1":1,"invalidjsonarray":"[\"key\":\"value\"","invalidjsonmap":"{\"key\":\"value\"","key1":"1","key2":"$1","quoted_string":"string1","s1_s1":"string1_string1","s1_s2":"string1_string2","untouched":"a${{INT_1}}","untouched2":"${{INT_1}}a","untouched3":"${{INVALID_PARAMETER}}","untouched4":"${{INVALID PARAMETER}}","validjsonarray":["key","value"],"validjsonmap":{"key":"value"}}}}],"parameters":[{"name":"VALUE","value":"1"},{"name":"STRING_1","value":"string1"},{"name":"STRING_2","value":"string2"},{"name":"INT_1","value":"1"},{"name":"VALID_JSON_MAP","value":"{\"key\":\"value\"}"},{"name":"INVALID_JSON_MAP","value":"{\"key\":\"value\""},{"name":"VALID_JSON_ARRAY","value":"[\"key\",\"value\"]"},{"name":"INVALID_JSON_ARRAY","value":"[\"key\":\"value\""}]}`
+	expect := `{"kind":"Template","apiVersion":"template.openshift.io/v1","metadata":{"creationTimestamp":null},"objects":[{"apiVersion":"v1","kind":"Service","metadata":{"labels":{"i1":1,"invalidjsonarray":"[\"key\":\"value\"","invalidjsonmap":"{\"key\":\"value\"","key1":"1","key2":"$1","quoted_string":"string1","s1_s1":"string1_string1","s1_s2":"string1_string2","untouched":"a${{INT_1}}","untouched2":"${{INT_1}}a","untouched3":"${{INVALID_PARAMETER}}","untouched4":"${{INVALID PARAMETER}}","validjsonarray":["key","value"],"validjsonmap":{"key":"value"}}}}],"parameters":[{"name":"VALUE","value":"1"},{"name":"STRING_1","value":"string1"},{"name":"STRING_2","value":"string2"},{"name":"INT_1","value":"1"},{"name":"VALID_JSON_MAP","value":"{\"key\":\"value\"}"},{"name":"INVALID_JSON_MAP","value":"{\"key\":\"value\""},{"name":"VALID_JSON_ARRAY","value":"[\"key\",\"value\"]"},{"name":"INVALID_JSON_ARRAY","value":"[\"key\":\"value\""}]}`
 	stringResult := strings.TrimSpace(string(result))
 	if expect != stringResult {
 		//t.Errorf("unexpected output, expected: \n%s\nGot:\n%s\n", expect, stringResult)
@@ -259,7 +259,7 @@ func TestEvaluateLabels(t *testing.T) {
 				]
 			}`,
 			Output: `{
-				"kind":"Template","apiVersion":"v1","metadata":{"creationTimestamp":null},
+				"kind":"Template","apiVersion":"template.openshift.io/v1","metadata":{"creationTimestamp":null},
 				"objects":[
 					{
 						"apiVersion":"v1","kind":"Service","metadata":{
@@ -279,7 +279,7 @@ func TestEvaluateLabels(t *testing.T) {
 				]
 			}`,
 			Output: `{
-				"kind":"Template","apiVersion":"v1","metadata":{"creationTimestamp":null},
+				"kind":"Template","apiVersion":"template.openshift.io/v1","metadata":{"creationTimestamp":null},
 				"objects":[
 					{
 						"apiVersion":"v1","kind":"Service","metadata":{
@@ -305,7 +305,7 @@ func TestEvaluateLabels(t *testing.T) {
 				]
 			}`,
 			Output: `{
-				"kind":"Template","apiVersion":"v1","metadata":{"creationTimestamp":null},
+				"kind":"Template","apiVersion":"template.openshift.io/v1","metadata":{"creationTimestamp":null},
 				"objects":[
 					{
 						"apiVersion":"v1","kind":"Service",
@@ -328,7 +328,7 @@ func TestEvaluateLabels(t *testing.T) {
 				]
 			}`,
 			Output: `{
-				"kind":"Template","apiVersion":"v1","metadata":{"creationTimestamp":null},
+				"kind":"Template","apiVersion":"template.openshift.io/v1","metadata":{"creationTimestamp":null},
 				"objects":[
 					{
 						"apiVersion":"v1","kind":"Service","metadata":{
@@ -342,7 +342,7 @@ func TestEvaluateLabels(t *testing.T) {
 	}
 
 	for k, testCase := range testCases {
-		var template api.Template
+		var template templateapi.Template
 		if err := runtime.DecodeInto(kapi.Codecs.UniversalDecoder(), []byte(testCase.Input), &template); err != nil {
 			t.Errorf("%s: unexpected error: %v", k, err)
 			continue
@@ -361,7 +361,7 @@ func TestEvaluateLabels(t *testing.T) {
 			t.Errorf("%s: unexpected error: %v", k, errs)
 			continue
 		}
-		result, err := runtime.Encode(kapi.Codecs.LegacyCodec(v1.SchemeGroupVersion), &template)
+		result, err := runtime.Encode(kapi.Codecs.LegacyCodec(templateapiv1.SchemeGroupVersion), &template)
 		if err != nil {
 			t.Errorf("%s: unexpected error: %v", k, err)
 			continue
@@ -377,7 +377,7 @@ func TestEvaluateLabels(t *testing.T) {
 }
 
 func TestProcessTemplateParameters(t *testing.T) {
-	var template, expectedTemplate api.Template
+	var template, expectedTemplate templateapi.Template
 	jsonData, _ := ioutil.ReadFile("../../test/templates/testdata/guestbook.json")
 	if err := runtime.DecodeInto(kapi.Codecs.UniversalDecoder(), jsonData, &template); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -401,11 +401,11 @@ func TestProcessTemplateParameters(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("unexpected error: %v", errs)
 	}
-	result, err := runtime.Encode(kapi.Codecs.LegacyCodec(v1.SchemeGroupVersion), &template)
+	result, err := runtime.Encode(kapi.Codecs.LegacyCodec(templateapiv1.SchemeGroupVersion), &template)
 	if err != nil {
 		t.Fatalf("unexpected error during encoding Config: %#v", err)
 	}
-	exp, _ := runtime.Encode(kapi.Codecs.LegacyCodec(v1.SchemeGroupVersion), &expectedTemplate)
+	exp, _ := runtime.Encode(kapi.Codecs.LegacyCodec(templateapiv1.SchemeGroupVersion), &expectedTemplate)
 
 	if string(result) != string(exp) {
 		t.Errorf("unexpected output: %s", diff.StringDiff(string(exp), string(result)))

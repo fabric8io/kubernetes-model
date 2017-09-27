@@ -3,30 +3,32 @@ source "$(dirname "${BASH_SOURCE}")/lib/init.sh"
 
 os::build::setup_env
 
-os::util::ensure::built_binary_exists 'client-gen' 'vendor/k8s.io/kubernetes/cmd/libs/go2idl/client-gen'
+os::util::ensure::built_binary_exists 'client-gen' 'vendor/k8s.io/kubernetes/staging/src/k8s.io/kube-gen/cmd/client-gen'
 
 # list of package to generate client set for
 packages=(
-  github.com/openshift/origin/pkg/authorization
-  github.com/openshift/origin/pkg/build
-  github.com/openshift/origin/pkg/deploy
-  github.com/openshift/origin/pkg/image
-  github.com/openshift/origin/pkg/oauth
-  github.com/openshift/origin/pkg/project
-  github.com/openshift/origin/pkg/route
-  github.com/openshift/origin/pkg/sdn
-  github.com/openshift/origin/pkg/template
-  github.com/openshift/origin/pkg/user
+  github.com/openshift/origin/pkg/authorization/apis/authorization
+  github.com/openshift/origin/pkg/build/apis/build
+  github.com/openshift/origin/pkg/deploy/apis/apps
+  github.com/openshift/origin/pkg/image/apis/image
+  github.com/openshift/origin/pkg/oauth/apis/oauth
+  github.com/openshift/origin/pkg/project/apis/project
+  github.com/openshift/origin/pkg/quota/apis/quota
+  github.com/openshift/origin/pkg/route/apis/route
+  github.com/openshift/origin/pkg/sdn/apis/network
+  github.com/openshift/origin/pkg/security/apis/security
+  github.com/openshift/origin/pkg/template/apis/template
+  github.com/openshift/origin/pkg/user/apis/user
 )
 
 function generate_clientset_for() {
   local package="$1";shift
   local name="$1";shift
   echo "-- Generating ${name} client set for ${package} ..."
-  client-gen --clientset-path="${package}/client/clientset_generated" \
-             --clientset-api-path="/oapi"                             \
-             --input-base="${package}/api"                            \
-             --output-base="../../.."                                 \
+  grouppkg=$(realpath --canonicalize-missing --relative-to=$(pwd) ${package}/..)
+  client-gen --clientset-path="${grouppkg}/generated" \
+             --input-base="${package}"                            \
+             --output-base="../../.."                           \
              --clientset-name="${name}"                               \
              --go-header-file=hack/boilerplate.txt                    \
              "$@"
@@ -34,19 +36,19 @@ function generate_clientset_for() {
 
 verify="${VERIFY:-}"
 
-# remove the old client sets
+# remove the old client sets if we're not verifying
+if [[ -z "${verify}" ]]; then
+  for pkg in "${packages[@]}"; do
+    grouppkg=$(realpath --canonicalize-missing --relative-to=$(pwd) ${pkg}/../..)
+    # delete all generated go files excluding files named *_expansion.go
+    go list -f '{{.Dir}}' "${grouppkg}/generated/clientset" "${grouppkg}/generated/internalclientset" \
+		| xargs -n1 -I{} find {} -type f -not -name "*_expansion.go" -delete
+  done
+fi
+
 for pkg in "${packages[@]}"; do
-  if [[ -z "${verify}" ]]; then
-    go list -f '{{.Dir}}' "${pkg}/client/clientset_generated/..." | xargs rm -rf
-  fi
+  shortGroup=$(basename "${pkg}")
+  containingPackage=$(dirname "${pkg}")
+  generate_clientset_for "${containingPackage}" "internalclientset"  --group=${shortGroup} --input=${shortGroup} ${verify} "$@"
+  generate_clientset_for "${containingPackage}" "clientset" --group=${shortGroup} --version=v1 --input=${shortGroup}/v1 ${verify} "$@"
 done
-
-# get the tag name for the current origin release
-os::build::get_version_vars
-origin_version="v${OS_GIT_MAJOR}_${OS_GIT_MINOR%+}"
-
-for pkg in "${packages[@]}"; do
-  generate_clientset_for "${pkg}" "internalclientset" --input=api/ "$@"
-  generate_clientset_for "${pkg}" "release_${origin_version}" --input=api/v1 "$@"
-done
-

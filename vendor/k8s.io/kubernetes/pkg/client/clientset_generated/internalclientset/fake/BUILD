@@ -4,10 +4,7 @@ licenses(["notice"])
 
 load(
     "@io_bazel_rules_go//go:def.bzl",
-    "go_binary",
     "go_library",
-    "go_test",
-    "cgo_library",
 )
 
 go_library(
@@ -15,12 +12,27 @@ go_library(
     srcs = [
         "clientset_generated.go",
         "doc.go",
+        "register.go",
     ],
     tags = ["automanaged"],
     deps = [
         "//pkg/api:go_default_library",
-        "//pkg/apimachinery/registered:go_default_library",
+        "//pkg/apis/admissionregistration:go_default_library",
+        "//pkg/apis/apps:go_default_library",
+        "//pkg/apis/authentication:go_default_library",
+        "//pkg/apis/authorization:go_default_library",
+        "//pkg/apis/autoscaling:go_default_library",
+        "//pkg/apis/batch:go_default_library",
+        "//pkg/apis/certificates:go_default_library",
+        "//pkg/apis/extensions:go_default_library",
+        "//pkg/apis/networking:go_default_library",
+        "//pkg/apis/policy:go_default_library",
+        "//pkg/apis/rbac:go_default_library",
+        "//pkg/apis/settings:go_default_library",
+        "//pkg/apis/storage:go_default_library",
         "//pkg/client/clientset_generated/internalclientset:go_default_library",
+        "//pkg/client/clientset_generated/internalclientset/typed/admissionregistration/internalversion:go_default_library",
+        "//pkg/client/clientset_generated/internalclientset/typed/admissionregistration/internalversion/fake:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/apps/internalversion:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/apps/internalversion/fake:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/authentication/internalversion:go_default_library",
@@ -37,16 +49,36 @@ go_library(
         "//pkg/client/clientset_generated/internalclientset/typed/core/internalversion/fake:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/extensions/internalversion:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/extensions/internalversion/fake:go_default_library",
+        "//pkg/client/clientset_generated/internalclientset/typed/networking/internalversion:go_default_library",
+        "//pkg/client/clientset_generated/internalclientset/typed/networking/internalversion/fake:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/policy/internalversion:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/policy/internalversion/fake:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/rbac/internalversion:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/rbac/internalversion/fake:go_default_library",
+        "//pkg/client/clientset_generated/internalclientset/typed/settings/internalversion:go_default_library",
+        "//pkg/client/clientset_generated/internalclientset/typed/settings/internalversion/fake:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/storage/internalversion:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/storage/internalversion/fake:go_default_library",
-        "//pkg/client/testing/core:go_default_library",
-        "//pkg/client/typed/discovery:go_default_library",
-        "//pkg/client/typed/discovery/fake:go_default_library",
-        "//pkg/runtime:go_default_library",
-        "//pkg/watch:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/runtime/schema:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/runtime/serializer:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/watch:go_default_library",
+        "//vendor/k8s.io/client-go/discovery:go_default_library",
+        "//vendor/k8s.io/client-go/discovery/fake:go_default_library",
+        "//vendor/k8s.io/client-go/testing:go_default_library",
     ],
+)
+
+filegroup(
+    name = "package-srcs",
+    srcs = glob(["**"]),
+    tags = ["automanaged"],
+    visibility = ["//visibility:private"],
+)
+
+filegroup(
+    name = "all-srcs",
+    srcs = [":package-srcs"],
+    tags = ["automanaged"],
 )

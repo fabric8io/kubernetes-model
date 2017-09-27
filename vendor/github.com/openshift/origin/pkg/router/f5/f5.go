@@ -16,7 +16,7 @@ import (
 
 	"github.com/golang/glog"
 
-	knet "k8s.io/kubernetes/pkg/util/net"
+	knet "k8s.io/apimachinery/pkg/util/net"
 )
 
 const (
@@ -54,6 +54,13 @@ type passthroughRoute struct {
 	poolname string
 }
 
+// reencryptRoute represents a reencrypt route for the F5 router's internal state
+// similar to the passthrough route
+type reencryptRoute struct {
+	hostname string
+	poolname string
+}
+
 // f5LTM represents an F5 BIG-IP instance.
 type f5LTM struct {
 	// f5LTMCfg contains the configuration parameters for an F5 BIG-IP instance.
@@ -70,6 +77,9 @@ type f5LTM struct {
 
 	// passthroughRoutes maps routename to passthroughroute{hostname, poolname}.
 	passthroughRoutes map[string]passthroughRoute
+
+	// reencryptRoutes maps routename to passthroughroute{hostname, poolname}.
+	reencryptRoutes map[string]reencryptRoute
 }
 
 // f5LTMCfg holds configuration for connecting to and issuing iControl
@@ -134,6 +144,14 @@ const (
 	// https_policy is the name of the local traffic policy associated with the
 	// vservers for secure (TLS/SSL, HTTPS) routes.
 	httpsPolicyName = "openshift_secure_routes"
+
+	// reencryptRoutesDataGroupName is the name of the datagroup that will be used
+	// by our iRule for routing SSL-passthrough routes (see below).
+	reencryptRoutesDataGroupName = "ssl_reencrypt_route_dg"
+
+	// reencryptHostsDataGroupName is the name of the datagroup that will be used
+	// by our iRule for routing SSL-passthrough routes (see below).
+	reencryptHostsDataGroupName = "ssl_reencrypt_servername_dg"
 
 	// passthroughRoutesDataGroupName is the name of the datagroup that will be used
 	// by our iRule for routing SSL-passthrough routes (see below).
@@ -240,10 +258,15 @@ when CLIENT_DATA {
 
           if { [info exists tls_servername] } {
             set servername_lower [string tolower $tls_servername]
+            SSL::disable serverside
             if { [class match $servername_lower equals ssl_passthrough_servername_dg] } {
               pool [class match -value $servername_lower equals ssl_passthrough_servername_dg]
               SSL::disable
               HTTP::disable
+            }
+            elseif { [class match $servername_lower equals ssl_reencrypt_servername_dg] } {
+              pool [class match -value $servername_lower equals ssl_reencrypt_servername_dg]
+              SSL::enable serverside
             }
           }
         }
@@ -482,6 +505,32 @@ func (f5 *f5LTM) delete(url string, result interface{}) error {
 }
 
 //
+// iControl REST resource helper methods.
+//
+
+// encodeiControlUriPathComponent returns an encoded resource path for use
+// in the URI for the iControl REST calls.
+// For example for a path /Common/foo, the corresponding encoded iControl
+// URI path component would be ~Common~foo and this can then be used in the
+// iControl REST calls ala:
+//    https://<ip>:<port>/mgmt/tm/ltm/policy/~Common~foo/rules
+func encodeiControlUriPathComponent(pathName string) string {
+	return strings.Replace(pathName, "/", "~", -1)
+}
+
+// iControlUriResourceId returns an encoded resource id (resource path
+// including the partition), which can be used the iControl REST calls.
+// For example, for a policy named openshift_secure_routes policy in the
+// /Common partition, the encoded resource id would be:
+//    ~Common~openshift_secure_routes
+// which can then be used as a resource specifier in the URI ala:
+//    https://<ip>:<port>/mgmt/tm/ltm/policy/~Common~openshift_secure_routes/rules
+func (f5 *f5LTM) iControlUriResourceId(resourceName string) string {
+	resourcePath := path.Join(f5.partitionPath, resourceName)
+	return encodeiControlUriPathComponent(resourcePath)
+}
+
+//
 // Routines for controlling F5.
 //
 
@@ -532,7 +581,7 @@ func (f5 *f5LTM) ensureVxLANTunnel() error {
 		AddressSource:         "from-user",
 		Floating:              "disabled",
 		InheritedTrafficGroup: "false",
-		TrafficGroup:          path.Join(f5.partitionPath, "traffic-group-local-only"),
+		TrafficGroup:          path.Join("/Common", "traffic-group-local-only"), // Traffic group is global
 		Unit:                  0,
 		Vlan:                  path.Join(f5.partitionPath, F5VxLANTunnelName),
 		AllowService:          "all",
@@ -552,8 +601,9 @@ func (f5 *f5LTM) ensureVxLANTunnel() error {
 func (f5 *f5LTM) ensurePolicyExists(policyName string) error {
 	glog.V(4).Infof("Checking whether policy %s exists...", policyName)
 
+	policyResourceId := f5.iControlUriResourceId(policyName)
 	policyUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/policy/%s",
-		f5.host, policyName)
+		f5.host, policyResourceId)
 
 	err := f5.get(policyUrl, nil)
 	if err != nil && err.(F5Error).httpStatusCode != 404 {
@@ -570,11 +620,13 @@ func (f5 *f5LTM) ensurePolicyExists(policyName string) error {
 
 	policiesUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/policy", f5.host)
 
+	policyPath := path.Join(f5.partitionPath, policyName)
+
 	if f5.setupOSDNVxLAN {
 		// if vxlan needs to be setup, it will only happen
 		// with ver12, for which we need to use a different payload
 		policyPayload := f5Ver12Policy{
-			Name:        policyName,
+			Name:        policyPath,
 			TmPartition: f5.partitionPath,
 			Controls:    []string{"forwarding"},
 			Requires:    []string{"http"},
@@ -584,10 +636,11 @@ func (f5 *f5LTM) ensurePolicyExists(policyName string) error {
 		err = f5.post(policiesUrl, policyPayload, nil)
 	} else {
 		policyPayload := f5Policy{
-			Name:     policyName,
-			Controls: []string{"forwarding"},
-			Requires: []string{"http"},
-			Strategy: "best-match",
+			Name:      policyPath,
+			Partition: f5.partitionPath,
+			Controls:  []string{"forwarding"},
+			Requires:  []string{"http"},
+			Strategy:  "best-match",
 		}
 		err = f5.post(policiesUrl, policyPayload, nil)
 	}
@@ -602,7 +655,7 @@ func (f5 *f5LTM) ensurePolicyExists(policyName string) error {
 	glog.V(4).Infof("Policy %s created.  Adding no-op rule...", policyName)
 
 	rulesUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/policy/%s/rules",
-		f5.host, policyName)
+		f5.host, policyResourceId)
 
 	rulesPayload := f5Rule{
 		Name: "default_noop",
@@ -624,11 +677,13 @@ func (f5 *f5LTM) ensureVserverHasPolicy(vserverName, policyName string) error {
 	glog.V(4).Infof("Checking whether vserver %s has policy %s...",
 		vserverName, policyName)
 
+	vserverResourceId := f5.iControlUriResourceId(vserverName)
+
 	// We could use fmt.Sprintf("https://%s/mgmt/tm/ltm/virtual/%s/policies/%s",
-	// f5.host, vserverName, policyName) here, except that F5 iControl REST
-	// returns a 200 even if the policy does not exist.
+	// f5.host, vserverResourceId, policyName) here, except that F5
+	// iControl REST returns a 200 even if the policy does not exist.
 	vserverPoliciesUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/virtual/%s/policies",
-		f5.host, vserverName)
+		f5.host, vserverResourceId)
 
 	res := f5VserverPolicies{}
 
@@ -637,8 +692,10 @@ func (f5 *f5LTM) ensureVserverHasPolicy(vserverName, policyName string) error {
 		return err
 	}
 
+	policyPath := path.Join(f5.partitionPath, policyName)
+
 	for _, policy := range res.Policies {
-		if policy.Name == policyName {
+		if policy.FullPath == policyPath {
 			glog.V(4).Infof("Vserver %s has policy %s associated with it;"+
 				" nothing to do.", vserverName, policyName)
 			return nil
@@ -648,7 +705,8 @@ func (f5 *f5LTM) ensureVserverHasPolicy(vserverName, policyName string) error {
 	glog.V(4).Infof("Adding policy %s to vserver %s...", policyName, vserverName)
 
 	vserverPoliciesPayload := f5VserverPolicy{
-		Name: policyName,
+		Name:      policyPath,
+		Partition: f5.partitionPath,
 	}
 
 	err = f5.post(vserverPoliciesUrl, vserverPoliciesPayload, nil)
@@ -709,7 +767,8 @@ func (f5 *f5LTM) ensureDatagroupExists(datagroupName string) error {
 func (f5 *f5LTM) ensureIRuleExists(iRuleName, iRule string) error {
 	glog.V(4).Infof("Checking whether iRule %s exists...", iRuleName)
 
-	iRuleUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/rule/%s", f5.host, iRuleName)
+	iRuleUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/rule/%s", f5.host,
+		f5.iControlUriResourceId(iRuleName))
 
 	err := f5.get(iRuleUrl, nil)
 	if err != nil && err.(F5Error).httpStatusCode != 404 {
@@ -727,8 +786,9 @@ func (f5 *f5LTM) ensureIRuleExists(iRuleName, iRule string) error {
 	iRulesUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/rule", f5.host)
 
 	iRulePayload := f5IRule{
-		Name: iRuleName,
-		Code: iRule,
+		Name:      iRuleName,
+		Partition: f5.partitionPath,
+		Code:      iRule,
 	}
 
 	err = f5.post(iRulesUrl, iRulePayload, nil)
@@ -748,7 +808,7 @@ func (f5 *f5LTM) ensureVserverHasIRule(vserverName, iRuleName string) error {
 		vserverName, iRuleName)
 
 	vserverUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/virtual/%s",
-		f5.host, vserverName)
+		f5.host, f5.iControlUriResourceId(vserverName))
 
 	res := f5VserverIRules{}
 
@@ -757,7 +817,7 @@ func (f5 *f5LTM) ensureVserverHasIRule(vserverName, iRuleName string) error {
 		return err
 	}
 
-	commonIRuleName := fmt.Sprintf("%s/%s", f5.partitionPath, iRuleName)
+	commonIRuleName := path.Join("/", f5.partitionPath, iRuleName)
 
 	for _, name := range res.Rules {
 		if name == commonIRuleName {
@@ -770,8 +830,9 @@ func (f5 *f5LTM) ensureVserverHasIRule(vserverName, iRuleName string) error {
 
 	glog.V(4).Infof("Adding iRule %s to vserver %s...", iRuleName, vserverName)
 
+	sslPassthroughIRulePath := path.Join(f5.partitionPath, sslPassthroughIRuleName)
 	vserverRulesPayload := f5VserverIRules{
-		Rules: []string{sslPassthroughIRuleName},
+		Rules: []string{sslPassthroughIRulePath},
 	}
 
 	err = f5.patch(vserverUrl, vserverRulesPayload, nil)
@@ -788,10 +849,8 @@ func (f5 *f5LTM) ensureVserverHasIRule(vserverName, iRuleName string) error {
 func (f5 *f5LTM) checkPartitionPathExists(pathName string) (bool, error) {
 	glog.V(4).Infof("Checking if partition path %q exists...", pathName)
 
-	// F5 iControl REST API expects / characters in the path to be
-	// escaped as ~.
 	uri := fmt.Sprintf("https://%s/mgmt/tm/sys/folder/%s",
-		f5.host, strings.Replace(pathName, "/", "~", -1))
+		f5.host, encodeiControlUriPathComponent(pathName))
 
 	err := f5.get(uri, nil)
 	if err != nil {
@@ -897,6 +956,16 @@ func (f5 *f5LTM) Initialize() error {
 	}
 
 	err = f5.ensurePolicyExists(httpsPolicyName)
+	if err != nil {
+		return err
+	}
+
+	err = f5.ensureDatagroupExists(reencryptRoutesDataGroupName)
+	if err != nil {
+		return err
+	}
+
+	err = f5.ensureDatagroupExists(reencryptHostsDataGroupName)
 	if err != nil {
 		return err
 	}
@@ -1012,9 +1081,10 @@ func (f5 *f5LTM) CreatePool(poolname string) error {
 	// From @Miciah: In the future, we should allow the administrator
 	// to specify a different monitor to use.
 	payload := f5Pool{
-		Mode:    "round-robin",
-		Monitor: "min 1 of /Common/http /Common/https",
-		Name:    poolname,
+		Mode:      "round-robin",
+		Monitor:   "min 1 of /Common/http /Common/https",
+		Partition: f5.partitionPath,
+		Name:      poolname,
 	}
 
 	err := f5.post(url, payload, nil)
@@ -1036,7 +1106,8 @@ func (f5 *f5LTM) CreatePool(poolname string) error {
 // DeletePool deletes the specified pool from F5 BIG-IP, and deletes
 // f5.poolMembers[poolname].
 func (f5 *f5LTM) DeletePool(poolname string) error {
-	url := fmt.Sprintf("https://%s/mgmt/tm/ltm/pool/%s", f5.host, poolname)
+	url := fmt.Sprintf("https://%s/mgmt/tm/ltm/pool/%s", f5.host,
+		f5.iControlUriResourceId(poolname))
 
 	err := f5.delete(url, nil)
 	if err != nil {
@@ -1062,7 +1133,7 @@ func (f5 *f5LTM) GetPoolMembers(poolname string) (map[string]bool, error) {
 	}
 
 	url := fmt.Sprintf("https://%s/mgmt/tm/ltm/pool/%s/members",
-		f5.host, poolname)
+		f5.host, f5.iControlUriResourceId(poolname))
 
 	res := f5PoolMemberset{}
 
@@ -1125,7 +1196,7 @@ func (f5 *f5LTM) AddPoolMember(poolname, member string) error {
 	glog.V(4).Infof("Adding pool member %s to pool %s.", member, poolname)
 
 	url := fmt.Sprintf("https://%s/mgmt/tm/ltm/pool/%s/members",
-		f5.host, poolname)
+		f5.host, f5.iControlUriResourceId(poolname))
 
 	payload := f5PoolMember{
 		Name: member,
@@ -1164,7 +1235,7 @@ func (f5 *f5LTM) DeletePoolMember(poolname, member string) error {
 	}
 
 	url := fmt.Sprintf("https://%s/mgmt/tm/ltm/pool/%s/members/%s",
-		f5.host, poolname, member)
+		f5.host, f5.iControlUriResourceId(poolname), member)
 
 	err = f5.delete(url, nil)
 	if err != nil {
@@ -1187,7 +1258,7 @@ func (f5 *f5LTM) getRoutes(policyname string) (map[string]bool, error) {
 	}
 
 	url := fmt.Sprintf("https://%s/mgmt/tm/ltm/policy/%s/rules",
-		f5.host, policyname)
+		f5.host, f5.iControlUriResourceId(policyname))
 
 	res := f5PolicyRuleset{}
 
@@ -1229,6 +1300,18 @@ func (f5 *f5LTM) SecureRouteExists(routename string) (bool, error) {
 	return f5.routeExists(httpsPolicyName, routename)
 }
 
+// ReencryptRouteExists checks whether the specified reencrypt route exists.
+func (f5 *f5LTM) ReencryptRouteExists(routename string) (bool, error) {
+	routes, err := f5.getReencryptRoutes()
+	if err != nil {
+		return false, err
+	}
+
+	_, ok := routes[routename]
+
+	return ok, nil
+}
+
 // PassthroughRouteExists checks whether the specified passthrough route exists.
 func (f5 *f5LTM) PassthroughRouteExists(routename string) (bool, error) {
 	routes, err := f5.getPassthroughRoutes()
@@ -1257,8 +1340,9 @@ func (f5 *f5LTM) addRoute(policyname, routename, poolname, hostname,
 	pathname string) error {
 	success := false
 
+	policyResourceId := f5.iControlUriResourceId(policyname)
 	rulesUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/policy/%s/rules",
-		f5.host, policyname)
+		f5.host, policyResourceId)
 
 	rulesPayload := f5Rule{
 		Name: routename,
@@ -1288,7 +1372,7 @@ func (f5 *f5LTM) addRoute(policyname, routename, poolname, hostname,
 	}()
 
 	conditionUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/policy/%s/rules/%s/conditions",
-		f5.host, policyname, routename)
+		f5.host, policyResourceId, routename)
 
 	conditionPayload := f5RuleCondition{
 		Name:            "0",
@@ -1330,7 +1414,7 @@ func (f5 *f5LTM) addRoute(policyname, routename, poolname, hostname,
 	}
 
 	actionUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/policy/%s/rules/%s/actions",
-		f5.host, policyname, routename)
+		f5.host, policyResourceId, routename)
 
 	actionPayload := f5RuleAction{
 		Name:    "0",
@@ -1372,6 +1456,119 @@ func (f5 *f5LTM) AddInsecureRoute(routename, poolname, hostname,
 func (f5 *f5LTM) AddSecureRoute(routename, poolname, hostname,
 	pathname string) error {
 	return f5.addRoute(httpsPolicyName, routename, poolname, hostname, pathname)
+}
+
+// getReencryptRoutes returns f5.reencryptRoutes, first initializing it from
+// F5 if it is zero.
+func (f5 *f5LTM) getReencryptRoutes() (map[string]reencryptRoute, error) {
+	routes := f5.reencryptRoutes
+	if routes != nil {
+		return routes, nil
+	}
+
+	hostsUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/data-group/internal/%s",
+		f5.host, reencryptHostsDataGroupName)
+
+	hostsRes := f5Datagroup{}
+
+	err := f5.get(hostsUrl, &hostsRes)
+	if err != nil {
+		return nil, err
+	}
+
+	routesUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/data-group/internal/%s",
+		f5.host, reencryptRoutesDataGroupName)
+
+	routesRes := f5Datagroup{}
+
+	err = f5.get(routesUrl, &routesRes)
+	if err != nil {
+		return nil, err
+	}
+
+	hosts := map[string]string{}
+
+	for _, hostRecord := range hostsRes.Records {
+		hosts[hostRecord.Key] = hostRecord.Value
+	}
+
+	f5.reencryptRoutes = map[string]reencryptRoute{}
+
+	for _, routeRecord := range routesRes.Records {
+		routename := routeRecord.Key
+		hostname := routeRecord.Value
+
+		poolname, foundPoolname := hosts[hostname]
+		if !foundPoolname {
+			glog.Warningf("%s datagroup maps route %s to hostname %s,"+
+				" but %s datagroup does not have an entry for that hostname"+
+				" to map it to a pool.  Dropping route %s from datagroup %s...",
+				reencryptRoutesDataGroupName, routename, hostname,
+				reencryptHostsDataGroupName,
+				routename, reencryptRoutesDataGroupName)
+			continue
+		}
+
+		f5.reencryptRoutes[routename] = reencryptRoute{
+			hostname: hostname,
+			poolname: poolname,
+		}
+	}
+
+	return f5.reencryptRoutes, nil
+}
+
+// updateReencryptRoutes updates the data-groups for reencrypt routes using
+// the internal object's state.
+func (f5 *f5LTM) updateReencryptRoutes() error {
+	routes, err := f5.getReencryptRoutes()
+	if err != nil {
+		return err
+	}
+
+	// It would be *super* great if we could use CRUD operations on data-groups as
+	// we do on pools, rules, and profiles, but we cannot: each data-group is
+	// represented in JSON as an array, so we must PATCH the array in its
+	// entirety.
+
+	hostsRecords := []f5DatagroupRecord{}
+	routesRecords := []f5DatagroupRecord{}
+	for routename, route := range routes {
+		hostsRecords = append(hostsRecords,
+			f5DatagroupRecord{Key: route.hostname, Value: route.poolname})
+		routesRecords = append(routesRecords,
+			f5DatagroupRecord{Key: routename, Value: route.hostname})
+	}
+
+	hostsDatagroupUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/data-group/internal/%s",
+		f5.host, reencryptHostsDataGroupName)
+
+	hostsDatagroupPayload := f5Datagroup{
+		Records: hostsRecords,
+	}
+
+	err = f5.patch(hostsDatagroupUrl, hostsDatagroupPayload, nil)
+	if err != nil {
+		return err
+	}
+
+	glog.V(4).Infof("Datagroup %s updated.", reencryptHostsDataGroupName)
+
+	routesDatagroupUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/data-group/internal/%s",
+		f5.host, reencryptRoutesDataGroupName)
+
+	routesDatagroupPayload := f5Datagroup{
+		Records: routesRecords,
+	}
+
+	err = f5.patch(routesDatagroupUrl, routesDatagroupPayload, nil)
+	if err != nil {
+		return err
+	}
+
+	glog.V(4).Infof("Datagroup %s updated.", reencryptRoutesDataGroupName)
+
+	return nil
 }
 
 // getPassthroughRoutes returns f5.passthroughRoutes, first initializing it from
@@ -1487,6 +1684,20 @@ func (f5 *f5LTM) updatePassthroughRoutes() error {
 	return nil
 }
 
+// AddReencryptRoute adds the required data-group records for the specified
+// reeencrypt route to F5 BIG-IP, so that requests to the specified hostname
+// will be routed to the specified pool through the iRule
+func (f5 *f5LTM) AddReencryptRoute(routename, poolname, hostname string) error {
+	routes, err := f5.getReencryptRoutes()
+	if err != nil {
+		return err
+	}
+
+	routes[routename] = reencryptRoute{hostname: hostname, poolname: poolname}
+
+	return f5.updateReencryptRoutes()
+}
+
 // AddPassthroughRoute adds the required data-group records for the specified
 // passthrough route to F5 BIG-IP, so that requests to the specified hostname
 // will be routed to the specified pool.
@@ -1499,6 +1710,24 @@ func (f5 *f5LTM) AddPassthroughRoute(routename, poolname, hostname string) error
 	routes[routename] = passthroughRoute{hostname: hostname, poolname: poolname}
 
 	return f5.updatePassthroughRoutes()
+}
+
+// DeleteReencryptRoute deletes the data-group records for the specified
+// reencrypt route from F5 BIG-IP.
+func (f5 *f5LTM) DeleteReencryptRoute(routename string) error {
+	routes, err := f5.getReencryptRoutes()
+	if err != nil {
+		return err
+	}
+
+	_, exists := routes[routename]
+	if !exists {
+		return fmt.Errorf("Reencrypt route %s does not exist.", routename)
+	}
+
+	delete(routes, routename)
+
+	return f5.updateReencryptRoutes()
 }
 
 // DeletePassthroughRoute deletes the data-group records for the specified
@@ -1523,7 +1752,7 @@ func (f5 *f5LTM) DeletePassthroughRoute(routename string) error {
 // policy.
 func (f5 *f5LTM) deleteRoute(policyname, routename string) error {
 	ruleUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/policy/%s/rules/%s",
-		f5.host, policyname, routename)
+		f5.host, f5.iControlUriResourceId(policyname), routename)
 
 	err := f5.delete(ruleUrl, nil)
 	if err != nil {
@@ -1844,7 +2073,7 @@ func (f5 *f5LTM) associateClientSslProfileWithVserver(profilename,
 		profilename, vservername)
 
 	vserverProfileUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/virtual/%s/profiles",
-		f5.host, vservername)
+		f5.host, f5.iControlUriResourceId(vservername))
 
 	vserverProfilePayload := f5VserverProfilePayload{
 		Name:    profilename,
@@ -1862,7 +2091,7 @@ func (f5 *f5LTM) associateServerSslProfileWithVserver(profilename,
 		profilename, vservername)
 
 	vserverProfileUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/virtual/%s/profiles",
-		f5.host, vservername)
+		f5.host, f5.iControlUriResourceId(vservername))
 
 	vserverProfilePayload := f5VserverProfilePayload{
 		Name:    profilename,
@@ -1890,7 +2119,7 @@ func (f5 *f5LTM) deleteCertParts(routename string,
 			routename, f5.httpsVserver)
 		serverSslProfileName := fmt.Sprintf("%s-server-ssl-profile", routename)
 		serverSslVserverProfileUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/virtual/%s/profiles/%s",
-			f5.host, f5.httpsVserver, serverSslProfileName)
+			f5.host, f5.iControlUriResourceId(f5.httpsVserver), serverSslProfileName)
 		err := f5.delete(serverSslVserverProfileUrl, nil)
 		if err != nil {
 			// Iff the profile is not associated with the vserver, we can continue on to
@@ -1925,7 +2154,7 @@ func (f5 *f5LTM) deleteCertParts(routename string,
 			" from vserver %s...", routename, f5.httpsVserver)
 		clientSslProfileName := fmt.Sprintf("%s-client-ssl-profile", routename)
 		clientSslVserverProfileUrl := fmt.Sprintf("https://%s/mgmt/tm/ltm/virtual/%s/profiles/%s",
-			f5.host, f5.httpsVserver, clientSslProfileName)
+			f5.host, f5.iControlUriResourceId(f5.httpsVserver), clientSslProfileName)
 		err := f5.delete(clientSslVserverProfileUrl, nil)
 		if err != nil {
 			// Iff the profile is not associated with the vserver, we can continue on

@@ -17,19 +17,24 @@ limitations under the License.
 package dockershim
 
 import (
+	"fmt"
+	"net/http"
+
+	"github.com/docker/docker/pkg/jsonmessage"
 	dockertypes "github.com/docker/engine-api/types"
-	runtimeApi "k8s.io/kubernetes/pkg/kubelet/api/v1alpha1/runtime"
-	"k8s.io/kubernetes/pkg/kubelet/dockertools"
+
+	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
+	"k8s.io/kubernetes/pkg/kubelet/dockershim/libdocker"
 )
 
 // This file implements methods in ImageManagerService.
 
 // ListImages lists existing images.
-func (ds *dockerService) ListImages(filter *runtimeApi.ImageFilter) ([]*runtimeApi.Image, error) {
+func (ds *dockerService) ListImages(filter *runtimeapi.ImageFilter) ([]*runtimeapi.Image, error) {
 	opts := dockertypes.ImageListOptions{}
 	if filter != nil {
 		if imgSpec := filter.GetImage(); imgSpec != nil {
-			opts.MatchName = imgSpec.GetImage()
+			opts.MatchName = imgSpec.Image
 		}
 	}
 
@@ -38,7 +43,7 @@ func (ds *dockerService) ListImages(filter *runtimeApi.ImageFilter) ([]*runtimeA
 		return nil, err
 	}
 
-	result := []*runtimeApi.Image{}
+	result := make([]*runtimeapi.Image, 0, len(images))
 	for _, i := range images {
 		apiImage, err := imageToRuntimeAPIImage(&i)
 		if err != nil {
@@ -51,10 +56,10 @@ func (ds *dockerService) ListImages(filter *runtimeApi.ImageFilter) ([]*runtimeA
 }
 
 // ImageStatus returns the status of the image, returns nil if the image doesn't present.
-func (ds *dockerService) ImageStatus(image *runtimeApi.ImageSpec) (*runtimeApi.Image, error) {
-	imageInspect, err := ds.client.InspectImageByRef(image.GetImage())
+func (ds *dockerService) ImageStatus(image *runtimeapi.ImageSpec) (*runtimeapi.Image, error) {
+	imageInspect, err := ds.client.InspectImageByRef(image.Image)
 	if err != nil {
-		if dockertools.IsImageNotFoundError(err) {
+		if libdocker.IsImageNotFoundError(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -63,34 +68,87 @@ func (ds *dockerService) ImageStatus(image *runtimeApi.ImageSpec) (*runtimeApi.I
 }
 
 // PullImage pulls an image with authentication config.
-func (ds *dockerService) PullImage(image *runtimeApi.ImageSpec, auth *runtimeApi.AuthConfig) error {
-	return ds.client.PullImage(image.GetImage(),
-		dockertypes.AuthConfig{
-			Username:      auth.GetUsername(),
-			Password:      auth.GetPassword(),
-			ServerAddress: auth.GetServerAddress(),
-			IdentityToken: auth.GetIdentityToken(),
-			RegistryToken: auth.GetRegistryToken(),
-		},
+func (ds *dockerService) PullImage(image *runtimeapi.ImageSpec, auth *runtimeapi.AuthConfig) (string, error) {
+	authConfig := dockertypes.AuthConfig{}
+	if auth != nil {
+		authConfig.Username = auth.Username
+		authConfig.Password = auth.Password
+		authConfig.ServerAddress = auth.ServerAddress
+		authConfig.IdentityToken = auth.IdentityToken
+		authConfig.RegistryToken = auth.RegistryToken
+	}
+	err := ds.client.PullImage(image.Image,
+		authConfig,
 		dockertypes.ImagePullOptions{},
 	)
+	if err != nil {
+		return "", filterHTTPError(err, image.Image)
+	}
+
+	return getImageRef(ds.client, image.Image)
 }
 
 // RemoveImage removes the image.
-func (ds *dockerService) RemoveImage(image *runtimeApi.ImageSpec) error {
+func (ds *dockerService) RemoveImage(image *runtimeapi.ImageSpec) error {
 	// If the image has multiple tags, we need to remove all the tags
 	// TODO: We assume image.Image is image ID here, which is true in the current implementation
 	// of kubelet, but we should still clarify this in CRI.
-	imageInspect, err := ds.client.InspectImageByID(image.GetImage())
+	imageInspect, err := ds.client.InspectImageByID(image.Image)
 	if err == nil && imageInspect != nil && len(imageInspect.RepoTags) > 1 {
 		for _, tag := range imageInspect.RepoTags {
-			if _, err := ds.client.RemoveImage(tag, dockertypes.ImageRemoveOptions{PruneChildren: true}); err != nil {
+			if _, err := ds.client.RemoveImage(tag, dockertypes.ImageRemoveOptions{PruneChildren: true}); err != nil && !libdocker.IsImageNotFoundError(err) {
 				return err
 			}
 		}
 		return nil
 	}
+	// dockerclient.InspectImageByID doesn't work with digest and repoTags,
+	// it is safe to continue removing it since there is another check below.
+	if err != nil && !libdocker.IsImageNotFoundError(err) {
+		return err
+	}
 
-	_, err = ds.client.RemoveImage(image.GetImage(), dockertypes.ImageRemoveOptions{PruneChildren: true})
+	_, err = ds.client.RemoveImage(image.Image, dockertypes.ImageRemoveOptions{PruneChildren: true})
+	if err != nil && !libdocker.IsImageNotFoundError(err) {
+		return err
+	}
+	return nil
+}
+
+// getImageRef returns the image digest if exists, or else returns the image ID.
+func getImageRef(client libdocker.Interface, image string) (string, error) {
+	img, err := client.InspectImageByRef(image)
+	if err != nil {
+		return "", err
+	}
+	if img == nil {
+		return "", fmt.Errorf("unable to inspect image %s", image)
+	}
+
+	// Returns the digest if it exist.
+	if len(img.RepoDigests) > 0 {
+		return img.RepoDigests[0], nil
+	}
+
+	return img.ID, nil
+}
+
+// ImageFsInfo returns information of the filesystem that is used to store images.
+func (ds *dockerService) ImageFsInfo(req *runtimeapi.ImageFsInfoRequest) (*runtimeapi.ImageFsInfoResponse, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func filterHTTPError(err error, image string) error {
+	// docker/docker/pull/11314 prints detailed error info for docker pull.
+	// When it hits 502, it returns a verbose html output including an inline svg,
+	// which makes the output of kubectl get pods much harder to parse.
+	// Here converts such verbose output to a concise one.
+	jerr, ok := err.(*jsonmessage.JSONError)
+	if ok && (jerr.Code == http.StatusBadGateway ||
+		jerr.Code == http.StatusServiceUnavailable ||
+		jerr.Code == http.StatusGatewayTimeout) {
+		return fmt.Errorf("RegistryUnavailable: %v", err)
+	}
 	return err
+
 }

@@ -6,17 +6,18 @@ import (
 
 	"github.com/gonum/graph"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	kapi "k8s.io/kubernetes/pkg/api"
 	_ "k8s.io/kubernetes/pkg/api/install"
-	"k8s.io/kubernetes/pkg/api/unversioned"
 	kapps "k8s.io/kubernetes/pkg/apis/apps"
 	"k8s.io/kubernetes/pkg/apis/autoscaling"
-	"k8s.io/kubernetes/pkg/runtime"
 
 	osgraph "github.com/openshift/origin/pkg/api/graph"
 	kubegraph "github.com/openshift/origin/pkg/api/kubegraph/nodes"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
-	_ "github.com/openshift/origin/pkg/deploy/api/install"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	_ "github.com/openshift/origin/pkg/deploy/apis/apps/install"
 	deploygraph "github.com/openshift/origin/pkg/deploy/graph/nodes"
 )
 
@@ -43,7 +44,7 @@ func TestNamespaceEdgeMatching(t *testing.T) {
 		p := &kapps.StatefulSet{}
 		p.Namespace = namespace
 		p.Name = "the-statefulset"
-		p.Spec.Selector = &unversioned.LabelSelector{
+		p.Spec.Selector = &metav1.LabelSelector{
 			MatchLabels: map[string]string{"a": "1"},
 		}
 		kubegraph.EnsureStatefulSetNode(g, p)
@@ -80,11 +81,11 @@ func namespaceFor(node graph.Node) (string, error) {
 	obj := node.(objectifier).Object()
 	switch t := obj.(type) {
 	case runtime.Object:
-		meta, err := kapi.ObjectMetaFor(t)
+		meta, err := meta.Accessor(t)
 		if err != nil {
 			return "", err
 		}
-		return meta.Namespace, nil
+		return meta.GetNamespace(), nil
 	case *kapi.PodSpec:
 		return node.(*kubegraph.PodSpecNode).Namespace, nil
 	case *kapi.ReplicationControllerSpec:
@@ -179,8 +180,9 @@ func TestHPADCEdges(t *testing.T) {
 	hpa.Name = "test-hpa"
 	hpa.Spec = autoscaling.HorizontalPodAutoscalerSpec{
 		ScaleTargetRef: autoscaling.CrossVersionObjectReference{
-			Name: "test-dc",
-			Kind: "DeploymentConfig",
+			Name:       "test-dc",
+			Kind:       "DeploymentConfig",
+			APIVersion: "apps.openshift.io/v1",
 		},
 	}
 

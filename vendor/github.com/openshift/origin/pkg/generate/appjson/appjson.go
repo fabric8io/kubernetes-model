@@ -10,15 +10,15 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/golang/glog"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+	utilerrs "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/resource"
-	utilerrs "k8s.io/kubernetes/pkg/util/errors"
-	"k8s.io/kubernetes/pkg/util/sets"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	"github.com/openshift/origin/pkg/generate"
 	"github.com/openshift/origin/pkg/generate/app"
-	templateapi "github.com/openshift/origin/pkg/template/api"
+	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 	"github.com/openshift/origin/pkg/util/docker/dockerfile"
 )
 
@@ -217,7 +217,7 @@ func (g *Generator) Generate(body []byte) (*templateapi.Template, error) {
 	image.ObjectName = name
 	image.Tag = "from"
 
-	pipeline, err := app.NewPipelineBuilder(name, nil, false).To(name).NewBuildPipeline(name, image, repo)
+	pipeline, err := app.NewPipelineBuilder(name, nil, nil, false).To(name).NewBuildPipeline(name, image, repo, false)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +263,7 @@ func (g *Generator) Generate(body []byte) (*templateapi.Template, error) {
 			c.Resources = resourcesForProfile(formation.Size)
 		}
 
-		pipeline, err := app.NewPipelineBuilder(componentName, nil, true).To(componentName).NewImagePipeline(componentName, inputImage)
+		pipeline, err := app.NewPipelineBuilder(componentName, nil, nil, true).To(componentName).NewImagePipeline(componentName, inputImage)
 		if err != nil {
 			errs = append(errs, err)
 			break

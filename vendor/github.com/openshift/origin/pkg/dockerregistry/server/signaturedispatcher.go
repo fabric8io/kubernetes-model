@@ -7,7 +7,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	kapierrors "k8s.io/kubernetes/pkg/api/errors"
+	kapierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	ctxu "github.com/docker/distribution/context"
 
@@ -16,7 +17,8 @@ import (
 	"github.com/docker/distribution/registry/api/v2"
 	"github.com/docker/distribution/registry/handlers"
 
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageapiv1 "github.com/openshift/origin/pkg/image/apis/image/v1"
 
 	gorillahandlers "github.com/gorilla/handlers"
 )
@@ -80,7 +82,7 @@ func (s *signatureHandler) Put(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, ok := UserClientFrom(s.ctx)
+	client, ok := userClientFrom(s.ctx)
 	if !ok {
 		s.handleError(s.ctx, errcode.ErrorCodeUnknown.WithDetail("unable to get origin client"), w)
 		return
@@ -104,7 +106,7 @@ func (s *signatureHandler) Put(w http.ResponseWriter, r *http.Request) {
 		s.handleError(s.ctx, ErrorCodeSignatureInvalid.WithDetail(errors.New("only schemaVersion=2 is currently supported")), w)
 		return
 	}
-	newSig := &imageapi.ImageSignature{Content: sig.Content, Type: sig.Type}
+	newSig := &imageapiv1.ImageSignature{Content: sig.Content, Type: sig.Type}
 	newSig.Name = sig.Name
 
 	_, err = client.ImageSignatures().Create(newSig)
@@ -140,7 +142,7 @@ func (s *signatureHandler) Get(w http.ResponseWriter, req *http.Request) {
 		s.handleError(s.ctx, v2.ErrorCodeNameInvalid.WithDetail("missing image name or image ID"), w)
 		return
 	}
-	client, ok := UserClientFrom(s.ctx)
+	client, ok := userClientFrom(s.ctx)
 	if !ok {
 		s.handleError(s.ctx, errcode.ErrorCodeUnknown.WithDetail("unable to get origin client"), w)
 		return
@@ -151,7 +153,7 @@ func (s *signatureHandler) Get(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	image, err := client.ImageStreamImages(s.reference.Namespace).Get(s.reference.Name, s.reference.ID)
+	image, err := client.ImageStreamImages(s.reference.Namespace).Get(imageapi.MakeImageStreamImageName(s.reference.Name, s.reference.ID), metav1.GetOptions{})
 	switch {
 	case err == nil:
 	case kapierrors.IsUnauthorized(err):

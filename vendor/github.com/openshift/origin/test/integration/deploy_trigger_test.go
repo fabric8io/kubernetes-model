@@ -5,15 +5,16 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	watchapi "k8s.io/apimachinery/pkg/watch"
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/client/retry"
-	"k8s.io/kubernetes/pkg/util/wait"
-	watchapi "k8s.io/kubernetes/pkg/watch"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
-	deploytest "github.com/openshift/origin/pkg/deploy/api/test"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	deploytest "github.com/openshift/origin/pkg/deploy/apis/apps/test"
 	deployutil "github.com/openshift/origin/pkg/deploy/util"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -23,12 +24,11 @@ const maxUpdateRetries = 10
 func TestTriggers_manual(t *testing.T) {
 	const namespace = "test-triggers-manual"
 
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +55,7 @@ func TestTriggers_manual(t *testing.T) {
 		t.Fatalf("Couldn't create DeploymentConfig: %v %#v", err, config)
 	}
 
-	rcWatch, err := kc.Core().ReplicationControllers(namespace).Watch(kapi.ListOptions{ResourceVersion: dc.ResourceVersion})
+	rcWatch, err := kc.Core().ReplicationControllers(namespace).Watch(metav1.ListOptions{ResourceVersion: dc.ResourceVersion})
 	if err != nil {
 		t.Fatalf("Couldn't subscribe to Deployments: %v", err)
 	}
@@ -104,12 +104,11 @@ func TestTriggers_manual(t *testing.T) {
 // TestTriggers_imageChange ensures that a deployment config with an ImageChange trigger
 // will start a new deployment when an image change happens.
 func TestTriggers_imageChange(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatalf("error starting master: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	openshiftClusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("error getting cluster admin client: %v", err)
@@ -123,13 +122,13 @@ func TestTriggers_imageChange(t *testing.T) {
 		t.Fatalf("error creating project: %v", err)
 	}
 
-	imageStream := &imageapi.ImageStream{ObjectMeta: kapi.ObjectMeta{Name: deploytest.ImageStreamName}}
+	imageStream := &imageapi.ImageStream{ObjectMeta: metav1.ObjectMeta{Name: deploytest.ImageStreamName}}
 
 	config := deploytest.OkDeploymentConfig(0)
 	config.Namespace = testutil.Namespace()
 	config.Spec.Triggers = []deployapi.DeploymentTriggerPolicy{deploytest.OkImageChangeTrigger()}
 
-	configWatch, err := openshiftProjectAdminClient.DeploymentConfigs(testutil.Namespace()).Watch(kapi.ListOptions{})
+	configWatch, err := openshiftProjectAdminClient.DeploymentConfigs(testutil.Namespace()).Watch(metav1.ListOptions{})
 	if err != nil {
 		t.Fatalf("Couldn't subscribe to deploymentconfigs %v", err)
 	}
@@ -139,7 +138,7 @@ func TestTriggers_imageChange(t *testing.T) {
 		t.Fatalf("Couldn't create imagestream: %v", err)
 	}
 
-	imageWatch, err := openshiftProjectAdminClient.ImageStreams(testutil.Namespace()).Watch(kapi.ListOptions{})
+	imageWatch, err := openshiftProjectAdminClient.ImageStreams(testutil.Namespace()).Watch(metav1.ListOptions{})
 	if err != nil {
 		t.Fatalf("Couldn't subscribe to imagestreams: %v", err)
 	}
@@ -151,10 +150,10 @@ func TestTriggers_imageChange(t *testing.T) {
 	// then wait for the stream status to be asynchronously updated.
 	createTagEvent := func() {
 		mapping := &imageapi.ImageStreamMapping{
-			ObjectMeta: kapi.ObjectMeta{Name: imageStream.Name},
+			ObjectMeta: metav1.ObjectMeta{Name: imageStream.Name},
 			Tag:        imageapi.DefaultImageTag,
 			Image: imageapi.Image{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name: updatedImage,
 				},
 				DockerImageReference: updatedPullSpec,
@@ -210,12 +209,11 @@ waitForNewConfig:
 // TestTriggers_imageChange_nonAutomatic ensures that a deployment config with a non-automatic
 // trigger will have its image updated when a deployment is started manually.
 func TestTriggers_imageChange_nonAutomatic(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatalf("error starting master: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	openshiftClusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("error getting cluster admin client: %v", err)
@@ -229,13 +227,13 @@ func TestTriggers_imageChange_nonAutomatic(t *testing.T) {
 		t.Fatalf("error creating project: %v", err)
 	}
 
-	imageStream := &imageapi.ImageStream{ObjectMeta: kapi.ObjectMeta{Name: deploytest.ImageStreamName}}
+	imageStream := &imageapi.ImageStream{ObjectMeta: metav1.ObjectMeta{Name: deploytest.ImageStreamName}}
 
 	if imageStream, err = oc.ImageStreams(testutil.Namespace()).Create(imageStream); err != nil {
 		t.Fatalf("Couldn't create imagestream: %v", err)
 	}
 
-	imageWatch, err := oc.ImageStreams(testutil.Namespace()).Watch(kapi.ListOptions{})
+	imageWatch, err := oc.ImageStreams(testutil.Namespace()).Watch(metav1.ListOptions{})
 	if err != nil {
 		t.Fatalf("Couldn't subscribe to imagestreams: %v", err)
 	}
@@ -246,10 +244,10 @@ func TestTriggers_imageChange_nonAutomatic(t *testing.T) {
 	// Make a function which can create a new tag event for the image stream and
 	// then wait for the stream status to be asynchronously updated.
 	mapping := &imageapi.ImageStreamMapping{
-		ObjectMeta: kapi.ObjectMeta{Name: imageStream.Name},
+		ObjectMeta: metav1.ObjectMeta{Name: imageStream.Name},
 		Tag:        imageapi.DefaultImageTag,
 		Image: imageapi.Image{
-			ObjectMeta: kapi.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name: image,
 			},
 			DockerImageReference: pullSpec,
@@ -284,7 +282,7 @@ func TestTriggers_imageChange_nonAutomatic(t *testing.T) {
 		}
 	}
 
-	configWatch, err := oc.DeploymentConfigs(testutil.Namespace()).Watch(kapi.ListOptions{})
+	configWatch, err := oc.DeploymentConfigs(testutil.Namespace()).Watch(metav1.ListOptions{})
 	if err != nil {
 		t.Fatalf("Couldn't subscribe to deploymentconfigs: %v", err)
 	}
@@ -369,7 +367,7 @@ loop:
 	if retryErr != nil {
 		t.Fatalf("Couldn't instantiate deployment config %q: %v", request.Name, err)
 	}
-	config, err = oc.DeploymentConfigs(config.Namespace).Get(config.Name)
+	config, err = oc.DeploymentConfigs(config.Namespace).Get(config.Name, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -390,12 +388,11 @@ loop:
 // TestTriggers_MultipleICTs ensures that a deployment config with more than one ImageChange trigger
 // will start a new deployment iff all images are resolved.
 func TestTriggers_MultipleICTs(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatalf("error starting master: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	openshiftClusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("error getting cluster admin client: %v", err)
@@ -409,8 +406,8 @@ func TestTriggers_MultipleICTs(t *testing.T) {
 		t.Fatalf("error creating project: %v", err)
 	}
 
-	imageStream := &imageapi.ImageStream{ObjectMeta: kapi.ObjectMeta{Name: deploytest.ImageStreamName}}
-	secondImageStream := &imageapi.ImageStream{ObjectMeta: kapi.ObjectMeta{Name: "sample"}}
+	imageStream := &imageapi.ImageStream{ObjectMeta: metav1.ObjectMeta{Name: deploytest.ImageStreamName}}
+	secondImageStream := &imageapi.ImageStream{ObjectMeta: metav1.ObjectMeta{Name: "sample"}}
 
 	config := deploytest.OkDeploymentConfig(0)
 	config.Namespace = testutil.Namespace()
@@ -420,7 +417,7 @@ func TestTriggers_MultipleICTs(t *testing.T) {
 	secondTrigger.ImageChangeParams.From.Name = imageapi.JoinImageStreamTag("sample", imageapi.DefaultImageTag)
 	config.Spec.Triggers = []deployapi.DeploymentTriggerPolicy{firstTrigger, secondTrigger}
 
-	configWatch, err := openshiftProjectAdminClient.DeploymentConfigs(testutil.Namespace()).Watch(kapi.ListOptions{})
+	configWatch, err := openshiftProjectAdminClient.DeploymentConfigs(testutil.Namespace()).Watch(metav1.ListOptions{})
 	if err != nil {
 		t.Fatalf("Couldn't subscribe to deploymentconfigs %v", err)
 	}
@@ -433,7 +430,7 @@ func TestTriggers_MultipleICTs(t *testing.T) {
 		t.Fatalf("Couldn't create imagestream %q: %v", secondImageStream.Name, err)
 	}
 
-	imageWatch, err := openshiftProjectAdminClient.ImageStreams(testutil.Namespace()).Watch(kapi.ListOptions{})
+	imageWatch, err := openshiftProjectAdminClient.ImageStreams(testutil.Namespace()).Watch(metav1.ListOptions{})
 	if err != nil {
 		t.Fatalf("Couldn't subscribe to imagestreams: %v", err)
 	}
@@ -446,10 +443,10 @@ func TestTriggers_MultipleICTs(t *testing.T) {
 	// then wait for the stream status to be asynchronously updated.
 	createTagEvent := func(name, tag, image, pullSpec string) {
 		mapping := &imageapi.ImageStreamMapping{
-			ObjectMeta: kapi.ObjectMeta{Name: name},
+			ObjectMeta: metav1.ObjectMeta{Name: name},
 			Tag:        tag,
 			Image: imageapi.Image{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name: image,
 				},
 				DockerImageReference: pullSpec,
@@ -507,6 +504,8 @@ out:
 		}
 	}
 
+	timeout = time.After(30 * time.Second)
+
 	t.Log("Should trigger a new deployment in response to the second imagestream update")
 	secondImage := "sampleimage"
 	secondPullSpec := "samplepullspec"
@@ -553,12 +552,11 @@ out:
 func TestTriggers_configChange(t *testing.T) {
 	const namespace = "test-triggers-configchange"
 
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatal(err)
@@ -580,7 +578,7 @@ func TestTriggers_configChange(t *testing.T) {
 	config.Namespace = namespace
 	config.Spec.Triggers = []deployapi.DeploymentTriggerPolicy{deploytest.OkConfigChangeTrigger()}
 
-	rcWatch, err := kc.Core().ReplicationControllers(namespace).Watch(kapi.ListOptions{})
+	rcWatch, err := kc.Core().ReplicationControllers(namespace).Watch(metav1.ListOptions{})
 	if err != nil {
 		t.Fatalf("Couldn't subscribe to Deployments %v", err)
 	}
@@ -608,7 +606,7 @@ func TestTriggers_configChange(t *testing.T) {
 	// this is required to be done manually since the deployment and deployer pod controllers are not run in this test
 	// get this live or conflicts will never end up resolved
 	retryErr := retry.RetryOnConflict(wait.Backoff{Steps: maxUpdateRetries}, func() error {
-		liveDeployment, err := kc.Core().ReplicationControllers(deployment.Namespace).Get(deployment.Name)
+		liveDeployment, err := kc.Core().ReplicationControllers(deployment.Namespace).Get(deployment.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -633,7 +631,7 @@ func TestTriggers_configChange(t *testing.T) {
 	// Update the config with a new environment variable and observe a new deployment
 	// coming up.
 	retryErr = retry.RetryOnConflict(wait.Backoff{Steps: maxUpdateRetries}, func() error {
-		latest, err := oc.DeploymentConfigs(namespace).Get(config.Name)
+		latest, err := oc.DeploymentConfigs(namespace).Get(config.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -655,7 +653,7 @@ func TestTriggers_configChange(t *testing.T) {
 
 	if retryErr := retry.RetryOnConflict(wait.Backoff{Steps: maxUpdateRetries}, func() error {
 		// submit a new config with an updated environment variable
-		newConfig, err := oc.DeploymentConfigs(namespace).Get(config.Name)
+		newConfig, err := oc.DeploymentConfigs(namespace).Get(config.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -698,7 +696,7 @@ func assertEnvVarEquals(name string, value string, deployment *kapi.ReplicationC
 
 func makeStream(name, tag, dir, image string) *imageapi.ImageStream {
 	return &imageapi.ImageStream{
-		ObjectMeta: kapi.ObjectMeta{Name: name},
+		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Status: imageapi.ImageStreamStatus{
 			Tags: map[string]imageapi.TagEventList{
 				tag: {

@@ -13,15 +13,24 @@ import (
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/util/wait"
+	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
 
 	exutil "github.com/openshift/origin/test/extended/util"
 	"github.com/openshift/origin/test/extended/util/jenkins"
 )
 
 const (
-	localPluginSnapshotImage = "openshift/jenkins-plugin-snapshot-test:latest"
+	localPluginSnapshotImageStream      = "jenkins-plugin-snapshot-test"
+	localPluginSnapshotImage            = "openshift/" + localPluginSnapshotImageStream + ":latest"
+	localLoginPluginSnapshotImageStream = "jenkins-login-plugin-snapshot-test"
+	localLoginPluginSnapshotImage       = "openshift/" + localLoginPluginSnapshotImageStream + ":latest"
+	originalLicenseText                 = "About OpenShift Pipeline Jenkins Plugin"
+	originalPluginName                  = "openshift-pipeline"
+	loginLicenseText                    = "About OpenShift Login Plugin"
+	loginPluginName                     = "openshift-login"
 )
 
 // ginkgolog creates simple entry in the GinkgoWriter.
@@ -38,7 +47,7 @@ func loadFixture(oc *exutil.CLI, filename string) {
 
 func assertEnvVars(oc *exutil.CLI, buildPrefix string, varsToFind map[string]string) {
 
-	buildList, err := oc.Client().Builds(oc.Namespace()).List(kapi.ListOptions{})
+	buildList, err := oc.Client().Builds(oc.Namespace()).List(metav1.ListOptions{})
 	o.Expect(err).NotTo(o.HaveOccurred())
 
 	// Ensure that expected start-build environment variables were injected
@@ -70,13 +79,13 @@ func assertEnvVars(oc *exutil.CLI, buildPrefix string, varsToFind map[string]str
 }
 
 // Stands up a simple pod which can be used for exec commands
-func initExecPod(oc *exutil.CLI) *kapi.Pod {
+func initExecPod(oc *exutil.CLI) *kapiv1.Pod {
 	// Create a running pod in which we can execute our commands
 	oc.Run("run").Args("centos", "--image", "centos:7", "--command", "--", "sleep", "1800").Execute()
 
-	var targetPod *kapi.Pod
+	var targetPod *kapiv1.Pod
 	err := wait.Poll(10*time.Second, 10*time.Minute, func() (bool, error) {
-		pods, err := oc.KubeClient().Core().Pods(oc.Namespace()).List(kapi.ListOptions{})
+		pods, err := oc.KubeClient().CoreV1().Pods(oc.Namespace()).List(metav1.ListOptions{})
 		o.ExpectWithOffset(1, err).NotTo(o.HaveOccurred())
 		for _, p := range pods.Items {
 			if strings.HasPrefix(p.Name, "centos") && !strings.Contains(p.Name, "deploy") && p.Status.Phase == "Running" {
@@ -123,7 +132,7 @@ var _ = g.Describe("[image_ecosystem][jenkins][Slow] openshift pipeline plugin",
 
 		oc.SetNamespace(j.Namespace())
 		ginkgolog("Jenkins DC description follows. If there were issues, check to see if there were any restarts in the jenkins pod.")
-		exutil.DumpDeploymentLogs("jenkins", oc)
+		exutil.DumpApplicationPodLogs("jenkins", oc)
 
 		// Destroy the Jenkins namespace
 		oc.Run("delete").Args("project", j.Namespace()).Execute()
@@ -148,16 +157,46 @@ var _ = g.Describe("[image_ecosystem][jenkins][Slow] openshift pipeline plugin",
 
 		time.Sleep(10 * time.Second) // Give project time to initialize
 
-		g.By("kick off the build for the jenkins ephermeral and application templates")
+		g.By("kick off the build for the jenkins ephemeral and application templates")
 
+		// Deploy Jenkins
+		// NOTE, we use these tests for both a) nightly regression runs against the latest openshift jenkins image on docker hub, and
+		// b) PR testing for changes to the various openshift jenkins plugins we support.  With scenario b), a docker image that extends
+		// our jenkins image is built, where the proposed plugin change is injected, overwritting the current released version of the plugin.
+		// Our test/PR jobs on ci.openshift create those images, as well as set env vars this test suite looks for.  When both the env var
+		// and test image is present, a new image stream is created using the test image, and our jenkins template is instantiated with
+		// an override to use that images stream and test image
+		var licensePrefix, pluginName string
 		newAppArgs := []string{exutil.FixturePath("..", "..", "examples", "jenkins", "jenkins-ephemeral-template.json")}
-		newAppArgs, useSnapshotImage := jenkins.SetupSnapshotImage(localPluginSnapshotImage, "jenkins-plugin-snapshot-test", newAppArgs, oc)
+		useSnapshotImage := false
+		origPluginNewAppArgs, useOrigPluginSnapshotImage := jenkins.SetupSnapshotImage(jenkins.UseLocalPluginSnapshotEnvVarName, localPluginSnapshotImage, localPluginSnapshotImageStream, newAppArgs, oc)
+		loginPluginNewAppArgs, useLoginPluginSnapshotImage := jenkins.SetupSnapshotImage(jenkins.UseLocalLoginPluginSnapshotEnvVarName, localLoginPluginSnapshotImage, localLoginPluginSnapshotImageStream, newAppArgs, oc)
+		switch {
+		case useOrigPluginSnapshotImage && useLoginPluginSnapshotImage:
+			fmt.Fprintf(g.GinkgoWriter,
+				"\nBOTH %s and %s for PR TESTING ARE SET.  WILL NOT CHOOSE BETWEEN THE TWO SO TESTING CURRENT PLUGIN VERSIONS IN LATEST OPENSHIFT JENKINS IMAGE ON DOCKER HUB.\n",
+				jenkins.UseLocalPluginSnapshotEnvVarName, jenkins.UseLocalLoginPluginSnapshotEnvVarName)
+		case useOrigPluginSnapshotImage:
+			fmt.Fprintf(g.GinkgoWriter, "\nTHE UPCOMING TESTS WILL LEVERAGE AN IMAGE THAT EXTENDS THE LATEST OPENSHIFT JENKINS IMAGE AND OVERRIDES THE OPENSHIFT PIPELINE PLUGIN WITH A NEW VERSION BUILT FROM PROPOSED CHANGES TO THAT PLUGIN.\n")
+			licensePrefix = originalLicenseText
+			pluginName = originalPluginName
+			useSnapshotImage = true
+			newAppArgs = origPluginNewAppArgs
+		case useLoginPluginSnapshotImage:
+			fmt.Fprintf(g.GinkgoWriter, "\nTHE UPCOMING TESTS WILL LEVERAGE AN IMAGE THAT EXTENDS THE LATEST OPENSHIFT JENKINS IMAGE AND OVERRIDES THE OPENSHIFT LOGIN PLUGIN WITH A NEW VERSION BUILT FROM PROPOSED CHANGES TO THAT PLUGIN.\n")
+			licensePrefix = loginLicenseText
+			pluginName = loginPluginName
+			useSnapshotImage = true
+			newAppArgs = loginPluginNewAppArgs
+		default:
+			fmt.Fprintf(g.GinkgoWriter, "\nNO PR TEST ENV VARS SET SO TESTING CURRENT PLUGIN VERSIONS IN LATEST OPENSHIFT JENKINS IMAGE ON DOCKER HUB.\n")
+		}
 
 		err := oc.Run("new-app").Args(newAppArgs...).Execute()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("waiting for jenkins deployment")
-		err = exutil.WaitForADeploymentToComplete(oc.KubeClient().Core().ReplicationControllers(oc.Namespace()), "jenkins", oc)
+		err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), oc.Namespace(), "jenkins", 1, oc)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		j = jenkins.NewRef(oc)
@@ -166,7 +205,7 @@ var _ = g.Describe("[image_ecosystem][jenkins][Slow] openshift pipeline plugin",
 		_, err = j.WaitForContent("", 200, 10*time.Minute, "")
 
 		if err != nil {
-			exutil.DumpDeploymentLogs("jenkins", oc)
+			exutil.DumpApplicationPodLogs("jenkins", oc)
 		}
 
 		o.Expect(err).NotTo(o.HaveOccurred())
@@ -174,7 +213,7 @@ var _ = g.Describe("[image_ecosystem][jenkins][Slow] openshift pipeline plugin",
 		if useSnapshotImage {
 			g.By("verifying the test image is being used")
 			// for the test image, confirm that a snapshot version of the plugin is running in the jenkins image we'll test against
-			_, err = j.WaitForContent(`About OpenShift Pipeline Jenkins Plugin ([0-9\.]+)-SNAPSHOT`, 200, 10*time.Minute, "/pluginManager/plugin/openshift-pipeline/thirdPartyLicenses")
+			_, err = j.WaitForContent(licensePrefix+` ([0-9\.]+)-SNAPSHOT`, 200, 10*time.Minute, "/pluginManager/plugin/"+pluginName+"/thirdPartyLicenses")
 			o.Expect(err).NotTo(o.HaveOccurred())
 		}
 
@@ -217,9 +256,9 @@ var _ = g.Describe("[image_ecosystem][jenkins][Slow] openshift pipeline plugin",
 			// we leverage some of the openshift utilities for waiting for the deployment before we poll
 			// jenkins for the successful job completion
 			g.By("waiting for frontend, frontend-prod deployments as signs that the build has finished")
-			err := exutil.WaitForADeploymentToComplete(oc.KubeClient().Core().ReplicationControllers(oc.Namespace()), "frontend", oc)
+			err := exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), oc.Namespace(), "frontend", 1, oc)
 			o.Expect(err).NotTo(o.HaveOccurred())
-			err = exutil.WaitForADeploymentToComplete(oc.KubeClient().Core().ReplicationControllers(oc.Namespace()), "frontend-prod", oc)
+			err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), oc.Namespace(), "frontend-prod", 1, oc)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("get build console logs and see if succeeded")
@@ -264,9 +303,9 @@ var _ = g.Describe("[image_ecosystem][jenkins][Slow] openshift pipeline plugin",
 			// we leverage some of the openshift utilities for waiting for the deployment before we poll
 			// jenkins for the successful job completion
 			g.By("waiting for frontend, frontend-prod deployments as signs that the build has finished")
-			err := exutil.WaitForADeploymentToComplete(oc.KubeClient().Core().ReplicationControllers(oc.Namespace()), "frontend", oc)
+			err := exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), oc.Namespace(), "frontend", 1, oc)
 			o.Expect(err).NotTo(o.HaveOccurred())
-			err = exutil.WaitForADeploymentToComplete(oc.KubeClient().Core().ReplicationControllers(oc.Namespace()), "frontend-prod", oc)
+			err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), oc.Namespace(), "frontend-prod", 1, oc)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("get build console logs and see if succeeded")
@@ -322,7 +361,7 @@ var _ = g.Describe("[image_ecosystem][jenkins][Slow] openshift pipeline plugin",
 			// we leverage some of the openshift utilities for waiting for the deployment before we poll
 			// jenkins for the successful job completion
 			g.By("waiting for frontend deployments as signs that the build has finished")
-			err = exutil.WaitForADeploymentToComplete(oc.KubeClient().Core().ReplicationControllers(oc.Namespace()), "frontend", oc)
+			err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), oc.Namespace(), "frontend", 1, oc)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("get build console logs and see if succeeded")
@@ -338,7 +377,7 @@ var _ = g.Describe("[image_ecosystem][jenkins][Slow] openshift pipeline plugin",
 
 		g.It("jenkins-plugin test trigger build DSL", func() {
 
-			buildsBefore, err := oc.Client().Builds(oc.Namespace()).List(kapi.ListOptions{})
+			buildsBefore, err := oc.Client().Builds(oc.Namespace()).List(metav1.ListOptions{})
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			data, err := j.BuildDSLJob(oc.Namespace(),
@@ -354,12 +393,12 @@ var _ = g.Describe("[image_ecosystem][jenkins][Slow] openshift pipeline plugin",
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			err = wait.Poll(10*time.Second, 10*time.Minute, func() (bool, error) {
-				buildsAfter, err := oc.Client().Builds(oc.Namespace()).List(kapi.ListOptions{})
+				buildsAfter, err := oc.Client().Builds(oc.Namespace()).List(metav1.ListOptions{})
 				o.Expect(err).NotTo(o.HaveOccurred())
 				return (len(buildsAfter.Items) != len(buildsBefore.Items)), nil
 			})
 
-			buildsAfter, err := oc.Client().Builds(oc.Namespace()).List(kapi.ListOptions{})
+			buildsAfter, err := oc.Client().Builds(oc.Namespace()).List(metav1.ListOptions{})
 			o.Expect(err).NotTo(o.HaveOccurred())
 			o.Expect(len(buildsAfter.Items)).To(o.Equal(len(buildsBefore.Items) + 1))
 

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/kubernetes/pkg/api/unversioned"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	osgraph "github.com/openshift/origin/pkg/api/graph"
 	osgraphtest "github.com/openshift/origin/pkg/api/graph/test"
@@ -17,11 +17,11 @@ func TestRestartingPodWarning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer func() { nowFn = unversioned.Now }()
+	defer func() { nowFn = metav1.Now }()
 
 	recent, _ := time.Parse(time.RFC3339, "2015-07-13T19:36:06Z")
-	nowFn = func() unversioned.Time { return unversioned.NewTime(recent.UTC()) }
-	markers := FindRestartingPods(g, osgraph.DefaultNamer, "oc logs", "oadm policy")
+	nowFn = func() metav1.Time { return metav1.NewTime(recent.UTC()) }
+	markers := FindRestartingPods(g, osgraph.DefaultNamer, "oc logs", "oc adm policy")
 	sort.Sort(osgraph.BySeverity(markers))
 	if e, a := 4, len(markers); e != a {
 		t.Fatalf("expected %v, got %v", e, a)
@@ -54,8 +54,8 @@ func TestRestartingPodWarning(t *testing.T) {
 	}
 
 	future, _ := time.Parse(time.RFC3339, "2015-07-13T19:46:06Z")
-	nowFn = func() unversioned.Time { return unversioned.NewTime(future.UTC()) }
-	markers = FindRestartingPods(g, osgraph.DefaultNamer, "oc logs", "oadm policy")
+	nowFn = func() metav1.Time { return metav1.NewTime(future.UTC()) }
+	markers = FindRestartingPods(g, osgraph.DefaultNamer, "oc logs", "oc adm policy")
 	sort.Sort(osgraph.BySeverity(markers))
 	if e, a := 3, len(markers); e != a {
 		t.Fatalf("expected %v, got %v", e, a)

@@ -4,21 +4,29 @@ import (
 	"fmt"
 	"time"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
-	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/watch"
-
 	"github.com/golang/glog"
-	projectapi "github.com/openshift/origin/pkg/project/api"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/tools/cache"
+	kapi "k8s.io/kubernetes/pkg/api"
+	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
+
+	projectapi "github.com/openshift/origin/pkg/project/apis/project"
 	"github.com/openshift/origin/pkg/util/labelselector"
 )
 
 // NewProjectCache returns a non-initialized ProjectCache. The cache needs to be run to begin functioning
-func NewProjectCache(client kcoreclient.NamespaceInterface, defaultNodeSelector string) *ProjectCache {
+func NewProjectCache(namespaces cache.SharedIndexInformer, client kcoreclient.NamespaceInterface, defaultNodeSelector string) *ProjectCache {
+	if err := namespaces.GetIndexer().AddIndexers(cache.Indexers{
+		"requester": indexNamespaceByRequester,
+	}); err != nil {
+		panic(err)
+	}
 	return &ProjectCache{
 		Client:              client,
+		Store:               namespaces.GetIndexer(),
+		HasSynced:           namespaces.GetController().HasSynced,
 		DefaultNodeSelector: defaultNodeSelector,
 	}
 }
@@ -26,11 +34,12 @@ func NewProjectCache(client kcoreclient.NamespaceInterface, defaultNodeSelector 
 type ProjectCache struct {
 	Client              kcoreclient.NamespaceInterface
 	Store               cache.Indexer
+	HasSynced           cache.InformerSynced
 	DefaultNodeSelector string
 }
 
 func (p *ProjectCache) GetNamespace(name string) (*kapi.Namespace, error) {
-	key := &kapi.Namespace{ObjectMeta: kapi.ObjectMeta{Name: name}}
+	key := &kapi.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}
 
 	// check for namespace in the cache
 	namespaceObj, exists, err := p.Store.Get(key)
@@ -55,7 +64,7 @@ func (p *ProjectCache) GetNamespace(name string) (*kapi.Namespace, error) {
 		namespace = namespaceObj.(*kapi.Namespace)
 	} else {
 		// Our watch maybe latent, so we make a best effort to get the object, and only fail if not found
-		namespace, err = p.Client.Get(name)
+		namespace, err = p.Client.Get(name, metav1.GetOptions{})
 		// the namespace does not exist, so prevent create and update in that namespace
 		if err != nil {
 			return nil, fmt.Errorf("namespace %s does not exist", name)
@@ -89,24 +98,13 @@ func (p *ProjectCache) GetNodeSelectorMap(namespace *kapi.Namespace) (map[string
 	return labelsMap, nil
 }
 
-// Run builds the store that backs this cache and runs the backing reflector
-func (c *ProjectCache) Run() {
-	store := NewCacheStore(cache.MetaNamespaceKeyFunc)
-	reflector := cache.NewReflector(
-		&cache.ListWatch{
-			ListFunc: func(options kapi.ListOptions) (runtime.Object, error) {
-				return c.Client.List(options)
-			},
-			WatchFunc: func(options kapi.ListOptions) (watch.Interface, error) {
-				return c.Client.Watch(options)
-			},
-		},
-		&kapi.Namespace{},
-		store,
-		0,
-	)
-	reflector.Run()
-	c.Store = store
+// Run waits until the cache has synced.
+func (c *ProjectCache) Run(stopCh <-chan struct{}) {
+	defer runtime.HandleCrash()
+	if !cache.WaitForCacheSync(stopCh, c.HasSynced) {
+		return
+	}
+	<-stopCh
 }
 
 // Running determines if the cache is initialized and running

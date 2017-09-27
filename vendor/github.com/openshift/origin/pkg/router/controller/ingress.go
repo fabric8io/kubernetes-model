@@ -7,15 +7,16 @@ import (
 	"sync"
 
 	"github.com/golang/glog"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/watch"
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/extensions"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
-	"k8s.io/kubernetes/pkg/types"
-	"k8s.io/kubernetes/pkg/util/sets"
-	"k8s.io/kubernetes/pkg/watch"
 
 	"github.com/openshift/origin/pkg/api"
-	routeapi "github.com/openshift/origin/pkg/route/api"
+	routeapi "github.com/openshift/origin/pkg/route/apis/route"
 )
 
 // ingressRouteEvents maps an ingress key to route events
@@ -305,7 +306,7 @@ func (it *IngressTranslator) cacheTLS(ingressTLS []extensions.IngressTLS, namesp
 			// TODO should initial retrieval be retried to minimize the chances
 			// that a temporary connectivity failure delays route availability
 			// until the next sync event (when the secret will next be seen)?
-			if secret, err := it.client.Secrets(namespace).Get(tls.SecretName); err != nil {
+			if secret, err := it.client.Secrets(namespace).Get(tls.SecretName, metav1.GetOptions{}); err != nil {
 				glog.V(4).Infof("Error retrieving secret %v: %v", secretKey, err)
 			} else {
 				newTLS, err := tlsFromSecret(secret)
@@ -452,7 +453,7 @@ func ingressToRoutes(ingress *extensions.Ingress) (routes []*routeapi.Route, rou
 			}
 
 			route := &routeapi.Route{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name: name,
 					// Reuse the values from ingress
 					Namespace:         ingress.Namespace,
@@ -560,7 +561,7 @@ func GetSafeRouteName(name string) string {
 	if IsGeneratedRouteName(name) {
 		// The name of a route generated from an ingress path will contain '/', which
 		// isn't compatible with HAproxy or F5.
-		return strings.Replace(name, "/", "_", -1)
+		return strings.Replace(name, "/", ":", -1)
 	}
 	return name
 }

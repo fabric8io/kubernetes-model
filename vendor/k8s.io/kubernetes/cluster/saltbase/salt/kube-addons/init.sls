@@ -47,6 +47,18 @@ addon-dir-create:
     - file_mode: 644
 {% endif %}
 
+{% if pillar.get('enable_cluster_monitoring', '').lower() == 'stackdriver' %}
+/etc/kubernetes/addons/cluster-monitoring/stackdriver:
+  file.recurse:
+    - source: salt://kube-addons/cluster-monitoring/stackdriver
+    - include_pat: E@(^.+\.yaml$|^.+\.json$)
+    - template: jinja
+    - user: root
+    - group: root
+    - dir_mode: 755
+    - file_mode: 644
+{% endif %}
+
 {% if pillar.get('enable_cluster_monitoring', '').lower() == 'standalone' %}
 /etc/kubernetes/addons/cluster-monitoring/standalone:
   file.recurse:
@@ -73,20 +85,36 @@ addon-dir-create:
 {% endif %}
 
 {% if pillar.get('enable_cluster_dns', '').lower() == 'true' %}
-/etc/kubernetes/addons/dns/skydns-svc.yaml:
+/etc/kubernetes/addons/dns/kubedns-svc.yaml:
   file.managed:
-    - source: salt://kube-addons/dns/skydns-svc.yaml.in
+    - source: salt://kube-addons/dns/kubedns-svc.yaml.in
     - template: jinja
     - group: root
     - dir_mode: 755
     - makedirs: True
 
-/etc/kubernetes/addons/dns/skydns-rc.yaml:
+/etc/kubernetes/addons/dns/kubedns-controller.yaml:
   file.managed:
-    - source: salt://kube-addons/dns/skydns-rc.yaml.in
+    - source: salt://kube-addons/dns/kubedns-controller.yaml.in
     - template: jinja
     - group: root
     - dir_mode: 755
+    - makedirs: True
+
+/etc/kubernetes/addons/dns/kubedns-sa.yaml:
+  file.managed:
+    - source: salt://kube-addons/dns/kubedns-sa.yaml
+    - user: root
+    - group: root
+    - file_mode: 644
+    - makedirs: True
+
+/etc/kubernetes/addons/dns/kubedns-cm.yaml:
+  file.managed:
+    - source: salt://kube-addons/dns/kubedns-cm.yaml
+    - user: root
+    - group: root
+    - file_mode: 644
     - makedirs: True
 {% endif %}
 
@@ -138,11 +166,22 @@ addon-dir-create:
 {% endif %}
 
 {% if pillar.get('enable_node_logging', '').lower() == 'true'
-   and pillar.get('logging_destination', '').lower() == 'elasticsearch'
+   and 'logging_destination' in pillar
    and pillar.get('enable_cluster_logging', '').lower() == 'true' %}
-/etc/kubernetes/addons/fluentd-elasticsearch:
+/etc/kubernetes/addons/fluentd-{{ pillar.get('logging_destination') }}:
   file.recurse:
-    - source: salt://kube-addons/fluentd-elasticsearch
+    - source: salt://kube-addons/fluentd-{{ pillar.get('logging_destination') }}
+    - include_pat: E@^.+\.yaml$
+    - user: root
+    - group: root
+    - dir_mode: 755
+    - file_mode: 644
+{% endif %}
+
+{% if pillar.get('enable_metadata_proxy', '').lower() == 'true' %}
+/etc/kubernetes/addons/metadata-proxy/gce:
+  file.recurse:
+    - source: salt://kube-addons/metadata-proxy/gce
     - include_pat: E@^.+\.yaml$
     - user: root
     - group: root
@@ -161,10 +200,10 @@ addon-dir-create:
     - file_mode: 644
 {% endif %}
 
-{% if pillar.get('enable_node_problem_detector', '').lower() == 'true' %}
-/etc/kubernetes/addons/node-problem-detector/node-problem-detector.yaml:
+{% if pillar.get('enable_node_problem_detector', '').lower() == 'daemonset' %}
+/etc/kubernetes/addons/node-problem-detector/npd.yaml:
   file.managed:
-    - source: salt://kube-addons/node-problem-detector/node-problem-detector.yaml
+    - source: salt://kube-addons/node-problem-detector/npd.yaml
     - user: root
     - group: root
     - file_mode: 644
@@ -177,3 +216,13 @@ addon-dir-create:
     - user: root
     - group: root
     - mode: 755
+
+{% if pillar.get('enable_default_storage_class', '').lower() == 'true' and grains['cloud'] is defined and grains['cloud'] in ['aws', 'gce', 'openstack'] %}
+/etc/kubernetes/addons/storage-class/default.yaml:
+  file.managed:
+    - source: salt://kube-addons/storage-class/{{ grains['cloud'] }}/default.yaml
+    - user: root
+    - group: root
+    - mode: 644
+    - makedirs: True
+{% endif %}

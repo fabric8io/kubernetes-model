@@ -7,7 +7,9 @@ import (
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 
-	kapi "k8s.io/kubernetes/pkg/api"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	e2e "k8s.io/kubernetes/test/e2e/framework"
 
 	exutil "github.com/openshift/origin/test/extended/util"
 )
@@ -19,8 +21,11 @@ var _ = g.Describe("[image_ecosystem][ruby][Slow] hot deploy for openshift ruby 
 		oc            = exutil.NewCLI("s2i-ruby", exutil.KubeConfigPath())
 		modifyCommand = []string{"sed", "-ie", `s%render :file => 'public/index.html'%%`, "app/controllers/welcome_controller.rb"}
 		removeCommand = []string{"rm", "-f", "public/index.html"}
-		dcName        = "rails-postgresql-example-1"
-		dcLabel       = exutil.ParseLabelsOrDie(fmt.Sprintf("deployment=%s", dcName))
+		dcName        = "rails-postgresql-example"
+		rcNameOne     = fmt.Sprintf("%s-1", dcName)
+		rcNameTwo     = fmt.Sprintf("%s-2", dcName)
+		dcLabelOne    = exutil.ParseLabelsOrDie(fmt.Sprintf("deployment=%s", rcNameOne))
+		dcLabelTwo    = exutil.ParseLabelsOrDie(fmt.Sprintf("deployment=%s", rcNameTwo))
 	)
 	g.Describe("Rails example", func() {
 		g.It(fmt.Sprintf("should work with hot deploy"), func() {
@@ -32,56 +37,59 @@ var _ = g.Describe("[image_ecosystem][ruby][Slow] hot deploy for openshift ruby 
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("waiting for build to finish")
-			err = exutil.WaitForABuild(oc.Client().Builds(oc.Namespace()), dcName, nil, nil, nil)
+			err = exutil.WaitForABuild(oc.Client().Builds(oc.Namespace()), rcNameOne, nil, nil, nil)
 			if err != nil {
-				exutil.DumpBuildLogs("rails-postgresql-example", oc)
+				exutil.DumpBuildLogs(dcName, oc)
 			}
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			// oc.KubeFramework().WaitForAnEndpoint currently will wait forever;  for now, prefacing with our WaitForADeploymentToComplete,
 			// which does have a timeout, since in most cases a failure in the service coming up stems from a failed deployment
-			err = exutil.WaitForADeploymentToComplete(oc.KubeClient().Core().ReplicationControllers(oc.Namespace()), "rails-postgresql-example", oc)
+			err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), oc.Namespace(), dcName, 1, oc)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("waiting for endpoint")
-			err = oc.KubeFramework().WaitForAnEndpoint("rails-postgresql-example")
+			err = e2e.WaitForEndpoint(oc.KubeFramework().ClientSet, oc.Namespace(), dcName)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
-			assertPageContent := func(content string) {
+			assertPageContent := func(content string, dcLabel labels.Selector) {
 				_, err := exutil.WaitForPods(oc.KubeClient().Core().Pods(oc.Namespace()), dcLabel, exutil.CheckPodIsRunningFn, 1, 2*time.Minute)
 				o.Expect(err).NotTo(o.HaveOccurred())
 
-				result, err := CheckPageContains(oc, "rails-postgresql-example", "", content)
+				result, err := CheckPageContains(oc, dcName, "", content)
 				o.Expect(err).NotTo(o.HaveOccurred())
 				o.Expect(result).To(o.BeTrue())
 			}
 
+			// with hot deploy disabled, making a change to
+			// welcome_controller.rb should not affect the app
 			g.By("testing application content")
-			assertPageContent("Welcome to your Rails application on OpenShift")
+			assertPageContent("Welcome to your Rails application on OpenShift", dcLabelOne)
 			g.By("modifying the source code with disabled hot deploy")
-			RunInPodContainer(oc, dcLabel, modifyCommand)
+			err = RunInPodContainer(oc, dcLabelOne, modifyCommand)
+			o.Expect(err).NotTo(o.HaveOccurred())
 			g.By("testing application content source modification")
-			assertPageContent("Welcome to your Rails application on OpenShift")
+			assertPageContent("Welcome to your Rails application on OpenShift", dcLabelOne)
 
-			pods, err := oc.KubeClient().Core().Pods(oc.Namespace()).List(kapi.ListOptions{LabelSelector: dcLabel})
+			pods, err := oc.KubeClient().Core().Pods(oc.Namespace()).List(metav1.ListOptions{LabelSelector: dcLabelOne.String()})
 			o.Expect(err).NotTo(o.HaveOccurred())
 			o.Expect(len(pods.Items)).To(o.Equal(1))
 
 			g.By("turning on hot-deploy")
-			err = oc.Run("env").Args("rc", dcName, "RAILS_ENV=development").Execute()
+			err = oc.Run("env").Args("dc", dcName, "RAILS_ENV=development").Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
-			err = oc.Run("scale").Args("rc", dcName, "--replicas=0").Execute()
-			o.Expect(err).NotTo(o.HaveOccurred())
-			err = exutil.WaitUntilPodIsGone(oc.KubeClient().Core().Pods(oc.Namespace()), pods.Items[0].Name, 1*time.Minute)
-			o.Expect(err).NotTo(o.HaveOccurred())
-			err = oc.Run("scale").Args("rc", dcName, "--replicas=1").Execute()
+			err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), oc.Namespace(), dcName, 2, oc)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
+			// now hot deploy is enabled, a change to welcome_controller.rb
+			// should affect the app
 			g.By("modifying the source code with enabled hot deploy")
-			assertPageContent("Welcome to your Rails application on OpenShift")
-			RunInPodContainer(oc, dcLabel, modifyCommand)
-			RunInPodContainer(oc, dcLabel, removeCommand)
-			assertPageContent("Hello, Rails!")
+			assertPageContent("Welcome to your Rails application on OpenShift", dcLabelTwo)
+			err = RunInPodContainer(oc, dcLabelTwo, modifyCommand)
+			o.Expect(err).NotTo(o.HaveOccurred())
+			err = RunInPodContainer(oc, dcLabelTwo, removeCommand)
+			o.Expect(err).NotTo(o.HaveOccurred())
+			assertPageContent("Hello, Rails!", dcLabelTwo)
 		})
 	})
 })

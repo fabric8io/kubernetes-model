@@ -22,10 +22,10 @@ import (
 	"path"
 	"testing"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/types"
+	"k8s.io/apimachinery/pkg/types"
+	utiltesting "k8s.io/client-go/util/testing"
+	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/util/mount"
-	utiltesting "k8s.io/kubernetes/pkg/util/testing"
 	"k8s.io/kubernetes/pkg/volume"
 	volumetest "k8s.io/kubernetes/pkg/volume/testing"
 )
@@ -47,11 +47,11 @@ func TestCanSupport(t *testing.T) {
 		t.Errorf("Wrong name: %s", plug.GetPluginName())
 	}
 
-	if !plug.CanSupport(&volume.Spec{Volume: &api.Volume{VolumeSource: api.VolumeSource{VsphereVolume: &api.VsphereVirtualDiskVolumeSource{}}}}) {
+	if !plug.CanSupport(&volume.Spec{Volume: &v1.Volume{VolumeSource: v1.VolumeSource{VsphereVolume: &v1.VsphereVirtualDiskVolumeSource{}}}}) {
 		t.Errorf("Expected true")
 	}
 
-	if !plug.CanSupport(&volume.Spec{PersistentVolume: &api.PersistentVolume{Spec: api.PersistentVolumeSpec{PersistentVolumeSource: api.PersistentVolumeSource{VsphereVolume: &api.VsphereVirtualDiskVolumeSource{}}}}}) {
+	if !plug.CanSupport(&volume.Spec{PersistentVolume: &v1.PersistentVolume{Spec: v1.PersistentVolumeSpec{PersistentVolumeSource: v1.PersistentVolumeSource{VsphereVolume: &v1.VsphereVirtualDiskVolumeSource{}}}}}) {
 		t.Errorf("Expected true")
 	}
 }
@@ -63,8 +63,15 @@ func getFakeDeviceName(host volume.VolumeHost, volPath string) string {
 	return path.Join(host.GetPluginDir(vsphereVolumePluginName), "device", volPath)
 }
 
-func (fake *fakePDManager) CreateVolume(v *vsphereVolumeProvisioner) (vmDiskPath string, volumeSizeKB int, err error) {
-	return "[local] test-volume-name.vmdk", 100, nil
+func (fake *fakePDManager) CreateVolume(v *vsphereVolumeProvisioner) (volSpec *VolumeSpec, err error) {
+	volSpec = &VolumeSpec{
+		Path:              "[local] test-volume-name.vmdk",
+		Size:              100,
+		Fstype:            "ext4",
+		StoragePolicyName: "gold",
+		StoragePolicyID:   "1234",
+	}
+	return volSpec, nil
 }
 
 func (fake *fakePDManager) DeleteVolume(vd *vsphereVolumeDeleter) error {
@@ -90,10 +97,10 @@ func TestPlugin(t *testing.T) {
 		t.Errorf("Can't find the plugin by name")
 	}
 
-	spec := &api.Volume{
+	spec := &v1.Volume{
 		Name: "vol1",
-		VolumeSource: api.VolumeSource{
-			VsphereVolume: &api.VsphereVirtualDiskVolumeSource{
+		VolumeSource: v1.VolumeSource{
+			VsphereVolume: &v1.VsphereVirtualDiskVolumeSource{
 				VolumePath: "[local] test-volume-name.vmdk",
 				FSType:     "ext4",
 			},
@@ -142,8 +149,8 @@ func TestPlugin(t *testing.T) {
 
 	// Test Provisioner
 	options := volume.VolumeOptions{
-		PVC: volumetest.CreateTestPVC("100Mi", []api.PersistentVolumeAccessMode{api.ReadWriteOnce}),
-		PersistentVolumeReclaimPolicy: api.PersistentVolumeReclaimDelete,
+		PVC: volumetest.CreateTestPVC("100Mi", []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}),
+		PersistentVolumeReclaimPolicy: v1.PersistentVolumeReclaimDelete,
 	}
 	provisioner, err := plug.(*vsphereVolumePlugin).newProvisionerInternal(options, &fakePDManager{})
 	persistentSpec, err := provisioner.Provision()
@@ -155,7 +162,11 @@ func TestPlugin(t *testing.T) {
 		t.Errorf("Provision() returned unexpected path %s", persistentSpec.Spec.PersistentVolumeSource.VsphereVolume.VolumePath)
 	}
 
-	cap := persistentSpec.Spec.Capacity[api.ResourceStorage]
+	if persistentSpec.Spec.PersistentVolumeSource.VsphereVolume.StoragePolicyName != "gold" {
+		t.Errorf("Provision() returned unexpected storagepolicy name %s", persistentSpec.Spec.PersistentVolumeSource.VsphereVolume.StoragePolicyName)
+	}
+
+	cap := persistentSpec.Spec.Capacity[v1.ResourceStorage]
 	size := cap.Value()
 	if size != 100*1024 {
 		t.Errorf("Provision() returned unexpected volume size: %v", size)

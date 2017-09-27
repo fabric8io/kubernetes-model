@@ -34,12 +34,9 @@ if [[ -z "${source_tag}" ]]; then
   fi
 fi
 
-base_images=(
-  openshift/origin-base
-  openshift/origin-release
-)
 images=(
   openshift/origin
+  openshift/origin-base
   openshift/origin-pod
   openshift/origin-deployer
   openshift/origin-docker-builder
@@ -49,8 +46,11 @@ images=(
   openshift/origin-haproxy-router
   openshift/origin-f5-router
   openshift/origin-egress-router
+  openshift/origin-egress-http-proxy
   openshift/origin-recycler
   openshift/origin-gitserver
+  openshift/origin-cluster-capacity
+  openshift/origin-service-catalog
   openshift/hello-openshift
   openshift/openvswitch
   openshift/node
@@ -61,18 +61,6 @@ if docker push --help | grep -q force; then
   PUSH_OPTS="--force"
 fi
 
-# Push the base images to a registry
-if [[ "${tag}" == ":latest" ]]; then
-  if [[ "${OS_PUSH_BASE_IMAGES-}" != "" ]]; then
-    for image in "${base_images[@]}"; do
-      if [[ "${OS_PUSH_BASE_REGISTRY-}" != "" ]]; then
-        docker tag "${image}:${source_tag}" "${OS_PUSH_BASE_REGISTRY}${image}${tag}"
-      fi
-      docker push ${PUSH_OPTS} "${OS_PUSH_BASE_REGISTRY-}${image}${tag}"
-    done
-  fi
-fi
-
 # Pull latest in preparation for tagging
 if [[ "${tag}" != ":latest" ]]; then
   if [[ -z "${OS_PUSH_LOCAL-}" ]]; then
@@ -80,7 +68,7 @@ if [[ "${tag}" != ":latest" ]]; then
       docker pull "${OS_PUSH_BASE_REGISTRY-}${image}:${source_tag}"
     done
   else
-    os::log::warn "Pushing local :${source_tag} images to ${OS_PUSH_BASE_REGISTRY-}*${tag}"
+    os::log::warning "Pushing local :${source_tag} images to ${OS_PUSH_BASE_REGISTRY-}*${tag}"
     if [[ -z "${OS_PUSH_ALWAYS:-}" ]]; then
       echo "  CTRL+C to cancel, or any other key to continue"
       read
@@ -90,11 +78,13 @@ fi
 
 if [[ "${OS_PUSH_BASE_REGISTRY-}" != "" || "${tag}" != "" ]]; then
   for image in "${images[@]}"; do
+    os::log::info "Tagging ${image}:${source_tag} as ${OS_PUSH_BASE_REGISTRY-}${image}${tag}..."
     docker tag "${image}:${source_tag}" "${OS_PUSH_BASE_REGISTRY-}${image}${tag}"
   done
 fi
 
 for image in "${images[@]}"; do
+  os::log::info "Pushing ${OS_PUSH_BASE_REGISTRY-}${image}${tag}..."
   docker push ${PUSH_OPTS} "${OS_PUSH_BASE_REGISTRY-}${image}${tag}"
 done
 

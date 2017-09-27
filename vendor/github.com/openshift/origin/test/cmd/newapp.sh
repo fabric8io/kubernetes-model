@@ -40,6 +40,16 @@ os::cmd::expect_success_and_text 'oc new-app mysql -o yaml --as-test' 'test: tru
 # docker strategy with repo that has no dockerfile
 os::cmd::expect_failure_and_text 'oc new-app https://github.com/openshift/nodejs-ex --strategy=docker' 'No Dockerfile was found'
 
+# repo related error message validation
+os::cmd::expect_failure_and_text 'oc new-app mysql-persisten mysql' 'mysql-persisten as a local directory'
+os::cmd::expect_failure_and_text 'oc new-app mysql-persisten mysql' 'mysql as a local directory'
+os::cmd::expect_failure_and_text 'oc new-app --strategy=docker https://192.30.253.113/openshift/ruby-hello-world.git' 'as a Git repository URL:  '
+os::cmd::expect_failure_and_text 'oc new-app https://www.google.com/openshift/nodejs-e' 'as a Git repository URL:  '
+os::cmd::expect_failure_and_text 'oc new-app https://githb.com/openshift/nodejs-e' 'as a Git repository URL:  '
+os::cmd::expect_failure_and_text 'oc new-build --strategy=docker https://192.30.253.113/openshift/ruby-hello-world.git' 'as a Git repository URL:  '
+os::cmd::expect_failure_and_text 'oc new-build https://www.google.com/openshift/nodejs-e' 'as a Git repository URL:  '
+os::cmd::expect_failure_and_text 'oc new-build https://githb.com/openshift/nodejs-e' 'as a Git repository URL:  '
+
 # check label creation
 os::cmd::try_until_success 'oc get imagestreamtags php:latest'
 os::cmd::try_until_success 'oc get imagestreamtags php:5.5'
@@ -61,6 +71,8 @@ os::cmd::expect_success_and_text 'oc new-app -f test/testdata/template-with-name
 # non-string parameterized values should be stripped
 os::cmd::expect_failure_and_text 'oc new-app -f test/testdata/template-with-namespaces.json -o jsonpath="{.items[?(@.metadata.name==\"route-edge-refstripped\")].metadata.namespace}"' 'namespace is not found'
 os::cmd::expect_failure_and_text 'oc new-app -f test/testdata/template-with-namespaces.json -o jsonpath="{.items[?(@.metadata.name==\"route-edge-prefix-refstripped\")].metadata.namespace}"' 'namespace is not found'
+# ensure --build-env environment variables get added to the buildconfig
+os::cmd::expect_success_and_text 'oc new-app -f test/testdata/template-with-app-label.json --build-env FOO=bar -o yaml' 'FOO'
 # ensure the objects can actually get created with a namespace specified
 project=$(oc project -q)
 os::cmd::expect_success 'oc new-project template-substitute'
@@ -82,6 +94,17 @@ os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample -o yaml' 'MY
 os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample --param MYSQL_PASSWORD=hello -o yaml' 'hello'
 os::cmd::expect_success_and_text  'oc new-app -e FOO=BAR -f examples/jenkins/jenkins-ephemeral-template.json -o jsonpath="{.items[?(@.kind==\"DeploymentConfig\")].spec.template.spec.containers[0].env[?(@.name==\"FOO\")].value}" ' '^BAR$'
 os::cmd::expect_success_and_text  'oc new-app -e OPENSHIFT_ENABLE_OAUTH=false -f examples/jenkins/jenkins-ephemeral-template.json -o jsonpath="{.items[?(@.kind==\"DeploymentConfig\")].spec.template.spec.containers[0].env[?(@.name==\"OPENSHIFT_ENABLE_OAUTH\")].value}" ' 'false'
+
+# check that multiple resource groups are printed with their respective external version
+os::cmd::expect_success_and_text 'oc new-app -f test/testdata/template_multiple_resource_gvs.yaml -o yaml' 'apiVersion: apps/v1beta1'
+# check that if an --output-version is requested on a list of varying resource kinds, an error is returned if
+# at least one of the resource groups does not support the given version
+os::cmd::expect_failure_and_text 'oc new-app -f test/testdata/template_multiple_resource_gvs.yaml -o yaml --output-version=v1' 'extensions.Deployment is not suitable for converting'
+os::cmd::expect_failure_and_text 'oc new-app -f test/testdata/template_multiple_resource_gvs.yaml -o yaml --output-version=extensions/v1beta1' 'api.Secret is not suitable for converting'
+os::cmd::expect_failure_and_not_text 'oc new-app -f test/testdata/template_multiple_resource_gvs.yaml -o yaml --output-version=apps/v1beta1' 'extensions.Deployment is not suitable for converting'
+
+# check that an error is produced when using --context-dir with a template
+os::cmd::expect_failure_and_text 'oc new-app -f examples/sample-app/application-template-stibuild.json --context-dir=example' '\-\-context-dir is not supported when using a template'
 
 # check that values are not split on commas
 os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample --param MYSQL_DATABASE=hello,MYSQL_USER=fail -o yaml' 'value: hello,MYSQL_USER=fail'
@@ -113,6 +136,9 @@ os::cmd::expect_success "oc new-app ruby-helloworld-sample --param-file /dev/nul
 os::cmd::expect_success "oc new-app ruby-helloworld-sample --param-file /dev/null --param-file ${param_file} -o yaml"
 os::cmd::expect_failure_and_text "echo 'fo%(o=bar' | oc new-app ruby-helloworld-sample --param-file -" 'invalid parameter assignment'
 os::cmd::expect_failure_and_text "echo 'S P A C E S=test' | oc new-app ruby-helloworld-sample --param-file -" 'invalid parameter assignment'
+
+os::cmd::expect_failure_and_text 'oc new-app ruby-helloworld-sample --param ABSENT_PARAMETER=absent -o yaml' 'unexpected parameter name'
+os::cmd::expect_success 'oc new-app ruby-helloworld-sample --param ABSENT_PARAMETER=absent -o yaml --ignore-unknown-parameters'
 
 # check that we can set environment variables from env file
 env_file="${OS_ROOT}/test/testdata/test-cmd-newapp-env.env"
@@ -171,7 +197,7 @@ os::cmd::expect_success_and_not_text 'oc new-build --binary php --build-env X=Y 
 os::cmd::expect_success_and_text "oc new-build --binary php --build-env-file ${build_env_file} -o jsonpath='{.items[?(@.kind==\"BuildConfig\")].spec.strategy.sourceStrategy.env[?(@.name==\"SOME_VAR\")].value}'" 'buildenvvarfromfile'
 os::cmd::expect_success_and_text "oc new-build --binary php --build-env-file ${build_env_file} --env SOME_VAR=fromcmdline -o jsonpath='{.items[?(@.kind==\"BuildConfig\")].spec.strategy.sourceStrategy.env[?(@.name==\"SOME_VAR\")].value}'" 'fromcmdline'
 os::cmd::expect_success_and_text "oc new-build --binary php --build-env-file ${build_env_file} --env SOME_VAR=fromcmdline -o yaml" 'ignoring value from file'
-os::cmd::expect_success_and_text "cat ${build_env_file} | oc new-build --binary php --build-env-file ${build_env_file} -o jsonpath='{.items[?(@.kind==\"BuildConfig\")].spec.strategy.sourceStrategy.env[?(@.name==\"SOME_VAR\")].value}'" 'buildenvvarfromfile'
+os::cmd::expect_success_and_text "cat ${build_env_file} | oc new-build --binary php --build-env-file - -o jsonpath='{.items[?(@.kind==\"BuildConfig\")].spec.strategy.sourceStrategy.env[?(@.name==\"SOME_VAR\")].value}'" 'buildenvvarfromfile'
 
 os::cmd::expect_failure_and_text "oc new-build --binary php --build-env-file does/not/exist" 'no such file or directory'
 os::cmd::expect_failure_and_text "oc new-build --binary php --build-env-file test/testdata"  'is a directory'
@@ -179,6 +205,13 @@ os::cmd::expect_success "oc new-build --binary php --build-env-file /dev/null -o
 os::cmd::expect_success "oc new-build --binary php --build-env-file /dev/null --env-file ${build_env_file} -o yaml"
 os::cmd::expect_failure_and_text "echo 'fo%(o=bar' | oc new-build --binary php --build-env-file -" 'invalid parameter assignment'
 os::cmd::expect_failure_and_text "echo 'S P A C E S=test' | oc new-build --binary php --build-env-file -" 'invalid parameter assignment'
+
+# new-build - check that we can set build args in DockerStrategy
+os::cmd::expect_success_and_text "oc new-build ${OS_ROOT}/test/testdata/build-arg-dockerfile --build-arg 'foo=bar' --to 'test' -o jsonpath='{.items[?(@.kind==\"BuildConfig\")].spec.strategy.dockerStrategy.buildArgs[?(@.name==\"foo\")].value}'" 'bar'
+
+# check that we cannot set build args in a non-DockerStrategy build
+os::cmd::expect_failure_and_text "oc new-build https://github.com/openshift/ruby-hello-world --strategy=source --build-arg 'foo=bar'" "error: Cannot use '--build-arg' without a Docker build"
+os::cmd::expect_failure_and_text "oc new-build https://github.com/openshift/ruby-ex --build-arg 'foo=bar'" "error: Cannot use '--build-arg' without a Docker build"
 
 #
 # verify we can create from a template when some objects in the template declare an app label
@@ -245,7 +278,7 @@ os::cmd::try_until_success 'oc get imagestreamtags wildfly:8.1'
 
 os::cmd::expect_success_and_text 'oc new-app --search --image-stream=mongodb' "Tags:\s+2.6, 3.2, latest"
 os::cmd::expect_success_and_text 'oc new-app --search --image-stream=mysql' "Tags:\s+5.6, 5.7, latest"
-os::cmd::expect_success_and_text 'oc new-app --search --image-stream=nodejs' "Tags:\s+4, latest"
+os::cmd::expect_success_and_text 'oc new-app --search --image-stream=nodejs' "Tags:\s+4, 6, latest"
 os::cmd::expect_success_and_text 'oc new-app --search --image-stream=perl' "Tags:\s+5.20, 5.24, latest"
 os::cmd::expect_success_and_text 'oc new-app --search --image-stream=php' "Tags:\s+5.6, 7.0, latest"
 os::cmd::expect_success_and_text 'oc new-app --search --image-stream=postgresql' "Tags:\s+9.4, 9.5, latest"
@@ -285,6 +318,9 @@ os::cmd::expect_failure_and_text 'oc new-app --dry-run __template_fail __templat
 os::cmd::expect_failure_and_text 'oc new-app --dry-run mysq' 'error: only a partial match was found for "mysq"'
 os::cmd::expect_failure_and_text 'oc new-app --dry-run mysq' 'The argument "mysq" only partially matched'
 os::cmd::expect_failure_and_text 'oc new-app --dry-run mysq' "Image stream \"mysql\" \\(tag \"5.7\"\\) in project"
+
+# ensure new-app with pr ref does not fail
+os::cmd::expect_success 'oc new-app https://github.com/openshift/ruby-hello-world#refs/pull/58/head --dry-run'
 
 # verify image streams with no tags are reported correctly and that --allow-missing-imagestream-tags works
 # new-app
@@ -330,8 +366,6 @@ os::cmd::expect_success 'oc delete secret dbsecret'
 os::cmd::expect_success_and_text 'oc new-app ruby-helloworld-sample -l app=helloworld -o name' 'service/frontend'
 os::cmd::expect_success 'oc delete all -l app=helloworld'
 os::cmd::expect_success 'oc delete secret dbsecret'
-# create from template with code explicitly set is not supported
-os::cmd::expect_failure 'oc new-app ruby-helloworld-sample~git@github.com:mfojtik/sinatra-app-example'
 os::cmd::expect_success 'oc delete template ruby-helloworld-sample'
 # override component names
 os::cmd::expect_success_and_text 'oc new-app mysql --name=db' 'db'
@@ -340,20 +374,6 @@ os::cmd::expect_success 'oc delete all -l app=ruby'
 # check for error when template JSON file has errors
 jsonfile="${OS_ROOT}/test/testdata/invalid.json"
 os::cmd::expect_failure_and_text "oc new-app '${jsonfile}'" "error: unable to load template file \"${jsonfile}\": json: line 0: invalid character '}' after object key"
-
-# a docker compose file should be transformed into an application by the import command
-os::cmd::expect_success_and_text 'oc import docker-compose -f test/testdata/app-scenarios/docker-compose/complex/docker-compose.yml --dry-run' 'warning: not all docker-compose fields were honored'
-os::cmd::expect_success_and_text 'oc import docker-compose -f test/testdata/app-scenarios/docker-compose/complex/docker-compose.yml --dry-run' 'db: cpuset is not supported'
-os::cmd::expect_success_and_text 'oc import docker-compose -f test/testdata/app-scenarios/docker-compose/complex/docker-compose.yml --dry-run' 'no-ports: no ports defined to send traffic to - no OpenShift service was created'
-os::cmd::expect_success_and_text 'oc import docker-compose -f test/testdata/app-scenarios/docker-compose/complex/docker-compose.yml -o name --dry-run' 'service/redis'
-os::cmd::expect_success_and_text 'oc import docker-compose -f test/testdata/app-scenarios/docker-compose/complex/docker-compose.yml -o name --as-template=other --dry-run' 'template/other'
-if git status &>/dev/null; then
-  # TODO: only consistent when running in a Git repository
-  os::cmd::expect_success '[[ $(diff --suppress-common-lines -y <(oc import docker-compose -f test/testdata/app-scenarios/docker-compose/complex/docker-compose.yml -o yaml) test/testdata/app-scenarios/docker-compose/complex/docker-compose.imported.yaml | grep -vE "ref\:|secret|uri\:" | wc -l) -eq 0 ]]'
-fi
-
-# verify a docker-compose.yml schema 2 resource can be transformed, and that it sets env vars correctly.
-os::cmd::expect_success_and_text 'oc import docker-compose -f test/testdata/app-scenarios/docker-compose/wordpress/docker-compose.yml -o yaml --as-template=other --dry-run' 'value: wordpress'
 
 # check new-build
 os::cmd::expect_failure_and_text 'oc new-build mysql -o yaml' 'you must specify at least one source repository URL'
@@ -374,6 +394,8 @@ os::cmd::expect_failure_and_text 'oc new-build mysql --source-image-path foo' 'e
 # ensure circular ref flagged but allowed for template
 os::cmd::expect_success 'oc create -f test/testdata/circular-is.yaml'
 os::cmd::expect_success_and_text 'oc new-app -f test/testdata/circular.yaml' 'should be different than input'
+# ensure circular does not choke on image stream image
+os::cmd::expect_success_and_not_text 'oc new-app -f test/testdata/bc-from-imagestreamimage.json --dry-run' 'Unable to follow reference type'
 
 # do not allow use of non-existent image (should fail)
 os::cmd::expect_failure_and_text 'oc new-app  openshift/bogusimage https://github.com/openshift/ruby-hello-world.git -o yaml' "no match for"

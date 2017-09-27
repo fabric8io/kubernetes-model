@@ -4,10 +4,12 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgotesting "k8s.io/client-go/testing"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
-	"k8s.io/kubernetes/pkg/client/testing/core"
-	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset/fake"
 
 	"github.com/openshift/origin/pkg/security"
 	"github.com/openshift/origin/pkg/security/uid"
@@ -31,10 +33,10 @@ func (r *fakeRange) CreateOrUpdate(update *kapi.RangeAllocation) error {
 
 func TestRepair(t *testing.T) {
 	client := &fake.Clientset{}
-	client.AddReactor("*", "*", func(a core.Action) (bool, runtime.Object, error) {
-		list := &kapi.NamespaceList{
-			Items: []kapi.Namespace{
-				{ObjectMeta: kapi.ObjectMeta{Name: "default"}},
+	client.AddReactor("*", "*", func(a clientgotesting.Action) (bool, runtime.Object, error) {
+		list := &v1.NamespaceList{
+			Items: []v1.Namespace{
+				{ObjectMeta: metav1.ObjectMeta{Name: "default"}},
 			},
 		}
 		return true, list, nil
@@ -64,11 +66,11 @@ func TestRepair(t *testing.T) {
 
 func TestRepairIgnoresMismatch(t *testing.T) {
 	client := &fake.Clientset{}
-	client.AddReactor("*", "*", func(a core.Action) (bool, runtime.Object, error) {
-		list := &kapi.NamespaceList{
-			Items: []kapi.Namespace{
+	client.AddReactor("*", "*", func(a clientgotesting.Action) (bool, runtime.Object, error) {
+		list := &v1.NamespaceList{
+			Items: []v1.Namespace{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:        "default",
 						Annotations: map[string]string{security.UIDRangeAnnotation: "1/5"},
 					},

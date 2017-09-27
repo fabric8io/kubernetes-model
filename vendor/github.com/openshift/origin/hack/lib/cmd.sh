@@ -157,8 +157,7 @@ readonly -f os::cmd::try_until_text
 
 # In order to harvest stderr and stdout at the same time into different buckets, we need to stick them into files
 # in an intermediate step
-BASETMPDIR="${TMPDIR:-"/tmp"}/openshift"
-os_cmd_internal_tmpdir="${BASETMPDIR}/test-cmd"
+os_cmd_internal_tmpdir="${TMPDIR:-"/tmp"}/openshift"
 os_cmd_internal_tmpout="${os_cmd_internal_tmpdir}/tmp_stdout.log"
 os_cmd_internal_tmperr="${os_cmd_internal_tmpdir}/tmp_stderr.log"
 
@@ -401,7 +400,7 @@ readonly -f os::cmd::internal::mark_attempt
 function os::cmd::internal::compress_output() {
 	local logfile=$1
 
-	awk -f ${OS_ROOT}/hack/compress.awk $logfile
+	awk -f ${OS_ROOT}/hack/lib/compress.awk $logfile
 }
 readonly -f os::cmd::internal::compress_output
 

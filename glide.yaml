@@ -1,20 +1,52 @@
 package: github.com/fabric8io/kubernetes-model
+ignore:
+- k8s.io/apiextensions-apiserver
+- k8s.io/apimachinery
+- k8s.io/apiserver
+- k8s.io/api
+- k8s.io/client-go
 import:
 - package: github.com/openshift/origin
-  version: 4bfdac87b805d28cff9c534c334d635fbd6f00f7
+  version: v3.7.0-alpha.1
 - package: k8s.io/kubernetes
-  version: 43a9be421799afb8a9c02d3541212a6e623c9053
+  version: 930b5c4b2db777e7ece981d84e9430808feceb4c
   repo: https://github.com/openshift/kubernetes.git
   vcs: git
-- package: k8s.io/apiextensions-server
-  version: 0d76ea1d086ac835c111312c999014d5b4b14c85
-  repo: https://github.com/kubernetes/apiextensions-apiserver.git
-  vcs: git
-#- package: github.com/golang/glog
-#  version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
-#  repo: https://github.com/openshift/glog.git
-#  vcs: git
-- package: github.com/dgrijalva/jwt-go
-  version: 01aeca54ebda6e0fbfafd0a524d234159c05ec20
-- package: github.com/gogo/protobuf/proto
-  version: c0656edd0d9eab7c66d1eb0c568f9039345796f7
+- package: github.com/coreos/etcd
+  version: 61fc123e7a8b14a0a258aa3f5c4159861b1ec2e7
+- package: github.com/davecgh/go-spew
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+- package: github.com/ghodss/yaml
+  version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
+- package: github.com/hashicorp/golang-lru
+  version: a0d98a5f288019575c6d1f4bb1573fef2d1fcdc4
+- package: github.com/pborman/uuid
+  version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
+- package: github.com/prometheus/client_golang
+  version: e7e903064f5e9eb5da98208bae10b475d4db0f8c
+- package: github.com/spf13/pflag
+  version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7
+- package: github.com/ugorji/go
+  version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
+- package: gopkg.in/inf.v0
+  version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
+- package: github.com/beorn7/perks
+  version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
+- package: github.com/coreos/go-semver
+  version: d043ae190b3202550d026daf009359bb5d761672
+- package: github.com/golang/protobuf
+  version: 4bd1920723d7b7c925de087aa32e2187708897f7
+- package: github.com/prometheus/client_model
+  version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
+- package: github.com/prometheus/common
+  version: 13ba4ddd0caa9c28ca7b7bffe1dfa9ed8d5ef207
+- package: github.com/prometheus/procfs
+  version: 65c1f6f8f0fc1e2185eb9863a3bc751496404259
+- package: google.golang.org/grpc
+  version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
+- package: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4
+- package: github.com/matttproud/golang_protobuf_extensions
+  version: fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a
+- package: github.com/juju/ratelimit
+  version: 5b9ff866471762aa2ab2dced63c9fb6f53921342

@@ -1,8 +1,8 @@
 package test
 
 import (
-	buildapi "github.com/openshift/origin/pkg/build/api"
-	"k8s.io/kubernetes/pkg/util/sets"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 type FakeBuildStore struct {

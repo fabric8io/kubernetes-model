@@ -1,9 +1,9 @@
 package validation
 
 import (
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/util/sets"
-	"k8s.io/kubernetes/pkg/util/validation/field"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/openshift/origin/pkg/image/admission/imagepolicy/api"
 )
@@ -20,10 +20,19 @@ func Validate(config *api.ImagePolicyConfig) field.ErrorList {
 		}
 		names.Insert(rule.Name)
 		for j, selector := range rule.MatchImageLabels {
-			_, err := unversioned.LabelSelectorAsSelector(&selector)
+			_, err := metav1.LabelSelectorAsSelector(&selector)
 			if err != nil {
 				allErrs = append(allErrs, field.Invalid(field.NewPath(api.PluginName, "executionRules").Index(i).Child("matchImageLabels").Index(j), nil, err.Error()))
 			}
+		}
+	}
+
+	for i, rule := range config.ResolutionRules {
+		if len(rule.Policy) == 0 {
+			allErrs = append(allErrs, field.Required(field.NewPath(api.PluginName, "resolutionRules").Index(i).Child("policy"), "a policy must be specified for this resource"))
+		}
+		if len(rule.TargetResource.Resource) == 0 {
+			allErrs = append(allErrs, field.Required(field.NewPath(api.PluginName, "resolutionRules").Index(i).Child("targetResource", "resource"), "a target resource name or '*' must be provided"))
 		}
 	}
 

@@ -24,27 +24,29 @@ import (
 	"strings"
 	"time"
 
-	authenticationapi "k8s.io/kubernetes/pkg/apis/authentication/v1beta1"
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api/v1"
-	buildapi "github.com/openshift/origin/pkg/build/api/v1"
-	deployapi "github.com/openshift/origin/pkg/deploy/api/v1"
-	imageapi "github.com/openshift/origin/pkg/image/api/v1"
-	oauthapi "github.com/openshift/origin/pkg/oauth/api/v1"
-	projectapi "github.com/openshift/origin/pkg/project/api/v1"
-	routeapi "github.com/openshift/origin/pkg/route/api/v1"
-	templateapi "github.com/openshift/origin/pkg/template/api/v1"
-	userapi "github.com/openshift/origin/pkg/user/api/v1"
-	apiextensions "k8s.io/apiextensions-server/pkg/apis/apiextensions/v1beta1"
-	resourceapi "k8s.io/kubernetes/pkg/api/resource"
+	authapi "github.com/openshift/origin/pkg/authorization/apis/authorization/v1"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build/v1"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image/v1"
+	oauthapi "github.com/openshift/origin/pkg/oauth/apis/oauth/v1"
+	projectapi "github.com/openshift/origin/pkg/project/apis/project/v1"
+	routeapi "github.com/openshift/origin/pkg/route/apis/route/v1"
+	securityapi "github.com/openshift/origin/pkg/security/apis/security/v1"
+	templateapi "github.com/openshift/origin/pkg/template/apis/template/v1"
+	userapi "github.com/openshift/origin/pkg/user/apis/user/v1"
+	apiextensions "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	resource "k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	configapi "k8s.io/client-go/tools/clientcmd/api/v1"
 	rapi "k8s.io/kubernetes/pkg/api/unversioned"
 	kapi "k8s.io/kubernetes/pkg/api/v1"
 	appsapi "k8s.io/kubernetes/pkg/apis/apps/v1beta1"
+	authenticationapi "k8s.io/kubernetes/pkg/apis/authentication/v1"
 	autoscalingapi "k8s.io/kubernetes/pkg/apis/autoscaling/v1"
 	batchapiv1 "k8s.io/kubernetes/pkg/apis/batch/v1"
 	batchapiv2alpha1 "k8s.io/kubernetes/pkg/apis/batch/v2alpha1"
 	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
-	storageclassapi "k8s.io/kubernetes/pkg/apis/storage/v1beta1"
-	configapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api/v1"
+	storageclassapi "k8s.io/kubernetes/pkg/apis/storage/v1"
 	watch "k8s.io/kubernetes/pkg/watch/json"
 
 	"github.com/fabric8io/kubernetes-model/pkg/schemagen"
@@ -52,7 +54,7 @@ import (
 
 type Schema struct {
 	BaseKubernetesList                kapi.List
-	ObjectMeta                        kapi.ObjectMeta
+	ObjectMeta                        metav1.ObjectMeta
 	PodList                           kapi.PodList
 	PodTemplateList                   kapi.PodTemplateList
 	ReplicationControllerList         kapi.ReplicationControllerList
@@ -73,16 +75,16 @@ type Schema struct {
 	ResourceQuotaList                 kapi.ResourceQuotaList
 	Secret                            kapi.Secret
 	SecretList                        kapi.SecretList
-	SecurityContextConstraints        kapi.SecurityContextConstraints
-	SecurityContextConstraintsList    kapi.SecurityContextConstraintsList
+	SecurityContextConstraints        securityapi.SecurityContextConstraints
+	SecurityContextConstraintsList    securityapi.SecurityContextConstraintsList
 	ServiceAccount                    kapi.ServiceAccount
 	ServiceAccountList                kapi.ServiceAccountList
-	Status                            rapi.Status
-	Patch                             rapi.Patch
+	Status                            metav1.Status
+	Patch                             metav1.Patch
 	Binding                           kapi.Binding
 	LimitRangeList                    kapi.LimitRangeList
 	DeleteOptions                     kapi.DeleteOptions
-	Quantity                          resourceapi.Quantity
+	Quantity                          resource.Quantity
 	BuildRequest                      buildapi.BuildRequest
 	BuildList                         buildapi.BuildList
 	BuildConfigList                   buildapi.BuildConfigList
@@ -105,24 +107,24 @@ type Schema struct {
 	OAuthClientList                   oauthapi.OAuthClientList
 	OAuthClientAuthorizationList      oauthapi.OAuthClientAuthorizationList
 	TokenReview                       authenticationapi.TokenReview
-	ClusterPolicy                     authorizationapi.ClusterPolicy
-	ClusterPolicyList                 authorizationapi.ClusterPolicyList
-	ClusterPolicyBinding              authorizationapi.ClusterPolicyBinding
-	ClusterPolicyBindingList          authorizationapi.ClusterPolicyBindingList
-	Policy                            authorizationapi.Policy
-	PolicyList                        authorizationapi.PolicyList
-	PolicyBinding                     authorizationapi.PolicyBinding
-	PolicyBindingList                 authorizationapi.PolicyBindingList
-	Role                              authorizationapi.Role
-	RoleList                          authorizationapi.RoleList
-	RoleBinding                       authorizationapi.RoleBinding
-	RoleBindingList                   authorizationapi.RoleBindingList
-	RoleBindingRestriction            authorizationapi.RoleBindingRestriction
-	LocalSubjectAccessReview          authorizationapi.LocalSubjectAccessReview
-	SubjectAccessReview               authorizationapi.SubjectAccessReview
-	SubjectAccessReviewResponse       authorizationapi.SubjectAccessReviewResponse
-	ClusterRoleBinding                authorizationapi.ClusterRoleBinding
-	ClusterRoleBindingList            authorizationapi.ClusterRoleBindingList
+	ClusterPolicy                     authapi.ClusterPolicy
+	ClusterPolicyList                 authapi.ClusterPolicyList
+	ClusterPolicyBinding              authapi.ClusterPolicyBinding
+	ClusterPolicyBindingList          authapi.ClusterPolicyBindingList
+	Policy                            authapi.Policy
+	PolicyList                        authapi.PolicyList
+	PolicyBinding                     authapi.PolicyBinding
+	PolicyBindingList                 authapi.PolicyBindingList
+	Role                              authapi.Role
+	RoleList                          authapi.RoleList
+	RoleBinding                       authapi.RoleBinding
+	RoleBindingList                   authapi.RoleBindingList
+	RoleBindingRestriction            authapi.RoleBindingRestriction
+	LocalSubjectAccessReview          authapi.LocalSubjectAccessReview
+	SubjectAccessReview               authapi.SubjectAccessReview
+	SubjectAccessReviewResponse       authapi.SubjectAccessReviewResponse
+	ClusterRoleBinding                authapi.ClusterRoleBinding
+	ClusterRoleBindingList            authapi.ClusterRoleBindingList
 	User                              userapi.User
 	UserList                          userapi.UserList
 	Group                             userapi.Group
@@ -131,7 +133,7 @@ type Schema struct {
 	IdentityList                      userapi.IdentityList
 	Config                            configapi.Config
 	WatchEvent                        watch.WatchEvent
-	RootPaths                         rapi.RootPaths
+	RootPaths                         metav1.RootPaths
 	Project                           projectapi.Project
 	ProjectList                       projectapi.ProjectList
 	ProjectRequest                    projectapi.ProjectRequest
@@ -173,36 +175,35 @@ type Schema struct {
 
 func main() {
 	packages := []schemagen.PackageDescriptor{
+		{"k8s.io/kubernetes/pkg/api", "io.fabric8.kubernetes.api.model", "kubernetes_"},
 		{"k8s.io/kubernetes/pkg/api/v1", "io.fabric8.kubernetes.api.model", "kubernetes_"},
-		{"k8s.io/kubernetes/pkg/api/resource", "io.fabric8.kubernetes.api.model", "kubernetes_resource_"},
-		{"k8s.io/kubernetes/pkg/util/intstr", "io.fabric8.kubernetes.api.model", "kubernetes_intstr_"},
-		{"k8s.io/kubernetes/pkg/runtime", "io.fabric8.kubernetes.api.model.runtime", "kubernetes_runtime_"},
+		{"k8s.io/apimachinery/pkg/api/resource", "io.fabric8.kubernetes.api.model", "kubernetes_resource_"},
+		{"k8s.io/apimachinery/pkg/util/intstr", "io.fabric8.kubernetes.api.model", "k8s_io_apimachinery_pkg_util_intstr_"},
+		{"k8s.io/apimachinery/pkg/runtime", "io.fabric8.kubernetes.api.model.runtime", "k8s_io_apimachinery_pkg_runtime_"},
 		{"k8s.io/kubernetes/pkg/util", "io.fabric8.kubernetes.api.model", "kubernetes_util_"},
 		{"k8s.io/kubernetes/pkg/watch/json", "io.fabric8.kubernetes.api.model", "kubernetes_watch_"},
 		{"k8s.io/kubernetes/pkg/api/errors", "io.fabric8.kubernetes.api.model", "kubernetes_errors_"},
-		{"k8s.io/kubernetes/pkg/client/clientcmd/api/v1", "io.fabric8.kubernetes.api.model", "kubernetes_config_"},
-		{"speter.net/go/exp/math/dec/inf", "io.fabric8.openshift.api.model", "speter_inf_"},
-		{"github.com/openshift/origin/pkg/build/api/v1", "io.fabric8.openshift.api.model", "os_build_"},
-		{"github.com/openshift/origin/pkg/deploy/api/v1", "io.fabric8.openshift.api.model", "os_deploy_"},
-		{"github.com/openshift/origin/pkg/image/api", "io.fabric8.openshift.api.model", "os_image_"},
-		{"github.com/openshift/origin/pkg/image/api/v1", "io.fabric8.openshift.api.model", "os_image_"},
-		{"github.com/openshift/origin/pkg/oauth/api/v1", "io.fabric8.openshift.api.model", "os_oauth_"},
-		{"github.com/openshift/origin/pkg/route/api/v1", "io.fabric8.openshift.api.model", "os_route_"},
-		{"github.com/openshift/origin/pkg/template/api/v1", "io.fabric8.openshift.api.model", "os_template_"},
-		{"github.com/openshift/origin/pkg/user/api/v1", "io.fabric8.openshift.api.model", "os_user_"},
-		{"github.com/openshift/origin/pkg/authorization/api/v1", "io.fabric8.openshift.api.model", "os_authorization_"},
-		{"github.com/openshift/origin/pkg/project/api/v1", "io.fabric8.openshift.api.model", "os_project_"},
+		{"k8s.io/client-go/tools/clientcmd/api/v1", "io.fabric8.kubernetes.api.model", "kubernetes_config_"},
+		{"github.com/openshift/origin/pkg/build/apis/build/v1", "io.fabric8.openshift.api.model", "os_build_"},
+		{"github.com/openshift/origin/pkg/deploy/apis/apps/v1", "io.fabric8.openshift.api.model", "os_deploy_"},
+		{"github.com/openshift/origin/pkg/image/apis/image/v1", "io.fabric8.openshift.api.model", "os_image_"},
+		{"github.com/openshift/origin/pkg/oauth/apis/oauth/v1", "io.fabric8.openshift.api.model", "os_oauth_"},
+		{"github.com/openshift/origin/pkg/route/apis/route/v1", "io.fabric8.openshift.api.model", "os_route_"},
+		{"github.com/openshift/origin/pkg/template/apis/template/v1", "io.fabric8.openshift.api.model", "os_template_"},
+		{"github.com/openshift/origin/pkg/user/apis/user/v1", "io.fabric8.openshift.api.model", "os_user_"},
+		{"github.com/openshift/origin/pkg/authorization/apis/authorization/v1", "io.fabric8.openshift.api.model", "os_authorization_"},
+		{"github.com/openshift/origin/pkg/project/apis/project/v1", "io.fabric8.openshift.api.model", "os_project_"},
+		{"github.com/openshift/origin/pkg/security/apis/security/v1", "io.fabric8.openshift.api.model", "os_security_"},
 		{"k8s.io/kubernetes/pkg/api/unversioned", "io.fabric8.kubernetes.api.model", "api_"},
-		{"k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api/v1", "io.fabric8.kubernetes.api.model", "clientcmd_api_"},
 		{"k8s.io/kubernetes/pkg/apis/extensions/v1beta1", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_extensions_"},
-		{"k8s.io/kubernetes/pkg/apis/authentication/v1beta1", "io.fabric8.kubernetes.api.model.authentication", "kubernetes_authentication_"},
+		{"k8s.io/kubernetes/pkg/apis/authentication/v1", "io.fabric8.kubernetes.api.model.authentication", "kubernetes_authentication_"},
 		{"k8s.io/kubernetes/pkg/apis/apps/v1beta1", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_apps_"},
 		{"k8s.io/kubernetes/pkg/apis/batch/v2alpha1", "io.fabric8.kubernetes.api.model", "kubernetes_batch_"},
 		{"k8s.io/kubernetes/pkg/apis/batch/v1", "io.fabric8.kubernetes.api.model", "kubernetes_batch_"},
 		{"k8s.io/kubernetes/pkg/apis/autoscaling/v1", "io.fabric8.kubernetes.api.model", "kubernetes_autoscaling_"},
-		{"k8s.io/apiextensions-server/pkg/apis/apiextensions/v1beta1", "io.fabric8.kubernetes.api.model.apiextensions", "k8s_io_apiextensions_"},
+		{"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1", "io.fabric8.kubernetes.api.model.apiextensions", "k8s_io_apiextensions_"},
 		{"k8s.io/apimachinery/pkg/apis/meta/v1", "io.fabric8.kubernetes.api.model", "k8s_io_apimachinery_"},
-		{"k8s.io/kubernetes/pkg/apis/storage/v1beta1", "io.fabric8.kubernetes.api.model", "kubernetes_storageclass_"},
+		{"k8s.io/kubernetes/pkg/apis/storage/v1", "io.fabric8.kubernetes.api.model", "kubernetes_storageclass_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{

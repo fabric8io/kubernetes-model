@@ -9,8 +9,9 @@ import (
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	exutil "github.com/openshift/origin/test/extended/util"
-	"k8s.io/kubernetes/pkg/util/wait"
 )
 
 // JobMon is a Jenkins job monitor
@@ -61,6 +62,13 @@ func (jmon *JobMon) Await(timeout time.Duration) error {
 		}
 
 		ginkgolog("Jenkins job %q build complete:\n%s\n\n", jmon.jobName, body)
+		// If Jenkins job has completed, output its log
+		body, status, err = jmon.j.GetResource("job/%s/%s/consoleText", jmon.jobName, jmon.buildNumber)
+		if err != nil || status != 200 {
+			ginkgolog("Unable to retrieve job log from Jenkins.\nStatus code: %d\nError: %v\nResponse Text: %s\n", status, err, body)
+			return true, nil
+		}
+		ginkgolog("Jenkins job %q log:\n%s\n\n", jmon.jobName, body)
 		return true, nil
 	})
 	return err
@@ -96,6 +104,11 @@ func StartJenkinsMemoryTracking(oc *exutil.CLI, jenkinsNamespace string) *time.T
 				fmt.Fprintf(g.GinkgoWriter, "\nUnable to acquire Jenkins ps information")
 			}
 			fmt.Fprintf(g.GinkgoWriter, "\nJenkins memory statistics at %v\n%s\n%s\n\n", t, ps, memstats)
+			gcstats, err := oc.Run("rsh").Args("--namespace", jenkinsNamespace, jenkinsPod.Name, "jstat", "-gcutil", "1").Output()
+			if err != nil {
+				fmt.Fprintf(g.GinkgoWriter, "Unable to acquire Jenkins gc stats: %v", err)
+			}
+			fmt.Fprintf(g.GinkgoWriter, "\n\nJenkins gc stats %v\n%s\n\n", t, gcstats)
 
 			// This is likely a temporary measure in place to extract diagnostic information during unexpectedly
 			// high memory utilization within the Jenkins image. If Jenkins is using

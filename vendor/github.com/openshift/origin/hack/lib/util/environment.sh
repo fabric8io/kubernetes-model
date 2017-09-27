@@ -68,7 +68,6 @@ readonly -f os::util::environment::setup_time_vars
 #  - export VOLUME_DIR
 #  - export ARTIFACT_DIR
 #  - export FAKE_HOME_DIR
-#  - export HOME
 #  - export KUBELET_SCHEME
 #  - export KUBELET_BIND_HOST
 #  - export KUBELET_HOST
@@ -86,9 +85,6 @@ readonly -f os::util::environment::setup_time_vars
 #  - export USE_IMAGES
 #  - export TAG
 function os::util::environment::setup_all_server_vars() {
-    local subtempdir=$1
-
-    os::util::environment::setup_tmpdir_vars "${subtempdir}"
     os::util::environment::setup_kubelet_vars
     os::util::environment::setup_etcd_vars
     os::util::environment::setup_server_vars
@@ -107,12 +103,14 @@ readonly -f os::util::environment::setup_all_server_vars
 #  - export PATH
 function os::util::environment::update_path_var() {
     local prefix
-    prefix="${OS_OUTPUT_BINPATH}/$(os::util::host_platform):"
+    if os::util::find::system_binary 'go' >/dev/null 2>&1; then
+        prefix+="${OS_OUTPUT_BINPATH}/$(os::build::host_platform):"
+    fi
     if [[ -n "${GOPATH:-}" ]]; then
         prefix+="${GOPATH}/bin:"
     fi
 
-    PATH="${prefix}:${PATH}"
+    PATH="${prefix:-}${PATH}"
     export PATH
 }
 readonly -f os::util::environment::update_path_var
@@ -121,49 +119,36 @@ readonly -f os::util::environment::update_path_var
 #
 # Globals:
 #  - TMPDIR
-#  - LOG_DIR
-#  - ARTIFACT_DIR
-#  - USE_SUDO
 # Arguments:
 #  - 1: the path under the root temporary directory for OpenShift where these subdirectories should be made
 # Returns:
 #  - export BASETMPDIR
+#  - export BASEOUTDIR
 #  - export LOG_DIR
 #  - export VOLUME_DIR
 #  - export ARTIFACT_DIR
 #  - export FAKE_HOME_DIR
-#  - export HOME
+#  - export OS_TMP_ENV_SET
 function os::util::environment::setup_tmpdir_vars() {
     local sub_dir=$1
 
     BASETMPDIR="${TMPDIR:-/tmp}/openshift/${sub_dir}"
     export BASETMPDIR
-    LOG_DIR="${LOG_DIR:-${BASETMPDIR}/logs}"
-    export LOG_DIR
     VOLUME_DIR="${BASETMPDIR}/volumes"
     export VOLUME_DIR
-    ARTIFACT_DIR="${ARTIFACT_DIR:-${BASETMPDIR}/artifacts}"
+
+    BASEOUTDIR="${OS_OUTPUT_SCRIPTPATH}/${sub_dir}"
+    export BASEOUTDIR
+    LOG_DIR="${LOG_DIR:-${BASEOUTDIR}/logs}"
+    export LOG_DIR
+    ARTIFACT_DIR="${ARTIFACT_DIR:-${BASEOUTDIR}/artifacts}"
     export ARTIFACT_DIR
-
-    # change the location of $HOME so no one does anything naughty
-    FAKE_HOME_DIR="${BASETMPDIR}/openshift.local.home"
+    FAKE_HOME_DIR="${BASEOUTDIR}/openshift.local.home"
     export FAKE_HOME_DIR
-    HOME="${FAKE_HOME_DIR}"
-    export HOME
 
-    # ensure that the directories are clean
-    if os::util::find::system_binary "findmnt" &>/dev/null; then
-        for target in $( ${USE_SUDO:+sudo} findmnt --output TARGET --list ); do
-            if [[ "${target}" == "${BASETMPDIR}"* ]]; then
-                ${USE_SUDO:+sudo} umount "${target}"
-            fi
-        done
-    fi
+    mkdir -p "${LOG_DIR}" "${VOLUME_DIR}" "${ARTIFACT_DIR}" "${FAKE_HOME_DIR}"
 
-    for directory in "${BASETMPDIR}" "${LOG_DIR}" "${VOLUME_DIR}" "${ARTIFACT_DIR}" "${HOME}"; do
-        ${USE_SUDO:+sudo} rm -rf "${directory}"
-        mkdir -p "${directory}"
-    done
+    export OS_TMP_ENV_SET="${sub_dir}"
 }
 readonly -f os::util::environment::setup_tmpdir_vars
 
@@ -285,16 +270,17 @@ readonly -f os::util::environment::setup_server_vars
 #  - export MAX_IMAGES_BULK_IMPORTED_PER_REPOSITORY
 function os::util::environment::setup_images_vars() {
     # Use either the latest release built images, or latest.
+    IMAGE_PREFIX="${OS_IMAGE_PREFIX:-"openshift/origin"}"
     if [[ -z "${USE_IMAGES-}" ]]; then
         TAG='latest'
         export TAG
-        USE_IMAGES="openshift/origin-\${component}:latest"
+        USE_IMAGES="${IMAGE_PREFIX}-\${component}:latest"
         export USE_IMAGES
 
         if [[ -e "${OS_ROOT}/_output/local/releases/.commit" ]]; then
             TAG="$(cat "${OS_ROOT}/_output/local/releases/.commit")"
             export TAG
-            USE_IMAGES="openshift/origin-\${component}:${TAG}"
+            USE_IMAGES="${IMAGE_PREFIX}-\${component}:${TAG}"
             export USE_IMAGES
         fi
     fi
