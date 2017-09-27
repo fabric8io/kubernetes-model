@@ -219,7 +219,9 @@ const (
 )
 
 type Ip struct {
+	//Ip address
 	Ip string `json:"ip" protobuf:"bytes,1,opt,name=ip"`
+	//Hostnames
 	Hostnames []string `json:"hostnames" protobuf:"bytes,2,rep,name=hostnames"`
 }
 
@@ -2016,7 +2018,7 @@ type PodSpec struct {
 	// More info: http://kubernetes.io/docs/user-guide/volumes
 	// +optional
 	Volumes []Volume `json:"volumes,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,1,rep,name=volumes"`
-	//HostAliases
+	//List of ips and hosts to add into container's /etc/hosts 
 	HostAliases []Ip `json:"hostAliases,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,1,rep,name=hostAliases"`
 	// List of initialization containers belonging to the pod.
 	// Init containers are executed in order prior to containers being started. If any
