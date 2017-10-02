@@ -6005,7 +6005,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authentication/v1",
+          "default": "authentication.k8s.io/v1",
           "required": true
         },
         "kind": {

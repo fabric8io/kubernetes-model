@@ -24,6 +24,7 @@ import (
 
 type PackageDescriptor struct {
 	GoPackage   string
+	ApiGroup    string
 	JavaPackage string
 	Prefix      string
 }
@@ -354,6 +355,12 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 				case "apiVersion":
 					apiVersion := filepath.Base(path)
 					apiGroup := filepath.Base(strings.TrimSuffix(path, apiVersion))
+
+ 					pkgDesc, ok := g.packages[path]
+					if ok && pkgDesc.ApiGroup != "" {
+						apiGroup = pkgDesc.ApiGroup
+					}
+
 					if apiGroup != "api" {
 						groupPostfix := ""
 						if strings.HasPrefix(path, "github.com/openshift/origin/pkg/") {
