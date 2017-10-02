@@ -25,6 +25,7 @@ import (
 	"time"
 
 	authapi "github.com/openshift/origin/pkg/authorization/apis/authorization/v1"
+	k8sauthapi "k8s.io/kubernetes/pkg/apis/authorization/v1"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build/v1"
 	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image/v1"
@@ -107,6 +108,8 @@ type Schema struct {
 	OAuthClientList                   oauthapi.OAuthClientList
 	OAuthClientAuthorizationList      oauthapi.OAuthClientAuthorizationList
 	TokenReview                       authenticationapi.TokenReview
+	K8sSubjectAccessReview            k8sauthapi.SubjectAccessReview
+	K8sLocalSubjectAccessReview       k8sauthapi.LocalSubjectAccessReview
 	ClusterPolicy                     authapi.ClusterPolicy
 	ClusterPolicyList                 authapi.ClusterPolicyList
 	ClusterPolicyBinding              authapi.ClusterPolicyBinding
@@ -197,6 +200,7 @@ func main() {
 		{"k8s.io/kubernetes/pkg/api/unversioned", "", "io.fabric8.kubernetes.api.model", "api_"},
 		{"k8s.io/kubernetes/pkg/apis/extensions/v1beta1", "", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_extensions_"},
 		{"k8s.io/kubernetes/pkg/apis/authentication/v1", "authentication.k8s.io", "io.fabric8.kubernetes.api.model.authentication", "kubernetes_authentication_"},
+		{"k8s.io/kubernetes/pkg/apis/authorization/v1", "authorization.k8s.io", "io.fabric8.kubernetes.api.model.authorization", "kubernetes_authorization_"},
 		{"k8s.io/kubernetes/pkg/apis/apps/v1beta1", "", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_apps_"},
 		{"k8s.io/kubernetes/pkg/apis/batch/v2alpha1", "", "io.fabric8.kubernetes.api.model", "kubernetes_batch_"},
 		{"k8s.io/kubernetes/pkg/apis/batch/v1", "", "io.fabric8.kubernetes.api.model", "kubernetes_batch_"},
