@@ -91,9 +91,9 @@ type Schema struct {
 	ImageList                         imageapi.ImageList
 	ImageStreamList                   imageapi.ImageStreamList
 	ImageStreamTagList                imageapi.ImageStreamTagList
-	DeploymentConfig		  deployapi.DeploymentConfig
+	DeploymentConfig                  deployapi.DeploymentConfig
 	DeploymentConfigList              deployapi.DeploymentConfigList
-	Route				  routeapi.Route
+	Route                             routeapi.Route
 	RouteList                         routeapi.RouteList
 	ComponentStatusList               kapi.ComponentStatusList
 	ContainerStatus                   kapi.ContainerStatus
