@@ -25,6 +25,7 @@ rsync -av \
 /examples/***
 /test/e2e/***
 /test/fixtures/***
+/test/e2e/generated/bindata.go
 /test/integration/***
 /third_party/protobuf/***
 /README.md
@@ -41,4 +42,5 @@ rsync -av \
   $KUBE_ROOT/ $KUBE_GODEP_ROOT <<EOF
 /pkg/***
 /plugin/***
+/staging/***
 EOF

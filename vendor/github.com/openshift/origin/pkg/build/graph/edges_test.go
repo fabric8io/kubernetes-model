@@ -6,11 +6,11 @@ import (
 
 	"github.com/gonum/graph"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	osgraph "github.com/openshift/origin/pkg/api/graph"
-	"github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	nodes "github.com/openshift/origin/pkg/build/graph/nodes"
 )
 
@@ -22,16 +22,16 @@ func TestNamespaceEdgeMatching(t *testing.T) {
 	g := osgraph.New()
 
 	fn := func(namespace string, g osgraph.Interface) {
-		bc := &api.BuildConfig{}
+		bc := &buildapi.BuildConfig{}
 		bc.Namespace = namespace
 		bc.Name = "the-bc"
 		nodes.EnsureBuildConfigNode(g, bc)
 
-		b := &api.Build{}
+		b := &buildapi.Build{}
 		b.Namespace = namespace
 		b.Name = "the-build"
-		b.Labels = map[string]string{api.BuildConfigLabel: "the-bc"}
-		b.Annotations = map[string]string{api.BuildConfigAnnotation: "the-bc"}
+		b.Labels = map[string]string{buildapi.BuildConfigLabel: "the-bc"}
+		b.Annotations = map[string]string{buildapi.BuildConfigAnnotation: "the-bc"}
 		nodes.EnsureBuildNode(g, b)
 	}
 
@@ -61,11 +61,11 @@ func namespaceFor(node graph.Node) (string, error) {
 	obj := node.(objectifier).Object()
 	switch t := obj.(type) {
 	case runtime.Object:
-		meta, err := kapi.ObjectMetaFor(t)
+		meta, err := meta.Accessor(t)
 		if err != nil {
 			return "", err
 		}
-		return meta.Namespace, nil
+		return meta.GetNamespace(), nil
 	default:
 		return "", fmt.Errorf("unknown object: %#v", obj)
 	}

@@ -17,12 +17,13 @@ limitations under the License.
 package fake
 
 import (
-	api "k8s.io/kubernetes/pkg/api"
-	unversioned "k8s.io/kubernetes/pkg/api/unversioned"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
+	types "k8s.io/apimachinery/pkg/types"
+	watch "k8s.io/apimachinery/pkg/watch"
+	testing "k8s.io/client-go/testing"
 	storage "k8s.io/kubernetes/pkg/apis/storage"
-	core "k8s.io/kubernetes/pkg/client/testing/core"
-	labels "k8s.io/kubernetes/pkg/labels"
-	watch "k8s.io/kubernetes/pkg/watch"
 )
 
 // FakeStorageClasses implements StorageClassInterface
@@ -30,56 +31,29 @@ type FakeStorageClasses struct {
 	Fake *FakeStorage
 }
 
-var storageclassesResource = unversioned.GroupVersionResource{Group: "storage.k8s.io", Version: "", Resource: "storageclasses"}
+var storageclassesResource = schema.GroupVersionResource{Group: "storage.k8s.io", Version: "", Resource: "storageclasses"}
 
-func (c *FakeStorageClasses) Create(storageClass *storage.StorageClass) (result *storage.StorageClass, err error) {
+var storageclassesKind = schema.GroupVersionKind{Group: "storage.k8s.io", Version: "", Kind: "StorageClass"}
+
+// Get takes name of the storageClass, and returns the corresponding storageClass object, and an error if there is any.
+func (c *FakeStorageClasses) Get(name string, options v1.GetOptions) (result *storage.StorageClass, err error) {
 	obj, err := c.Fake.
-		Invokes(core.NewRootCreateAction(storageclassesResource, storageClass), &storage.StorageClass{})
+		Invokes(testing.NewRootGetAction(storageclassesResource, name), &storage.StorageClass{})
 	if obj == nil {
 		return nil, err
 	}
 	return obj.(*storage.StorageClass), err
 }
 
-func (c *FakeStorageClasses) Update(storageClass *storage.StorageClass) (result *storage.StorageClass, err error) {
+// List takes label and field selectors, and returns the list of StorageClasses that match those selectors.
+func (c *FakeStorageClasses) List(opts v1.ListOptions) (result *storage.StorageClassList, err error) {
 	obj, err := c.Fake.
-		Invokes(core.NewRootUpdateAction(storageclassesResource, storageClass), &storage.StorageClass{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*storage.StorageClass), err
-}
-
-func (c *FakeStorageClasses) Delete(name string, options *api.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(core.NewRootDeleteAction(storageclassesResource, name), &storage.StorageClass{})
-	return err
-}
-
-func (c *FakeStorageClasses) DeleteCollection(options *api.DeleteOptions, listOptions api.ListOptions) error {
-	action := core.NewRootDeleteCollectionAction(storageclassesResource, listOptions)
-
-	_, err := c.Fake.Invokes(action, &storage.StorageClassList{})
-	return err
-}
-
-func (c *FakeStorageClasses) Get(name string) (result *storage.StorageClass, err error) {
-	obj, err := c.Fake.
-		Invokes(core.NewRootGetAction(storageclassesResource, name), &storage.StorageClass{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*storage.StorageClass), err
-}
-
-func (c *FakeStorageClasses) List(opts api.ListOptions) (result *storage.StorageClassList, err error) {
-	obj, err := c.Fake.
-		Invokes(core.NewRootListAction(storageclassesResource, opts), &storage.StorageClassList{})
+		Invokes(testing.NewRootListAction(storageclassesResource, storageclassesKind, opts), &storage.StorageClassList{})
 	if obj == nil {
 		return nil, err
 	}
 
-	label, _, _ := core.ExtractFromListOptions(opts)
+	label, _, _ := testing.ExtractFromListOptions(opts)
 	if label == nil {
 		label = labels.Everything()
 	}
@@ -93,15 +67,50 @@ func (c *FakeStorageClasses) List(opts api.ListOptions) (result *storage.Storage
 }
 
 // Watch returns a watch.Interface that watches the requested storageClasses.
-func (c *FakeStorageClasses) Watch(opts api.ListOptions) (watch.Interface, error) {
+func (c *FakeStorageClasses) Watch(opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(core.NewRootWatchAction(storageclassesResource, opts))
+		InvokesWatch(testing.NewRootWatchAction(storageclassesResource, opts))
+}
+
+// Create takes the representation of a storageClass and creates it.  Returns the server's representation of the storageClass, and an error, if there is any.
+func (c *FakeStorageClasses) Create(storageClass *storage.StorageClass) (result *storage.StorageClass, err error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewRootCreateAction(storageclassesResource, storageClass), &storage.StorageClass{})
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*storage.StorageClass), err
+}
+
+// Update takes the representation of a storageClass and updates it. Returns the server's representation of the storageClass, and an error, if there is any.
+func (c *FakeStorageClasses) Update(storageClass *storage.StorageClass) (result *storage.StorageClass, err error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewRootUpdateAction(storageclassesResource, storageClass), &storage.StorageClass{})
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*storage.StorageClass), err
+}
+
+// Delete takes name of the storageClass and deletes it. Returns an error if one occurs.
+func (c *FakeStorageClasses) Delete(name string, options *v1.DeleteOptions) error {
+	_, err := c.Fake.
+		Invokes(testing.NewRootDeleteAction(storageclassesResource, name), &storage.StorageClass{})
+	return err
+}
+
+// DeleteCollection deletes a collection of objects.
+func (c *FakeStorageClasses) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
+	action := testing.NewRootDeleteCollectionAction(storageclassesResource, listOptions)
+
+	_, err := c.Fake.Invokes(action, &storage.StorageClassList{})
+	return err
 }
 
 // Patch applies the patch and returns the patched storageClass.
-func (c *FakeStorageClasses) Patch(name string, pt api.PatchType, data []byte, subresources ...string) (result *storage.StorageClass, err error) {
+func (c *FakeStorageClasses) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *storage.StorageClass, err error) {
 	obj, err := c.Fake.
-		Invokes(core.NewRootPatchSubresourceAction(storageclassesResource, name, data, subresources...), &storage.StorageClass{})
+		Invokes(testing.NewRootPatchSubresourceAction(storageclassesResource, name, data, subresources...), &storage.StorageClass{})
 	if obj == nil {
 		return nil, err
 	}

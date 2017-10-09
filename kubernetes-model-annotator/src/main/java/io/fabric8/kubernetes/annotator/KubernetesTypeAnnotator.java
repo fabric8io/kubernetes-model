@@ -15,17 +15,11 @@
  */
 package io.fabric8.kubernetes.annotator;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.sun.codemodel.JAnnotationArrayMember;
-import com.sun.codemodel.JAnnotationUse;
-import com.sun.codemodel.JClassAlreadyExistsException;
-import com.sun.codemodel.JCodeModel;
-import com.sun.codemodel.JDefinedClass;
-import com.sun.codemodel.JFieldVar;
+import com.sun.codemodel.*;
 import io.sundr.builder.annotations.Buildable;
 import io.sundr.builder.annotations.Inline;
 import lombok.EqualsAndHashCode;

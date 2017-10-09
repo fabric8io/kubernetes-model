@@ -5,23 +5,24 @@ import (
 	"fmt"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kuser "k8s.io/apiserver/pkg/authentication/user"
+
 	"github.com/openshift/origin/pkg/auth/userregistry/identitymapper"
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
-	"github.com/openshift/origin/pkg/oauth/registry/oauthaccesstoken"
-	"github.com/openshift/origin/pkg/user/registry/user"
-	"k8s.io/kubernetes/pkg/api"
-	kuser "k8s.io/kubernetes/pkg/auth/user"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
+	oauthclient "github.com/openshift/origin/pkg/oauth/generated/internalclientset/typed/oauth/internalversion"
+	userclient "github.com/openshift/origin/pkg/user/generated/internalclientset/typed/user/internalversion"
 )
 
 type TokenAuthenticator struct {
-	tokens      oauthaccesstoken.Registry
-	users       user.Registry
+	tokens      oauthclient.OAuthAccessTokenInterface
+	users       userclient.UserResourceInterface
 	groupMapper identitymapper.UserToGroupMapper
 }
 
 var ErrExpired = errors.New("Token is expired")
 
-func NewTokenAuthenticator(tokens oauthaccesstoken.Registry, users user.Registry, groupMapper identitymapper.UserToGroupMapper) *TokenAuthenticator {
+func NewTokenAuthenticator(tokens oauthclient.OAuthAccessTokenInterface, users userclient.UserResourceInterface, groupMapper identitymapper.UserToGroupMapper) *TokenAuthenticator {
 	return &TokenAuthenticator{
 		tokens:      tokens,
 		users:       users,
@@ -30,17 +31,18 @@ func NewTokenAuthenticator(tokens oauthaccesstoken.Registry, users user.Registry
 }
 
 func (a *TokenAuthenticator) AuthenticateToken(value string) (kuser.Info, bool, error) {
-	ctx := api.NewContext()
-
-	token, err := a.tokens.GetAccessToken(ctx, value)
+	token, err := a.tokens.Get(value, metav1.GetOptions{})
 	if err != nil {
 		return nil, false, err
 	}
 	if token.CreationTimestamp.Time.Add(time.Duration(token.ExpiresIn) * time.Second).Before(time.Now()) {
 		return nil, false, ErrExpired
 	}
+	if token.DeletionTimestamp != nil {
+		return nil, false, ErrExpired
+	}
 
-	u, err := a.users.GetUser(ctx, token.UserName)
+	u, err := a.users.Get(token.UserName, metav1.GetOptions{})
 	if err != nil {
 		return nil, false, err
 	}

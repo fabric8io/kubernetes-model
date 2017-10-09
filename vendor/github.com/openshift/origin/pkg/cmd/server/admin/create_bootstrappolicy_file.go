@@ -11,12 +11,13 @@ import (
 	"github.com/spf13/cobra"
 
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/kubectl"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
+	kprinters "k8s.io/kubernetes/pkg/printers"
 
 	"github.com/openshift/origin/pkg/api/latest"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
-	"github.com/openshift/origin/pkg/template/api"
+	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 )
 
 const (
@@ -78,11 +79,15 @@ func (o CreateBootstrapPolicyFileOptions) CreateBootstrapPolicyFile() error {
 		return err
 	}
 
-	policyTemplate := &api.Template{}
+	policyTemplate := &templateapi.Template{}
 
 	clusterRoles := bootstrappolicy.GetBootstrapClusterRoles()
 	for i := range clusterRoles {
-		versionedObject, err := kapi.Scheme.ConvertToVersion(&clusterRoles[i], latest.Version)
+		originObject := &authorizationapi.ClusterRole{}
+		if err := kapi.Scheme.Convert(&clusterRoles[i], originObject, nil); err != nil {
+			return err
+		}
+		versionedObject, err := kapi.Scheme.ConvertToVersion(originObject, latest.Version)
 		if err != nil {
 			return err
 		}
@@ -91,7 +96,11 @@ func (o CreateBootstrapPolicyFileOptions) CreateBootstrapPolicyFile() error {
 
 	clusterRoleBindings := bootstrappolicy.GetBootstrapClusterRoleBindings()
 	for i := range clusterRoleBindings {
-		versionedObject, err := kapi.Scheme.ConvertToVersion(&clusterRoleBindings[i], latest.Version)
+		originObject := &authorizationapi.ClusterRoleBinding{}
+		if err := kapi.Scheme.Convert(&clusterRoleBindings[i], originObject, nil); err != nil {
+			return err
+		}
+		versionedObject, err := kapi.Scheme.ConvertToVersion(originObject, latest.Version)
 		if err != nil {
 			return err
 		}
@@ -100,7 +109,11 @@ func (o CreateBootstrapPolicyFileOptions) CreateBootstrapPolicyFile() error {
 
 	openshiftRoles := bootstrappolicy.GetBootstrapOpenshiftRoles(o.OpenShiftSharedResourcesNamespace)
 	for i := range openshiftRoles {
-		versionedObject, err := kapi.Scheme.ConvertToVersion(&openshiftRoles[i], latest.Version)
+		originObject := &authorizationapi.Role{}
+		if err := kapi.Scheme.Convert(&openshiftRoles[i], originObject, nil); err != nil {
+			return err
+		}
+		versionedObject, err := kapi.Scheme.ConvertToVersion(originObject, latest.Version)
 		if err != nil {
 			return err
 		}
@@ -109,7 +122,11 @@ func (o CreateBootstrapPolicyFileOptions) CreateBootstrapPolicyFile() error {
 
 	openshiftRoleBindings := bootstrappolicy.GetBootstrapOpenshiftRoleBindings(o.OpenShiftSharedResourcesNamespace)
 	for i := range openshiftRoleBindings {
-		versionedObject, err := kapi.Scheme.ConvertToVersion(&openshiftRoleBindings[i], latest.Version)
+		originObject := &authorizationapi.RoleBinding{}
+		if err := kapi.Scheme.Convert(&openshiftRoleBindings[i], originObject, nil); err != nil {
+			return err
+		}
+		versionedObject, err := kapi.Scheme.ConvertToVersion(originObject, latest.Version)
 		if err != nil {
 			return err
 		}
@@ -122,7 +139,7 @@ func (o CreateBootstrapPolicyFileOptions) CreateBootstrapPolicyFile() error {
 	}
 
 	buffer := &bytes.Buffer{}
-	(&kubectl.JSONPrinter{}).PrintObj(versionedPolicyTemplate, buffer)
+	(&kprinters.JSONPrinter{}).PrintObj(versionedPolicyTemplate, buffer)
 
 	if err := ioutil.WriteFile(o.File, buffer.Bytes(), 0644); err != nil {
 		return err

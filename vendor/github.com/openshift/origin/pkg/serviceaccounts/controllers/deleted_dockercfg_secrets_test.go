@@ -5,47 +5,50 @@ import (
 	"reflect"
 	"testing"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
-	"k8s.io/kubernetes/pkg/client/testing/core"
-	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	clientgotesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset/fake"
+	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/externalversions"
+	"k8s.io/kubernetes/pkg/controller"
 )
 
 func TestDockercfgDeletion(t *testing.T) {
 	testcases := map[string]struct {
 		ClientObjects []runtime.Object
 
-		DeletedSecret *api.Secret
+		DeletedSecret *v1.Secret
 
-		ExpectedActions []core.Action
+		ExpectedActions []clientgotesting.Action
 	}{
 		"deleted dockercfg secret without serviceaccount": {
 			DeletedSecret: createdDockercfgSecret(),
 
-			ExpectedActions: []core.Action{
-				core.NewGetAction(unversioned.GroupVersionResource{Resource: "serviceaccounts"}, "default", "default"),
-				core.NewDeleteAction(unversioned.GroupVersionResource{Resource: "secrets"}, "default", "token-secret-1"),
+			ExpectedActions: []clientgotesting.Action{
+				clientgotesting.NewGetAction(schema.GroupVersionResource{Resource: "serviceaccounts", Version: "v1"}, "default", "default"),
+				clientgotesting.NewDeleteAction(schema.GroupVersionResource{Resource: "secrets", Version: "v1"}, "default", "token-secret-1"),
 			},
 		},
 		"deleted dockercfg secret with serviceaccount with reference": {
 			ClientObjects: []runtime.Object{serviceAccount(addTokenSecretReference(tokenSecretReferences()), imagePullSecretReferences()), createdDockercfgSecret()},
 
 			DeletedSecret: createdDockercfgSecret(),
-			ExpectedActions: []core.Action{
-				core.NewGetAction(unversioned.GroupVersionResource{Resource: "serviceaccounts"}, "default", "default"),
-				core.NewUpdateAction(unversioned.GroupVersionResource{Resource: "serviceaccounts"}, "default", serviceAccount(tokenSecretReferences(), emptyImagePullSecretReferences())),
-				core.NewDeleteAction(unversioned.GroupVersionResource{Resource: "secrets"}, "default", "token-secret-1"),
+			ExpectedActions: []clientgotesting.Action{
+				clientgotesting.NewGetAction(schema.GroupVersionResource{Resource: "serviceaccounts", Version: "v1"}, "default", "default"),
+				clientgotesting.NewUpdateAction(schema.GroupVersionResource{Resource: "serviceaccounts", Version: "v1"}, "default", serviceAccount(tokenSecretReferences(), emptyImagePullSecretReferences())),
+				clientgotesting.NewDeleteAction(schema.GroupVersionResource{Resource: "secrets", Version: "v1"}, "default", "token-secret-1"),
 			},
 		},
 		"deleted dockercfg secret with serviceaccount without reference": {
 			ClientObjects: []runtime.Object{serviceAccount(addTokenSecretReference(tokenSecretReferences()), imagePullSecretReferences()), createdDockercfgSecret()},
 
 			DeletedSecret: createdDockercfgSecret(),
-			ExpectedActions: []core.Action{
-				core.NewGetAction(unversioned.GroupVersionResource{Resource: "serviceaccounts"}, "default", "default"),
-				core.NewUpdateAction(unversioned.GroupVersionResource{Resource: "serviceaccounts"}, "default", serviceAccount(tokenSecretReferences(), emptyImagePullSecretReferences())),
-				core.NewDeleteAction(unversioned.GroupVersionResource{Resource: "secrets"}, "default", "token-secret-1"),
+			ExpectedActions: []clientgotesting.Action{
+				clientgotesting.NewGetAction(schema.GroupVersionResource{Resource: "serviceaccounts", Version: "v1"}, "default", "default"),
+				clientgotesting.NewUpdateAction(schema.GroupVersionResource{Resource: "serviceaccounts", Version: "v1"}, "default", serviceAccount(tokenSecretReferences(), emptyImagePullSecretReferences())),
+				clientgotesting.NewDeleteAction(schema.GroupVersionResource{Resource: "secrets", Version: "v1"}, "default", "token-secret-1"),
 			},
 		},
 	}
@@ -55,8 +58,18 @@ func TestDockercfgDeletion(t *testing.T) {
 		rand.Seed(1)
 
 		client := fake.NewSimpleClientset(tc.ClientObjects...)
-
-		controller := NewDockercfgDeletedController(client, DockercfgDeletedControllerOptions{})
+		informerFactory := informers.NewSharedInformerFactory(client, controller.NoResyncPeriodFunc())
+		controller := NewDockercfgDeletedController(
+			informerFactory.Core().V1().Secrets(),
+			client,
+			DockercfgDeletedControllerOptions{},
+		)
+		stopCh := make(chan struct{})
+		informerFactory.Start(stopCh)
+		if !cache.WaitForCacheSync(stopCh, controller.secretController.HasSynced) {
+			t.Fatalf("unable to reach cache sync")
+		}
+		client.ClearActions()
 
 		if tc.DeletedSecret != nil {
 			controller.secretDeleted(tc.DeletedSecret)
@@ -78,5 +91,6 @@ func TestDockercfgDeletion(t *testing.T) {
 		if len(tc.ExpectedActions) > len(client.Actions()) {
 			t.Errorf("%s: %d additional expected actions:%+v", k, len(tc.ExpectedActions)-len(client.Actions()), tc.ExpectedActions[len(client.Actions()):])
 		}
+		close(stopCh)
 	}
 }

@@ -17,12 +17,13 @@ limitations under the License.
 package fake
 
 import (
-	api "k8s.io/kubernetes/pkg/api"
-	unversioned "k8s.io/kubernetes/pkg/api/unversioned"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
+	types "k8s.io/apimachinery/pkg/types"
+	watch "k8s.io/apimachinery/pkg/watch"
+	testing "k8s.io/client-go/testing"
 	extensions "k8s.io/kubernetes/pkg/apis/extensions"
-	core "k8s.io/kubernetes/pkg/client/testing/core"
-	labels "k8s.io/kubernetes/pkg/labels"
-	watch "k8s.io/kubernetes/pkg/watch"
 )
 
 // FakePodSecurityPolicies implements PodSecurityPolicyInterface
@@ -30,56 +31,29 @@ type FakePodSecurityPolicies struct {
 	Fake *FakeExtensions
 }
 
-var podsecuritypoliciesResource = unversioned.GroupVersionResource{Group: "extensions", Version: "", Resource: "podsecuritypolicies"}
+var podsecuritypoliciesResource = schema.GroupVersionResource{Group: "extensions", Version: "", Resource: "podsecuritypolicies"}
 
-func (c *FakePodSecurityPolicies) Create(podSecurityPolicy *extensions.PodSecurityPolicy) (result *extensions.PodSecurityPolicy, err error) {
+var podsecuritypoliciesKind = schema.GroupVersionKind{Group: "extensions", Version: "", Kind: "PodSecurityPolicy"}
+
+// Get takes name of the podSecurityPolicy, and returns the corresponding podSecurityPolicy object, and an error if there is any.
+func (c *FakePodSecurityPolicies) Get(name string, options v1.GetOptions) (result *extensions.PodSecurityPolicy, err error) {
 	obj, err := c.Fake.
-		Invokes(core.NewRootCreateAction(podsecuritypoliciesResource, podSecurityPolicy), &extensions.PodSecurityPolicy{})
+		Invokes(testing.NewRootGetAction(podsecuritypoliciesResource, name), &extensions.PodSecurityPolicy{})
 	if obj == nil {
 		return nil, err
 	}
 	return obj.(*extensions.PodSecurityPolicy), err
 }
 
-func (c *FakePodSecurityPolicies) Update(podSecurityPolicy *extensions.PodSecurityPolicy) (result *extensions.PodSecurityPolicy, err error) {
+// List takes label and field selectors, and returns the list of PodSecurityPolicies that match those selectors.
+func (c *FakePodSecurityPolicies) List(opts v1.ListOptions) (result *extensions.PodSecurityPolicyList, err error) {
 	obj, err := c.Fake.
-		Invokes(core.NewRootUpdateAction(podsecuritypoliciesResource, podSecurityPolicy), &extensions.PodSecurityPolicy{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*extensions.PodSecurityPolicy), err
-}
-
-func (c *FakePodSecurityPolicies) Delete(name string, options *api.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(core.NewRootDeleteAction(podsecuritypoliciesResource, name), &extensions.PodSecurityPolicy{})
-	return err
-}
-
-func (c *FakePodSecurityPolicies) DeleteCollection(options *api.DeleteOptions, listOptions api.ListOptions) error {
-	action := core.NewRootDeleteCollectionAction(podsecuritypoliciesResource, listOptions)
-
-	_, err := c.Fake.Invokes(action, &extensions.PodSecurityPolicyList{})
-	return err
-}
-
-func (c *FakePodSecurityPolicies) Get(name string) (result *extensions.PodSecurityPolicy, err error) {
-	obj, err := c.Fake.
-		Invokes(core.NewRootGetAction(podsecuritypoliciesResource, name), &extensions.PodSecurityPolicy{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*extensions.PodSecurityPolicy), err
-}
-
-func (c *FakePodSecurityPolicies) List(opts api.ListOptions) (result *extensions.PodSecurityPolicyList, err error) {
-	obj, err := c.Fake.
-		Invokes(core.NewRootListAction(podsecuritypoliciesResource, opts), &extensions.PodSecurityPolicyList{})
+		Invokes(testing.NewRootListAction(podsecuritypoliciesResource, podsecuritypoliciesKind, opts), &extensions.PodSecurityPolicyList{})
 	if obj == nil {
 		return nil, err
 	}
 
-	label, _, _ := core.ExtractFromListOptions(opts)
+	label, _, _ := testing.ExtractFromListOptions(opts)
 	if label == nil {
 		label = labels.Everything()
 	}
@@ -93,15 +67,50 @@ func (c *FakePodSecurityPolicies) List(opts api.ListOptions) (result *extensions
 }
 
 // Watch returns a watch.Interface that watches the requested podSecurityPolicies.
-func (c *FakePodSecurityPolicies) Watch(opts api.ListOptions) (watch.Interface, error) {
+func (c *FakePodSecurityPolicies) Watch(opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(core.NewRootWatchAction(podsecuritypoliciesResource, opts))
+		InvokesWatch(testing.NewRootWatchAction(podsecuritypoliciesResource, opts))
+}
+
+// Create takes the representation of a podSecurityPolicy and creates it.  Returns the server's representation of the podSecurityPolicy, and an error, if there is any.
+func (c *FakePodSecurityPolicies) Create(podSecurityPolicy *extensions.PodSecurityPolicy) (result *extensions.PodSecurityPolicy, err error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewRootCreateAction(podsecuritypoliciesResource, podSecurityPolicy), &extensions.PodSecurityPolicy{})
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*extensions.PodSecurityPolicy), err
+}
+
+// Update takes the representation of a podSecurityPolicy and updates it. Returns the server's representation of the podSecurityPolicy, and an error, if there is any.
+func (c *FakePodSecurityPolicies) Update(podSecurityPolicy *extensions.PodSecurityPolicy) (result *extensions.PodSecurityPolicy, err error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewRootUpdateAction(podsecuritypoliciesResource, podSecurityPolicy), &extensions.PodSecurityPolicy{})
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*extensions.PodSecurityPolicy), err
+}
+
+// Delete takes name of the podSecurityPolicy and deletes it. Returns an error if one occurs.
+func (c *FakePodSecurityPolicies) Delete(name string, options *v1.DeleteOptions) error {
+	_, err := c.Fake.
+		Invokes(testing.NewRootDeleteAction(podsecuritypoliciesResource, name), &extensions.PodSecurityPolicy{})
+	return err
+}
+
+// DeleteCollection deletes a collection of objects.
+func (c *FakePodSecurityPolicies) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
+	action := testing.NewRootDeleteCollectionAction(podsecuritypoliciesResource, listOptions)
+
+	_, err := c.Fake.Invokes(action, &extensions.PodSecurityPolicyList{})
+	return err
 }
 
 // Patch applies the patch and returns the patched podSecurityPolicy.
-func (c *FakePodSecurityPolicies) Patch(name string, pt api.PatchType, data []byte, subresources ...string) (result *extensions.PodSecurityPolicy, err error) {
+func (c *FakePodSecurityPolicies) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *extensions.PodSecurityPolicy, err error) {
 	obj, err := c.Fake.
-		Invokes(core.NewRootPatchSubresourceAction(podsecuritypoliciesResource, name, data, subresources...), &extensions.PodSecurityPolicy{})
+		Invokes(testing.NewRootPatchSubresourceAction(podsecuritypoliciesResource, name, data, subresources...), &extensions.PodSecurityPolicy{})
 	if obj == nil {
 		return nil, err
 	}

@@ -9,16 +9,14 @@ import (
 
 	"github.com/spf13/pflag"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/kubernetes/pkg/master/ports"
 	"k8s.io/kubernetes/pkg/registry/core/service/ipallocator"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/flag"
-	"k8s.io/kubernetes/pkg/util/sets"
-	"k8s.io/kubernetes/pkg/util/yaml"
 
-	"github.com/openshift/origin/pkg/bootstrap"
 	"github.com/openshift/origin/pkg/cmd/flagtypes"
 	"github.com/openshift/origin/pkg/cmd/server/admin"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
@@ -26,6 +24,7 @@ import (
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	imagepolicyapi "github.com/openshift/origin/pkg/image/admission/imagepolicy/api"
+	"github.com/openshift/origin/pkg/oc/bootstrap"
 	"github.com/spf13/cobra"
 )
 
@@ -198,6 +197,19 @@ func (args MasterArgs) BuildSerializeableMasterConfig() (*configapi.MasterConfig
 		KubernetesMasterConfig: kubernetesMasterConfig,
 		EtcdConfig:             etcdConfig,
 
+		AuthConfig: configapi.MasterAuthConfig{
+			RequestHeader: &configapi.RequestHeaderAuthenticationOptions{
+				ClientCA:            admin.DefaultCertFilename(args.ConfigDir.Value(), admin.FrontProxyCAFilePrefix),
+				ClientCommonNames:   []string{bootstrappolicy.AggregatorUsername},
+				UsernameHeaders:     []string{"X-Remote-User"},
+				GroupHeaders:        []string{"X-Remote-Group"},
+				ExtraHeaderPrefixes: []string{"X-Remote-Extra-"}},
+		},
+
+		AggregatorConfig: configapi.AggregatorConfig{
+			ProxyClientInfo: admin.DefaultAggregatorClientCertInfo(args.ConfigDir.Value()).CertLocation,
+		},
+
 		OAuthConfig: oauthConfig,
 
 		PauseControllers: args.PauseControllers,
@@ -242,6 +254,17 @@ func (args MasterArgs) BuildSerializeableMasterConfig() (*configapi.MasterConfig
 			Latest: args.ImageFormatArgs.ImageTemplate.Latest,
 		},
 
+		// List public registries that we are allowing to import images from by default.
+		// By default all registries have set to be "secure", iow. the port for them is
+		// defaulted to "443".
+		// If the registry you are adding here is insecure, you can add 'Insecure: true' which
+		// in that case it will default to port '80'.
+		// If the registry you are adding use custom port, you have to specify the port as
+		// part of the domain name.
+		ImagePolicyConfig: configapi.ImagePolicyConfig{
+			AllowedRegistriesForImport: configapi.DefaultAllowedRegistriesForImport,
+		},
+
 		ProjectConfig: configapi.ProjectConfig{
 			DefaultNodeSelector:    "",
 			ProjectRequestMessage:  "",
@@ -269,29 +292,27 @@ func (args MasterArgs) BuildSerializeableMasterConfig() (*configapi.MasterConfig
 		},
 	}
 
-	if args.ListenArg.UseTLS() {
-		config.ServingInfo.ServerCert = admin.DefaultMasterServingCertInfo(args.ConfigDir.Value())
-		config.ServingInfo.ClientCA = admin.DefaultAPIClientCAFile(args.ConfigDir.Value())
+	config.ServingInfo.ServerCert = admin.DefaultMasterServingCertInfo(args.ConfigDir.Value())
+	config.ServingInfo.ClientCA = admin.DefaultAPIClientCAFile(args.ConfigDir.Value())
 
-		config.AssetConfig.ServingInfo.ServerCert = admin.DefaultAssetServingCertInfo(args.ConfigDir.Value())
+	config.AssetConfig.ServingInfo.ServerCert = admin.DefaultAssetServingCertInfo(args.ConfigDir.Value())
 
-		if oauthConfig != nil {
-			s := admin.DefaultCABundleFile(args.ConfigDir.Value())
-			oauthConfig.MasterCA = &s
-		}
+	if oauthConfig != nil {
+		s := admin.DefaultCABundleFile(args.ConfigDir.Value())
+		oauthConfig.MasterCA = &s
+	}
 
-		// Only set up ca/cert info for kubelet connections if we're self-hosting Kubernetes
-		if builtInKubernetes {
-			config.KubeletClientInfo.CA = admin.DefaultRootCAFile(args.ConfigDir.Value())
-			config.KubeletClientInfo.ClientCert = kubeletClientInfo.CertLocation
-			config.ServiceAccountConfig.MasterCA = admin.DefaultCABundleFile(args.ConfigDir.Value())
-		}
+	// Only set up ca/cert info for kubelet connections if we're self-hosting Kubernetes
+	if builtInKubernetes {
+		config.KubeletClientInfo.CA = admin.DefaultRootCAFile(args.ConfigDir.Value())
+		config.KubeletClientInfo.ClientCert = kubeletClientInfo.CertLocation
+		config.ServiceAccountConfig.MasterCA = admin.DefaultCABundleFile(args.ConfigDir.Value())
+	}
 
-		// Only set up ca/cert info for etcd connections if we're self-hosting etcd
-		if builtInEtcd {
-			config.EtcdClientInfo.CA = admin.DefaultRootCAFile(args.ConfigDir.Value())
-			config.EtcdClientInfo.ClientCert = etcdClientInfo.CertLocation
-		}
+	// Only set up ca/cert info for etcd connections if we're self-hosting etcd
+	if builtInEtcd {
+		config.EtcdClientInfo.CA = admin.DefaultRootCAFile(args.ConfigDir.Value())
+		config.EtcdClientInfo.ClientCert = etcdClientInfo.CertLocation
 	}
 
 	if builtInKubernetes {
@@ -681,12 +702,12 @@ func getPort(theURL url.URL) int {
 }
 
 // applyDefaults roundtrips the config to v1 and back to ensure proper defaults are set.
-func applyDefaults(config runtime.Object, version unversioned.GroupVersion) (runtime.Object, error) {
+func applyDefaults(config runtime.Object, version schema.GroupVersion) (runtime.Object, error) {
 	ext, err := configapi.Scheme.ConvertToVersion(config, version)
 	if err != nil {
 		return nil, err
 	}
-	kapi.Scheme.Default(ext)
+	configapi.Scheme.Default(ext)
 	return configapi.Scheme.ConvertToVersion(ext, configapi.SchemeGroupVersion)
 }
 

@@ -5,18 +5,21 @@ import (
 	"fmt"
 	"net/url"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	kapi "k8s.io/kubernetes/pkg/api"
 	kapisext "k8s.io/kubernetes/pkg/apis/extensions"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/labels"
 
-	authapi "github.com/openshift/origin/pkg/authorization/api"
+	authapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	"github.com/openshift/origin/pkg/client"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	hostdiag "github.com/openshift/origin/pkg/diagnostics/host"
 	"github.com/openshift/origin/pkg/diagnostics/types"
-	routesapi "github.com/openshift/origin/pkg/route/api"
+	routesapi "github.com/openshift/origin/pkg/route/apis/route"
+	securityapi "github.com/openshift/origin/pkg/security/apis/security"
+	"github.com/openshift/origin/pkg/security/legacyclient"
 )
 
 // AggregatedLogging is a Diagnostic to check the configurations
@@ -49,42 +52,42 @@ func NewAggregatedLogging(masterConfigFile string, kclient kclientset.Interface,
 	return &AggregatedLogging{nil, masterConfigFile, osclient, kclient, types.NewDiagnosticResult(AggregatedLoggingName)}
 }
 
-func (d *AggregatedLogging) getScc(name string) (*kapi.SecurityContextConstraints, error) {
-	return d.KubeClient.Core().SecurityContextConstraints().Get(name)
+func (d *AggregatedLogging) getScc(name string) (*securityapi.SecurityContextConstraints, error) {
+	return legacyclient.NewFromClient(d.KubeClient.Core().RESTClient()).Get(name, metav1.GetOptions{})
 }
 
 func (d *AggregatedLogging) getClusterRoleBinding(name string) (*authapi.ClusterRoleBinding, error) {
-	return d.OsClient.ClusterRoleBindings().Get(name)
+	return d.OsClient.ClusterRoleBindings().Get(name, metav1.GetOptions{})
 }
 
-func (d *AggregatedLogging) routes(project string, options kapi.ListOptions) (*routesapi.RouteList, error) {
+func (d *AggregatedLogging) routes(project string, options metav1.ListOptions) (*routesapi.RouteList, error) {
 	return d.OsClient.Routes(project).List(options)
 }
 
-func (d *AggregatedLogging) serviceAccounts(project string, options kapi.ListOptions) (*kapi.ServiceAccountList, error) {
+func (d *AggregatedLogging) serviceAccounts(project string, options metav1.ListOptions) (*kapi.ServiceAccountList, error) {
 	return d.KubeClient.Core().ServiceAccounts(project).List(options)
 }
 
-func (d *AggregatedLogging) services(project string, options kapi.ListOptions) (*kapi.ServiceList, error) {
+func (d *AggregatedLogging) services(project string, options metav1.ListOptions) (*kapi.ServiceList, error) {
 	return d.KubeClient.Core().Services(project).List(options)
 }
 
 func (d *AggregatedLogging) endpointsForService(project string, service string) (*kapi.Endpoints, error) {
-	return d.KubeClient.Core().Endpoints(project).Get(service)
+	return d.KubeClient.Core().Endpoints(project).Get(service, metav1.GetOptions{})
 }
 
-func (d *AggregatedLogging) daemonsets(project string, options kapi.ListOptions) (*kapisext.DaemonSetList, error) {
-	return d.KubeClient.Extensions().DaemonSets(project).List(kapi.ListOptions{LabelSelector: loggingInfraFluentdSelector.AsSelector()})
+func (d *AggregatedLogging) daemonsets(project string, options metav1.ListOptions) (*kapisext.DaemonSetList, error) {
+	return d.KubeClient.Extensions().DaemonSets(project).List(metav1.ListOptions{LabelSelector: loggingInfraFluentdSelector.AsSelector().String()})
 }
 
-func (d *AggregatedLogging) nodes(options kapi.ListOptions) (*kapi.NodeList, error) {
-	return d.KubeClient.Core().Nodes().List(kapi.ListOptions{})
+func (d *AggregatedLogging) nodes(options metav1.ListOptions) (*kapi.NodeList, error) {
+	return d.KubeClient.Core().Nodes().List(metav1.ListOptions{})
 }
 
-func (d *AggregatedLogging) pods(project string, options kapi.ListOptions) (*kapi.PodList, error) {
+func (d *AggregatedLogging) pods(project string, options metav1.ListOptions) (*kapi.PodList, error) {
 	return d.KubeClient.Core().Pods(project).List(options)
 }
-func (d *AggregatedLogging) deploymentconfigs(project string, options kapi.ListOptions) (*deployapi.DeploymentConfigList, error) {
+func (d *AggregatedLogging) deploymentconfigs(project string, options metav1.ListOptions) (*deployapi.DeploymentConfigList, error) {
 	return d.OsClient.DeploymentConfigs(project).List(options)
 }
 
@@ -175,7 +178,7 @@ func retrieveLoggingProject(r types.DiagnosticResult, masterCfg *configapi.Maste
 		return projectName
 	}
 
-	routeList, err := osClient.Routes(kapi.NamespaceAll).List(kapi.ListOptions{LabelSelector: loggingSelector.AsSelector()})
+	routeList, err := osClient.Routes(metav1.NamespaceAll).List(metav1.ListOptions{LabelSelector: loggingSelector.AsSelector().String()})
 	if err != nil {
 		r.Error("AGL0012", err, fmt.Sprintf("There was an error while trying to find the route associated with '%s' which is probably transient: %s", loggingUrl, err))
 		return projectName
@@ -197,7 +200,7 @@ func retrieveLoggingProject(r types.DiagnosticResult, masterCfg *configapi.Maste
 		r.Error("AGL0014", errors.New(message), message)
 		return ""
 	}
-	project, err := osClient.Projects().Get(projectName)
+	project, err := osClient.Projects().Get(projectName, metav1.GetOptions{})
 	if err != nil {
 		r.Error("AGL0018", err, fmt.Sprintf("There was an error retrieving project '%s' which is most likely a transient error: %s", projectName, err))
 		return ""

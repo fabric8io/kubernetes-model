@@ -15,11 +15,10 @@
 #
 
 SHELL := /bin/bash
-tag := $(shell cat .openshift-version)
 
-build:
-	CGO_ENABLED=0 GO15VENDOREXPERIMENT=1 go build -a ./cmd/generate/generate.go
-	./generate > kubernetes-model/src/main/resources/schema/kube-schema.json
+all: build
+
+build: gobuild
 	mvn clean install
 
 gobuild:
@@ -27,5 +26,4 @@ gobuild:
 	./generate > kubernetes-model/src/main/resources/schema/kube-schema.json
 
 vendoring:
-	glide update --strip-vendor --strip-vcs --update-vendored
-	rm -rf vendor/github.com/openshift/origin/vendor vendor/k8s.io/apiextensions-server/vendor vendor/k8s.io/kubernetes/vendor vendor/k8s.io/kubernetes/staging/src/k8s.io/client-go/_vendor
+	hack/glide-update.sh

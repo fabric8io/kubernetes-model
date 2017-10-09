@@ -4,23 +4,24 @@ import (
 	"testing"
 	"time"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
-	"k8s.io/kubernetes/pkg/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubernetes/pkg/api/v1"
 )
 
 func TestRequiresRegenerationServiceUIDMismatch(t *testing.T) {
 	tests := []struct {
 		name          string
 		primeServices func(cache.Store)
-		secret        *kapi.Secret
+		secret        *v1.Secret
 		expected      bool
 	}{
 		{
 			name:          "no service annotation",
 			primeServices: func(serviceCache cache.Store) {},
-			secret: &kapi.Secret{
-				ObjectMeta: kapi.ObjectMeta{
+			secret: &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1", Name: "mysecret",
 					Annotations: map[string]string{},
 				},
@@ -30,8 +31,8 @@ func TestRequiresRegenerationServiceUIDMismatch(t *testing.T) {
 		{
 			name:          "missing service",
 			primeServices: func(serviceCache cache.Store) {},
-			secret: &kapi.Secret{
-				ObjectMeta: kapi.ObjectMeta{
+			secret: &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1", Name: "mysecret",
 					Annotations: map[string]string{
 						ServiceNameAnnotation: "foo",
@@ -43,12 +44,12 @@ func TestRequiresRegenerationServiceUIDMismatch(t *testing.T) {
 		{
 			name: "service-uid-mismatch",
 			primeServices: func(serviceCache cache.Store) {
-				serviceCache.Add(&kapi.Service{
-					ObjectMeta: kapi.ObjectMeta{Namespace: "ns1", Name: "foo", UID: types.UID("uid-2"), Annotations: map[string]string{ServingCertSecretAnnotation: "mysecret"}},
+				serviceCache.Add(&v1.Service{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Name: "foo", UID: types.UID("uid-2"), Annotations: map[string]string{ServingCertSecretAnnotation: "mysecret"}},
 				})
 			},
-			secret: &kapi.Secret{
-				ObjectMeta: kapi.ObjectMeta{
+			secret: &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1", Name: "mysecret",
 					Annotations: map[string]string{
 						ServiceNameAnnotation: "foo",
@@ -61,12 +62,12 @@ func TestRequiresRegenerationServiceUIDMismatch(t *testing.T) {
 		{
 			name: "service secret name mismatch",
 			primeServices: func(serviceCache cache.Store) {
-				serviceCache.Add(&kapi.Service{
-					ObjectMeta: kapi.ObjectMeta{Namespace: "ns1", Name: "foo", UID: types.UID("uid-1"), Annotations: map[string]string{ServingCertSecretAnnotation: "mysecret2"}},
+				serviceCache.Add(&v1.Service{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Name: "foo", UID: types.UID("uid-1"), Annotations: map[string]string{ServingCertSecretAnnotation: "mysecret2"}},
 				})
 			},
-			secret: &kapi.Secret{
-				ObjectMeta: kapi.ObjectMeta{
+			secret: &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1", Name: "mysecret",
 					Annotations: map[string]string{
 						ServiceNameAnnotation: "foo",
@@ -79,12 +80,12 @@ func TestRequiresRegenerationServiceUIDMismatch(t *testing.T) {
 		{
 			name: "no expiry",
 			primeServices: func(serviceCache cache.Store) {
-				serviceCache.Add(&kapi.Service{
-					ObjectMeta: kapi.ObjectMeta{Namespace: "ns1", Name: "foo", UID: types.UID("uid-1"), Annotations: map[string]string{ServingCertSecretAnnotation: "mysecret"}},
+				serviceCache.Add(&v1.Service{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Name: "foo", UID: types.UID("uid-1"), Annotations: map[string]string{ServingCertSecretAnnotation: "mysecret"}},
 				})
 			},
-			secret: &kapi.Secret{
-				ObjectMeta: kapi.ObjectMeta{
+			secret: &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1", Name: "mysecret",
 					Annotations: map[string]string{
 						ServiceNameAnnotation: "foo",
@@ -97,12 +98,12 @@ func TestRequiresRegenerationServiceUIDMismatch(t *testing.T) {
 		{
 			name: "bad expiry",
 			primeServices: func(serviceCache cache.Store) {
-				serviceCache.Add(&kapi.Service{
-					ObjectMeta: kapi.ObjectMeta{Namespace: "ns1", Name: "foo", UID: types.UID("uid-1"), Annotations: map[string]string{ServingCertSecretAnnotation: "mysecret"}},
+				serviceCache.Add(&v1.Service{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Name: "foo", UID: types.UID("uid-1"), Annotations: map[string]string{ServingCertSecretAnnotation: "mysecret"}},
 				})
 			},
-			secret: &kapi.Secret{
-				ObjectMeta: kapi.ObjectMeta{
+			secret: &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1", Name: "mysecret",
 					Annotations: map[string]string{
 						ServiceNameAnnotation:       "foo",
@@ -116,12 +117,12 @@ func TestRequiresRegenerationServiceUIDMismatch(t *testing.T) {
 		{
 			name: "expired expiry",
 			primeServices: func(serviceCache cache.Store) {
-				serviceCache.Add(&kapi.Service{
-					ObjectMeta: kapi.ObjectMeta{Namespace: "ns1", Name: "foo", UID: types.UID("uid-1"), Annotations: map[string]string{ServingCertSecretAnnotation: "mysecret"}},
+				serviceCache.Add(&v1.Service{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Name: "foo", UID: types.UID("uid-1"), Annotations: map[string]string{ServingCertSecretAnnotation: "mysecret"}},
 				})
 			},
-			secret: &kapi.Secret{
-				ObjectMeta: kapi.ObjectMeta{
+			secret: &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1", Name: "mysecret",
 					Annotations: map[string]string{
 						ServiceNameAnnotation:       "foo",
@@ -135,12 +136,12 @@ func TestRequiresRegenerationServiceUIDMismatch(t *testing.T) {
 		{
 			name: "distant expiry",
 			primeServices: func(serviceCache cache.Store) {
-				serviceCache.Add(&kapi.Service{
-					ObjectMeta: kapi.ObjectMeta{Namespace: "ns1", Name: "foo", UID: types.UID("uid-1"), Annotations: map[string]string{ServingCertSecretAnnotation: "mysecret"}},
+				serviceCache.Add(&v1.Service{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Name: "foo", UID: types.UID("uid-1"), Annotations: map[string]string{ServingCertSecretAnnotation: "mysecret"}},
 				})
 			},
-			secret: &kapi.Secret{
-				ObjectMeta: kapi.ObjectMeta{
+			secret: &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1", Name: "mysecret",
 					Annotations: map[string]string{
 						ServiceNameAnnotation:       "foo",

@@ -7,25 +7,25 @@ import (
 	"sync"
 	"time"
 
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-
-	"k8s.io/kubernetes/pkg/admission"
+	utilwait "k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apiserver/pkg/admission"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
+	kinternalinformers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
+	kcorelisters "k8s.io/kubernetes/pkg/client/listers/core/internalversion"
 	"k8s.io/kubernetes/pkg/quota"
-	utilwait "k8s.io/kubernetes/pkg/util/wait"
 	"k8s.io/kubernetes/plugin/pkg/admission/resourcequota"
+	resourcequotaapi "k8s.io/kubernetes/plugin/pkg/admission/resourcequota/apis/resourcequota"
 
 	oclient "github.com/openshift/origin/pkg/client"
-	ocache "github.com/openshift/origin/pkg/client/cache"
 	oadmission "github.com/openshift/origin/pkg/cmd/server/admission"
-	"github.com/openshift/origin/pkg/controller/shared"
 	"github.com/openshift/origin/pkg/quota/controller/clusterquotamapping"
+	quotainformer "github.com/openshift/origin/pkg/quota/generated/informers/internalversion/quota/internalversion"
+	quotalister "github.com/openshift/origin/pkg/quota/generated/listers/quota/internalversion"
 )
 
-func init() {
-	admission.RegisterPlugin("openshift.io/ClusterResourceQuota",
-		func(client clientset.Interface, config io.Reader) (admission.Interface, error) {
+func Register(plugins *admission.Plugins) {
+	plugins.Register("openshift.io/ClusterResourceQuota",
+		func(config io.Reader) (admission.Interface, error) {
 			return NewClusterResourceQuota()
 		})
 }
@@ -35,8 +35,8 @@ type clusterQuotaAdmission struct {
 	*admission.Handler
 
 	// these are used to create the accessor
-	clusterQuotaLister *ocache.IndexerToClusterResourceQuotaLister
-	namespaceLister    *cache.IndexerToNamespaceLister
+	clusterQuotaLister quotalister.ClusterResourceQuotaLister
+	namespaceLister    kcorelisters.NamespaceLister
 	clusterQuotaSynced func() bool
 	namespaceSynced    func() bool
 	clusterQuotaClient oclient.ClusterResourceQuotasInterface
@@ -51,9 +51,9 @@ type clusterQuotaAdmission struct {
 	evaluator resourcequota.Evaluator
 }
 
-var _ oadmission.WantsInformers = &clusterQuotaAdmission{}
+var _ oadmission.WantsInternalKubernetesInformers = &clusterQuotaAdmission{}
 var _ oadmission.WantsOpenshiftClient = &clusterQuotaAdmission{}
-var _ oadmission.WantsClusterQuotaMapper = &clusterQuotaAdmission{}
+var _ oadmission.WantsClusterQuota = &clusterQuotaAdmission{}
 
 const (
 	timeToWaitForCacheSync = 10 * time.Second
@@ -87,7 +87,7 @@ func (q *clusterQuotaAdmission) Admit(a admission.Attributes) (err error) {
 
 	q.init.Do(func() {
 		clusterQuotaAccessor := newQuotaAccessor(q.clusterQuotaLister, q.namespaceLister, q.clusterQuotaClient, q.clusterQuotaMapper)
-		q.evaluator = resourcequota.NewQuotaEvaluator(clusterQuotaAccessor, q.registry, q.lockAquisition, numEvaluatorThreads, utilwait.NeverStop)
+		q.evaluator = resourcequota.NewQuotaEvaluator(clusterQuotaAccessor, q.registry, q.lockAquisition, &resourcequotaapi.Configuration{}, numEvaluatorThreads, utilwait.NeverStop)
 	})
 
 	return q.evaluator.Evaluate(a)
@@ -127,19 +127,19 @@ func (q *clusterQuotaAdmission) SetOriginQuotaRegistry(registry quota.Registry) 
 	q.registry = registry
 }
 
-func (q *clusterQuotaAdmission) SetInformers(informers shared.InformerFactory) {
-	q.clusterQuotaLister = informers.ClusterResourceQuotas().Lister()
-	q.clusterQuotaSynced = informers.ClusterResourceQuotas().Informer().HasSynced
-	q.namespaceLister = informers.KubernetesInformers().Namespaces().Lister()
-	q.namespaceSynced = informers.KubernetesInformers().Namespaces().Informer().HasSynced
+func (q *clusterQuotaAdmission) SetInternalKubernetesInformers(informers kinternalinformers.SharedInformerFactory) {
+	q.namespaceLister = informers.Core().InternalVersion().Namespaces().Lister()
+	q.namespaceSynced = informers.Core().InternalVersion().Namespaces().Informer().HasSynced
 }
 
 func (q *clusterQuotaAdmission) SetOpenshiftClient(client oclient.Interface) {
 	q.clusterQuotaClient = client
 }
 
-func (q *clusterQuotaAdmission) SetClusterQuotaMapper(clusterQuotaMapper clusterquotamapping.ClusterQuotaMapper) {
+func (q *clusterQuotaAdmission) SetClusterQuota(clusterQuotaMapper clusterquotamapping.ClusterQuotaMapper, informers quotainformer.ClusterResourceQuotaInformer) {
 	q.clusterQuotaMapper = clusterQuotaMapper
+	q.clusterQuotaLister = informers.Lister()
+	q.clusterQuotaSynced = informers.Informer().HasSynced
 }
 
 func (q *clusterQuotaAdmission) Validate() error {

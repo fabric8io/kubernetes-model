@@ -19,29 +19,23 @@ package app
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
+	goruntime "runtime"
 	"strconv"
 
-	"k8s.io/kubernetes/pkg/api"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	unversionedcore "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
+	"k8s.io/apiserver/pkg/server/healthz"
+
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/externalversions"
 	"k8s.io/kubernetes/pkg/client/leaderelection"
 	"k8s.io/kubernetes/pkg/client/leaderelection/resourcelock"
-	"k8s.io/kubernetes/pkg/client/record"
-	"k8s.io/kubernetes/pkg/client/restclient"
-	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-	"k8s.io/kubernetes/pkg/healthz"
-	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/util/configz"
 	"k8s.io/kubernetes/plugin/cmd/kube-scheduler/app/options"
-	"k8s.io/kubernetes/plugin/pkg/scheduler"
 	_ "k8s.io/kubernetes/plugin/pkg/scheduler/algorithmprovider"
-	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
-	latestschedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api/latest"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/factory"
 
 	"github.com/golang/glog"
@@ -72,125 +66,118 @@ through the API as necessary.`,
 
 // Run runs the specified SchedulerServer.  This should never exit.
 func Run(s *options.SchedulerServer) error {
+	kubecli, err := createClient(s)
+	if err != nil {
+		return fmt.Errorf("unable to create kube client: %v", err)
+	}
+
+	recorder := createRecorder(kubecli, s)
+
+	informerFactory := informers.NewSharedInformerFactory(kubecli, 0)
+	// cache only non-terminal pods
+	podInformer := factory.NewPodInformer(kubecli, 0)
+
+	sched, err := CreateScheduler(
+		s,
+		kubecli,
+		informerFactory.Core().V1().Nodes(),
+		podInformer,
+		informerFactory.Core().V1().PersistentVolumes(),
+		informerFactory.Core().V1().PersistentVolumeClaims(),
+		informerFactory.Core().V1().ReplicationControllers(),
+		informerFactory.Extensions().V1beta1().ReplicaSets(),
+		informerFactory.Apps().V1beta1().StatefulSets(),
+		informerFactory.Core().V1().Services(),
+		recorder,
+	)
+	if err != nil {
+		return fmt.Errorf("error creating scheduler: %v", err)
+	}
+
+	if s.Port != -1 {
+		go startHTTP(s)
+	}
+
+	stop := make(chan struct{})
+	defer close(stop)
+	go podInformer.Informer().Run(stop)
+	informerFactory.Start(stop)
+	// Waiting for all cache to sync before scheduling.
+	informerFactory.WaitForCacheSync(stop)
+	controller.WaitForCacheSync("scheduler", stop, podInformer.Informer().HasSynced)
+
+	run := func(stopCh <-chan struct{}) {
+		sched.Run()
+		<-stopCh
+	}
+
+	if !s.LeaderElection.LeaderElect {
+		run(stop)
+		return fmt.Errorf("finished without leader elect")
+	}
+
+	id, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("unable to get hostname: %v", err)
+	}
+
+	rl, err := resourcelock.New(s.LeaderElection.ResourceLock,
+		s.LockObjectNamespace,
+		s.LockObjectName,
+		kubecli.Core(),
+		resourcelock.ResourceLockConfig{
+			Identity:      id,
+			EventRecorder: recorder,
+		})
+	if err != nil {
+		return fmt.Errorf("error creating lock: %v", err)
+	}
+
+	leaderElector, err := leaderelection.NewLeaderElector(
+		leaderelection.LeaderElectionConfig{
+			Lock:          rl,
+			LeaseDuration: s.LeaderElection.LeaseDuration.Duration,
+			RenewDeadline: s.LeaderElection.RenewDeadline.Duration,
+			RetryPeriod:   s.LeaderElection.RetryPeriod.Duration,
+			Callbacks: leaderelection.LeaderCallbacks{
+				OnStartedLeading: run,
+				OnStoppedLeading: func() {
+					utilruntime.HandleError(fmt.Errorf("lost master"))
+				},
+			},
+		})
+	if err != nil {
+		return err
+	}
+
+	leaderElector.Run()
+
+	return fmt.Errorf("lost lease")
+}
+
+func startHTTP(s *options.SchedulerServer) {
+	mux := http.NewServeMux()
+	healthz.InstallHandler(mux)
+	if s.EnableProfiling {
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		if s.EnableContentionProfiling {
+			goruntime.SetBlockProfileRate(1)
+		}
+	}
 	if c, err := configz.New("componentconfig"); err == nil {
 		c.Set(s.KubeSchedulerConfiguration)
 	} else {
 		glog.Errorf("unable to register configz: %s", err)
 	}
-	kubeconfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.Kubeconfig)
-	if err != nil {
-		glog.Errorf("unable to build config from flags: %v", err)
-		return err
+	configz.InstallHandler(mux)
+	mux.Handle("/metrics", prometheus.Handler())
+
+	server := &http.Server{
+		Addr:    net.JoinHostPort(s.Address, strconv.Itoa(int(s.Port))),
+		Handler: mux,
 	}
-
-	kubeconfig.ContentType = s.ContentType
-	// Override kubeconfig qps/burst settings from flags
-	kubeconfig.QPS = s.KubeAPIQPS
-	kubeconfig.Burst = int(s.KubeAPIBurst)
-
-	if err != nil {
-		glog.Fatalf("Invalid API configuration: %v", err)
-	}
-	leaderElectionClient, err := clientset.NewForConfig(restclient.AddUserAgent(kubeconfig, "leader-election"))
-	if err != nil {
-		glog.Fatalf("Invalid API configuration: %v", err)
-	}
-
-	go func() {
-		mux := http.NewServeMux()
-		healthz.InstallHandler(mux)
-		if s.EnableProfiling {
-			mux.HandleFunc("/debug/pprof/", pprof.Index)
-			mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-			mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		}
-		configz.InstallHandler(mux)
-		mux.Handle("/metrics", prometheus.Handler())
-
-		server := &http.Server{
-			Addr:    net.JoinHostPort(s.Address, strconv.Itoa(int(s.Port))),
-			Handler: mux,
-		}
-		glog.Fatal(server.ListenAndServe())
-	}()
-
-	configFactory := factory.NewConfigFactory(leaderElectionClient, s.SchedulerName, s.HardPodAffinitySymmetricWeight, s.FailureDomains)
-	config, err := createConfig(s, configFactory)
-
-	if err != nil {
-		glog.Fatalf("Failed to create scheduler configuration: %v", err)
-	}
-
-	eventBroadcaster := record.NewBroadcaster()
-	config.Recorder = eventBroadcaster.NewRecorder(api.EventSource{Component: s.SchedulerName})
-	eventBroadcaster.StartLogging(glog.Infof)
-	eventBroadcaster.StartRecordingToSink(&unversionedcore.EventSinkImpl{Interface: leaderElectionClient.Core().Events("")})
-
-	sched := scheduler.New(config)
-
-	run := func(_ <-chan struct{}) {
-		sched.Run()
-		select {}
-	}
-
-	if !s.LeaderElection.LeaderElect {
-		run(nil)
-		glog.Fatal("this statement is unreachable")
-		panic("unreachable")
-	}
-
-	id, err := os.Hostname()
-	if err != nil {
-		glog.Errorf("unable to get hostname: %v", err)
-		return err
-	}
-
-	// TODO: enable other lock types
-	rl := resourcelock.EndpointsLock{
-		EndpointsMeta: api.ObjectMeta{
-			Namespace: "kube-system",
-			Name:      "kube-scheduler",
-		},
-		Client: leaderElectionClient,
-		LockConfig: resourcelock.ResourceLockConfig{
-			Identity:      id,
-			EventRecorder: config.Recorder,
-		},
-	}
-
-	leaderelection.RunOrDie(leaderelection.LeaderElectionConfig{
-		Lock:          &rl,
-		LeaseDuration: s.LeaderElection.LeaseDuration.Duration,
-		RenewDeadline: s.LeaderElection.RenewDeadline.Duration,
-		RetryPeriod:   s.LeaderElection.RetryPeriod.Duration,
-		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: run,
-			OnStoppedLeading: func() {
-				glog.Fatalf("lost master")
-			},
-		},
-	})
-
-	glog.Fatal("this statement is unreachable")
-	panic("unreachable")
-}
-
-func createConfig(s *options.SchedulerServer, configFactory *factory.ConfigFactory) (*scheduler.Config, error) {
-	if _, err := os.Stat(s.PolicyConfigFile); err == nil {
-		var (
-			policy     schedulerapi.Policy
-			configData []byte
-		)
-		configData, err := ioutil.ReadFile(s.PolicyConfigFile)
-		if err != nil {
-			return nil, fmt.Errorf("unable to read policy config: %v", err)
-		}
-		if err := runtime.DecodeInto(latestschedulerapi.Codec, configData, &policy); err != nil {
-			return nil, fmt.Errorf("invalid configuration: %v", err)
-		}
-		return configFactory.CreateFromConfig(policy)
-	}
-
-	// if the config file isn't provided, use the specified (or default) provider
-	return configFactory.CreateFromProvider(s.AlgorithmProvider)
+	glog.Fatal(server.ListenAndServe())
 }

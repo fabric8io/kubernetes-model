@@ -1,2 +1,12 @@
-assignees:
-  - davidopp
+approvers:
+- davidopp
+- timothysc
+- wojtek-t
+- k82cn
+reviewers:
+- davidopp
+- bsalamat
+- timothysc
+- wojtek-t
+- k82cn
+- jayunit100

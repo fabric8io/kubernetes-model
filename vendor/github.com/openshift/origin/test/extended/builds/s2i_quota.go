@@ -6,6 +6,10 @@ import (
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 
+	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/test/e2e/framework"
+
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	exutil "github.com/openshift/origin/test/extended/util"
 )
 
@@ -29,6 +33,7 @@ var _ = g.Describe("[builds][Conformance] s2i build with a quota", func() {
 
 	g.Describe("Building from a template", func() {
 		g.It("should create an s2i build with a quota and run it", func() {
+			framework.SkipIfProviderIs("gce")
 			oc.SetOutputDir(exutil.TestContext.OutputDir)
 
 			g.By(fmt.Sprintf("calling oc create -f %q", buildFixture))
@@ -49,9 +54,14 @@ var _ = g.Describe("[builds][Conformance] s2i build with a quota", func() {
 			o.Expect(err).NotTo(o.HaveOccurred())
 			o.Expect(buildLog).To(o.ContainSubstring("MEMORY=209715200"))
 			o.Expect(buildLog).To(o.ContainSubstring("MEMORYSWAP=209715200"))
-			o.Expect(buildLog).To(o.ContainSubstring("SHARES=61"))
-			o.Expect(buildLog).To(o.ContainSubstring("PERIOD=100000"))
-			o.Expect(buildLog).To(o.ContainSubstring("QUOTA=6000"))
+
+			events, err := oc.KubeClient().Core().Events(oc.Namespace()).Search(kapi.Scheme, br.Build)
+			o.Expect(err).NotTo(o.HaveOccurred(), "Should be able to get events from the build")
+			o.Expect(events).NotTo(o.BeNil(), "Build event list should not be nil")
+
+			exutil.CheckForBuildEvent(oc.KubeClient().Core(), br.Build, buildapi.BuildStartedEventReason, buildapi.BuildStartedEventMessage)
+			exutil.CheckForBuildEvent(oc.KubeClient().Core(), br.Build, buildapi.BuildCompletedEventReason, buildapi.BuildCompletedEventMessage)
+
 		})
 	})
 })

@@ -5,14 +5,15 @@ import (
 	"reflect"
 	"testing"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/diff"
 	kapi "k8s.io/kubernetes/pkg/api"
-	kerrors "k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/util/diff"
 
 	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/admin/policy"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	"github.com/openshift/origin/pkg/oc/admin/policy"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -20,7 +21,8 @@ import (
 const testUserName = "bob"
 
 func TestImageAddSignature(t *testing.T) {
-	adminClient, userClient, image := testSetupImageSignatureTest(t, testUserName)
+	adminClient, userClient, image, fn := testSetupImageSignatureTest(t, testUserName)
+	defer fn()
 
 	if len(image.Signatures) != 0 {
 		t.Fatalf("expected empty signatures, not: %s", diff.ObjectDiff(image.Signatures, []imageapi.ImageSignature{}))
@@ -53,7 +55,7 @@ func TestImageAddSignature(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	image, err = adminClient.Images().Get(image.Name)
+	image, err = adminClient.Images().Get(image.Name, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -95,7 +97,8 @@ func TestImageAddSignature(t *testing.T) {
 }
 
 func TestImageRemoveSignature(t *testing.T) {
-	adminClient, userClient, image := testSetupImageSignatureTest(t, testUserName)
+	adminClient, userClient, image, fn := testSetupImageSignatureTest(t, testUserName)
+	defer fn()
 	makeUserAnImageSigner(adminClient, userClient, testUserName)
 
 	// create some signatures
@@ -114,7 +117,7 @@ func TestImageRemoveSignature(t *testing.T) {
 			t.Fatalf("creating signature %d: unexpected error: %v", i, err)
 		}
 		signature := imageapi.ImageSignature{
-			ObjectMeta: kapi.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name: name,
 			},
 			Type:    "unknown",
@@ -126,7 +129,7 @@ func TestImageRemoveSignature(t *testing.T) {
 		}
 	}
 
-	image, err := userClient.Images().Get(image.Name)
+	image, err := userClient.Images().Get(image.Name, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -167,7 +170,7 @@ func TestImageRemoveSignature(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if image, err = userClient.Images().Get(image.Name); err != nil {
+	if image, err = userClient.Images().Get(image.Name, metav1.GetOptions{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if len(image.Signatures) != 2 {
 		t.Fatalf("expected 2 signatures, not %d", len(image.Signatures))
@@ -185,16 +188,15 @@ func TestImageRemoveSignature(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if image, err = userClient.Images().Get(image.Name); err != nil {
+	if image, err = userClient.Images().Get(image.Name, metav1.GetOptions{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if len(image.Signatures) != 0 {
 		t.Fatalf("expected 2 signatures, not %d", len(image.Signatures))
 	}
 }
 
-func testSetupImageSignatureTest(t *testing.T, userName string) (adminClient *client.Client, userClient *client.Client, image *imageapi.Image) {
-	testutil.RequireEtcd(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+func testSetupImageSignatureTest(t *testing.T, userName string) (adminClient *client.Client, userClient *client.Client, image *imageapi.Image, cleanup func()) {
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -227,7 +229,9 @@ func testSetupImageSignatureTest(t *testing.T, userName string) (adminClient *cl
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	return adminClient, userClient, image
+	return adminClient, userClient, image, func() {
+		testserver.CleanupMasterEtcd(t, masterConfig)
+	}
 }
 
 func makeUserAnImageSigner(clusterAdminClient *client.Client, userClient *client.Client, userName string) error {

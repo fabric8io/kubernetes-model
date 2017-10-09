@@ -22,10 +22,12 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/util/intstr"
-	"k8s.io/kubernetes/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 	"k8s.io/kubernetes/test/e2e/framework"
 
 	. "github.com/onsi/ginkgo"
@@ -60,7 +62,7 @@ func extinguish(f *framework.Framework, totalNS int, maxAllowedAfterDel int, max
 	framework.ExpectNoError(wait.Poll(2*time.Second, time.Duration(maxSeconds)*time.Second,
 		func() (bool, error) {
 			var cnt = 0
-			nsList, err := f.ClientSet.Core().Namespaces().List(api.ListOptions{})
+			nsList, err := f.ClientSet.Core().Namespaces().List(metav1.ListOptions{})
 			if err != nil {
 				return false, err
 			}
@@ -77,9 +79,24 @@ func extinguish(f *framework.Framework, totalNS int, maxAllowedAfterDel int, max
 		}))
 }
 
-func ensurePodsAreRemovedWhenNamespaceIsDeleted(f *framework.Framework) {
+func waitForPodInNamespace(c clientset.Interface, ns, podName string) *v1.Pod {
+	var pod *v1.Pod
 	var err error
+	err = wait.PollImmediate(2*time.Second, 15*time.Second, func() (bool, error) {
+		pod, err = c.Core().Pods(ns).Get(podName, metav1.GetOptions{IncludeUninitialized: true})
+		if errors.IsNotFound(err) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	})
+	Expect(err).NotTo(HaveOccurred())
+	return pod
+}
 
+func ensurePodsAreRemovedWhenNamespaceIsDeleted(f *framework.Framework) {
 	By("Creating a test namespace")
 	namespace, err := f.CreateNamespace("nsdeletetest", nil)
 	Expect(err).NotTo(HaveOccurred())
@@ -89,12 +106,12 @@ func ensurePodsAreRemovedWhenNamespaceIsDeleted(f *framework.Framework) {
 	Expect(err).NotTo(HaveOccurred())
 
 	By("Creating a pod in the namespace")
-	pod := &api.Pod{
-		ObjectMeta: api.ObjectMeta{
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-pod",
 		},
-		Spec: api.PodSpec{
-			Containers: []api.Container{
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
 				{
 					Name:  "nginx",
 					Image: framework.GetPauseImageName(f.ClientSet),
@@ -108,6 +125,28 @@ func ensurePodsAreRemovedWhenNamespaceIsDeleted(f *framework.Framework) {
 	By("Waiting for the pod to have running status")
 	framework.ExpectNoError(framework.WaitForPodRunningInNamespace(f.ClientSet, pod))
 
+	By("Creating an uninitialized pod in the namespace")
+	podB := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:         "test-pod-uninitialized",
+			Initializers: &metav1.Initializers{Pending: []metav1.Initializer{{Name: "test.initializer.k8s.io"}}},
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:  "nginx",
+					Image: framework.GetPauseImageName(f.ClientSet),
+				},
+			},
+		},
+	}
+	go func() {
+		_, err = f.ClientSet.Core().Pods(namespace.Name).Create(podB)
+		// This error is ok, beacuse we will delete the pod before it completes initialization
+		framework.Logf("error from create uninitialized namespace: %v", err)
+	}()
+	podB = waitForPodInNamespace(f.ClientSet, namespace.Name, podB.Name)
+
 	By("Deleting the namespace")
 	err = f.ClientSet.Core().Namespaces().Delete(namespace.Name, nil)
 	Expect(err).NotTo(HaveOccurred())
@@ -116,15 +155,21 @@ func ensurePodsAreRemovedWhenNamespaceIsDeleted(f *framework.Framework) {
 	maxWaitSeconds := int64(60) + *pod.Spec.TerminationGracePeriodSeconds
 	framework.ExpectNoError(wait.Poll(1*time.Second, time.Duration(maxWaitSeconds)*time.Second,
 		func() (bool, error) {
-			_, err = f.ClientSet.Core().Namespaces().Get(namespace.Name)
+			_, err = f.ClientSet.Core().Namespaces().Get(namespace.Name, metav1.GetOptions{})
 			if err != nil && errors.IsNotFound(err) {
 				return true, nil
 			}
 			return false, nil
 		}))
 
-	By("Verifying there is no pod in the namespace")
-	_, err = f.ClientSet.Core().Pods(namespace.Name).Get(pod.Name)
+	By("Recreating the namespace")
+	namespace, err = f.CreateNamespace("nsdeletetest", nil)
+	Expect(err).NotTo(HaveOccurred())
+
+	By("Verifying there are no pods in the namespace")
+	_, err = f.ClientSet.Core().Pods(namespace.Name).Get(pod.Name, metav1.GetOptions{})
+	Expect(err).To(HaveOccurred())
+	_, err = f.ClientSet.Core().Pods(namespace.Name).Get(podB.Name, metav1.GetOptions{IncludeUninitialized: true})
 	Expect(err).To(HaveOccurred())
 }
 
@@ -145,13 +190,13 @@ func ensureServicesAreRemovedWhenNamespaceIsDeleted(f *framework.Framework) {
 		"foo": "bar",
 		"baz": "blah",
 	}
-	service := &api.Service{
-		ObjectMeta: api.ObjectMeta{
+	service := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: serviceName,
 		},
-		Spec: api.ServiceSpec{
+		Spec: v1.ServiceSpec{
 			Selector: labels,
-			Ports: []api.ServicePort{{
+			Ports: []v1.ServicePort{{
 				Port:       80,
 				TargetPort: intstr.FromInt(80),
 			}},
@@ -168,15 +213,19 @@ func ensureServicesAreRemovedWhenNamespaceIsDeleted(f *framework.Framework) {
 	maxWaitSeconds := int64(60)
 	framework.ExpectNoError(wait.Poll(1*time.Second, time.Duration(maxWaitSeconds)*time.Second,
 		func() (bool, error) {
-			_, err = f.ClientSet.Core().Namespaces().Get(namespace.Name)
+			_, err = f.ClientSet.Core().Namespaces().Get(namespace.Name, metav1.GetOptions{})
 			if err != nil && errors.IsNotFound(err) {
 				return true, nil
 			}
 			return false, nil
 		}))
 
+	By("Recreating the namespace")
+	namespace, err = f.CreateNamespace("nsdeletetest", nil)
+	Expect(err).NotTo(HaveOccurred())
+
 	By("Verifying there is no service in the namespace")
-	_, err = f.ClientSet.Core().Services(namespace.Name).Get(service.Name)
+	_, err = f.ClientSet.Core().Services(namespace.Name).Get(service.Name, metav1.GetOptions{})
 	Expect(err).To(HaveOccurred())
 }
 

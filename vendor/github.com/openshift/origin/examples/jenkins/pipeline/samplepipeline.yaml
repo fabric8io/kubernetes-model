@@ -8,6 +8,7 @@ message: |-
   it using your OpenShift user credentials.
 metadata:
   annotations:
+    openshift.io/display-name: Pipeline Build Example
     description: |-
       This example showcases the new Jenkins Pipeline integration in OpenShift,
       which performs continuous integration and deployment right on the platform.
@@ -74,7 +75,7 @@ parameters:
     of your repository.
   displayName: Context Directory
   name: CONTEXT_DIR
-- description: A secret string used to configure the GitHub webhook.
+- description: Github trigger secret.  A difficult to guess string encoded as part of the webhook URL.  Not encrypted.
   displayName: GitHub Webhook Secret
   from: '[a-zA-Z0-9]{40}'
   generate: expression
@@ -105,14 +106,23 @@ objects:
     strategy:
       jenkinsPipelineStrategy:
         jenkinsfile: |-
-          node('nodejs') {
-            stage('build') {
-              openshiftBuild(buildConfig: '${NAME}', showBuildLogs: 'true')
-            }
-            stage('deploy') {
-              openshiftDeploy(deploymentConfig: '${NAME}')
-            }
-          }
+          try {
+             timeout(time: 20, unit: 'MINUTES') {
+                node('nodejs') {
+                    stage('build') {
+                      openshiftBuild(buildConfig: '${NAME}', showBuildLogs: 'true')
+                    }
+                    stage('deploy') {
+                      openshiftDeploy(deploymentConfig: '${NAME}')
+                    }
+                  }
+             }
+          } catch (err) {
+             echo "in catch block"
+             echo "Caught: ${err}"
+             currentBuild.result = 'FAILURE'
+             throw err
+          }          
       type: JenkinsPipeline
     triggers:
     - github:

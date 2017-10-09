@@ -6,12 +6,13 @@ import (
 
 	"github.com/golang/glog"
 
-	"k8s.io/kubernetes/pkg/admission"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apiserver/pkg/admission"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/resource"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/controller/informers"
-	"k8s.io/kubernetes/pkg/runtime"
+	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
+	kadmission "k8s.io/kubernetes/pkg/kubeapiserver/admission"
 	"k8s.io/kubernetes/plugin/pkg/admission/limitranger"
 
 	oadmission "github.com/openshift/origin/pkg/cmd/server/admission"
@@ -31,18 +32,19 @@ var (
 	memFloor = resource.MustParse("1Mi")
 )
 
-func init() {
-	admission.RegisterPlugin(api.PluginName, func(client clientset.Interface, config io.Reader) (admission.Interface, error) {
-		pluginConfig, err := ReadConfig(config)
-		if err != nil {
-			return nil, err
-		}
-		if pluginConfig == nil {
-			glog.Infof("Admission plugin %q is not configured so it will be disabled.", api.PluginName)
-			return nil, nil
-		}
-		return newClusterResourceOverride(client, pluginConfig)
-	})
+func Register(plugins *admission.Plugins) {
+	plugins.Register(api.PluginName,
+		func(config io.Reader) (admission.Interface, error) {
+			pluginConfig, err := ReadConfig(config)
+			if err != nil {
+				return nil, err
+			}
+			if pluginConfig == nil {
+				glog.Infof("Admission plugin %q is not configured so it will be disabled.", api.PluginName)
+				return nil, nil
+			}
+			return newClusterResourceOverride(pluginConfig)
+		})
 }
 
 type internalConfig struct {
@@ -60,11 +62,12 @@ type limitRangerActions struct{}
 
 var _ = oadmission.WantsProjectCache(&clusterResourceOverridePlugin{})
 var _ = limitranger.LimitRangerActions(&limitRangerActions{})
-var _ = admission.WantsInformerFactory(&clusterResourceOverridePlugin{})
+var _ = kadmission.WantsInternalKubeInformerFactory(&clusterResourceOverridePlugin{})
+var _ = kadmission.WantsInternalKubeClientSet(&clusterResourceOverridePlugin{})
 
 // newClusterResourceOverride returns an admission controller for containers that
 // configurably overrides container resource request/limits
-func newClusterResourceOverride(client clientset.Interface, config *api.ClusterResourceOverrideConfig) (admission.Interface, error) {
+func newClusterResourceOverride(config *api.ClusterResourceOverrideConfig) (admission.Interface, error) {
 	glog.V(2).Infof("%s admission controller loaded with config: %v", api.PluginName, config)
 	var internal *internalConfig
 	if config != nil {
@@ -75,7 +78,7 @@ func newClusterResourceOverride(client clientset.Interface, config *api.ClusterR
 		}
 	}
 
-	limitRanger, err := limitranger.NewLimitRanger(client, nil)
+	limitRanger, err := limitranger.NewLimitRanger(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -87,12 +90,12 @@ func newClusterResourceOverride(client clientset.Interface, config *api.ClusterR
 	}, nil
 }
 
-func (a *clusterResourceOverridePlugin) SetInformerFactory(f informers.SharedInformerFactory) {
-	w, ok := a.LimitRanger.(admission.WantsInformerFactory)
-	if !ok {
-		return
-	}
-	w.SetInformerFactory(f)
+func (d *clusterResourceOverridePlugin) SetInternalKubeInformerFactory(i informers.SharedInformerFactory) {
+	d.LimitRanger.(kadmission.WantsInternalKubeInformerFactory).SetInternalKubeInformerFactory(i)
+}
+
+func (d *clusterResourceOverridePlugin) SetInternalKubeClientSet(c kclientset.Interface) {
+	d.LimitRanger.(kadmission.WantsInternalKubeClientSet).SetInternalKubeClientSet(c)
 }
 
 // these serve to satisfy the interface so that our kept LimitRanger limits nothing and only provides defaults.

@@ -4,11 +4,12 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/resource"
 
 	imagetest "github.com/openshift/origin/pkg/image/admission/testutil"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	quotautil "github.com/openshift/origin/pkg/quota/util"
 )
 
@@ -373,7 +374,7 @@ func TestVerifyLimits(t *testing.T) {
 		},
 	} {
 		limitRange := &kapi.LimitRange{
-			ObjectMeta: kapi.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "test",
 				Name:      "limitrange",
 			},

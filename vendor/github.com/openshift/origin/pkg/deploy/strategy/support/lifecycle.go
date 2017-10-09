@@ -7,26 +7,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/glog"
-
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/tools/cache"
 	kapi "k8s.io/kubernetes/pkg/api"
-	kerrors "k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/client/cache"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
-	kdeployutil "k8s.io/kubernetes/pkg/controller/deployment/util"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/runtime"
-	utilerrors "k8s.io/kubernetes/pkg/util/errors"
-	"k8s.io/kubernetes/pkg/util/sets"
-	"k8s.io/kubernetes/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/watch"
 
 	"github.com/openshift/origin/pkg/client"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	strategyutil "github.com/openshift/origin/pkg/deploy/strategy/util"
 	deployutil "github.com/openshift/origin/pkg/deploy/util"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	"github.com/openshift/origin/pkg/util"
 	namer "github.com/openshift/origin/pkg/util/namer"
 )
@@ -149,7 +146,7 @@ func (e *hookExecutor) tagImages(hook *deployapi.LifecycleHook, rc *kapi.Replica
 			namespace = rc.Namespace
 		}
 		if _, err := e.tags.ImageStreamTags(namespace).Update(&imageapi.ImageStreamTag{
-			ObjectMeta: kapi.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:      action.To.Name,
 				Namespace: namespace,
 			},
@@ -184,13 +181,22 @@ func (e *hookExecutor) executeExecNewPod(hook *deployapi.LifecycleHook, rc *kapi
 		return err
 	}
 
-	deployerPod, err := e.pods.Pods(rc.Namespace).Get(deployutil.DeployerPodNameForDeployment(rc.Name))
+	deployerPod, err := e.pods.Pods(rc.Namespace).Get(deployutil.DeployerPodNameForDeployment(rc.Name), metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
+	var startTime time.Time
+	// if the deployer pod has not yet had its status updated, it means the execution of the pod is racing with the kubelet
+	// status update. Until kubernetes/kubernetes#36813 is implemented, this check will remain racy. Set to Now() expecting
+	// that the kubelet is unlikely to be very far behind.
+	if deployerPod.Status.StartTime != nil {
+		startTime = deployerPod.Status.StartTime.Time
+	} else {
+		startTime = time.Now()
+	}
 
 	// Build a pod spec from the hook config and replication controller.
-	podSpec, err := makeHookPod(hook, rc, deployerPod, &config.Spec.Strategy, suffix)
+	podSpec, err := makeHookPod(hook, rc, &config.Spec.Strategy, suffix, startTime)
 	if err != nil {
 		return err
 	}
@@ -296,7 +302,7 @@ func (e *hookExecutor) readPodLogs(pod *kapi.Pod, wg *sync.WaitGroup) {
 }
 
 // makeHookPod makes a pod spec from a hook and replication controller.
-func makeHookPod(hook *deployapi.LifecycleHook, rc *kapi.ReplicationController, deployerPod *kapi.Pod, strategy *deployapi.DeploymentStrategy, suffix string) (*kapi.Pod, error) {
+func makeHookPod(hook *deployapi.LifecycleHook, rc *kapi.ReplicationController, strategy *deployapi.DeploymentStrategy, suffix string, startTime time.Time) (*kapi.Pod, error) {
 	exec := hook.ExecNewPod
 	var baseContainer *kapi.Container
 	for _, container := range rc.Spec.Template.Spec.Containers {
@@ -336,7 +342,7 @@ func makeHookPod(hook *deployapi.LifecycleHook, rc *kapi.ReplicationController, 
 	if strategy.ActiveDeadlineSeconds != nil {
 		defaultActiveDeadline = *(strategy.ActiveDeadlineSeconds)
 	}
-	maxDeploymentDurationSeconds := defaultActiveDeadline - int64(time.Since(deployerPod.Status.StartTime.Time).Seconds())
+	maxDeploymentDurationSeconds := defaultActiveDeadline - int64(time.Since(startTime).Seconds())
 
 	// Let the kubelet manage retries if requested
 	restartPolicy := kapi.RestartPolicyNever
@@ -363,6 +369,7 @@ func makeHookPod(hook *deployapi.LifecycleHook, rc *kapi.ReplicationController, 
 				Name:      mount.Name,
 				ReadOnly:  mount.ReadOnly,
 				MountPath: mount.MountPath,
+				SubPath:   mount.SubPath,
 			})
 		}
 	}
@@ -375,8 +382,22 @@ func makeHookPod(hook *deployapi.LifecycleHook, rc *kapi.ReplicationController, 
 
 	gracePeriod := int64(10)
 
+	var podSecurityContextCopy *kapi.PodSecurityContext
+	if ctx, err := kapi.Scheme.DeepCopy(rc.Spec.Template.Spec.SecurityContext); err != nil {
+		return nil, fmt.Errorf("unable to copy pod securityContext: %v", err)
+	} else {
+		podSecurityContextCopy = ctx.(*kapi.PodSecurityContext)
+	}
+
+	var securityContextCopy *kapi.SecurityContext
+	if ctx, err := kapi.Scheme.DeepCopy(baseContainer.SecurityContext); err != nil {
+		return nil, fmt.Errorf("unable to copy securityContext: %v", err)
+	} else {
+		securityContextCopy = ctx.(*kapi.SecurityContext)
+	}
+
 	pod := &kapi.Pod{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: namer.GetPodName(rc.Name, suffix),
 			Annotations: map[string]string{
 				deployapi.DeploymentAnnotation: rc.Name,
@@ -397,8 +418,10 @@ func makeHookPod(hook *deployapi.LifecycleHook, rc *kapi.ReplicationController, 
 					Env:             mergedEnv,
 					Resources:       resources,
 					VolumeMounts:    volumeMounts,
+					SecurityContext: securityContextCopy,
 				},
 			},
+			SecurityContext:       podSecurityContextCopy,
 			Volumes:               volumes,
 			ActiveDeadlineSeconds: &maxDeploymentDurationSeconds,
 			// Setting the node selector on the hook pod so that it is created
@@ -433,12 +456,12 @@ func canRetryReading(pod *kapi.Pod, restarts int32) (bool, int32) {
 func newPodWatch(client kcoreclient.PodInterface, namespace, name, resourceVersion string, stopChannel chan struct{}) func() *kapi.Pod {
 	fieldSelector := fields.OneTermEqualSelector("metadata.name", name)
 	podLW := &cache.ListWatch{
-		ListFunc: func(options kapi.ListOptions) (runtime.Object, error) {
-			options.FieldSelector = fieldSelector
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			options.FieldSelector = fieldSelector.String()
 			return client.List(options)
 		},
-		WatchFunc: func(options kapi.ListOptions) (watch.Interface, error) {
-			options.FieldSelector = fieldSelector
+		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			options.FieldSelector = fieldSelector.String()
 			return client.Watch(options)
 		},
 	}
@@ -455,117 +478,53 @@ func newPodWatch(client kcoreclient.PodInterface, namespace, name, resourceVersi
 // NewAcceptAvailablePods makes a new acceptAvailablePods from a real client.
 func NewAcceptAvailablePods(
 	out io.Writer,
-	kclient kcoreclient.PodsGetter,
+	kclient kcoreclient.ReplicationControllersGetter,
 	timeout time.Duration,
-	interval time.Duration,
-	minReadySeconds int32,
 ) *acceptAvailablePods {
-
 	return &acceptAvailablePods{
-		out:             out,
-		timeout:         timeout,
-		interval:        interval,
-		minReadySeconds: minReadySeconds,
-		acceptedPods:    sets.NewString(),
-		getRcPodStore: func(rc *kapi.ReplicationController) (cache.Store, chan struct{}) {
-			selector := labels.Set(rc.Spec.Selector).AsSelector()
-			store := cache.NewStore(cache.MetaNamespaceKeyFunc)
-			lw := &cache.ListWatch{
-				ListFunc: func(options kapi.ListOptions) (runtime.Object, error) {
-					options.LabelSelector = selector
-					return kclient.Pods(rc.Namespace).List(options)
-				},
-				WatchFunc: func(options kapi.ListOptions) (watch.Interface, error) {
-					options.LabelSelector = selector
-					return kclient.Pods(rc.Namespace).Watch(options)
-				},
-			}
-			stop := make(chan struct{})
-			cache.NewReflector(lw, &kapi.Pod{}, store, 10*time.Second).RunUntil(stop)
-			return store, stop
-		},
+		out:     out,
+		kclient: kclient,
+		timeout: timeout,
 	}
 }
 
 // acceptAvailablePods will accept a replication controller if all the pods
 // for the replication controller become available.
-//
-// acceptAvailablePods keeps track of the pods it has accepted for a
-// replication controller so that the acceptor can be reused across multiple
-// batches of updates to a single controller. For example, if during the first
-// acceptance call the replication controller has 3 pods, the acceptor will
-// validate those 3 pods. If the same acceptor instance is used again for the
-// same replication controller which now has 6 pods, only the latest 3 pods
-// will be considered for acceptance. The status of the original 3 pods becomes
-// irrelevant.
-//
-// Note that this struct is stateful and intended for use with a single
-// replication controller and should be discarded and recreated between
-// rollouts.
 type acceptAvailablePods struct {
-	out io.Writer
-	// getRcPodStore should return a Store containing all the pods for the
-	// replication controller, and a channel to stop whatever process is
-	// feeding the store.
-	getRcPodStore func(*kapi.ReplicationController) (cache.Store, chan struct{})
-	// timeout is how long to wait for pod readiness.
+	out     io.Writer
+	kclient kcoreclient.ReplicationControllersGetter
+	// timeout is how long to wait for pods to become available from ready state.
 	timeout time.Duration
-	// interval is how often to check for pod readiness
-	interval time.Duration
-	// minReadySeconds is the minimum number of seconds for which a newly created
-	// pod should be ready without any of its container crashing, for it to be
-	// considered available.
-	minReadySeconds int32
-	// acceptedPods keeps track of pods which have been previously accepted for
-	// a replication controller.
-	acceptedPods sets.String
 }
 
 // Accept all pods for a replication controller once they are available.
 func (c *acceptAvailablePods) Accept(rc *kapi.ReplicationController) error {
-	// Make a pod store to poll and ensure it gets cleaned up.
-	podStore, stopStore := c.getRcPodStore(rc)
-	defer close(stopStore)
-
-	// Start checking for pod updates.
-	if c.acceptedPods.Len() > 0 {
-		fmt.Fprintf(c.out, "--> Waiting up to %s for pods in rc %s to become ready (%d pods previously accepted)\n", c.timeout, rc.Name, c.acceptedPods.Len())
-	} else {
-		fmt.Fprintf(c.out, "--> Waiting up to %s for pods in rc %s to become ready\n", c.timeout, rc.Name)
+	allReplicasAvailable := func(r *kapi.ReplicationController) bool {
+		return r.Status.AvailableReplicas == r.Spec.Replicas
 	}
-	err := wait.Poll(c.interval, c.timeout, func() (done bool, err error) {
-		// Check for pod readiness.
-		unready := sets.NewString()
-		for _, obj := range podStore.List() {
-			pod := obj.(*kapi.Pod)
-			// Skip previously accepted pods; we only want to verify newly observed
-			// and unaccepted pods.
-			if c.acceptedPods.Has(pod.Name) {
-				continue
-			}
-			if kdeployutil.IsPodAvailable(pod, c.minReadySeconds, time.Now()) {
-				// If the pod is ready, track it as accepted.
-				c.acceptedPods.Insert(pod.Name)
-			} else {
-				// Otherwise, track it as unready.
-				unready.Insert(pod.Name)
-			}
-		}
-		// Check to see if we're done.
-		if unready.Len() == 0 {
-			return true, nil
-		}
-		// Otherwise, try again later.
-		glog.V(4).Infof("Still waiting for %d pods to become ready for rc %s", unready.Len(), rc.Name)
-		return false, nil
-	})
 
+	if allReplicasAvailable(rc) {
+		return nil
+	}
+
+	watcher, err := c.kclient.ReplicationControllers(rc.Namespace).Watch(metav1.SingleObject(metav1.ObjectMeta{Name: rc.Name, ResourceVersion: rc.ResourceVersion}))
+	if err != nil {
+		return fmt.Errorf("acceptAvailablePods failed to watch ReplicationController %s/%s: %v", rc.Namespace, rc.Name, err)
+	}
+
+	_, err = watch.Until(c.timeout, watcher, func(event watch.Event) (bool, error) {
+		if t := event.Type; t != watch.Modified {
+			return false, fmt.Errorf("acceptAvailablePods failed watching for ReplicationController %s/%s: received event %v", rc.Namespace, rc.Name, t)
+		}
+		newRc := event.Object.(*kapi.ReplicationController)
+		return allReplicasAvailable(newRc), nil
+	})
 	// Handle acceptance failure.
 	if err != nil {
 		if err == wait.ErrWaitTimeout {
-			return fmt.Errorf("pods for rc %q took longer than %.f seconds to become ready", rc.Name, c.timeout.Seconds())
+			return fmt.Errorf("pods for rc '%s/%s' took longer than %.f seconds to become available", rc.Namespace, rc.Name, c.timeout.Seconds())
 		}
-		return fmt.Errorf("pod readiness check failed for rc %q: %v", rc.Name, err)
+		return err
 	}
 	return nil
 }

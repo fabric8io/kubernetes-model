@@ -2,91 +2,89 @@ package origin
 
 import (
 	"crypto/x509"
-	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
-	"path"
 	"reflect"
 	"strings"
-	"time"
 
-	etcdclient "github.com/coreos/etcd/client"
 	"github.com/golang/glog"
 
-	"k8s.io/kubernetes/pkg/admission"
+	kapierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apiserver/pkg/admission"
+	"k8s.io/apiserver/pkg/admission/initializer"
+	"k8s.io/apiserver/pkg/admission/plugin/namespace/lifecycle"
+	"k8s.io/apiserver/pkg/audit"
+	"k8s.io/apiserver/pkg/authentication/authenticator"
+	"k8s.io/apiserver/pkg/authentication/group"
+	"k8s.io/apiserver/pkg/authentication/request/anonymous"
+	"k8s.io/apiserver/pkg/authentication/request/bearertoken"
+	"k8s.io/apiserver/pkg/authentication/request/headerrequest"
+	"k8s.io/apiserver/pkg/authentication/request/union"
+	"k8s.io/apiserver/pkg/authentication/request/websocket"
+	x509request "k8s.io/apiserver/pkg/authentication/request/x509"
+	"k8s.io/apiserver/pkg/authentication/user"
+	kauthorizer "k8s.io/apiserver/pkg/authorization/authorizer"
+	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
+	authorizerunion "k8s.io/apiserver/pkg/authorization/union"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	kubeclientgoinformers "k8s.io/client-go/informers"
+	kubeclientgoclient "k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	kapi "k8s.io/kubernetes/pkg/api"
-	kapierrors "k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/apiserver/request"
-	"k8s.io/kubernetes/pkg/client/cache"
-	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/client/restclient"
-	"k8s.io/kubernetes/pkg/controller/informers"
+	kclientsetexternal "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
+	kclientsetinternal "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	kinformers "k8s.io/kubernetes/pkg/client/informers/informers_generated/externalversions"
+	kinternalinformers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
+	rbacinformers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion/rbac/internalversion"
+	rbaclisters "k8s.io/kubernetes/pkg/client/listers/rbac/internalversion"
 	sacontroller "k8s.io/kubernetes/pkg/controller/serviceaccount"
+	kadmission "k8s.io/kubernetes/pkg/kubeapiserver/admission"
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/runtime"
+	rbacregistryvalidation "k8s.io/kubernetes/pkg/registry/rbac/validation"
 	"k8s.io/kubernetes/pkg/serviceaccount"
-	kutilrand "k8s.io/kubernetes/pkg/util/rand"
-	"k8s.io/kubernetes/pkg/util/sets"
-	"k8s.io/kubernetes/pkg/watch"
-	"k8s.io/kubernetes/plugin/pkg/admission/namespace/lifecycle"
 	saadmit "k8s.io/kubernetes/plugin/pkg/admission/serviceaccount"
-	storageclassdefaultadmission "k8s.io/kubernetes/plugin/pkg/admission/storageclass/default"
+	storageclassdefaultadmission "k8s.io/kubernetes/plugin/pkg/admission/storageclass/setdefault"
+	rbacauthorizer "k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac"
 
-	"github.com/openshift/origin/pkg/auth/authenticator"
-	"github.com/openshift/origin/pkg/auth/authenticator/anonymous"
-	"github.com/openshift/origin/pkg/auth/authenticator/request/bearertoken"
 	"github.com/openshift/origin/pkg/auth/authenticator/request/paramtoken"
-	"github.com/openshift/origin/pkg/auth/authenticator/request/unionrequest"
-	"github.com/openshift/origin/pkg/auth/authenticator/request/x509request"
-	"github.com/openshift/origin/pkg/auth/group"
 	authnregistry "github.com/openshift/origin/pkg/auth/oauth/registry"
 	"github.com/openshift/origin/pkg/auth/userregistry/identitymapper"
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
 	"github.com/openshift/origin/pkg/authorization/authorizer"
 	"github.com/openshift/origin/pkg/authorization/authorizer/scope"
-	clusterpolicyregistry "github.com/openshift/origin/pkg/authorization/registry/clusterpolicy"
-	clusterpolicyetcd "github.com/openshift/origin/pkg/authorization/registry/clusterpolicy/etcd"
-	clusterpolicybindingregistry "github.com/openshift/origin/pkg/authorization/registry/clusterpolicybinding"
-	clusterpolicybindingetcd "github.com/openshift/origin/pkg/authorization/registry/clusterpolicybinding/etcd"
-	policyregistry "github.com/openshift/origin/pkg/authorization/registry/policy"
-	policyetcd "github.com/openshift/origin/pkg/authorization/registry/policy/etcd"
-	policybindingregistry "github.com/openshift/origin/pkg/authorization/registry/policybinding"
-	policybindingetcd "github.com/openshift/origin/pkg/authorization/registry/policybinding/etcd"
-	"github.com/openshift/origin/pkg/authorization/rulevalidation"
+	authorizationinformer "github.com/openshift/origin/pkg/authorization/generated/informers/internalversion"
 	osclient "github.com/openshift/origin/pkg/client"
 	oadmission "github.com/openshift/origin/pkg/cmd/server/admission"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
-	"github.com/openshift/origin/pkg/cmd/server/etcd"
-	"github.com/openshift/origin/pkg/cmd/server/kubernetes"
+	kubernetes "github.com/openshift/origin/pkg/cmd/server/kubernetes/master"
+	admissionregistry "github.com/openshift/origin/pkg/cmd/server/origin/admission"
 	originrest "github.com/openshift/origin/pkg/cmd/server/origin/rest"
-	"github.com/openshift/origin/pkg/cmd/util/plug"
 	"github.com/openshift/origin/pkg/cmd/util/pluginconfig"
-	"github.com/openshift/origin/pkg/cmd/util/variable"
-	"github.com/openshift/origin/pkg/controller/shared"
 	imageadmission "github.com/openshift/origin/pkg/image/admission"
 	imagepolicy "github.com/openshift/origin/pkg/image/admission/imagepolicy/api"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageinformer "github.com/openshift/origin/pkg/image/generated/informers/internalversion"
 	ingressadmission "github.com/openshift/origin/pkg/ingress/admission"
-	accesstokenregistry "github.com/openshift/origin/pkg/oauth/registry/oauthaccesstoken"
-	accesstokenetcd "github.com/openshift/origin/pkg/oauth/registry/oauthaccesstoken/etcd"
+	oauthclient "github.com/openshift/origin/pkg/oauth/generated/internalclientset/typed/oauth/internalversion"
 	projectauth "github.com/openshift/origin/pkg/project/auth"
 	projectcache "github.com/openshift/origin/pkg/project/cache"
 	"github.com/openshift/origin/pkg/quota"
 	overrideapi "github.com/openshift/origin/pkg/quota/admission/clusterresourceoverride/api"
-	quotaadmission "github.com/openshift/origin/pkg/quota/admission/resourcequota"
 	"github.com/openshift/origin/pkg/quota/controller/clusterquotamapping"
+	quotainformer "github.com/openshift/origin/pkg/quota/generated/informers/internalversion"
+	userinformer "github.com/openshift/origin/pkg/user/generated/informers/internalversion"
+	userclient "github.com/openshift/origin/pkg/user/generated/internalclientset/typed/user/internalversion"
+
+	securityinformer "github.com/openshift/origin/pkg/security/generated/informers/internalversion"
 	"github.com/openshift/origin/pkg/service"
 	serviceadmit "github.com/openshift/origin/pkg/service/admission"
-	"github.com/openshift/origin/pkg/serviceaccounts"
 	usercache "github.com/openshift/origin/pkg/user/cache"
-	groupregistry "github.com/openshift/origin/pkg/user/registry/group"
-	groupstorage "github.com/openshift/origin/pkg/user/registry/group/etcd"
-	userregistry "github.com/openshift/origin/pkg/user/registry/user"
-	useretcd "github.com/openshift/origin/pkg/user/registry/user/etcd"
-	"github.com/openshift/origin/pkg/util/leaderlease"
 	"github.com/openshift/origin/pkg/util/restoptions"
 )
 
@@ -97,21 +95,21 @@ type MasterConfig struct {
 	// RESTOptionsGetter provides access to storage and RESTOptions for a particular resource
 	RESTOptionsGetter restoptions.Getter
 
-	RuleResolver  rulevalidation.AuthorizationRuleResolver
-	Authenticator authenticator.Request
-	Authorizer    authorizer.Authorizer
+	RuleResolver   rbacregistryvalidation.AuthorizationRuleResolver
+	Authenticator  authenticator.Request
+	Authorizer     kauthorizer.Authorizer
+	SubjectLocator authorizer.SubjectLocator
 
-	// TODO(sttts): replace AuthorizationAttributeBuilder with kapiserverfilters.NewRequestAttributeGetter
+	// TODO(sttts): replace AuthorizationAttributeBuilder with apiserverfilters.NewRequestAttributeGetter
 	AuthorizationAttributeBuilder authorizer.AuthorizationAttributeBuilder
 
-	GroupCache                    *usercache.GroupCache
 	ProjectAuthorizationCache     *projectauth.AuthorizationCache
 	ProjectCache                  *projectcache.ProjectCache
 	ClusterQuotaMappingController *clusterquotamapping.ClusterQuotaMappingController
 	LimitVerifier                 imageadmission.LimitVerifier
 
 	// RequestContextMapper maps requests to contexts
-	RequestContextMapper kapi.RequestContextMapper
+	RequestContextMapper apirequest.RequestContextMapper
 
 	AdmissionControl admission.Interface
 
@@ -120,69 +118,67 @@ type MasterConfig struct {
 	// of both the origin config AND the kube config, so this spot makes more sense.
 	KubeAdmissionControl admission.Interface
 
-	TLS bool
-
-	ControllerPlug      plug.Plug
-	ControllerPlugStart func()
-
-	// ImageFor is a function that returns the appropriate image to use for a named component
-	ImageFor func(component string) string
 	// RegistryNameFn retrieves the name of the integrated registry, or false if no such registry
 	// is available.
 	RegistryNameFn imageapi.DefaultRegistryFunc
 
-	// ExternalVersionCodec is the codec used when serializing annotations, which cannot be changed
-	// without all clients being aware of the new version.
-	ExternalVersionCodec runtime.Codec
-
 	KubeletClientConfig *kubeletclient.KubeletClientConfig
-
-	// ClientCAs will be used to request client certificates in connections to the API.
-	// This CertPool should contain all the CAs that will be used for client certificate verification.
-	ClientCAs *x509.CertPool
-	// APIClientCAs is used to verify client certificates presented for API auth
-	APIClientCAs *x509.CertPool
 
 	// PrivilegedLoopbackClientConfig is the client configuration used to call OpenShift APIs from system components
 	// To apply different access control to a system component, create a client config specifically for that component.
 	PrivilegedLoopbackClientConfig restclient.Config
 
-	// PrivilegedLoopbackKubernetesClientset is the client used to call Kubernetes APIs from system components,
-	// built from KubeClientConfig. It should only be accessed via the *Client() helper methods. To apply
+	// PrivilegedLoopbackKubernetesClientsetInternal is the client used to call Kubernetes APIs from system components,
+	// built from KubeClientConfig. It should only be accessed via the *TestingClient() helper methods. To apply
 	// different access control to a system component, create a separate client/config specifically for
 	// that component.
-	PrivilegedLoopbackKubernetesClientset *kclientset.Clientset
+	PrivilegedLoopbackKubernetesClientsetInternal kclientsetinternal.Interface
+	// PrivilegedLoopbackKubernetesClientsetExternal is the client used to call Kubernetes APIs from system components,
+	// built from KubeClientConfig. It should only be accessed via the *TestingClient() helper methods. To apply
+	// different access control to a system component, create a separate client/config specifically for
+	// that component.
+	PrivilegedLoopbackKubernetesClientsetExternal kclientsetexternal.Interface
 	// PrivilegedLoopbackOpenShiftClient is the client used to call OpenShift APIs from system components,
-	// built from PrivilegedLoopbackClientConfig. It should only be accessed via the *Client() helper methods.
+	// built from PrivilegedLoopbackClientConfig. It should only be accessed via the *TestingClient() helper methods.
 	// To apply different access control to a system component, create a separate client/config specifically
 	// for that component.
 	PrivilegedLoopbackOpenShiftClient *osclient.Client
 
-	// Informers is a shared factory for getting SharedInformers. It is important to get your informers, indexers, and listers
-	// from here so that we only end up with a single cache of objects
-	Informers shared.InformerFactory
+	AuditBackend audit.Backend
+
+	// TODO inspect uses to eliminate them
+	InternalKubeInformers  kinternalinformers.SharedInformerFactory
+	ClientGoKubeInformers  kubeclientgoinformers.SharedInformerFactory
+	AuthorizationInformers authorizationinformer.SharedInformerFactory
+	QuotaInformers         quotainformer.SharedInformerFactory
+	SecurityInformers      securityinformer.SharedInformerFactory
+	UserInformers          userinformer.SharedInformerFactory
+}
+
+type InformerAccess interface {
+	GetInternalKubeInformers() kinternalinformers.SharedInformerFactory
+	GetExternalKubeInformers() kinformers.SharedInformerFactory
+	GetClientGoKubeInformers() kubeclientgoinformers.SharedInformerFactory
+	GetAuthorizationInformers() authorizationinformer.SharedInformerFactory
+	GetImageInformers() imageinformer.SharedInformerFactory
+	GetQuotaInformers() quotainformer.SharedInformerFactory
+	GetSecurityInformers() securityinformer.SharedInformerFactory
+	GetUserInformers() userinformer.SharedInformerFactory
 }
 
 // BuildMasterConfig builds and returns the OpenShift master configuration based on the
 // provided options
-func BuildMasterConfig(options configapi.MasterConfig) (*MasterConfig, error) {
-	client, err := etcd.MakeEtcdClient(options.EtcdClientInfo)
+func BuildMasterConfig(options configapi.MasterConfig, informers InformerAccess) (*MasterConfig, error) {
+	restOptsGetter, err := originrest.StorageOptions(options)
 	if err != nil {
 		return nil, err
 	}
 
-	restOptsGetter := originrest.StorageOptions(options)
-
-	clientCAs, err := configapi.GetClientCertCAPool(options)
+	privilegedLoopbackKubeClientsetInternal, _, err := configapi.GetInternalKubeClient(options.MasterClients.OpenShiftLoopbackKubeConfig, options.MasterClients.OpenShiftLoopbackClientConnectionOverrides)
 	if err != nil {
 		return nil, err
 	}
-	apiClientCAs, err := configapi.GetAPIClientCertCAPool(options)
-	if err != nil {
-		return nil, err
-	}
-
-	privilegedLoopbackKubeClientset, _, err := configapi.GetKubeClient(options.MasterClients.OpenShiftLoopbackKubeConfig, options.MasterClients.OpenShiftLoopbackClientConnectionOverrides)
+	privilegedLoopbackKubeClientsetExternal, _, err := configapi.GetExternalKubeClient(options.MasterClients.OpenShiftLoopbackKubeConfig, options.MasterClients.OpenShiftLoopbackClientConnectionOverrides)
 	if err != nil {
 		return nil, err
 	}
@@ -190,79 +186,114 @@ func BuildMasterConfig(options configapi.MasterConfig) (*MasterConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	customListerWatchers := shared.DefaultListerWatcherOverrides{}
-	if err := addAuthorizationListerWatchers(customListerWatchers, restOptsGetter); err != nil {
+	kubeClientGoClientSet, err := kubeclientgoclient.NewForConfig(privilegedLoopbackClientConfig)
+	if err != nil {
 		return nil, err
 	}
-	const defaultInformerResyncPeriod = 10 * time.Minute
-	kubeInformerFactory := informers.NewSharedInformerFactory(privilegedLoopbackKubeClientset, defaultInformerResyncPeriod)
-	informerFactory := shared.NewInformerFactory(kubeInformerFactory, privilegedLoopbackKubeClientset, privilegedLoopbackOpenShiftClient, customListerWatchers, defaultInformerResyncPeriod)
-
-	imageTemplate := variable.NewDefaultImageTemplate()
-	imageTemplate.Format = options.ImageConfig.Format
-	imageTemplate.Latest = options.ImageConfig.Latest
 
 	defaultRegistry := env("OPENSHIFT_DEFAULT_REGISTRY", "${DOCKER_REGISTRY_SERVICE_HOST}:${DOCKER_REGISTRY_SERVICE_PORT}")
-	svcCache := service.NewServiceResolverCache(privilegedLoopbackKubeClientset.Services(kapi.NamespaceDefault).Get)
+	svcCache := service.NewServiceResolverCache(privilegedLoopbackKubeClientsetInternal.Core().Services(metav1.NamespaceDefault).Get)
 	defaultRegistryFunc, err := svcCache.Defer(defaultRegistry)
 	if err != nil {
 		return nil, fmt.Errorf("OPENSHIFT_DEFAULT_REGISTRY variable is invalid %q: %v", defaultRegistry, err)
 	}
 
-	requestContextMapper := kapi.NewRequestContextMapper()
+	requestContextMapper := apirequest.NewRequestContextMapper()
 
-	groupStorage, err := groupstorage.NewREST(restOptsGetter)
-	if err != nil {
-		return nil, err
-	}
-	groupCache := usercache.NewGroupCache(groupregistry.NewRegistry(groupStorage))
-	projectCache := projectcache.NewProjectCache(privilegedLoopbackKubeClientset.Core().Namespaces(), options.ProjectConfig.DefaultNodeSelector)
-	clusterQuotaMappingController := clusterquotamapping.NewClusterQuotaMappingController(kubeInformerFactory.Namespaces(), informerFactory.ClusterResourceQuotas())
+	projectCache := projectcache.NewProjectCache(
+		informers.GetInternalKubeInformers().Core().InternalVersion().Namespaces().Informer(),
+		privilegedLoopbackKubeClientsetInternal.Core().Namespaces(),
+		options.ProjectConfig.DefaultNodeSelector)
+	clusterQuotaMappingController := clusterquotamapping.NewClusterQuotaMappingControllerInternal(
+		informers.GetInternalKubeInformers().Core().InternalVersion().Namespaces(),
+		informers.GetQuotaInformers().Quota().InternalVersion().ClusterResourceQuotas())
 
 	kubeletClientConfig := configapi.GetKubeletClientConfig(options)
 
-	quotaRegistry := quota.NewAllResourceQuotaRegistry(informerFactory, privilegedLoopbackOpenShiftClient, privilegedLoopbackKubeClientset)
-	ruleResolver := rulevalidation.NewDefaultRuleResolver(
-		informerFactory.Policies().Lister(),
-		informerFactory.PolicyBindings().Lister(),
-		informerFactory.ClusterPolicies().Lister().ClusterPolicies(),
-		informerFactory.ClusterPolicyBindings().Lister().ClusterPolicyBindings(),
+	quotaRegistry := quota.NewAllResourceQuotaRegistryForAdmission(
+		informers.GetExternalKubeInformers(),
+		informers.GetImageInformers().Image().InternalVersion().ImageStreams(),
+		privilegedLoopbackOpenShiftClient,
+		privilegedLoopbackKubeClientsetExternal,
 	)
-	authorizer := newAuthorizer(ruleResolver, informerFactory, options.ProjectConfig.ProjectRequestMessage)
 
-	pluginInitializer := oadmission.PluginInitializer{
-		OpenshiftClient:       privilegedLoopbackOpenShiftClient,
-		ProjectCache:          projectCache,
-		OriginQuotaRegistry:   quotaRegistry,
-		Authorizer:            authorizer,
-		JenkinsPipelineConfig: options.JenkinsPipelineConfig,
-		RESTClientConfig:      *privilegedLoopbackClientConfig,
-		Informers:             informerFactory,
-		ClusterQuotaMapper:    clusterQuotaMappingController.GetClusterQuotaMapper(),
-		DefaultRegistryFn:     imageapi.DefaultRegistryFunc(defaultRegistryFunc),
-		GroupCache:            groupCache,
-	}
+	kubeAuthorizer, ruleResolver, kubeSubjectLocator := buildKubeAuth(informers.GetInternalKubeInformers().Rbac().InternalVersion())
+	authorizer, subjectLocator := newAuthorizer(
+		kubeAuthorizer,
+		kubeSubjectLocator,
+		informers.GetInternalKubeInformers().Rbac().InternalVersion().ClusterRoles().Lister(),
+		options.ProjectConfig.ProjectRequestMessage,
+	)
 
-	// TODO if we want to support WantsAuthorizer, we need to pass in a kube
-	// Authorizer as the 2nd arg. It's currently only used by PSP.
-	kubePluginInitializer := admission.NewPluginInitializer(kubeInformerFactory, nil)
-	originAdmission, kubeAdmission, err := buildAdmissionChains(options, privilegedLoopbackKubeClientset, pluginInitializer, kubePluginInitializer)
+	// punch through layers to build this in order to get a string for a cloud provider file
+	// TODO refactor us into a forward building flow with a side channel like this
+	kubeOptions, err := kubernetes.BuildKubeAPIserverOptions(options)
 	if err != nil {
 		return nil, err
 	}
 
-	serviceAccountTokenGetter, err := newServiceAccountTokenGetter(options)
+	var cloudConfig []byte
+	if kubeOptions.CloudProvider.CloudConfigFile != "" {
+		var err error
+		cloudConfig, err = ioutil.ReadFile(kubeOptions.CloudProvider.CloudConfigFile)
+		if err != nil {
+			return nil, fmt.Errorf("Error reading from cloud configuration file %s: %v", kubeOptions.CloudProvider.CloudConfigFile, err)
+		}
+	}
+	// note: we are passing a combined quota registry here...
+	genericInitializer, err := initializer.New(kubeClientGoClientSet, informers.GetClientGoKubeInformers(), authorizer)
+	if err != nil {
+		return nil, err
+	}
+	kubePluginInitializer := kadmission.NewPluginInitializer(
+		privilegedLoopbackKubeClientsetInternal,
+		privilegedLoopbackKubeClientsetExternal,
+		informers.GetInternalKubeInformers(),
+		authorizer,
+		cloudConfig,
+		// TODO: use a dynamic restmapper. See https://github.com/kubernetes/kubernetes/pull/42615.
+		kapi.Registry.RESTMapper(),
+		quotaRegistry)
+	openshiftPluginInitializer := &oadmission.PluginInitializer{
+		OpenshiftClient:              privilegedLoopbackOpenShiftClient,
+		ProjectCache:                 projectCache,
+		OriginQuotaRegistry:          quotaRegistry,
+		Authorizer:                   authorizer,
+		JenkinsPipelineConfig:        options.JenkinsPipelineConfig,
+		RESTClientConfig:             *privilegedLoopbackClientConfig,
+		Informers:                    informers.GetInternalKubeInformers(),
+		ClusterResourceQuotaInformer: informers.GetQuotaInformers().Quota().InternalVersion().ClusterResourceQuotas(),
+		ClusterQuotaMapper:           clusterQuotaMappingController.GetClusterQuotaMapper(),
+		DefaultRegistryFn:            imageapi.DefaultRegistryFunc(defaultRegistryFunc),
+		SecurityInformers:            informers.GetSecurityInformers(),
+		UserInformers:                informers.GetUserInformers(),
+	}
+	initializersChain := admission.PluginInitializers{genericInitializer, kubePluginInitializer, openshiftPluginInitializer}
+
+	originAdmission, kubeAdmission, err := buildAdmissionChains(options, privilegedLoopbackKubeClientsetInternal, initializersChain)
 	if err != nil {
 		return nil, err
 	}
 
-	authenticator, err := newAuthenticator(options, restOptsGetter, serviceAccountTokenGetter, apiClientCAs, groupCache)
+	// this is safe because the server does a quorum read and we're hitting a "magic" authorizer to get permissions based on system:masters
+	// once the cache is added, we won't be paying a double hop cost to etcd on each request, so the simplification will help.
+	serviceAccountTokenGetter := sacontroller.NewGetterFromClient(privilegedLoopbackKubeClientsetExternal)
+	userClient, err := userclient.NewForConfig(privilegedLoopbackClientConfig)
 	if err != nil {
 		return nil, err
 	}
-
-	plug, plugStart := newControllerPlug(options, client)
+	oauthClient, err := oauthclient.NewForConfig(privilegedLoopbackClientConfig)
+	if err != nil {
+		return nil, err
+	}
+	apiClientCAs, err := configapi.GetAPIClientCertCAPool(options)
+	if err != nil {
+		return nil, err
+	}
+	authenticator, err := newAuthenticator(options, oauthClient.OAuthAccessTokens(), serviceAccountTokenGetter, userClient.Users(), apiClientCAs, usercache.NewGroupCache(informers.GetUserInformers().User().InternalVersion().Groups()))
+	if err != nil {
+		return nil, err
+	}
 
 	config := &MasterConfig{
 		Options: options,
@@ -272,10 +303,14 @@ func BuildMasterConfig(options configapi.MasterConfig) (*MasterConfig, error) {
 		RuleResolver:                  ruleResolver,
 		Authenticator:                 authenticator,
 		Authorizer:                    authorizer,
+		SubjectLocator:                subjectLocator,
 		AuthorizationAttributeBuilder: newAuthorizationAttributeBuilder(requestContextMapper),
 
-		GroupCache:                    groupCache,
-		ProjectAuthorizationCache:     newProjectAuthorizationCache(authorizer, privilegedLoopbackKubeClientset, informerFactory),
+		ProjectAuthorizationCache: newProjectAuthorizationCache(
+			subjectLocator,
+			informers.GetInternalKubeInformers().Core().InternalVersion().Namespaces().Informer(),
+			informers.GetInternalKubeInformers().Rbac().InternalVersion(),
+		),
 		ProjectCache:                  projectCache,
 		ClusterQuotaMappingController: clusterQuotaMappingController,
 
@@ -284,39 +319,34 @@ func BuildMasterConfig(options configapi.MasterConfig) (*MasterConfig, error) {
 		AdmissionControl:     originAdmission,
 		KubeAdmissionControl: kubeAdmission,
 
-		TLS: configapi.UseTLS(options.ServingInfo.ServingInfo),
-
-		ControllerPlug:      plug,
-		ControllerPlugStart: plugStart,
-
-		ImageFor:       imageTemplate.ExpandOrDie,
 		RegistryNameFn: imageapi.DefaultRegistryFunc(defaultRegistryFunc),
-
-		// TODO: migration of versions of resources stored in annotations must be sorted out
-		ExternalVersionCodec: kapi.Codecs.LegacyCodec(unversioned.GroupVersion{Group: "", Version: "v1"}),
 
 		KubeletClientConfig: kubeletClientConfig,
 
-		ClientCAs:    clientCAs,
-		APIClientCAs: apiClientCAs,
+		PrivilegedLoopbackClientConfig:                *privilegedLoopbackClientConfig,
+		PrivilegedLoopbackOpenShiftClient:             privilegedLoopbackOpenShiftClient,
+		PrivilegedLoopbackKubernetesClientsetInternal: privilegedLoopbackKubeClientsetInternal,
+		PrivilegedLoopbackKubernetesClientsetExternal: privilegedLoopbackKubeClientsetExternal,
 
-		PrivilegedLoopbackClientConfig:        *privilegedLoopbackClientConfig,
-		PrivilegedLoopbackOpenShiftClient:     privilegedLoopbackOpenShiftClient,
-		PrivilegedLoopbackKubernetesClientset: privilegedLoopbackKubeClientset,
-		Informers: informerFactory,
+		InternalKubeInformers:  informers.GetInternalKubeInformers(),
+		ClientGoKubeInformers:  informers.GetClientGoKubeInformers(),
+		AuthorizationInformers: informers.GetAuthorizationInformers(),
+		QuotaInformers:         informers.GetQuotaInformers(),
+		SecurityInformers:      informers.GetSecurityInformers(),
+		UserInformers:          informers.GetUserInformers(),
 	}
 
 	// ensure that the limit range informer will be started
-	informer := config.Informers.KubernetesInformers().LimitRanges().Informer()
+	informer := config.InternalKubeInformers.Core().InternalVersion().LimitRanges().Informer()
 	config.LimitVerifier = imageadmission.NewLimitVerifier(imageadmission.LimitRangesForNamespaceFunc(func(ns string) ([]*kapi.LimitRange, error) {
-		list, err := config.Informers.KubernetesInformers().LimitRanges().Lister().LimitRanges(ns).List(labels.Everything())
+		list, err := config.InternalKubeInformers.Core().InternalVersion().LimitRanges().Lister().LimitRanges(ns).List(labels.Everything())
 		if err != nil {
 			return nil, err
 		}
 		// the verifier must return an error
 		if len(list) == 0 && len(informer.LastSyncResourceVersion()) == 0 {
 			glog.V(4).Infof("LimitVerifier still waiting for ranges to load: %#v", informer)
-			forbiddenErr := kapierrors.NewForbidden(unversioned.GroupResource{Resource: "limitranges"}, "", fmt.Errorf("the server is still loading limit information"))
+			forbiddenErr := kapierrors.NewForbidden(schema.GroupResource{Resource: "limitranges"}, "", fmt.Errorf("the server is still loading limit information"))
 			forbiddenErr.ErrStatus.Details.RetryAfterSeconds = 1
 			return nil, forbiddenErr
 		}
@@ -338,7 +368,9 @@ var (
 		"BuildByStrategy",
 		imageadmission.PluginName,
 		"OwnerReferencesPermissionEnforcement",
-		quotaadmission.PluginName,
+		"Initializers",
+		"GenericAdmissionWebhook",
+		"ResourceQuota",
 	}
 
 	// KubeAdmissionPlugins gives the in-order default admission chain for kube resources.
@@ -353,6 +385,7 @@ var (
 		serviceadmit.RestrictedEndpointsPluginName,
 		imagepolicy.PluginName,
 		"ImagePolicyWebhook",
+		"PodPreset",
 		"LimitRanger",
 		"ServiceAccount",
 		"SecurityContextConstraint",
@@ -363,9 +396,14 @@ var (
 		"PersistentVolumeLabel",
 		"OwnerReferencesPermissionEnforcement",
 		ingressadmission.IngressAdmission,
-		// NOTE: quotaadmission and ClusterResourceQuota must be the last 2 plugins.
+		"DefaultTolerationSeconds",
+		"Initializers",
+		"GenericAdmissionWebhook",
+		"NodeRestriction",
+		"PodTolerationRestriction",
+		// NOTE: ResourceQuota and ClusterResourceQuota must be the last 2 plugins.
 		// DO NOT ADD ANY PLUGINS AFTER THIS LINE!
-		quotaadmission.PluginName,
+		"ResourceQuota",
 		"openshift.io/ClusterResourceQuota",
 	}
 
@@ -391,6 +429,7 @@ var (
 		serviceadmit.RestrictedEndpointsPluginName,
 		imagepolicy.PluginName,
 		"ImagePolicyWebhook",
+		"PodPreset",
 		"LimitRanger",
 		"ServiceAccount",
 		"SecurityContextConstraint",
@@ -401,14 +440,54 @@ var (
 		"PersistentVolumeLabel",
 		"OwnerReferencesPermissionEnforcement",
 		ingressadmission.IngressAdmission,
-		// NOTE: quotaadmission and ClusterResourceQuota must be the last 2 plugins.
+		"DefaultTolerationSeconds",
+		"Initializers",
+		"GenericAdmissionWebhook",
+		"NodeRestriction",
+		"PodTolerationRestriction",
+		// NOTE: ResourceQuota and ClusterResourceQuota must be the last 2 plugins.
 		// DO NOT ADD ANY PLUGINS AFTER THIS LINE!
-		quotaadmission.PluginName,
+		"ResourceQuota",
 		"openshift.io/ClusterResourceQuota",
 	}
 )
 
-func buildAdmissionChains(options configapi.MasterConfig, kubeClientSet *kclientset.Clientset, pluginInitializer oadmission.PluginInitializer, kubePluginInitializer admission.PluginInitializer) (admission.Interface /*origin*/, admission.Interface /*kube*/, error) {
+// replace returns a slice where each instance of the input that is x is replaced with y
+func replace(input []string, x, y string) []string {
+	result := []string{}
+	for i := range input {
+		if input[i] == x {
+			result = append(result, y)
+		} else {
+			result = append(result, input[i])
+		}
+	}
+	return result
+}
+
+// dedupe removes duplicate items from the input list.
+// the last instance of a duplicate is kept in the input list.
+func dedupe(input []string) []string {
+	items := sets.NewString()
+	result := []string{}
+	for i := len(input) - 1; i >= 0; i-- {
+		if items.Has(input[i]) {
+			continue
+		}
+		items.Insert(input[i])
+		result = append([]string{input[i]}, result...)
+	}
+	return result
+}
+
+// fixupAdmissionPlugins fixes the input plugins to handle deprecation and duplicates.
+func fixupAdmissionPlugins(plugins []string) []string {
+	result := replace(plugins, "openshift.io/OriginResourceQuota", "ResourceQuota")
+	result = dedupe(result)
+	return result
+}
+
+func buildAdmissionChains(options configapi.MasterConfig, kubeClientSet kclientsetinternal.Interface, admissionInitializer admission.PluginInitializer) (admission.Interface /*origin*/, admission.Interface /*kube*/, error) {
 	// check to see if they've taken explicit control of the kube admission chain
 	// this happens when any of the following are true:
 	// 1. extended kube server args are used to change the admission plugin list
@@ -429,6 +508,7 @@ func buildAdmissionChains(options configapi.MasterConfig, kubeClientSet *kclient
 		KubeAdmissionPlugins = options.KubernetesMasterConfig.AdmissionConfig.PluginOrderOverride
 		hasSeparateKubeAdmissionChain = true
 	}
+	KubeAdmissionPlugins = fixupAdmissionPlugins(KubeAdmissionPlugins)
 
 	kubeAdmissionPluginConfigFilename := ""
 	if options.KubernetesMasterConfig != nil && len(options.KubernetesMasterConfig.APIServerArguments["admission-control-config-file"]) > 0 {
@@ -441,6 +521,7 @@ func buildAdmissionChains(options configapi.MasterConfig, kubeClientSet *kclient
 		openshiftAdmissionPlugins = options.AdmissionConfig.PluginOrderOverride
 		hasSeparateKubeAdmissionChain = true
 	}
+	openshiftAdmissionPlugins = fixupAdmissionPlugins(openshiftAdmissionPlugins)
 
 	if options.KubernetesMasterConfig != nil && !hasSeparateKubeAdmissionChain {
 		// check for collisions between openshift and kube plugin config
@@ -457,14 +538,14 @@ func buildAdmissionChains(options configapi.MasterConfig, kubeClientSet *kclient
 		var kubeAdmission admission.Interface
 		if options.KubernetesMasterConfig != nil {
 			var err error
-			kubeAdmission, err = newAdmissionChainFunc(KubeAdmissionPlugins, kubeAdmissionPluginConfigFilename, options.KubernetesMasterConfig.AdmissionConfig.PluginConfig, options, kubeClientSet, pluginInitializer, kubePluginInitializer)
+			kubeAdmission, err = newAdmissionChainFunc(KubeAdmissionPlugins, kubeAdmissionPluginConfigFilename, options.KubernetesMasterConfig.AdmissionConfig.PluginConfig, options, kubeClientSet, admissionInitializer)
 			if err != nil {
 				return nil, nil, err
 			}
 		}
 
 		// build openshift admission
-		openshiftAdmission, err := newAdmissionChainFunc(openshiftAdmissionPlugins, "", options.AdmissionConfig.PluginConfig, options, kubeClientSet, pluginInitializer, kubePluginInitializer)
+		openshiftAdmission, err := newAdmissionChainFunc(openshiftAdmissionPlugins, "", options.AdmissionConfig.PluginConfig, options, kubeClientSet, admissionInitializer)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -483,7 +564,7 @@ func buildAdmissionChains(options configapi.MasterConfig, kubeClientSet *kclient
 		pluginConfig[pluginName] = config
 	}
 
-	admissionChain, err := newAdmissionChainFunc(CombinedAdmissionControlPlugins, "", pluginConfig, options, kubeClientSet, pluginInitializer, kubePluginInitializer)
+	admissionChain, err := newAdmissionChainFunc(CombinedAdmissionControlPlugins, "", pluginConfig, options, kubeClientSet, admissionInitializer)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -494,24 +575,33 @@ func buildAdmissionChains(options configapi.MasterConfig, kubeClientSet *kclient
 // newAdmissionChainFunc is for unit testing only.  You should NEVER OVERRIDE THIS outside of a unit test.
 var newAdmissionChainFunc = newAdmissionChain
 
-func newAdmissionChain(pluginNames []string, admissionConfigFilename string, pluginConfig map[string]configapi.AdmissionPluginConfig, options configapi.MasterConfig, kubeClientSet *kclientset.Clientset, pluginInitializer oadmission.PluginInitializer, kubePluginInitializer admission.PluginInitializer) (admission.Interface, error) {
+func newAdmissionChain(pluginNames []string, admissionConfigFilename string, pluginConfig map[string]configapi.AdmissionPluginConfig, options configapi.MasterConfig, kubeClientSet kclientsetinternal.Interface, admissionInitializer admission.PluginInitializer) (admission.Interface, error) {
 	plugins := []admission.Interface{}
 	for _, pluginName := range pluginNames {
+		var (
+			plugin             admission.Interface
+			skipInitialization bool
+		)
+
 		switch pluginName {
 		case lifecycle.PluginName:
 			// We need to include our infrastructure and shared resource namespaces in the immortal namespaces list
-			immortalNamespaces := sets.NewString(kapi.NamespaceDefault)
+			immortalNamespaces := sets.NewString(metav1.NamespaceDefault)
 			if len(options.PolicyConfig.OpenShiftSharedResourcesNamespace) > 0 {
 				immortalNamespaces.Insert(options.PolicyConfig.OpenShiftSharedResourcesNamespace)
 			}
 			if len(options.PolicyConfig.OpenShiftInfrastructureNamespace) > 0 {
 				immortalNamespaces.Insert(options.PolicyConfig.OpenShiftInfrastructureNamespace)
 			}
-			lc, err := lifecycle.NewLifecycle(kubeClientSet, immortalNamespaces)
+			lc, err := lifecycle.NewLifecycle(immortalNamespaces)
 			if err != nil {
 				return nil, err
 			}
-			plugins = append(plugins, lc)
+			admissionInitializer.Initialize(lc)
+			if err := lc.(admission.Validator).Validate(); err != nil {
+				return nil, err
+			}
+			plugin = lc
 
 		case serviceadmit.ExternalIPPluginName:
 			// this needs to be moved upstream to be part of core config
@@ -524,7 +614,7 @@ func newAdmissionChain(pluginNames []string, admissionConfigFilename string, plu
 			if _, ipNet, err := net.ParseCIDR(options.NetworkConfig.IngressIPNetworkCIDR); err == nil && !ipNet.IP.IsUnspecified() {
 				allowIngressIP = true
 			}
-			plugins = append(plugins, serviceadmit.NewExternalIPRanger(reject, admit, allowIngressIP))
+			plugin = serviceadmit.NewExternalIPRanger(reject, admit, allowIngressIP)
 
 		case serviceadmit.RestrictedEndpointsPluginName:
 			// we need to set some customer parameters, so create by hand
@@ -533,30 +623,49 @@ func newAdmissionChain(pluginNames []string, admissionConfigFilename string, plu
 				// should have been caught with validation
 				return nil, err
 			}
-			plugins = append(plugins, serviceadmit.NewRestrictedEndpointsAdmission(restrictedNetworks))
+			plugin = serviceadmit.NewRestrictedEndpointsAdmission(restrictedNetworks)
 
 		case saadmit.PluginName:
 			// we need to set some custom parameters on the service account admission controller, so create that one by hand
-			saAdmitter := saadmit.NewServiceAccount(kubeClientSet)
+			saAdmitter := saadmit.NewServiceAccount()
+			saAdmitter.SetInternalKubeClientSet(kubeClientSet)
 			saAdmitter.LimitSecretReferences = options.ServiceAccountConfig.LimitSecretReferences
-			saAdmitter.Run()
-			plugins = append(plugins, saAdmitter)
+			plugin = saAdmitter
 
 		default:
-			configFile, err := pluginconfig.GetPluginConfigFile(pluginConfig, pluginName, admissionConfigFilename)
+			configFile, err := pluginconfig.GetAdmissionConfigurationFile(pluginConfig, pluginName, admissionConfigFilename)
 			if err != nil {
 				return nil, err
 			}
-			plugin := admission.InitPlugin(pluginName, kubeClientSet, configFile)
-			if plugin != nil {
-				plugins = append(plugins, plugin)
+			configReader, err := admission.ReadAdmissionConfiguration([]string{pluginName}, configFile)
+			if err != nil {
+				return nil, err
+			}
+			pluginConfigReader, err := configReader.ConfigFor(pluginName)
+			if err != nil {
+				return nil, err
 			}
 
+			plugin, err = admissionregistry.OriginAdmissionPlugins.InitPlugin(pluginName, pluginConfigReader, admissionInitializer)
+			if err != nil {
+				// should have been caught with validation
+				return nil, err
+			}
+			if plugin == nil {
+				continue
+			}
+
+			// skip initialization below because admission.InitPlugin does all the work
+			skipInitialization = true
+		}
+
+		plugins = append(plugins, plugin)
+
+		if !skipInitialization {
+			admissionInitializer.Initialize(plugin)
 		}
 	}
 
-	kubePluginInitializer.Initialize(plugins)
-	pluginInitializer.Initialize(plugins)
 	// ensure that plugins have been properly initialized
 	if err := oadmission.Validate(plugins); err != nil {
 		return nil, err
@@ -565,56 +674,7 @@ func newAdmissionChain(pluginNames []string, admissionConfigFilename string, plu
 	return admission.NewChainHandler(plugins...), nil
 }
 
-func newControllerPlug(options configapi.MasterConfig, client etcdclient.Client) (plug.Plug, func()) {
-	switch {
-	case options.ControllerLeaseTTL > 0:
-		// TODO: replace with future API for leasing from Kube
-		id := fmt.Sprintf("master-%s", kutilrand.String(8))
-		leaser := leaderlease.NewEtcd(
-			client,
-			path.Join(options.EtcdStorageConfig.OpenShiftStoragePrefix, "leases/controllers"),
-			id,
-			uint64(options.ControllerLeaseTTL),
-		)
-		leased := plug.NewLeased(leaser)
-		return leased, func() {
-			glog.V(2).Infof("Attempting to acquire controller lease as %s, renewing every %d seconds", id, options.ControllerLeaseTTL)
-			go leased.Run()
-		}
-	default:
-		return plug.New(!options.PauseControllers), func() {}
-	}
-}
-
-func newServiceAccountTokenGetter(options configapi.MasterConfig) (serviceaccount.ServiceAccountTokenGetter, error) {
-	if options.KubernetesMasterConfig == nil {
-		// When we're running against an external Kubernetes, use the external kubernetes client to validate service account tokens
-		// This prevents infinite auth loops if the privilegedLoopbackKubeClient authenticates using a service account token
-		kubeClientset, _, err := configapi.GetKubeClient(options.MasterClients.ExternalKubernetesKubeConfig, options.MasterClients.ExternalKubernetesClientConnectionOverrides)
-		if err != nil {
-			return nil, err
-		}
-		return sacontroller.NewGetterFromClient(kubeClientset), nil
-	}
-
-	// TODO: could be hoisted if other Origin code needs direct access to etcd, otherwise discourage this access pattern
-	// as we move to be more on top of Kube.
-	_, kubeStorageFactory, err := kubernetes.BuildDefaultAPIServer(options)
-	if err != nil {
-		return nil, err
-	}
-
-	storageConfig, err := kubeStorageFactory.NewConfig(kapi.Resource("serviceaccounts"))
-	if err != nil {
-		return nil, err
-	}
-	// TODO: by doing this we will not be able to authenticate while a master quorum is not present - reimplement
-	// as two storages called in succession (non quorum and then quorum).
-	storageConfig.Quorum = true
-	return sacontroller.NewGetterFromStorageInterface(storageConfig, kubeStorageFactory.ResourcePrefix(kapi.Resource("serviceaccounts")), kubeStorageFactory.ResourcePrefix(kapi.Resource("secrets"))), nil
-}
-
-func newAuthenticator(config configapi.MasterConfig, restOptionsGetter restoptions.Getter, tokenGetter serviceaccount.ServiceAccountTokenGetter, apiClientCAs *x509.CertPool, groupMapper identitymapper.UserToGroupMapper) (authenticator.Request, error) {
+func newAuthenticator(config configapi.MasterConfig, accessTokenGetter oauthclient.OAuthAccessTokenInterface, tokenGetter serviceaccount.ServiceAccountTokenGetter, userGetter userclient.UserResourceInterface, apiClientCAs *x509.CertPool, groupMapper identitymapper.UserToGroupMapper) (authenticator.Request, error) {
 	authenticators := []authenticator.Request{}
 	tokenAuthenticators := []authenticator.Request{}
 
@@ -629,221 +689,123 @@ func newAuthenticator(config configapi.MasterConfig, restOptionsGetter restoptio
 			publicKeys = append(publicKeys, readPublicKeys...)
 		}
 		serviceAccountTokenAuthenticator := serviceaccount.JWTTokenAuthenticator(publicKeys, true, tokenGetter)
-		tokenAuthenticators = append(tokenAuthenticators, bearertoken.New(serviceAccountTokenAuthenticator, true))
+		tokenAuthenticators = append(
+			tokenAuthenticators,
+			bearertoken.New(serviceAccountTokenAuthenticator),
+			websocket.NewProtocolAuthenticator(serviceAccountTokenAuthenticator),
+			paramtoken.New("access_token", serviceAccountTokenAuthenticator, true),
+		)
 	}
 
 	// OAuth token
 	if config.OAuthConfig != nil {
-		oauthTokenAuthenticator, err := getEtcdTokenAuthenticator(restOptionsGetter, groupMapper)
-		if err != nil {
-			return nil, fmt.Errorf("Error building OAuth token authenticator: %v", err)
-		}
+		oauthTokenAuthenticator := authnregistry.NewTokenAuthenticator(accessTokenGetter, userGetter, groupMapper)
 		oauthTokenRequestAuthenticators := []authenticator.Request{
-			bearertoken.New(oauthTokenAuthenticator, true),
-			// Allow token as access_token param for WebSockets
+			bearertoken.New(oauthTokenAuthenticator),
+			websocket.NewProtocolAuthenticator(oauthTokenAuthenticator),
 			paramtoken.New("access_token", oauthTokenAuthenticator, true),
 		}
 
 		tokenAuthenticators = append(tokenAuthenticators,
 			// if you have a bearer token, you're a human (usually)
 			// if you change this, have a look at the impersonationFilter where we attach groups to the impersonated user
-			group.NewGroupAdder(unionrequest.NewUnionAuthentication(oauthTokenRequestAuthenticators...), []string{bootstrappolicy.AuthenticatedOAuthGroup}))
+			group.NewGroupAdder(union.New(oauthTokenRequestAuthenticators...), []string{bootstrappolicy.AuthenticatedOAuthGroup}))
 	}
 
 	if len(tokenAuthenticators) > 0 {
-		authenticators = append(authenticators, unionrequest.NewUnionAuthentication(tokenAuthenticators...))
+		authenticators = append(authenticators, union.New(tokenAuthenticators...))
 	}
 
-	if configapi.UseTLS(config.ServingInfo.ServingInfo) {
-		// build cert authenticator
-		// TODO: add "system:" prefix in authenticator, limit cert to username
-		// TODO: add "system:" prefix to groups in authenticator, limit cert to group name
-		opts := x509request.DefaultVerifyOptions()
-		opts.Roots = apiClientCAs
-		certauth := x509request.New(opts, x509request.SubjectToUserConversion)
-		authenticators = append(authenticators, certauth)
-	}
+	// build cert authenticator
+	// TODO: add "system:" prefix in authenticator, limit cert to username
+	// TODO: add "system:" prefix to groups in authenticator, limit cert to group name
+	opts := x509request.DefaultVerifyOptions()
+	opts.Roots = apiClientCAs
+	certauth := x509request.New(opts, x509request.CommonNameUserConversion)
+	authenticators = append(authenticators, certauth)
 
-	ret := &unionrequest.Authenticator{
-		FailOnError: true,
-		Handlers: []authenticator.Request{
-			// if you change this, have a look at the impersonationFilter where we attach groups to the impersonated user
-			group.NewGroupAdder(&unionrequest.Authenticator{FailOnError: true, Handlers: authenticators}, []string{bootstrappolicy.AuthenticatedGroup}),
-			anonymous.NewAuthenticator(),
-		},
-	}
+	resultingAuthenticator := union.NewFailOnError(authenticators...)
 
-	return ret, nil
+	topLevelAuthenticators := []authenticator.Request{}
+	// if we have a front proxy providing authentication configuration, wire it up and it should come first
+	if config.AuthConfig.RequestHeader != nil {
+		requestHeaderAuthenticator, err := headerrequest.NewSecure(
+			config.AuthConfig.RequestHeader.ClientCA,
+			config.AuthConfig.RequestHeader.ClientCommonNames,
+			config.AuthConfig.RequestHeader.UsernameHeaders,
+			config.AuthConfig.RequestHeader.GroupHeaders,
+			config.AuthConfig.RequestHeader.ExtraHeaderPrefixes,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("Error building front proxy auth config: %v", err)
+		}
+		topLevelAuthenticators = append(topLevelAuthenticators, union.New(requestHeaderAuthenticator, resultingAuthenticator))
+
+	} else {
+		topLevelAuthenticators = append(topLevelAuthenticators, resultingAuthenticator)
+
+	}
+	topLevelAuthenticators = append(topLevelAuthenticators, anonymous.NewAuthenticator())
+
+	return group.NewAuthenticatedGroupAdder(union.NewFailOnError(topLevelAuthenticators...)), nil
 }
 
-func newProjectAuthorizationCache(authorizer authorizer.Authorizer, kubeClient *kclientset.Clientset, informerFactory shared.InformerFactory) *projectauth.AuthorizationCache {
+func newProjectAuthorizationCache(subjectLocator authorizer.SubjectLocator, namespaces cache.SharedIndexInformer, internalRBACInformers rbacinformers.Interface) *projectauth.AuthorizationCache {
 	return projectauth.NewAuthorizationCache(
-		projectauth.NewAuthorizerReviewer(authorizer),
-		kubeClient.Core().Namespaces(),
-		informerFactory.ClusterPolicies().Lister(),
-		informerFactory.ClusterPolicyBindings().Lister(),
-		informerFactory.Policies().Lister(),
-		informerFactory.PolicyBindings().Lister(),
+		namespaces,
+		projectauth.NewAuthorizerReviewer(subjectLocator),
+		internalRBACInformers,
 	)
 }
 
-func addAuthorizationListerWatchers(customListerWatchers shared.DefaultListerWatcherOverrides, optsGetter restoptions.Getter) error {
-	lw, err := newClusterPolicyLW(optsGetter)
-	if err != nil {
-		return err
-	}
-	customListerWatchers[authorizationapi.Resource("clusterpolicies")] = lw
-	lw, err = newClusterPolicyBindingLW(optsGetter)
-	if err != nil {
-		return err
-	}
-	customListerWatchers[authorizationapi.Resource("clusterpolicybindings")] = lw
-	lw, err = newPolicyLW(optsGetter)
-	if err != nil {
-		return err
-	}
-	customListerWatchers[authorizationapi.Resource("policies")] = lw
-	lw, err = newPolicyBindingLW(optsGetter)
-	if err != nil {
-		return err
-	}
-	customListerWatchers[authorizationapi.Resource("policybindings")] = lw
-
-	return nil
+func buildKubeAuth(r rbacinformers.Interface) (kauthorizer.Authorizer, rbacregistryvalidation.AuthorizationRuleResolver, rbacauthorizer.SubjectLocator) {
+	roles := &rbacauthorizer.RoleGetter{Lister: r.Roles().Lister()}
+	roleBindings := &rbacauthorizer.RoleBindingLister{Lister: r.RoleBindings().Lister()}
+	clusterRoles := &rbacauthorizer.ClusterRoleGetter{Lister: r.ClusterRoles().Lister()}
+	clusterRoleBindings := &rbacauthorizer.ClusterRoleBindingLister{Lister: r.ClusterRoleBindings().Lister()}
+	kubeAuthorizer := rbacauthorizer.New(roles, roleBindings, clusterRoles, clusterRoleBindings)
+	ruleResolver := rbacregistryvalidation.NewDefaultRuleResolver(roles, roleBindings, clusterRoles, clusterRoleBindings)
+	kubeSubjectLocator := rbacauthorizer.NewSubjectAccessEvaluator(roles, roleBindings, clusterRoles, clusterRoleBindings, "")
+	return kubeAuthorizer, ruleResolver, kubeSubjectLocator
 }
 
-func newClusterPolicyLW(optsGetter restoptions.Getter) (cache.ListerWatcher, error) {
-	ctx := kapi.WithNamespace(kapi.NewContext(), kapi.NamespaceAll)
-
-	storage, err := clusterpolicyetcd.NewStorage(optsGetter)
-	if err != nil {
-		return nil, err
-	}
-	registry := clusterpolicyregistry.NewRegistry(storage)
-
-	return &cache.ListWatch{
-		ListFunc: func(options kapi.ListOptions) (runtime.Object, error) {
-			return registry.ListClusterPolicies(ctx, &options)
-		},
-		WatchFunc: func(options kapi.ListOptions) (watch.Interface, error) {
-			return registry.WatchClusterPolicies(ctx, &options)
-		},
-	}, nil
-}
-
-func newClusterPolicyBindingLW(optsGetter restoptions.Getter) (cache.ListerWatcher, error) {
-	ctx := kapi.WithNamespace(kapi.NewContext(), kapi.NamespaceAll)
-
-	storage, err := clusterpolicybindingetcd.NewStorage(optsGetter)
-	if err != nil {
-		return nil, err
-	}
-	registry := clusterpolicybindingregistry.NewRegistry(storage)
-
-	return &cache.ListWatch{
-		ListFunc: func(options kapi.ListOptions) (runtime.Object, error) {
-			return registry.ListClusterPolicyBindings(ctx, &options)
-		},
-		WatchFunc: func(options kapi.ListOptions) (watch.Interface, error) {
-			return registry.WatchClusterPolicyBindings(ctx, &options)
-		},
-	}, nil
-}
-
-func newPolicyLW(optsGetter restoptions.Getter) (cache.ListerWatcher, error) {
-	ctx := kapi.WithNamespace(kapi.NewContext(), kapi.NamespaceAll)
-
-	storage, err := policyetcd.NewStorage(optsGetter)
-	if err != nil {
-		return nil, err
-	}
-	registry := policyregistry.NewRegistry(storage)
-
-	return &cache.ListWatch{
-		ListFunc: func(options kapi.ListOptions) (runtime.Object, error) {
-			return registry.ListPolicies(ctx, &options)
-		},
-		WatchFunc: func(options kapi.ListOptions) (watch.Interface, error) {
-			return registry.WatchPolicies(ctx, &options)
-		},
-	}, nil
-}
-
-func newPolicyBindingLW(optsGetter restoptions.Getter) (cache.ListerWatcher, error) {
-	ctx := kapi.WithNamespace(kapi.NewContext(), kapi.NamespaceAll)
-
-	storage, err := policybindingetcd.NewStorage(optsGetter)
-	if err != nil {
-		return nil, err
-	}
-	registry := policybindingregistry.NewRegistry(storage)
-
-	return &cache.ListWatch{
-		ListFunc: func(options kapi.ListOptions) (runtime.Object, error) {
-			return registry.ListPolicyBindings(ctx, &options)
-		},
-		WatchFunc: func(options kapi.ListOptions) (watch.Interface, error) {
-			return registry.WatchPolicyBindings(ctx, &options)
-		},
-	}, nil
-}
-
-func newAuthorizer(ruleResolver rulevalidation.AuthorizationRuleResolver, informerFactory shared.InformerFactory, projectRequestDenyMessage string) authorizer.Authorizer {
+func newAuthorizer(kubeAuthorizer kauthorizer.Authorizer, kubeSubjectLocator rbacauthorizer.SubjectLocator, clusterRoleGetter rbaclisters.ClusterRoleLister, projectRequestDenyMessage string) (kauthorizer.Authorizer, authorizer.SubjectLocator) {
 	messageMaker := authorizer.NewForbiddenMessageResolver(projectRequestDenyMessage)
-	roleBasedAuthorizer := authorizer.NewAuthorizer(ruleResolver, messageMaker)
-	scopeLimitedAuthorizer := scope.NewAuthorizer(roleBasedAuthorizer, informerFactory.ClusterPolicies().Lister().ClusterPolicies(), messageMaker)
-	return scopeLimitedAuthorizer
+	roleBasedAuthorizer := authorizer.NewAuthorizer(kubeAuthorizer, messageMaker)
+	subjectLocator := authorizer.NewSubjectLocator(kubeSubjectLocator)
+	scopeLimitedAuthorizer := scope.NewAuthorizer(roleBasedAuthorizer, clusterRoleGetter, messageMaker)
+
+	authorizer := authorizerunion.New(
+		authorizerfactory.NewPrivilegedGroups(user.SystemPrivilegedGroup), // authorizes system:masters to do anything, just like upstream
+		scopeLimitedAuthorizer)
+
+	return authorizer, subjectLocator
 }
 
-func newAuthorizationAttributeBuilder(requestContextMapper kapi.RequestContextMapper) authorizer.AuthorizationAttributeBuilder {
+func newAuthorizationAttributeBuilder(requestContextMapper apirequest.RequestContextMapper) authorizer.AuthorizationAttributeBuilder {
 	// Default API request info factory
-	requestInfoFactory := &request.RequestInfoFactory{APIPrefixes: sets.NewString("api", "osapi", "oapi", "apis"), GrouplessAPIPrefixes: sets.NewString("api", "osapi", "oapi")}
+	requestInfoFactory := &apirequest.RequestInfoFactory{APIPrefixes: sets.NewString("api", "osapi", "oapi", "apis"), GrouplessAPIPrefixes: sets.NewString("api", "osapi", "oapi")}
 	// Wrap with a request info factory that detects unsafe requests and modifies verbs/resources appropriately so policy can address them separately
 	browserSafeRequestInfoResolver := authorizer.NewBrowserSafeRequestInfoResolver(
 		requestContextMapper,
 		sets.NewString(bootstrappolicy.AuthenticatedGroup),
 		requestInfoFactory,
 	)
+	personalSARRequestInfoResolver := authorizer.NewPersonalSARRequestInfoResolver(browserSafeRequestInfoResolver)
+	projectRequestInfoResolver := authorizer.NewProjectRequestInfoResolver(personalSARRequestInfoResolver)
 
-	authorizationAttributeBuilder := authorizer.NewAuthorizationAttributeBuilder(requestContextMapper, browserSafeRequestInfoResolver)
+	authorizationAttributeBuilder := authorizer.NewAuthorizationAttributeBuilder(requestContextMapper, projectRequestInfoResolver)
 	return authorizationAttributeBuilder
 }
 
-func getEtcdTokenAuthenticator(optsGetter restoptions.Getter, groupMapper identitymapper.UserToGroupMapper) (authenticator.Token, error) {
-	// this never does a create for access tokens, so we don't need to be able to validate scopes against the client
-	accessTokenStorage, err := accesstokenetcd.NewREST(optsGetter, nil)
-	if err != nil {
-		return nil, err
-	}
-	accessTokenRegistry := accesstokenregistry.NewRegistry(accessTokenStorage)
-
-	userStorage, err := useretcd.NewREST(optsGetter)
-	if err != nil {
-		return nil, err
-	}
-	userRegistry := userregistry.NewRegistry(userStorage)
-
-	return authnregistry.NewTokenAuthenticator(accessTokenRegistry, userRegistry, groupMapper), nil
+// KubeClientsetInternal returns the kubernetes client object
+func (c *MasterConfig) KubeClientsetInternal() kclientsetinternal.Interface {
+	return c.PrivilegedLoopbackKubernetesClientsetInternal
 }
 
-// KubeClientset returns the kubernetes client object
-func (c *MasterConfig) KubeClientset() *kclientset.Clientset {
-	return c.PrivilegedLoopbackKubernetesClientset
-}
-
-// OAuthServerClients returns the openshift and kubernetes OAuth server client objects
-// The returned clients are privileged
-func (c *MasterConfig) OAuthServerClients() (*osclient.Client, *kclientset.Clientset) {
-	return c.PrivilegedLoopbackOpenShiftClient, c.PrivilegedLoopbackKubernetesClientset
-}
-
-// PolicyClient returns the policy client object
-// It must have the following capabilities:
-//  list, watch all policyBindings in all namespaces
-//  list, watch all policies in all namespaces
-//  create resourceAccessReviews in all namespaces
-func (c *MasterConfig) PolicyClient() *osclient.Client {
-	return c.PrivilegedLoopbackOpenShiftClient
+// KubeClientsetInternal returns the kubernetes client object
+func (c *MasterConfig) KubeClientsetExternal() kclientsetexternal.Interface {
+	return c.PrivilegedLoopbackKubernetesClientsetExternal
 }
 
 // ServiceAccountRoleBindingClient returns the client object used to bind roles to service accounts
@@ -853,132 +815,9 @@ func (c *MasterConfig) ServiceAccountRoleBindingClient() *osclient.Client {
 	return c.PrivilegedLoopbackOpenShiftClient
 }
 
-// SdnClient returns the sdn client object
-// It must have the capability to get/list/watch/create/delete
-// HostSubnets. And have the capability to get ClusterNetwork.
-func (c *MasterConfig) SdnClient() *osclient.Client {
-	return c.PrivilegedLoopbackOpenShiftClient
-}
-
-// DeploymentClient returns the deployment client object
-func (c *MasterConfig) DeploymentClient() *kclientset.Clientset {
-	return c.PrivilegedLoopbackKubernetesClientset
-}
-
-// DNSServerClient returns the DNS server client object
-// It must have the following capabilities:
-//   list, watch all services in all namespaces
-func (c *MasterConfig) DNSServerClient() *kclientset.Clientset {
-	return c.PrivilegedLoopbackKubernetesClientset
-}
-
-// BuildLogClient returns the build log client object
-func (c *MasterConfig) BuildLogClient() *kclientset.Clientset {
-	return c.PrivilegedLoopbackKubernetesClientset
-}
-
-// BuildConfigWebHookClient returns the webhook client object
-func (c *MasterConfig) BuildConfigWebHookClient() *osclient.Client {
-	return c.PrivilegedLoopbackOpenShiftClient
-}
-
-// BuildControllerClients returns the build controller client objects
-func (c *MasterConfig) BuildControllerClients() (*osclient.Client, *kclientset.Clientset) {
-	_, osClient, kClient, err := c.GetServiceAccountClients(bootstrappolicy.InfraBuildControllerServiceAccountName)
-	if err != nil {
-		glog.Fatal(err)
-	}
-	return osClient, kClient
-}
-
-// BuildPodControllerClients returns the build pod controller client objects
-func (c *MasterConfig) BuildPodControllerClients() (*osclient.Client, *kclientset.Clientset) {
-	return c.PrivilegedLoopbackOpenShiftClient, c.PrivilegedLoopbackKubernetesClientset
-}
-
-// BuildImageChangeTriggerControllerClients returns the build image change trigger controller client objects
-func (c *MasterConfig) BuildImageChangeTriggerControllerClients() (*osclient.Client, *kclientset.Clientset) {
-	return c.PrivilegedLoopbackOpenShiftClient, c.PrivilegedLoopbackKubernetesClientset
-}
-
-// BuildConfigChangeControllerClients returns the build config change controller client objects
-func (c *MasterConfig) BuildConfigChangeControllerClients() (*osclient.Client, *kclientset.Clientset) {
-	return c.PrivilegedLoopbackOpenShiftClient, c.PrivilegedLoopbackKubernetesClientset
-}
-
-// ImageChangeControllerClient returns the openshift client object
-func (c *MasterConfig) ImageChangeControllerClient() *osclient.Client {
-	return c.PrivilegedLoopbackOpenShiftClient
-}
-
-// ImageImportControllerClient returns the deployment client object
-func (c *MasterConfig) ImageImportControllerClient() *osclient.Client {
-	return c.PrivilegedLoopbackOpenShiftClient
-}
-
-// DeploymentConfigInstantiateClients returns the clients used by the instantiate endpoint.
-func (c *MasterConfig) DeploymentConfigInstantiateClients() (*osclient.Client, *kclientset.Clientset) {
-	return c.PrivilegedLoopbackOpenShiftClient, c.PrivilegedLoopbackKubernetesClientset
-}
-
-// DeploymentControllerClients returns the deployment controller client objects
-func (c *MasterConfig) DeploymentControllerClients() (*osclient.Client, *kclientset.Clientset) {
-	_, osClient, kClient, err := c.GetServiceAccountClients(bootstrappolicy.InfraDeploymentConfigControllerServiceAccountName)
-	if err != nil {
-		glog.Fatal(err)
-	}
-	return osClient, kClient
-}
-
-// DeploymentConfigClients returns deploymentConfig and deployment client objects
-func (c *MasterConfig) DeploymentConfigClients() (*osclient.Client, *kclientset.Clientset) {
-	return c.PrivilegedLoopbackOpenShiftClient, c.PrivilegedLoopbackKubernetesClientset
-}
-
-// DeploymentConfigControllerClients returns the deploymentConfig controller client objects
-func (c *MasterConfig) DeploymentConfigControllerClients() (*osclient.Client, *kclientset.Clientset) {
-	return c.PrivilegedLoopbackOpenShiftClient, c.PrivilegedLoopbackKubernetesClientset
-}
-
-// DeploymentTriggerControllerClient returns the deploymentConfig trigger controller client object
-func (c *MasterConfig) DeploymentTriggerControllerClient() *osclient.Client {
-	return c.PrivilegedLoopbackOpenShiftClient
-}
-
-// DeploymentLogClient returns the deployment log client object
-func (c *MasterConfig) DeploymentLogClient() *kclientset.Clientset {
-	return c.PrivilegedLoopbackKubernetesClientset
-}
-
-// SecurityAllocationControllerClient returns the security allocation controller client object
-func (c *MasterConfig) SecurityAllocationControllerClient() *kclientset.Clientset {
-	return c.PrivilegedLoopbackKubernetesClientset
-}
-
-// SDNControllerClients returns the SDN controller client objects
-func (c *MasterConfig) SDNControllerClients() (*osclient.Client, *kclientset.Clientset) {
-	return c.PrivilegedLoopbackOpenShiftClient, c.PrivilegedLoopbackKubernetesClientset
-}
-
 // RouteAllocatorClients returns the route allocator client objects
-func (c *MasterConfig) RouteAllocatorClients() (*osclient.Client, *kclientset.Clientset) {
-	return c.PrivilegedLoopbackOpenShiftClient, c.PrivilegedLoopbackKubernetesClientset
-}
-
-// ImageStreamSecretClient returns the client capable of retrieving secrets for an image secret wrapper
-func (c *MasterConfig) ImageStreamSecretClient() *kclientset.Clientset {
-	return c.PrivilegedLoopbackKubernetesClientset
-}
-
-// ImageStreamImportSecretClient returns the client capable of retrieving image secrets for a namespace
-func (c *MasterConfig) ImageStreamImportSecretClient() *osclient.Client {
-	return c.PrivilegedLoopbackOpenShiftClient
-}
-
-// ResourceQuotaManagerClients returns the client capable of retrieving resources needed for resource quota
-// evaluation
-func (c *MasterConfig) ResourceQuotaManagerClients() (*osclient.Client, *kclientset.Clientset) {
-	return c.PrivilegedLoopbackOpenShiftClient, c.PrivilegedLoopbackKubernetesClientset
+func (c *MasterConfig) RouteAllocatorClients() (*osclient.Client, kclientsetinternal.Interface) {
+	return c.PrivilegedLoopbackOpenShiftClient, c.PrivilegedLoopbackKubernetesClientsetInternal
 }
 
 // WebConsoleEnabled says whether web ui is not a disabled feature and asset service is configured.
@@ -986,37 +825,6 @@ func (c *MasterConfig) WebConsoleEnabled() bool {
 	return c.Options.AssetConfig != nil && !c.Options.DisabledFeatures.Has(configapi.FeatureWebConsole)
 }
 
-// OriginNamespaceControllerClients returns a client for openshift and kubernetes.
-// The openshift client object must have authority to delete openshift content in any namespace
-// The kubernetes client object must have authority to execute a finalize request on a namespace
-func (c *MasterConfig) OriginNamespaceControllerClients() (*osclient.Client, *kclientset.Clientset) {
-	return c.PrivilegedLoopbackOpenShiftClient, c.PrivilegedLoopbackKubernetesClientset
-}
-
-// UnidlingControllerClients returns the unidling controller clients
-func (c *MasterConfig) UnidlingControllerClients() (*osclient.Client, *kclientset.Clientset) {
-	_, osClient, kClient, err := c.GetServiceAccountClients(bootstrappolicy.InfraUnidlingControllerServiceAccountName)
-	if err != nil {
-		glog.Fatal(err)
-	}
-	return osClient, kClient
-}
-
-// GetServiceAccountClients returns an OpenShift and Kubernetes client with the credentials of the
-// named service account in the infra namespace
-func (c *MasterConfig) GetServiceAccountClients(name string) (*restclient.Config, *osclient.Client, *kclientset.Clientset, error) {
-	return c.GetServiceAccountClientsWithConfig(name, c.PrivilegedLoopbackClientConfig)
-}
-
-func (c *MasterConfig) GetServiceAccountClientsWithConfig(name string, config restclient.Config) (*restclient.Config, *osclient.Client, *kclientset.Clientset, error) {
-	if len(name) == 0 {
-		return nil, nil, nil, errors.New("No service account name specified")
-	}
-	configToReturn, oc, kcset, err := serviceaccounts.Clients(
-		config,
-		&serviceaccounts.ClientLookupTokenRetriever{Client: c.PrivilegedLoopbackKubernetesClientset},
-		c.Options.PolicyConfig.OpenShiftInfrastructureNamespace,
-		name,
-	)
-	return configToReturn, oc, kcset, err
+func (c *MasterConfig) WebConsoleStandalone() bool {
+	return c.Options.AssetConfig.ServingInfo.BindAddress != c.Options.ServingInfo.BindAddress
 }

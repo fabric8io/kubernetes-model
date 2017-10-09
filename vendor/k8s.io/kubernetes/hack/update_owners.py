@@ -30,6 +30,7 @@ import zlib
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OWNERS_PATH = os.path.abspath(
     os.path.join(BASE_DIR, '..', 'test', 'test_owners.csv'))
+OWNERS_JSON_PATH = OWNERS_PATH.replace('.csv', '.json')
 GCS_URL_BASE = 'https://storage.googleapis.com/kubernetes-test-history/'
 SKIP_MAINTAINERS = {
     'a-robinson', 'aronchick', 'bgrant0607-nocc', 'david-mcmahon',
@@ -70,21 +71,25 @@ def get_test_names_from_local_files():
 def load_owners(fname):
     owners = {}
     with open(fname) as f:
-        for n, (name, owner, random_assignment) in enumerate(csv.reader(f)):
+        for n, cols in enumerate(csv.reader(f)):
             if n == 0:
                 continue  # header
-            owners[normalize(name)] = (owner, int(random_assignment))
+            if len(cols) == 3:
+                # migrate from previous version without sig
+                (name, owner, random_assignment), sig = cols, ""
+            else:
+                (name, owner, random_assignment, sig) = cols
+            owners[normalize(name)] = (owner, int(random_assignment), sig)
         return owners
 
 
 def write_owners(fname, owners):
     with open(fname, 'w') as f:
         out = csv.writer(f, lineterminator='\n')
-        out.writerow(['name', 'owner', 'auto-assigned'])
-        sort_key = lambda (k, v): (k != 'DEFAULT', k)  # put 'DEFAULT' first.
-        items = sorted(owners.items(), key=sort_key)
-        for name, (owner, random_assignment) in items:
-            out.writerow([name, owner, int(random_assignment)])
+        out.writerow(['name', 'owner', 'auto-assigned', 'sig'])
+        items = sorted(owners.items())
+        for name, (owner, random_assignment, sig) in items:
+            out.writerow([name, owner, int(random_assignment), sig])
 
 
 def get_maintainers():
@@ -94,24 +99,20 @@ def get_maintainers():
     # Run this in the js console:
     # [].slice.call(document.querySelectorAll('.team-member-username a')).map(
     #     e => e.textContent.trim())
-    ret = {"a-robinson", "alex-mohr", "amygdala", "andyzheng0831", "apelisse",
-           "aronchick", "bgrant0607", "bgrant0607-nocc", "bprashanth",
-           "brendandburns", "caesarxuchao", "childsb", "cjcullen",
-           "david-mcmahon", "davidopp", "dchen1107", "deads2k",
-           "derekwaynecarr", "dubstack", "eparis", "erictune", "fabioy",
-           "fejta", "fgrzadkowski", "freehan", "ghodss", "girishkalele",
-           "gmarek", "goltermann", "grodrigues3", "hurf", "ingvagabund", "ixdy",
-           "jackgr", "janetkuo", "jbeda", "jdef", "jfrazelle", "jingxu97",
-           "jlowdermilk", "jsafrane", "jszczepkowski", "justinsb", "kargakis",
-           "karlkfi", "kelseyhightower", "kevin-wangzefeng", "krousey",
-           "lavalamp", "liggitt", "luxas", "madhusudancs", "maisem", "mansoorj",
-           "matchstick", "mbohlool", "mikedanese", "mml", "mtaufen", "mwielgus",
-           "ncdc", "nikhiljindal", "piosz", "pmorie", "pwittrock", "Q-Lee",
-           "quinton-hoole", "Random-Liu", "rmmh", "roberthbailey", "ronnielai",
-           "saad-ali", "sarahnovotny", "smarterclayton", "soltysh", "spxtr",
-           "sttts", "thockin", "timothysc", "timstclair", "tmrts",
-           "vishh", "vulpecula", "wojtek-t", "xiang90", "yifan-gu", "yujuhong",
-           "zmerlynn"}
+    ret = {"alex-mohr", "apelisse", "aronchick", "bgrant0607", "bgrant0607-nocc",
+           "bprashanth", "brendandburns", "caesarxuchao", "childsb", "cjcullen",
+           "david-mcmahon", "davidopp", "dchen1107", "deads2k", "derekwaynecarr",
+           "eparis", "erictune", "fabioy", "fejta", "fgrzadkowski", "freehan",
+           "gmarek", "grodrigues3", "ingvagabund", "ixdy", "janetkuo", "jbeda",
+           "jessfraz", "jingxu97", "jlowdermilk", "jsafrane", "jszczepkowski",
+           "justinsb", "kargakis", "Kashomon", "kevin-wangzefeng", "krousey",
+           "lavalamp", "liggitt", "luxas", "madhusudancs", "maisem", "matchstick",
+           "mbohlool", "mikedanese", "mml", "mtaufen", "mwielgus", "ncdc",
+           "nikhiljindal", "piosz", "pmorie", "pwittrock", "Q-Lee", "quinton-hoole",
+           "Random-Liu", "rmmh", "roberthbailey", "saad-ali", "smarterclayton",
+           "soltysh", "spxtr", "sttts", "thelinuxfoundation", "thockin",
+           "timothysc", "timstclair", "vishh", "wojtek-t", "xiang90", "yifan-gu",
+           "yujuhong", "zmerlynn"}
     return sorted(ret - SKIP_MAINTAINERS)
 
 
@@ -124,20 +125,61 @@ def detect_github_username():
                      '`git config remote.origin.url` output, run with --user instead')
 
 
+def sig_prefixes(owners):
+    # TODO(rmmh): make sig prefixes the only thing in test_owners!
+    # Precise test names aren't very interesting.
+    owns = []
+
+    for test, (owner, random_assignment, sig) in owners.iteritems():
+        if 'k8s.io/' in test or not sig:
+            continue
+        owns.append([test, sig])
+
+    while True:
+        owns.sort()
+        for name, sig in owns:
+            # try removing the last word in the name, use it if all tests beginning
+            # with this shorter name share the same sig.
+            maybe_prefix = ' '.join(name.split()[:-1])
+            matches = [other_sig == sig for other_name, other_sig in owns if other_name.startswith(maybe_prefix)]
+            if matches and all(matches):
+                owns = [[n, s] for n, s in owns if not n.startswith(maybe_prefix)]
+                owns.append([maybe_prefix, sig])
+                break
+        else:  # iterated completely through owns without any changes
+            break
+
+    sigs = {}
+    for name, sig in owns:
+        sigs.setdefault(sig, []).append(name)
+
+    return json.dumps(sigs, sort_keys=True, indent=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--history', action='store_true', help='Generate test list from result history.')
     parser.add_argument('--user', help='User to assign new tests to (or RANDOM, default: current GitHub user).')
+    parser.add_argument('--addonly', action='store_true', help='Only add missing tests, do not change existing.')
     parser.add_argument('--check', action='store_true', help='Exit with a nonzero status if the test list has changed.')
+    parser.add_argument('--print_sig_prefixes', action='store_true', help='Emit SIG prefixes for matching.')
     options = parser.parse_args()
 
     if options.history:
         test_names = get_test_names_from_test_history()
     else:
         test_names = get_test_names_from_local_files()
-    test_names.add('DEFAULT')
     test_names = sorted(test_names)
     owners = load_owners(OWNERS_PATH)
+
+    prefixes = sig_prefixes(owners)
+
+    with open(OWNERS_JSON_PATH, 'w') as f:
+        f.write(prefixes + '\n')
+
+    if options.print_sig_prefixes:
+        print prefixes
+        return
 
     outdated_tests = sorted(set(owners) - set(test_names))
     new_tests = sorted(set(test_names) - set(owners))
@@ -163,16 +205,17 @@ def main():
     for name in outdated_tests:
         owners.pop(name)
 
-    print '# UNEXPECTED MAINTAINERS ',
-    print '(randomly assigned, but not in kubernetes-maintainers)'
-    for name, (owner, random_assignment) in sorted(owners.iteritems()):
-        if random_assignment and owner not in maintainers:
-            print '%-16s %s' % (owner, name)
-            owners.pop(name)
-    print
+    if not options.addonly:
+        print '# UNEXPECTED MAINTAINERS ',
+        print '(randomly assigned, but not in kubernetes-maintainers)'
+        for name, (owner, random_assignment, _) in sorted(owners.iteritems()):
+            if random_assignment and owner not in maintainers:
+                print '%-16s %s' % (owner, name)
+                owners.pop(name)
+        print
 
     owner_counts = collections.Counter(
-        owner for name, (owner, random) in owners.iteritems()
+        owner for name, (owner, random, sig) in owners.iteritems()
         if owner in maintainers)
     for test_name in set(test_names) - set(owners):
         random_assignment = True
@@ -182,7 +225,7 @@ def main():
             new_owner = options.user
             random_assignment = False
         owner_counts[new_owner] += 1
-        owners[test_name] = (new_owner, random_assignment)
+        owners[test_name] = (new_owner, random_assignment, "")
 
     if options.user.lower() == 'random':
         print '# Tests per maintainer:'

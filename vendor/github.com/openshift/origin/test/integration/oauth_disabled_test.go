@@ -3,8 +3,8 @@ package integration
 import (
 	"testing"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/restclient"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	restclient "k8s.io/client-go/rest"
 
 	"github.com/openshift/origin/pkg/cmd/util/tokencmd"
 	testutil "github.com/openshift/origin/test/util"
@@ -12,13 +12,12 @@ import (
 )
 
 func TestOAuthDisabled(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
 	// Build master config
 	masterOptions, err := testserver.DefaultMasterOptions()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterOptions)
 
 	// Disable OAuth
 	masterOptions.OAuthConfig = nil
@@ -40,7 +39,7 @@ func TestOAuthDisabled(t *testing.T) {
 	}
 
 	// Make sure cert auth still works
-	namespaces, err := client.Core().Namespaces().List(kapi.ListOptions{})
+	namespaces, err := client.Core().Namespaces().List(metav1.ListOptions{})
 	if err != nil {
 		t.Fatalf("Unexpected error %v", err)
 	}

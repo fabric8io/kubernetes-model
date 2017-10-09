@@ -26,7 +26,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/cadvisor/cache/memory"
-	cadvisorMetrics "github.com/google/cadvisor/container"
+	cadvisormetrics "github.com/google/cadvisor/container"
 	"github.com/google/cadvisor/events"
 	cadvisorfs "github.com/google/cadvisor/fs"
 	cadvisorhttp "github.com/google/cadvisor/http"
@@ -35,8 +35,8 @@ import (
 	"github.com/google/cadvisor/manager"
 	"github.com/google/cadvisor/metrics"
 	"github.com/google/cadvisor/utils/sysfs"
+	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/kubernetes/pkg/kubelet/types"
-	"k8s.io/kubernetes/pkg/util/runtime"
 )
 
 type cadvisorClient struct {
@@ -74,34 +74,39 @@ func init() {
 }
 
 func containerLabels(c *cadvisorapi.ContainerInfo) map[string]string {
-	set := map[string]string{metrics.LabelID: c.Name}
+	// Prometheus requires that all metrics in the same family have the same labels,
+	// so we arrange to supply blank strings for missing labels
+	var name, image, podName, namespace, containerName string
 	if len(c.Aliases) > 0 {
-		set[metrics.LabelName] = c.Aliases[0]
+		name = c.Aliases[0]
 	}
-	if image := c.Spec.Image; len(image) > 0 {
-		set[metrics.LabelImage] = image
-	}
+	image = c.Spec.Image
 	if v, ok := c.Spec.Labels[types.KubernetesPodNameLabel]; ok {
-		set["pod_name"] = v
+		podName = v
 	}
 	if v, ok := c.Spec.Labels[types.KubernetesPodNamespaceLabel]; ok {
-		set["namespace"] = v
+		namespace = v
 	}
 	if v, ok := c.Spec.Labels[types.KubernetesContainerNameLabel]; ok {
-		set["container_name"] = v
+		containerName = v
+	}
+	set := map[string]string{
+		metrics.LabelID:    c.Name,
+		metrics.LabelName:  name,
+		metrics.LabelImage: image,
+		"pod_name":         podName,
+		"namespace":        namespace,
+		"container_name":   containerName,
 	}
 	return set
 }
 
 // New creates a cAdvisor and exports its API on the specified port if port > 0.
 func New(port uint, runtime string, rootPath string) (Interface, error) {
-	sysFs, err := sysfs.NewRealSysFs()
-	if err != nil {
-		return nil, err
-	}
+	sysFs := sysfs.NewRealSysFs()
 
 	// Create and start the cAdvisor container manager.
-	m, err := manager.New(memory.New(statsCacheDuration, nil), sysFs, maxHousekeepingInterval, allowDynamicHousekeeping, cadvisorMetrics.MetricSet{cadvisorMetrics.NetworkTcpUsageMetrics: struct{}{}}, http.DefaultClient)
+	m, err := manager.New(memory.New(statsCacheDuration, nil), sysFs, maxHousekeepingInterval, allowDynamicHousekeeping, cadvisormetrics.MetricSet{cadvisormetrics.NetworkTcpUsageMetrics: struct{}{}}, http.DefaultClient)
 	if err != nil {
 		return nil, err
 	}
@@ -225,4 +230,17 @@ func (cc *cadvisorClient) getFsInfo(label string) (cadvisorapiv2.FsInfo, error) 
 
 func (cc *cadvisorClient) WatchEvents(request *events.Request) (*events.EventChannel, error) {
 	return cc.WatchForEvents(request)
+}
+
+// HasDedicatedImageFs returns true if the imagefs has a dedicated device.
+func (cc *cadvisorClient) HasDedicatedImageFs() (bool, error) {
+	imageFsInfo, err := cc.ImagesFsInfo()
+	if err != nil {
+		return false, err
+	}
+	rootFsInfo, err := cc.RootFsInfo()
+	if err != nil {
+		return false, err
+	}
+	return imageFsInfo.Device != rootFsInfo.Device, nil
 }

@@ -17,22 +17,32 @@ limitations under the License.
 package v1
 
 import (
-	"k8s.io/kubernetes/pkg/api/unversioned"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/kubernetes/pkg/api/v1"
-	"k8s.io/kubernetes/pkg/runtime"
-	versionedwatch "k8s.io/kubernetes/pkg/watch/versioned"
 )
 
 // GroupName is the group name use in this package
 const GroupName = ""
 
 // SchemeGroupVersion is group version used to register these objects
-var SchemeGroupVersion = unversioned.GroupVersion{Group: GroupName, Version: "v1"}
+var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: "v1"}
 
 var (
-	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes, addConversionFuncs, addDefaultingFuncs)
-	AddToScheme   = SchemeBuilder.AddToScheme
+	// TODO: move SchemeBuilder with zz_generated.deepcopy.go to k8s.io/api.
+	// localSchemeBuilder and AddToScheme will stay in k8s.io/kubernetes.
+	SchemeBuilder      runtime.SchemeBuilder
+	localSchemeBuilder = &SchemeBuilder
+	AddToScheme        = localSchemeBuilder.AddToScheme
 )
+
+func init() {
+	// We only register manually written functions here. The registration of the
+	// generated functions takes place in the generated files. The separation
+	// makes the code compile even when the generated files are missing.
+	localSchemeBuilder.Register(addKnownTypes, addConversionFuncs, addDefaultingFuncs)
+}
 
 // Adds the list of known types to api.Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
@@ -41,8 +51,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&v1.Namespace{},
 		&v1.NamespaceList{},
 		&v1.ServiceList{},
-		&v1.ListOptions{},
-		&v1.DeleteOptions{},
 		&v1.Secret{},
 		&v1.SecretList{},
 		&v1.Event{},
@@ -52,9 +60,9 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	)
 
 	// Add common types
-	scheme.AddKnownTypes(SchemeGroupVersion, &unversioned.Status{})
+	scheme.AddKnownTypes(SchemeGroupVersion, &metav1.Status{})
 
 	// Add the watch version that applies
-	versionedwatch.AddToGroupVersion(scheme, SchemeGroupVersion)
+	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
 }

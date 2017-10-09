@@ -18,74 +18,85 @@ package testing
 
 import (
 	"fmt"
-	"math/rand"
 	"reflect"
 	"strconv"
-	"testing"
-
-	"k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/resource"
-	"k8s.io/kubernetes/pkg/api/testapi"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/apis/autoscaling"
-	"k8s.io/kubernetes/pkg/apis/batch"
-	"k8s.io/kubernetes/pkg/apis/extensions"
-	"k8s.io/kubernetes/pkg/apis/policy"
-	"k8s.io/kubernetes/pkg/apis/rbac"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/types"
-	"k8s.io/kubernetes/pkg/util/intstr"
 
 	"github.com/google/gofuzz"
+
+	"k8s.io/apimachinery/pkg/api/resource"
+	apitesting "k8s.io/apimachinery/pkg/api/testing"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	runtimeserializer "k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	kubeadmfuzzer "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/fuzzer"
+	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/testapi"
+	"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/apis/admissionregistration"
+	"k8s.io/kubernetes/pkg/apis/apps"
+	"k8s.io/kubernetes/pkg/apis/autoscaling"
+	"k8s.io/kubernetes/pkg/apis/batch"
+	"k8s.io/kubernetes/pkg/apis/certificates"
+	"k8s.io/kubernetes/pkg/apis/extensions"
+	extensionsv1beta1 "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
+	"k8s.io/kubernetes/pkg/apis/policy"
+	"k8s.io/kubernetes/pkg/apis/rbac"
 )
 
-// FuzzerFor can randomly populate api objects that are destined for version.
-func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) *fuzz.Fuzzer {
-	f := fuzz.New().NilChance(.5).NumElements(1, 1)
-	if src != nil {
-		f.RandSource(src)
-	}
-	f.Funcs(
-		func(j *int, c fuzz.Continue) {
-			*j = int(c.Int31())
-		},
-		func(j **int, c fuzz.Continue) {
-			if c.RandBool() {
-				i := int(c.Int31())
-				*j = &i
+// overrideGenericFuncs override some generic fuzzer funcs from k8s.io/apiserver in order to have more realistic
+// values in a Kubernetes context.
+func overrideGenericFuncs(t apitesting.TestingCommon, codecs runtimeserializer.CodecFactory) []interface{} {
+	return []interface{}{
+		func(j *runtime.Object, c fuzz.Continue) {
+			// TODO: uncomment when round trip starts from a versioned object
+			if true { //c.RandBool() {
+				*j = &runtime.Unknown{
+					// We do not set TypeMeta here because it is not carried through a round trip
+					Raw:         []byte(`{"apiVersion":"unknown.group/unknown","kind":"Something","someKey":"someValue"}`),
+					ContentType: runtime.ContentTypeJSON,
+				}
 			} else {
-				*j = nil
+				types := []runtime.Object{&api.Pod{}, &api.ReplicationController{}}
+				t := types[c.Rand.Intn(len(types))]
+				c.Fuzz(t)
+				*j = t
 			}
 		},
+		func(r *runtime.RawExtension, c fuzz.Continue) {
+			// Pick an arbitrary type and fuzz it
+			types := []runtime.Object{&api.Pod{}, &extensions.Deployment{}, &api.Service{}}
+			obj := types[c.Rand.Intn(len(types))]
+			c.Fuzz(obj)
+
+			var codec runtime.Codec
+			switch obj.(type) {
+			case *extensions.Deployment:
+				codec = apitesting.TestCodec(codecs, extensionsv1beta1.SchemeGroupVersion)
+			default:
+				codec = apitesting.TestCodec(codecs, v1.SchemeGroupVersion)
+			}
+
+			// Convert the object to raw bytes
+			bytes, err := runtime.Encode(codec, obj)
+			if err != nil {
+				t.Errorf("Failed to encode object: %v", err)
+				return
+			}
+
+			// Set the bytes field on the RawExtension
+			r.Raw = bytes
+		},
+	}
+}
+
+func coreFuncs(t apitesting.TestingCommon) []interface{} {
+	return []interface{}{
 		func(q *resource.Quantity, c fuzz.Continue) {
 			*q = *resource.NewQuantity(c.Int63n(1000), resource.DecimalExponent)
-		},
-		func(j *runtime.TypeMeta, c fuzz.Continue) {
-			// We have to customize the randomization of TypeMetas because their
-			// APIVersion and Kind must remain blank in memory.
-			j.APIVersion = ""
-			j.Kind = ""
-		},
-		func(j *unversioned.TypeMeta, c fuzz.Continue) {
-			// We have to customize the randomization of TypeMetas because their
-			// APIVersion and Kind must remain blank in memory.
-			j.APIVersion = ""
-			j.Kind = ""
-		},
-		func(j *api.ObjectMeta, c fuzz.Continue) {
-			j.Name = c.RandString()
-			j.ResourceVersion = strconv.FormatUint(c.RandUint64(), 10)
-			j.SelfLink = c.RandString()
-			j.UID = types.UID(c.RandString())
-			j.GenerateName = c.RandString()
-
-			var sec, nsec int64
-			c.Fuzz(&sec)
-			c.Fuzz(&nsec)
-			j.CreationTimestamp = unversioned.Unix(sec, nsec).Rfc3339Copy()
 		},
 		func(j *api.ObjectReference, c fuzz.Continue) {
 			// We have to customize the randomization of TypeMetas because their
@@ -96,10 +107,6 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 			j.Name = c.RandString()
 			j.ResourceVersion = strconv.FormatUint(c.RandUint64(), 10)
 			j.FieldPath = c.RandString()
-		},
-		func(j *unversioned.ListMeta, c fuzz.Continue) {
-			j.ResourceVersion = strconv.FormatUint(c.RandUint64(), 10)
-			j.SelfLink = c.RandString()
 		},
 		func(j *api.ListOptions, c fuzz.Continue) {
 			label, _ := labels.Parse("a=b")
@@ -115,6 +122,14 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 			j.Stdout = true
 			j.Stderr = true
 		},
+		func(j *api.PodPortForwardOptions, c fuzz.Continue) {
+			if c.RandBool() {
+				j.Ports = make([]int32, c.Intn(10))
+				for i := range j.Ports {
+					j.Ports[i] = c.Int31n(65535)
+				}
+			}
+		},
 		func(s *api.PodSpec, c fuzz.Continue) {
 			c.FuzzNoCustom(s)
 			// has a default value
@@ -129,6 +144,12 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 			if s.SecurityContext == nil {
 				s.SecurityContext = new(api.PodSecurityContext)
 			}
+			if s.Affinity == nil {
+				s.Affinity = new(api.Affinity)
+			}
+			if s.SchedulerName == "" {
+				s.SchedulerName = api.DefaultSchedulerName
+			}
 		},
 		func(j *api.PodPhase, c fuzz.Continue) {
 			statuses := []api.PodPhase{api.PodPending, api.PodRunning, api.PodFailed, api.PodUnknown}
@@ -142,68 +163,11 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 			c.FuzzNoCustom(j) // fuzz self without calling this function again
 			//j.TemplateRef = nil // this is required for round trip
 		},
-		func(j *extensions.DeploymentStrategy, c fuzz.Continue) {
-			c.FuzzNoCustom(j) // fuzz self without calling this function again
-			// Ensure that strategyType is one of valid values.
-			strategyTypes := []extensions.DeploymentStrategyType{extensions.RecreateDeploymentStrategyType, extensions.RollingUpdateDeploymentStrategyType}
-			j.Type = strategyTypes[c.Rand.Intn(len(strategyTypes))]
-			if j.Type != extensions.RollingUpdateDeploymentStrategyType {
-				j.RollingUpdate = nil
-			} else {
-				rollingUpdate := extensions.RollingUpdateDeployment{}
-				if c.RandBool() {
-					rollingUpdate.MaxUnavailable = intstr.FromInt(int(c.RandUint64()))
-					rollingUpdate.MaxSurge = intstr.FromInt(int(c.RandUint64()))
-				} else {
-					rollingUpdate.MaxSurge = intstr.FromString(fmt.Sprintf("%d%%", c.RandUint64()))
-				}
-				j.RollingUpdate = &rollingUpdate
-			}
-		},
-		func(j *batch.JobSpec, c fuzz.Continue) {
-			c.FuzzNoCustom(j) // fuzz self without calling this function again
-			completions := int32(c.Rand.Int31())
-			parallelism := int32(c.Rand.Int31())
-			j.Completions = &completions
-			j.Parallelism = &parallelism
-			if c.Rand.Int31()%2 == 0 {
-				j.ManualSelector = newBool(true)
-			} else {
-				j.ManualSelector = nil
-			}
-		},
-		func(sj *batch.CronJobSpec, c fuzz.Continue) {
-			c.FuzzNoCustom(sj)
-			suspend := c.RandBool()
-			sj.Suspend = &suspend
-			sds := int64(c.RandUint64())
-			sj.StartingDeadlineSeconds = &sds
-			sj.Schedule = c.RandString()
-		},
-		func(cp *batch.ConcurrencyPolicy, c fuzz.Continue) {
-			policies := []batch.ConcurrencyPolicy{batch.AllowConcurrent, batch.ForbidConcurrent, batch.ReplaceConcurrent}
-			*cp = policies[c.Rand.Intn(len(policies))]
-		},
 		func(j *api.List, c fuzz.Continue) {
 			c.FuzzNoCustom(j) // fuzz self without calling this function again
 			// TODO: uncomment when round trip starts from a versioned object
 			if false { //j.Items == nil {
 				j.Items = []runtime.Object{}
-			}
-		},
-		func(j *runtime.Object, c fuzz.Continue) {
-			// TODO: uncomment when round trip starts from a versioned object
-			if true { //c.RandBool() {
-				*j = &runtime.Unknown{
-					// We do not set TypeMeta here because it is not carried through a round trip
-					Raw:         []byte(`{"apiVersion":"unknown.group/unknown","kind":"Something","someKey":"someValue"}`),
-					ContentType: runtime.ContentTypeJSON,
-				}
-			} else {
-				types := []runtime.Object{&api.Pod{}, &api.ReplicationController{}}
-				t := types[c.Rand.Intn(len(types))]
-				c.Fuzz(t)
-				*j = t
 			}
 		},
 		func(q *api.ResourceRequirements, c fuzz.Continue) {
@@ -270,6 +234,10 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 		func(s *api.SecretVolumeSource, c fuzz.Continue) {
 			c.FuzzNoCustom(s) // fuzz self without calling this function again
 
+			if c.RandBool() {
+				opt := c.RandBool()
+				s.Optional = &opt
+			}
 			// DefaultMode should always be set, it has a default
 			// value and it is expected to be between 0 and 0777
 			var mode int32
@@ -280,6 +248,10 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 		func(cm *api.ConfigMapVolumeSource, c fuzz.Continue) {
 			c.FuzzNoCustom(cm) // fuzz self without calling this function again
 
+			if c.RandBool() {
+				opt := c.RandBool()
+				cm.Optional = &opt
+			}
 			// DefaultMode should always be set, it has a default
 			// value and it is expected to be between 0 and 0777
 			var mode int32
@@ -296,6 +268,16 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 			c.Fuzz(&mode)
 			mode &= 0777
 			d.DefaultMode = &mode
+		},
+		func(s *api.ProjectedVolumeSource, c fuzz.Continue) {
+			c.FuzzNoCustom(s) // fuzz self without calling this function again
+
+			// DefaultMode should always be set, it has a default
+			// value and it is expected to be between 0 and 0777
+			var mode int32
+			c.Fuzz(&mode)
+			mode &= 0777
+			s.DefaultMode = &mode
 		},
 		func(k *api.KeyToPath, c fuzz.Continue) {
 			c.FuzzNoCustom(k) // fuzz self without calling this function again
@@ -339,9 +321,14 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 			types := []api.ServiceType{api.ServiceTypeClusterIP, api.ServiceTypeNodePort, api.ServiceTypeLoadBalancer}
 			*p = types[c.Rand.Intn(len(types))]
 		},
+		func(p *api.ServiceExternalTrafficPolicyType, c fuzz.Continue) {
+			types := []api.ServiceExternalTrafficPolicyType{api.ServiceExternalTrafficPolicyTypeCluster, api.ServiceExternalTrafficPolicyTypeLocal}
+			*p = types[c.Rand.Intn(len(types))]
+		},
 		func(ct *api.Container, c fuzz.Continue) {
 			c.FuzzNoCustom(ct)                                          // fuzz self without calling this function again
 			ct.TerminationMessagePath = "/" + ct.TerminationMessagePath // Must be non-empty
+			ct.TerminationMessagePolicy = "File"
 		},
 		func(p *api.Probe, c fuzz.Continue) {
 			c.FuzzNoCustom(p)
@@ -363,7 +350,7 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 				ev.ValueFrom = &api.EnvVarSource{}
 				ev.ValueFrom.FieldRef = &api.ObjectFieldSelector{}
 
-				var versions []unversioned.GroupVersion
+				var versions []schema.GroupVersion
 				for _, testGroup := range testapi.Groups {
 					versions = append(versions, *testGroup.GroupVersion())
 				}
@@ -371,6 +358,26 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 				ev.ValueFrom.FieldRef.APIVersion = versions[c.Rand.Intn(len(versions))].String()
 				ev.ValueFrom.FieldRef.FieldPath = c.RandString()
 			}
+		},
+		func(ev *api.EnvFromSource, c fuzz.Continue) {
+			if c.RandBool() {
+				ev.Prefix = "p_"
+			}
+			if c.RandBool() {
+				c.Fuzz(&ev.ConfigMapRef)
+			} else {
+				c.Fuzz(&ev.SecretRef)
+			}
+		},
+		func(cm *api.ConfigMapEnvSource, c fuzz.Continue) {
+			c.FuzzNoCustom(cm) // fuzz self without calling this function again
+			if c.RandBool() {
+				opt := c.RandBool()
+				cm.Optional = &opt
+			}
+		},
+		func(s *api.SecretEnvSource, c fuzz.Continue) {
+			c.FuzzNoCustom(s) // fuzz self without calling this function again
 		},
 		func(sc *api.SecurityContext, c fuzz.Continue) {
 			c.FuzzNoCustom(sc) // fuzz self without calling this function again
@@ -422,7 +429,11 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 		func(obj *api.AzureDiskVolumeSource, c fuzz.Continue) {
 			if obj.CachingMode == nil {
 				obj.CachingMode = new(api.AzureDataDiskCachingMode)
-				*obj.CachingMode = api.AzureDataDiskCachingNone
+				*obj.CachingMode = api.AzureDataDiskCachingReadWrite
+			}
+			if obj.Kind == nil {
+				obj.Kind = new(api.AzureDataDiskKind)
+				*obj.Kind = api.AzureSharedBlobDisk
 			}
 			if obj.FSType == nil {
 				obj.FSType = new(string)
@@ -431,6 +442,24 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 			if obj.ReadOnly == nil {
 				obj.ReadOnly = new(bool)
 				*obj.ReadOnly = false
+			}
+		},
+		func(sio *api.ScaleIOVolumeSource, c fuzz.Continue) {
+			sio.ProtectionDomain = c.RandString()
+			if sio.ProtectionDomain == "" {
+				sio.ProtectionDomain = "default"
+			}
+			sio.StoragePool = c.RandString()
+			if sio.StoragePool == "" {
+				sio.StoragePool = "default"
+			}
+			sio.StorageMode = c.RandString()
+			if sio.StorageMode == "" {
+				sio.StorageMode = "ThinProvisioned"
+			}
+			sio.FSType = c.RandString()
+			if sio.FSType == "" {
+				sio.FSType = "xfs"
 			}
 		},
 		func(s *api.NamespaceSpec, c fuzz.Continue) {
@@ -468,12 +497,35 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 			c.FuzzNoCustom(s)
 			s.Allocatable = s.Capacity
 		},
-		func(s *autoscaling.HorizontalPodAutoscalerSpec, c fuzz.Continue) {
-			c.FuzzNoCustom(s) // fuzz self without calling this function again
-			minReplicas := int32(c.Rand.Int31())
-			s.MinReplicas = &minReplicas
-			targetCpu := int32(c.RandUint64())
-			s.TargetCPUUtilizationPercentage = &targetCpu
+	}
+}
+
+func extensionFuncs(t apitesting.TestingCommon) []interface{} {
+	return []interface{}{
+		func(j *extensions.DeploymentSpec, c fuzz.Continue) {
+			c.FuzzNoCustom(j) // fuzz self without calling this function again
+			rhl := int32(c.Rand.Int31())
+			pds := int32(c.Rand.Int31())
+			j.RevisionHistoryLimit = &rhl
+			j.ProgressDeadlineSeconds = &pds
+		},
+		func(j *extensions.DeploymentStrategy, c fuzz.Continue) {
+			c.FuzzNoCustom(j) // fuzz self without calling this function again
+			// Ensure that strategyType is one of valid values.
+			strategyTypes := []extensions.DeploymentStrategyType{extensions.RecreateDeploymentStrategyType, extensions.RollingUpdateDeploymentStrategyType}
+			j.Type = strategyTypes[c.Rand.Intn(len(strategyTypes))]
+			if j.Type != extensions.RollingUpdateDeploymentStrategyType {
+				j.RollingUpdate = nil
+			} else {
+				rollingUpdate := extensions.RollingUpdateDeployment{}
+				if c.RandBool() {
+					rollingUpdate.MaxUnavailable = intstr.FromInt(int(c.Rand.Int31()))
+					rollingUpdate.MaxSurge = intstr.FromInt(int(c.Rand.Int31()))
+				} else {
+					rollingUpdate.MaxSurge = intstr.FromString(fmt.Sprintf("%d%%", c.Rand.Int31()))
+				}
+				j.RollingUpdate = &rollingUpdate
+			}
 		},
 		func(psp *extensions.PodSecurityPolicySpec, c fuzz.Continue) {
 			c.FuzzNoCustom(psp) // fuzz self without calling this function again
@@ -487,20 +539,149 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 			// TODO: Implement a fuzzer to generate valid keys, values and operators for
 			// selector requirements.
 			if s.Status.Selector != nil {
-				s.Status.Selector = &unversioned.LabelSelector{
+				s.Status.Selector = &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"testlabelkey": "testlabelval",
 					},
-					MatchExpressions: []unversioned.LabelSelectorRequirement{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
 							Key:      "testkey",
-							Operator: unversioned.LabelSelectorOpIn,
+							Operator: metav1.LabelSelectorOpIn,
 							Values:   []string{"val1", "val2", "val3"},
 						},
 					},
 				}
 			}
 		},
+		func(j *extensions.DaemonSetSpec, c fuzz.Continue) {
+			c.FuzzNoCustom(j) // fuzz self without calling this function again
+			rhl := int32(c.Rand.Int31())
+			j.RevisionHistoryLimit = &rhl
+		},
+		func(j *extensions.DaemonSetUpdateStrategy, c fuzz.Continue) {
+			c.FuzzNoCustom(j) // fuzz self without calling this function again
+			// Ensure that strategyType is one of valid values.
+			strategyTypes := []extensions.DaemonSetUpdateStrategyType{extensions.RollingUpdateDaemonSetStrategyType, extensions.OnDeleteDaemonSetStrategyType}
+			j.Type = strategyTypes[c.Rand.Intn(len(strategyTypes))]
+			if j.Type != extensions.RollingUpdateDaemonSetStrategyType {
+				j.RollingUpdate = nil
+			} else {
+				rollingUpdate := extensions.RollingUpdateDaemonSet{}
+				if c.RandBool() {
+					if c.RandBool() {
+						rollingUpdate.MaxUnavailable = intstr.FromInt(1 + int(c.Rand.Int31()))
+					} else {
+						rollingUpdate.MaxUnavailable = intstr.FromString(fmt.Sprintf("%d%%", 1+c.Rand.Int31()))
+					}
+				}
+				j.RollingUpdate = &rollingUpdate
+			}
+		},
+	}
+}
+
+func batchFuncs(t apitesting.TestingCommon) []interface{} {
+	return []interface{}{
+		func(j *batch.JobSpec, c fuzz.Continue) {
+			c.FuzzNoCustom(j) // fuzz self without calling this function again
+			completions := int32(c.Rand.Int31())
+			parallelism := int32(c.Rand.Int31())
+			j.Completions = &completions
+			j.Parallelism = &parallelism
+			if c.Rand.Int31()%2 == 0 {
+				j.ManualSelector = newBool(true)
+			} else {
+				j.ManualSelector = nil
+			}
+		},
+		func(sj *batch.CronJobSpec, c fuzz.Continue) {
+			c.FuzzNoCustom(sj)
+			suspend := c.RandBool()
+			sj.Suspend = &suspend
+			sds := int64(c.RandUint64())
+			sj.StartingDeadlineSeconds = &sds
+			sj.Schedule = c.RandString()
+			if hasSuccessLimit := c.RandBool(); hasSuccessLimit {
+				successfulJobsHistoryLimit := int32(c.Rand.Int31())
+				sj.SuccessfulJobsHistoryLimit = &successfulJobsHistoryLimit
+			}
+			if hasFailedLimit := c.RandBool(); hasFailedLimit {
+				failedJobsHistoryLimit := int32(c.Rand.Int31())
+				sj.FailedJobsHistoryLimit = &failedJobsHistoryLimit
+			}
+		},
+		func(cp *batch.ConcurrencyPolicy, c fuzz.Continue) {
+			policies := []batch.ConcurrencyPolicy{batch.AllowConcurrent, batch.ForbidConcurrent, batch.ReplaceConcurrent}
+			*cp = policies[c.Rand.Intn(len(policies))]
+		},
+	}
+}
+
+func autoscalingFuncs(t apitesting.TestingCommon) []interface{} {
+	return []interface{}{
+		func(s *autoscaling.HorizontalPodAutoscalerSpec, c fuzz.Continue) {
+			c.FuzzNoCustom(s) // fuzz self without calling this function again
+			minReplicas := int32(c.Rand.Int31())
+			s.MinReplicas = &minReplicas
+
+			randomQuantity := func() resource.Quantity {
+				var q resource.Quantity
+				c.Fuzz(&q)
+				// precalc the string for benchmarking purposes
+				_ = q.String()
+				return q
+			}
+
+			targetUtilization := int32(c.RandUint64())
+			s.Metrics = []autoscaling.MetricSpec{
+				{
+					Type: autoscaling.PodsMetricSourceType,
+					Pods: &autoscaling.PodsMetricSource{
+						MetricName:         c.RandString(),
+						TargetAverageValue: randomQuantity(),
+					},
+				},
+				{
+					Type: autoscaling.ResourceMetricSourceType,
+					Resource: &autoscaling.ResourceMetricSource{
+						Name: api.ResourceCPU,
+						TargetAverageUtilization: &targetUtilization,
+					},
+				},
+			}
+		},
+		func(s *autoscaling.HorizontalPodAutoscalerStatus, c fuzz.Continue) {
+			c.FuzzNoCustom(s) // fuzz self without calling this function again
+			randomQuantity := func() resource.Quantity {
+				var q resource.Quantity
+				c.Fuzz(&q)
+				// precalc the string for benchmarking purposes
+				_ = q.String()
+				return q
+			}
+			currentUtilization := int32(c.RandUint64())
+			s.CurrentMetrics = []autoscaling.MetricStatus{
+				{
+					Type: autoscaling.PodsMetricSourceType,
+					Pods: &autoscaling.PodsMetricStatus{
+						MetricName:          c.RandString(),
+						CurrentAverageValue: randomQuantity(),
+					},
+				},
+				{
+					Type: autoscaling.ResourceMetricSourceType,
+					Resource: &autoscaling.ResourceMetricStatus{
+						Name: api.ResourceCPU,
+						CurrentAverageUtilization: &currentUtilization,
+					},
+				},
+			}
+		},
+	}
+}
+
+func rbacFuncs(t apitesting.TestingCommon) []interface{} {
+	return []interface{}{
 		func(r *rbac.RoleRef, c fuzz.Continue) {
 			c.FuzzNoCustom(r) // fuzz self without calling this function again
 
@@ -509,89 +690,97 @@ func FuzzerFor(t *testing.T, version unversioned.GroupVersion, src rand.Source) 
 				r.APIGroup = rbac.GroupName
 			}
 		},
-		func(r *runtime.RawExtension, c fuzz.Continue) {
-			// Pick an arbitrary type and fuzz it
-			types := []runtime.Object{&api.Pod{}, &extensions.Deployment{}, &api.Service{}}
-			obj := types[c.Rand.Intn(len(types))]
-			c.Fuzz(obj)
-
-			// Find a codec for converting the object to raw bytes.  This is necessary for the
-			// api version and kind to be correctly set be serialization.
-			var codec runtime.Codec
-			switch obj.(type) {
-			case *api.Pod:
-				codec = testapi.Default.Codec()
-			case *extensions.Deployment:
-				codec = testapi.Extensions.Codec()
-			case *api.Service:
-				codec = testapi.Default.Codec()
-			default:
-				t.Errorf("Failed to find codec for object type: %T", obj)
-				return
+		func(r *rbac.Subject, c fuzz.Continue) {
+			switch c.Int31n(3) {
+			case 0:
+				r.Kind = rbac.ServiceAccountKind
+				r.APIGroup = ""
+				c.FuzzNoCustom(&r.Name)
+				c.FuzzNoCustom(&r.Namespace)
+			case 1:
+				r.Kind = rbac.UserKind
+				r.APIGroup = rbac.GroupName
+				c.FuzzNoCustom(&r.Name)
+				// user "*" won't round trip because we convert it to the system:authenticated group. try again.
+				for r.Name == "*" {
+					c.FuzzNoCustom(&r.Name)
+				}
+			case 2:
+				r.Kind = rbac.GroupKind
+				r.APIGroup = rbac.GroupName
+				c.FuzzNoCustom(&r.Name)
 			}
+		},
+	}
+}
 
-			// Convert the object to raw bytes
-			bytes, err := runtime.Encode(codec, obj)
-			if err != nil {
-				t.Errorf("Failed to encode object: %v", err)
-				return
+func appsFuncs(t apitesting.TestingCommon) []interface{} {
+	return []interface{}{
+		func(s *apps.StatefulSet, c fuzz.Continue) {
+			c.FuzzNoCustom(s) // fuzz self without calling this function again
+
+			// match defaulter
+			if len(s.Spec.PodManagementPolicy) == 0 {
+				s.Spec.PodManagementPolicy = apps.OrderedReadyPodManagement
 			}
-
-			// Set the bytes field on the RawExtension
-			r.Raw = bytes
+			if len(s.Spec.UpdateStrategy.Type) == 0 {
+				s.Spec.UpdateStrategy.Type = apps.RollingUpdateStatefulSetStrategyType
+			}
+			if s.Spec.RevisionHistoryLimit == nil {
+				s.Spec.RevisionHistoryLimit = new(int32)
+				*s.Spec.RevisionHistoryLimit = 10
+			}
 		},
-		func(obj *kubeadm.MasterConfiguration, c fuzz.Continue) {
-			c.FuzzNoCustom(obj)
-			obj.KubernetesVersion = "v10"
-			obj.API.BindPort = 20
-			obj.Discovery.BindPort = 20
-			obj.Networking.ServiceSubnet = "foo"
-			obj.Networking.DNSDomain = "foo"
-		},
-		func(obj *kubeadm.NodeConfiguration, c fuzz.Continue) {
-			c.FuzzNoCustom(obj)
-			obj.APIPort = 20
-			obj.DiscoveryPort = 20
-		},
+	}
+}
+func policyFuncs(t apitesting.TestingCommon) []interface{} {
+	return []interface{}{
 		func(s *policy.PodDisruptionBudgetStatus, c fuzz.Continue) {
 			c.FuzzNoCustom(s) // fuzz self without calling this function again
 			s.PodDisruptionsAllowed = int32(c.Rand.Intn(2))
 		},
-		func(scc *api.SecurityContextConstraints, c fuzz.Continue) {
-			c.FuzzNoCustom(scc) // fuzz self without calling this function again
-			userTypes := []api.RunAsUserStrategyType{api.RunAsUserStrategyMustRunAsNonRoot, api.RunAsUserStrategyMustRunAs, api.RunAsUserStrategyRunAsAny, api.RunAsUserStrategyMustRunAsRange}
-			scc.RunAsUser.Type = userTypes[c.Rand.Intn(len(userTypes))]
-			seLinuxTypes := []api.SELinuxContextStrategyType{api.SELinuxStrategyRunAsAny, api.SELinuxStrategyMustRunAs}
-			scc.SELinuxContext.Type = seLinuxTypes[c.Rand.Intn(len(seLinuxTypes))]
-			supGroupTypes := []api.SupplementalGroupsStrategyType{api.SupplementalGroupsStrategyMustRunAs, api.SupplementalGroupsStrategyRunAsAny}
-			scc.SupplementalGroups.Type = supGroupTypes[c.Rand.Intn(len(supGroupTypes))]
-			fsGroupTypes := []api.FSGroupStrategyType{api.FSGroupStrategyMustRunAs, api.FSGroupStrategyRunAsAny}
-			scc.FSGroup.Type = fsGroupTypes[c.Rand.Intn(len(fsGroupTypes))]
+	}
+}
 
-			// when fuzzing the volume types ensure it is set to avoid the defaulter's expansion.
-			// Do not use FSTypeAll or host dir setting to steer clear of defaulting mechanics
-			// which are covered in specific unit tests.
-			volumeTypes := []api.FSType{api.FSTypeAWSElasticBlockStore,
-				api.FSTypeAzureFile,
-				api.FSTypeCephFS,
-				api.FSTypeCinder,
-				api.FSTypeDownwardAPI,
-				api.FSTypeEmptyDir,
-				api.FSTypeFC,
-				api.FSTypeFlexVolume,
-				api.FSTypeFlocker,
-				api.FSTypeGCEPersistentDisk,
-				api.FSTypeGitRepo,
-				api.FSTypeGlusterfs,
-				api.FSTypeISCSI,
-				api.FSTypeNFS,
-				api.FSTypePersistentVolumeClaim,
-				api.FSTypeRBD,
-				api.FSTypeSecret}
-			scc.Volumes = []api.FSType{volumeTypes[c.Rand.Intn(len(volumeTypes))]}
+func certificateFuncs(t apitesting.TestingCommon) []interface{} {
+	return []interface{}{
+		func(obj *certificates.CertificateSigningRequestSpec, c fuzz.Continue) {
+			c.FuzzNoCustom(obj) // fuzz self without calling this function again
+			obj.Usages = []certificates.KeyUsage{certificates.UsageKeyEncipherment}
 		},
+	}
+}
+
+func admissionregistrationFuncs(t apitesting.TestingCommon) []interface{} {
+	return []interface{}{
+		func(obj *admissionregistration.ExternalAdmissionHook, c fuzz.Continue) {
+			c.FuzzNoCustom(obj) // fuzz self without calling this function again
+			p := admissionregistration.FailurePolicyType("Fail")
+			obj.FailurePolicy = &p
+		},
+		func(obj *admissionregistration.Initializer, c fuzz.Continue) {
+			c.FuzzNoCustom(obj) // fuzz self without calling this function again
+			p := admissionregistration.FailurePolicyType("Fail")
+			obj.FailurePolicy = &p
+		},
+	}
+}
+
+func FuzzerFuncs(t apitesting.TestingCommon, codecs runtimeserializer.CodecFactory) []interface{} {
+	return apitesting.MergeFuzzerFuncs(t,
+		apitesting.GenericFuzzerFuncs(t, codecs),
+		overrideGenericFuncs(t, codecs),
+		coreFuncs(t),
+		extensionFuncs(t),
+		appsFuncs(t),
+		batchFuncs(t),
+		autoscalingFuncs(t),
+		rbacFuncs(t),
+		kubeadmfuzzer.KubeadmFuzzerFuncs(t),
+		policyFuncs(t),
+		certificateFuncs(t),
+		admissionregistrationFuncs(t),
 	)
-	return f
 }
 
 func newBool(val bool) *bool {

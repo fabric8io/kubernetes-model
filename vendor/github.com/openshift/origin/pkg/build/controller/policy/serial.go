@@ -1,8 +1,9 @@
 package policy
 
 import (
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	buildclient "github.com/openshift/origin/pkg/build/client"
+	buildlister "github.com/openshift/origin/pkg/build/generated/listers/build/internalversion"
 	buildutil "github.com/openshift/origin/pkg/build/util"
 )
 
@@ -12,7 +13,7 @@ import (
 // created. This will produce consistent results, but block the build execution until the
 // previous builds are complete.
 type SerialPolicy struct {
-	BuildLister  buildclient.BuildLister
+	BuildLister  buildlister.BuildLister
 	BuildUpdater buildclient.BuildUpdater
 }
 
@@ -32,4 +33,9 @@ func (s *SerialPolicy) IsRunnable(build *buildapi.Build) (bool, error) {
 // OnComplete implements the RunPolicy interface.
 func (s *SerialPolicy) OnComplete(build *buildapi.Build) error {
 	return handleComplete(s.BuildLister, s.BuildUpdater, build)
+}
+
+// Handles returns true for the build run serial policy
+func (s *SerialPolicy) Handles(policy buildapi.BuildRunPolicy) bool {
+	return policy == buildapi.BuildRunPolicySerial
 }

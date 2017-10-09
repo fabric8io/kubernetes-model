@@ -7,15 +7,16 @@ import (
 	"net/url"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	osclient "github.com/openshift/origin/pkg/client"
 	configapilatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
 	"github.com/openshift/origin/pkg/diagnostics/types"
 
-	sdnapi "github.com/openshift/origin/pkg/sdn/api"
+	"github.com/openshift/origin/pkg/sdn"
 )
 
 const masterNotRunningAsANode = `Unable to find a node matching the cluster server IP.
@@ -61,7 +62,7 @@ func (d *MasterNode) CanRun() (bool, error) {
 			return false, types.DiagnosticError{ID: "DClu3008",
 				LogMessage: fmt.Sprintf("Master config provided but unable to parse: %s", masterErr), Cause: masterErr}
 		}
-		if !sdnapi.IsOpenShiftNetworkPlugin(masterCfg.NetworkConfig.NetworkPluginName) {
+		if !sdn.IsOpenShiftNetworkPlugin(masterCfg.NetworkConfig.NetworkPluginName) {
 			return false, errors.New(fmt.Sprintf("Network plugin does not require master to also run node: %s", masterCfg.NetworkConfig.NetworkPluginName))
 		}
 	}
@@ -82,7 +83,7 @@ func (d *MasterNode) CanRun() (bool, error) {
 func (d *MasterNode) Check() types.DiagnosticResult {
 	r := types.NewDiagnosticResult(MasterNodeName)
 
-	nodes, err := d.KubeClient.Core().Nodes().List(kapi.ListOptions{})
+	nodes, err := d.KubeClient.Core().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		r.Error("DClu3002", err, fmt.Sprintf(clientErrorGettingNodes, err))
 		return r

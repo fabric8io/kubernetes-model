@@ -6,40 +6,16 @@
 source "$(dirname "${BASH_SOURCE}")/../../hack/lib/init.sh"
 
 os::util::environment::use_sudo
-os::util::environment::setup_all_server_vars "test-extended-alternate-launches/"
+os::cleanup::tmpdir
+os::util::environment::setup_all_server_vars
 
-export EXTENDED_TEST_PATH="${OS_ROOT}/test/extended"
-
-function cleanup()
-{
-	out=$?
-	cleanup_openshift
-
-	# TODO(skuznets): un-hack this nonsense once traps are in a better state
-	if [[ -n "${JUNIT_REPORT_OUTPUT:-}" ]]; then
-		# get the jUnit output file into a workable state in case we crashed in
-		# the middle of testing something
-		os::test::junit::reconcile_output
-
-		# check that we didn't mangle jUnit output
-		os::test::junit::check_test_counters
-
-		# use the junitreport tool to generate us a report
-		os::util::ensure::built_binary_exists 'junitreport'
-
-		cat "${JUNIT_REPORT_OUTPUT}" \
-			| junitreport --type oscmd \
-			--suites nested \
-			--roots github.com/openshift/origin \
-			--output "${ARTIFACT_DIR}/report.xml"
-		cat "${ARTIFACT_DIR}/report.xml" | junitreport summarize
-	fi
-
-	os::log::info "Exiting"
-	exit $out
+function cleanup() {
+	return_code=$?
+	os::test::junit::generate_report
+	os::cleanup::all
+	os::util::describe_return_code "${return_code}"
+	exit "${return_code}"
 }
-
-trap "exit" INT TERM
 trap "cleanup" EXIT
 
 os::log::info "Starting server as distinct processes"
@@ -171,12 +147,12 @@ export KUBECONFIG="${ADMIN_KUBECONFIG}"
 # TODO this is copy/paste from hack/test-end-to-end.sh. We need to DRY
 if [[ -n "${USE_IMAGES:-}" ]]; then
   readonly JQSETPULLPOLICY='(.items[] | select(.kind == "DeploymentConfig") | .spec.template.spec.containers[0].imagePullPolicy) |= "IfNotPresent"'
-  os::cmd::expect_success "oadm registry --dry-run -o json --images='$USE_IMAGES' | jq '$JQSETPULLPOLICY' | oc create -f -"
+  os::cmd::expect_success "oc adm registry --dry-run -o json --images='$USE_IMAGES' | jq '$JQSETPULLPOLICY' | oc create -f -"
 else
-  os::cmd::expect_success "oadm registry"
+  os::cmd::expect_success "oc adm registry"
 fi
-os::cmd::expect_success 'oadm policy add-scc-to-user hostnetwork -z router'
-os::cmd::expect_success 'oadm router'
+os::cmd::expect_success 'oc adm policy add-scc-to-user hostnetwork -z router'
+os::cmd::expect_success 'oc adm router'
 
 os::test::junit::declare_suite_end
 

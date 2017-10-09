@@ -10,7 +10,7 @@ This process will create privileged containers which have full access to the hos
 
 If you are using a Salt based KUBERNETES\_PROVIDER (**gce**, **vagrant**, **aws**), you should make sure the creation of privileged containers via the API is enabled. Check `cluster/saltbase/pillar/privilege.sls`.
 
-DaemonSets must be enabled on your cluster. Instructions for enabling DaemonSet can be found [here](../../docs/api.md#enabling-the-extensions-group).
+DaemonSets must be enabled on your cluster. Instructions for enabling DaemonSet can be found [here](https://kubernetes.io/docs/api.md#enabling-the-extensions-group).
 
 ### Step 1: Configure New Relic Agent
 
@@ -136,6 +136,17 @@ spec:
 <!-- END MUNGE: EXAMPLE newrelic-daemonset.yaml -->
 
 The daemonset instructs Kubernetes to spawn pods on each node, mapping /dev/, /run/, /sys/, and /var/log to the container. It also maps the secrets we set up earlier to /etc/kube-newrelic/config, and sources them in the startup script, configuring the agent properly.
+
+#### DaemonSet customization
+
+- To include a custom hostname prefix (or other per-container environment variables that can be generated at run-time), you can modify the DaemonSet `command` value:
+
+```
+command: [ "bash", "-c", "source /etc/kube-newrelic/config && export NRSYSMOND_hostname=mycluster-$(hostname) && /usr/sbin/nrsysmond -E -F" ]
+```
+
+When the New Relic agent starts, `NRSYSMOND_hostname` is set using the output of `hostname` with `mycluster` prepended.
+
 
 ### Known issues
 

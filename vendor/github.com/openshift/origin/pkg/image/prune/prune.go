@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"time"
 
@@ -12,21 +13,24 @@ import (
 	"github.com/golang/glog"
 	gonum "github.com/gonum/graph"
 
+	kmeta "k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/resource"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	kerrors "k8s.io/kubernetes/pkg/util/errors"
-	"k8s.io/kubernetes/pkg/util/sets"
+	"k8s.io/kubernetes/pkg/client/retry"
 
 	"github.com/openshift/origin/pkg/api/graph"
 	kubegraph "github.com/openshift/origin/pkg/api/kubegraph/nodes"
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	buildgraph "github.com/openshift/origin/pkg/build/graph/nodes"
 	buildutil "github.com/openshift/origin/pkg/build/util"
 	"github.com/openshift/origin/pkg/client"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	deploygraph "github.com/openshift/origin/pkg/deploy/graph/nodes"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	imagegraph "github.com/openshift/origin/pkg/image/graph/nodes"
 )
 
@@ -68,23 +72,25 @@ type ImageDeleter interface {
 
 // ImageStreamDeleter knows how to remove an image reference from an image stream.
 type ImageStreamDeleter interface {
-	// DeleteImageStream removes all references to the image from the image
+	// GetImageStream returns a fresh copy of an image stream.
+	GetImageStream(stream *imageapi.ImageStream) (*imageapi.ImageStream, error)
+	// UpdateImageStream removes all references to the image from the image
 	// stream's status.tags. The updated image stream is returned.
-	DeleteImageStream(stream *imageapi.ImageStream, image *imageapi.Image, updatedTags []string) (*imageapi.ImageStream, error)
+	UpdateImageStream(stream *imageapi.ImageStream, image *imageapi.Image, updatedTags []string) (*imageapi.ImageStream, error)
 }
 
 // BlobDeleter knows how to delete a blob from the Docker registry.
 type BlobDeleter interface {
 	// DeleteBlob uses registryClient to ask the registry at registryURL
 	// to remove the blob.
-	DeleteBlob(registryClient *http.Client, registryURL, blob string) error
+	DeleteBlob(registryClient *http.Client, registryURL *url.URL, blob string) error
 }
 
 // LayerLinkDeleter knows how to delete a repository layer link from the Docker registry.
 type LayerLinkDeleter interface {
 	// DeleteLayerLink uses registryClient to ask the registry at registryURL to
 	// delete the repository layer link.
-	DeleteLayerLink(registryClient *http.Client, registryURL, repo, linkName string) error
+	DeleteLayerLink(registryClient *http.Client, registryURL *url.URL, repo, linkName string) error
 }
 
 // ManifestDeleter knows how to delete image manifest data for a repository from
@@ -92,7 +98,7 @@ type LayerLinkDeleter interface {
 type ManifestDeleter interface {
 	// DeleteManifest uses registryClient to ask the registry at registryURL to
 	// delete the repository's image manifest data.
-	DeleteManifest(registryClient *http.Client, registryURL, repo, manifest string) error
+	DeleteManifest(registryClient *http.Client, registryURL *url.URL, repo, manifest string) error
 }
 
 // PrunerOptions contains the fields used to initialize a new Pruner.
@@ -107,7 +113,6 @@ type PrunerOptions struct {
 	// will be considered as candidates for pruning.
 	PruneOverSizeLimit *bool
 	// AllImages considers all images for pruning, not just those pushed directly to the registry.
-	// Requires RegistryURL be set.
 	AllImages *bool
 	// Namespace to be pruned, if specified it should never remove Images.
 	Namespace string
@@ -137,8 +142,8 @@ type PrunerOptions struct {
 	DryRun bool
 	// RegistryClient is the http.Client to use when contacting the registry.
 	RegistryClient *http.Client
-	// RegistryURL is the URL for the registry.
-	RegistryURL string
+	// RegistryURL is the URL of the integrated Docker registry.
+	RegistryURL *url.URL
 }
 
 // Pruner knows how to prune istags, images, layers and image configs.
@@ -154,60 +159,11 @@ type Pruner interface {
 type pruner struct {
 	g              graph.Graph
 	algorithm      pruneAlgorithm
-	registryPinger registryPinger
 	registryClient *http.Client
-	registryURL    string
+	registryURL    *url.URL
 }
 
 var _ Pruner = &pruner{}
-
-// registryPinger performs a health check against a registry.
-type registryPinger interface {
-	// ping performs a health check against registry.
-	ping(registry string) error
-}
-
-// defaultRegistryPinger implements registryPinger.
-type defaultRegistryPinger struct {
-	client *http.Client
-}
-
-func (drp *defaultRegistryPinger) ping(registry string) error {
-	healthCheck := func(proto, registry string) error {
-		// TODO: `/healthz` route is deprecated by `/`; remove it in future versions
-		healthResponse, err := drp.client.Get(fmt.Sprintf("%s://%s/healthz", proto, registry))
-		if err != nil {
-			return err
-		}
-		defer healthResponse.Body.Close()
-
-		if healthResponse.StatusCode != http.StatusOK {
-			return fmt.Errorf("unexpected status code %d", healthResponse.StatusCode)
-		}
-
-		return nil
-	}
-
-	var err error
-	for _, proto := range []string{"https", "http"} {
-		glog.V(4).Infof("Trying %s for %s", proto, registry)
-		err = healthCheck(proto, registry)
-		if err == nil {
-			break
-		}
-		glog.V(4).Infof("Error with %s for %s: %v", proto, registry, err)
-	}
-
-	return err
-}
-
-// dryRunRegistryPinger implements registryPinger.
-type dryRunRegistryPinger struct {
-}
-
-func (*dryRunRegistryPinger) ping(registry string) error {
-	return nil
-}
 
 // NewPruner creates a Pruner.
 //
@@ -267,6 +223,7 @@ func NewPruner(options PrunerOptions) Pruner {
 	if options.PruneOverSizeLimit != nil {
 		algorithm.pruneOverSizeLimit = *options.PruneOverSizeLimit
 	}
+	algorithm.allImages = true
 	if options.AllImages != nil {
 		algorithm.allImages = *options.AllImages
 	}
@@ -281,17 +238,9 @@ func NewPruner(options PrunerOptions) Pruner {
 	addBuildsToGraph(g, options.Builds)
 	addDeploymentConfigsToGraph(g, options.DCs)
 
-	var rp registryPinger
-	if options.DryRun {
-		rp = &dryRunRegistryPinger{}
-	} else {
-		rp = &defaultRegistryPinger{options.RegistryClient}
-	}
-
 	return &pruner{
 		g:              g,
 		algorithm:      algorithm,
-		registryPinger: rp,
 		registryClient: options.RegistryClient,
 		registryURL:    options.RegistryURL,
 	}
@@ -321,7 +270,7 @@ func addImagesToGraph(g graph.Graph, images *imageapi.ImageList, algorithm prune
 			}
 		}
 
-		age := unversioned.Now().Sub(image.CreationTimestamp.Time)
+		age := metav1.Now().Sub(image.CreationTimestamp.Time)
 		if !algorithm.pruneOverSizeLimit && age < algorithm.keepYoungerThan {
 			glog.V(4).Infof("Image %q is younger than minimum pruning age, skipping (age=%v)", image.Name, age)
 			continue
@@ -362,18 +311,18 @@ func addImageStreamsToGraph(g graph.Graph, streams *imageapi.ImageStreamList, li
 	for i := range streams.Items {
 		stream := &streams.Items[i]
 
-		glog.V(4).Infof("Examining ImageStream %s/%s", stream.Namespace, stream.Name)
+		glog.V(4).Infof("Examining ImageStream %s", getName(stream))
 
 		// use a weak reference for old image revisions by default
 		oldImageRevisionReferenceKind := WeakReferencedImageEdgeKind
 
-		age := unversioned.Now().Sub(stream.CreationTimestamp.Time)
+		age := metav1.Now().Sub(stream.CreationTimestamp.Time)
 		if !algorithm.pruneOverSizeLimit && age < algorithm.keepYoungerThan {
 			// stream's age is below threshold - use a strong reference for old image revisions instead
 			oldImageRevisionReferenceKind = ReferencedImageEdgeKind
 		}
 
-		glog.V(4).Infof("Adding ImageStream %s/%s to graph", stream.Namespace, stream.Name)
+		glog.V(4).Infof("Adding ImageStream %s to graph", getName(stream))
 		isNode := imagegraph.EnsureImageStreamNode(g, stream)
 		imageStreamNode := isNode.(*imagegraph.ImageStreamNode)
 
@@ -400,7 +349,7 @@ func addImageStreamsToGraph(g graph.Graph, streams *imageapi.ImageStreamList, li
 					}
 				}
 
-				glog.V(4).Infof("Checking for existing strong reference from stream %s/%s to image %s", stream.Namespace, stream.Name, imageNode.Image.Name)
+				glog.V(4).Infof("Checking for existing strong reference from stream %s to image %s", getName(stream), imageNode.Image.Name)
 				if edge := g.Edge(imageStreamNode, imageNode); edge != nil && g.EdgeKinds(edge).Has(ReferencedImageEdgeKind) {
 					glog.V(4).Infof("Strong reference found")
 					continue
@@ -417,7 +366,7 @@ func addImageStreamsToGraph(g graph.Graph, streams *imageapi.ImageStreamList, li
 						continue
 					}
 
-					glog.V(4).Infof("Adding reference from stream %q to %s", stream.Name, cn.Describe())
+					glog.V(4).Infof("Adding reference from stream %s to %s", getName(stream), cn.Describe())
 					if cn.Type == imagegraph.ImageComponentTypeConfig {
 						g.AddEdge(imageStreamNode, s, ReferencedImageConfigEdgeKind)
 					} else {
@@ -432,10 +381,7 @@ func addImageStreamsToGraph(g graph.Graph, streams *imageapi.ImageStreamList, li
 // exceedsLimits checks if given image exceeds LimitRanges defined in ImageStream's namespace.
 func exceedsLimits(is *imageapi.ImageStream, image *imageapi.Image, limits map[string][]*kapi.LimitRange) bool {
 	limitRanges, ok := limits[is.Namespace]
-	if !ok {
-		return false
-	}
-	if len(limitRanges) == 0 {
+	if !ok || len(limitRanges) == 0 {
 		return false
 	}
 
@@ -455,8 +401,8 @@ func exceedsLimits(is *imageapi.ImageStream, image *imageapi.Image, limits map[s
 			}
 			if limitQuantity.Cmp(*imageSize) < 0 {
 				// image size is larger than the permitted limit range max size
-				glog.V(4).Infof("Image %s in stream %s/%s exceeds limit %s: %v vs %v",
-					image.Name, is.Namespace, is.Name, limitRange.Name, *imageSize, limitQuantity)
+				glog.V(4).Infof("Image %s in stream %s exceeds limit %s: %v vs %v",
+					image.Name, getName(is), limitRange.Name, *imageSize, limitQuantity)
 				return true
 			}
 		}
@@ -466,28 +412,26 @@ func exceedsLimits(is *imageapi.ImageStream, image *imageapi.Image, limits map[s
 
 // addPodsToGraph adds pods to the graph.
 //
-// A pod is only *excluded* from being added to the graph if its phase is not
-// pending or running and it is at least as old as the minimum age threshold
-// defined by algorithm.
-//
 // Edges are added to the graph from each pod to the images specified by that
 // pod's list of containers, as long as the image is managed by OpenShift.
 func addPodsToGraph(g graph.Graph, pods *kapi.PodList, algorithm pruneAlgorithm) {
 	for i := range pods.Items {
 		pod := &pods.Items[i]
 
-		glog.V(4).Infof("Examining pod %s/%s", pod.Namespace, pod.Name)
+		glog.V(4).Infof("Examining pod %s", getName(pod))
 
+		// A pod is only *excluded* from being added to the graph if its phase is not
+		// pending or running. Additionally, it has to be at least as old as the minimum
+		// age threshold defined by the algorithm.
 		if pod.Status.Phase != kapi.PodRunning && pod.Status.Phase != kapi.PodPending {
-			age := unversioned.Now().Sub(pod.CreationTimestamp.Time)
+			age := metav1.Now().Sub(pod.CreationTimestamp.Time)
 			if age >= algorithm.keepYoungerThan {
-				glog.V(4).Infof("Pod %s/%s is not running or pending and age is at least minimum pruning age - skipping", pod.Namespace, pod.Name)
-				// not pending or running, age is at least minimum pruning age, skip
+				glog.V(4).Infof("Pod %s is not running nor pending and age exceeds keepYoungerThan (%v) - skipping", getName(pod), age)
 				continue
 			}
 		}
 
-		glog.V(4).Infof("Adding pod %s/%s to graph", pod.Namespace, pod.Name)
+		glog.V(4).Infof("Adding pod %s to graph", getName(pod))
 		podNode := kubegraph.EnsurePodNode(g, pod)
 
 		addPodSpecToGraph(g, &pod.Spec, podNode)
@@ -533,7 +477,7 @@ func addPodSpecToGraph(g graph.Graph, spec *kapi.PodSpec, predecessor gonum.Node
 func addReplicationControllersToGraph(g graph.Graph, rcs *kapi.ReplicationControllerList) {
 	for i := range rcs.Items {
 		rc := &rcs.Items[i]
-		glog.V(4).Infof("Examining replication controller %s/%s", rc.Namespace, rc.Name)
+		glog.V(4).Infof("Examining replication controller %s", getName(rc))
 		rcNode := kubegraph.EnsureReplicationControllerNode(g, rc)
 		addPodSpecToGraph(g, &rc.Spec.Template.Spec, rcNode)
 	}
@@ -547,7 +491,7 @@ func addReplicationControllersToGraph(g graph.Graph, rcs *kapi.ReplicationContro
 func addDeploymentConfigsToGraph(g graph.Graph, dcs *deployapi.DeploymentConfigList) {
 	for i := range dcs.Items {
 		dc := &dcs.Items[i]
-		glog.V(4).Infof("Examining DeploymentConfig %s/%s", dc.Namespace, dc.Name)
+		glog.V(4).Infof("Examining DeploymentConfig %s", getName(dc))
 		dcNode := deploygraph.EnsureDeploymentConfigNode(g, dc)
 		addPodSpecToGraph(g, &dc.Spec.Template.Spec, dcNode)
 	}
@@ -559,7 +503,7 @@ func addDeploymentConfigsToGraph(g graph.Graph, dcs *deployapi.DeploymentConfigL
 func addBuildConfigsToGraph(g graph.Graph, bcs *buildapi.BuildConfigList) {
 	for i := range bcs.Items {
 		bc := &bcs.Items[i]
-		glog.V(4).Infof("Examining BuildConfig %s/%s", bc.Namespace, bc.Name)
+		glog.V(4).Infof("Examining BuildConfig %s", getName(bc))
 		bcNode := buildgraph.EnsureBuildConfigNode(g, bc)
 		addBuildStrategyImageReferencesToGraph(g, bc.Spec.Strategy, bcNode)
 	}
@@ -571,7 +515,7 @@ func addBuildConfigsToGraph(g graph.Graph, bcs *buildapi.BuildConfigList) {
 func addBuildsToGraph(g graph.Graph, builds *buildapi.BuildList) {
 	for i := range builds.Items {
 		build := &builds.Items[i]
-		glog.V(4).Infof("Examining build %s/%s", build.Namespace, build.Name)
+		glog.V(4).Infof("Examining build %s", getName(build))
 		buildNode := buildgraph.EnsureBuildNode(g, build)
 		addBuildStrategyImageReferencesToGraph(g, build.Spec.Strategy, buildNode)
 	}
@@ -635,6 +579,17 @@ func getImageNodes(nodes []gonum.Node) []*imagegraph.ImageNode {
 	return ret
 }
 
+// getImageStreamNodes returns only nodes of type ImageStreamNode.
+func getImageStreamNodes(nodes []gonum.Node) []*imagegraph.ImageStreamNode {
+	ret := []*imagegraph.ImageStreamNode{}
+	for i := range nodes {
+		if node, ok := nodes[i].(*imagegraph.ImageStreamNode); ok {
+			ret = append(ret, node)
+		}
+	}
+	return ret
+}
+
 // edgeKind returns true if the edge from "from" to "to" is of the desired kind.
 func edgeKind(g graph.Graph, from, to gonum.Node, desiredKind string) bool {
 	edge := g.Edge(from, to)
@@ -648,19 +603,15 @@ func edgeKind(g graph.Graph, from, to gonum.Node, desiredKind string) bool {
 // for a tag and the image stream is at least as old as the minimum pruning
 // age.
 func imageIsPrunable(g graph.Graph, imageNode *imagegraph.ImageNode) bool {
-	onlyWeakReferences := true
-
 	for _, n := range g.To(imageNode) {
 		glog.V(4).Infof("Examining predecessor %#v", n)
-		if !edgeKind(g, n, imageNode, WeakReferencedImageEdgeKind) {
+		if edgeKind(g, n, imageNode, ReferencedImageEdgeKind) {
 			glog.V(4).Infof("Strong reference detected")
-			onlyWeakReferences = false
-			break
+			return false
 		}
 	}
 
-	return onlyWeakReferences
-
+	return true
 }
 
 // calculatePrunableImages returns the list of prunable images and a
@@ -723,7 +674,7 @@ func calculatePrunableImageComponents(g graph.Graph) []*imagegraph.ImageComponen
 }
 
 // pruneStreams removes references from all image streams' status.tags entries
-// to prunable images, invoking streamPruner.DeleteImageStream for each updated
+// to prunable images, invoking streamPruner.UpdateImageStream for each updated
 // stream.
 func pruneStreams(g graph.Graph, imageNodes []*imagegraph.ImageNode, streamPruner ImageStreamDeleter) []error {
 	errs := []error{}
@@ -736,42 +687,49 @@ func pruneStreams(g graph.Graph, imageNodes []*imagegraph.ImageNode, streamPrune
 				continue
 			}
 
-			stream := streamNode.ImageStream
-			updatedTags := sets.NewString()
+			if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				stream, err := streamPruner.GetImageStream(streamNode.ImageStream)
+				if err != nil {
+					return err
+				}
+				updatedTags := sets.NewString()
 
-			glog.V(4).Infof("Checking if ImageStream %s/%s has references to image %s in status.tags", stream.Namespace, stream.Name, imageNode.Image.Name)
+				glog.V(4).Infof("Checking if ImageStream %s has references to image %s in status.tags", getName(stream), imageNode.Image.Name)
 
-			for tag, history := range stream.Status.Tags {
-				glog.V(4).Infof("Checking tag %q", tag)
+				for tag, history := range stream.Status.Tags {
+					glog.V(4).Infof("Checking tag %q", tag)
 
-				newHistory := imageapi.TagEventList{}
+					newHistory := imageapi.TagEventList{}
 
-				for i, tagEvent := range history.Items {
-					glog.V(4).Infof("Checking tag event %d with image %q", i, tagEvent.Image)
+					for i, tagEvent := range history.Items {
+						glog.V(4).Infof("Checking tag event %d with image %q", i, tagEvent.Image)
 
-					if tagEvent.Image != imageNode.Image.Name {
-						glog.V(4).Infof("Tag event doesn't match deleted image - keeping")
-						newHistory.Items = append(newHistory.Items, tagEvent)
+						if tagEvent.Image != imageNode.Image.Name {
+							glog.V(4).Infof("Tag event doesn't match deleted image - keeping")
+							newHistory.Items = append(newHistory.Items, tagEvent)
+						} else {
+							glog.V(4).Infof("Tag event matches deleted image - removing reference")
+							updatedTags.Insert(tag)
+						}
+					}
+					if len(newHistory.Items) == 0 {
+						glog.V(4).Infof("Removing tag %q from status.tags of ImageStream %s", tag, getName(stream))
+						delete(stream.Status.Tags, tag)
 					} else {
-						glog.V(4).Infof("Tag event matches deleted image - removing reference")
-						updatedTags.Insert(tag)
+						stream.Status.Tags[tag] = newHistory
 					}
 				}
-				if len(newHistory.Items) == 0 {
-					glog.V(4).Infof("Removing tag %q from status.tags of ImageStream %s/%s", tag, stream.Namespace, stream.Name)
-					delete(stream.Status.Tags, tag)
-				} else {
-					stream.Status.Tags[tag] = newHistory
-				}
-			}
 
-			updatedStream, err := streamPruner.DeleteImageStream(stream, imageNode.Image, updatedTags.List())
-			if err != nil {
-				errs = append(errs, fmt.Errorf("error pruning image from stream: %v", err))
+				updatedStream, err := streamPruner.UpdateImageStream(stream, imageNode.Image, updatedTags.List())
+				if err == nil {
+					streamNode.ImageStream = updatedStream
+				}
+				return err
+			}); err != nil {
+				errs = append(errs, fmt.Errorf("error removing image %s from stream %s: %v",
+					imageNode.Image.Name, getName(streamNode.ImageStream), err))
 				continue
 			}
-
-			streamNode.ImageStream = updatedStream
 		}
 	}
 	glog.V(4).Infof("Done removing pruned image references from streams")
@@ -784,32 +742,11 @@ func pruneImages(g graph.Graph, imageNodes []*imagegraph.ImageNode, imagePruner 
 
 	for _, imageNode := range imageNodes {
 		if err := imagePruner.DeleteImage(imageNode.Image); err != nil {
-			errs = append(errs, fmt.Errorf("error pruning image %q: %v", imageNode.Image.Name, err))
+			errs = append(errs, fmt.Errorf("error removing image %q: %v", imageNode.Image.Name, err))
 		}
 	}
 
 	return errs
-}
-
-func (p *pruner) determineRegistry(imageNodes []*imagegraph.ImageNode) (string, error) {
-	if len(p.registryURL) > 0 {
-		return p.registryURL, nil
-	}
-
-	// we only support a single internal registry, and all images have the same registry
-	// so we just take the 1st one and use it
-	pullSpec := imageNodes[0].Image.DockerImageReference
-
-	ref, err := imageapi.ParseDockerImageReference(pullSpec)
-	if err != nil {
-		return "", fmt.Errorf("unable to parse %q: %v", pullSpec, err)
-	}
-
-	if len(ref.Registry) == 0 {
-		return "", fmt.Errorf("%s does not include a registry", pullSpec)
-	}
-
-	return ref.Registry, nil
 }
 
 // Run identifies images eligible for pruning, invoking imagePruner for each image, and then it identifies
@@ -829,16 +766,6 @@ func (p *pruner) Prune(
 		return nil
 	}
 
-	registryURL, err := p.determineRegistry(imageNodes)
-	if err != nil {
-		return fmt.Errorf("unable to determine registry: %v", err)
-	}
-	glog.V(1).Infof("Using registry: %s", registryURL)
-
-	if err := p.registryPinger.ping(registryURL); err != nil {
-		return fmt.Errorf("error communicating with registry: %v", err)
-	}
-
 	prunableImageNodes, prunableImageIDs := calculatePrunableImages(p.g, imageNodes)
 
 	errs := []error{}
@@ -850,9 +777,9 @@ func (p *pruner) Prune(
 
 	graphWithoutPrunableImages := subgraphWithoutPrunableImages(p.g, prunableImageIDs)
 	prunableComponents := calculatePrunableImageComponents(graphWithoutPrunableImages)
-	errs = append(errs, pruneImageComponents(p.g, p.registryClient, registryURL, prunableComponents, layerLinkPruner)...)
-	errs = append(errs, pruneBlobs(p.g, p.registryClient, registryURL, prunableComponents, blobPruner)...)
-	errs = append(errs, pruneManifests(p.g, p.registryClient, registryURL, prunableImageNodes, manifestPruner)...)
+	errs = append(errs, pruneImageComponents(p.g, p.registryClient, p.registryURL, prunableComponents, layerLinkPruner)...)
+	errs = append(errs, pruneBlobs(p.g, p.registryClient, p.registryURL, prunableComponents, blobPruner)...)
+	errs = append(errs, pruneManifests(p.g, p.registryClient, p.registryURL, prunableImageNodes, manifestPruner)...)
 
 	if len(errs) > 0 {
 		// If we had any errors removing image references from image streams or deleting
@@ -897,7 +824,7 @@ func streamsReferencingImageComponent(g graph.Graph, cn *imagegraph.ImageCompone
 func pruneImageComponents(
 	g graph.Graph,
 	registryClient *http.Client,
-	registryURL string,
+	registryURL *url.URL,
 	imageComponents []*imagegraph.ImageComponentNode,
 	layerLinkDeleter LayerLinkDeleter,
 ) []error {
@@ -908,12 +835,10 @@ func pruneImageComponents(
 		streamNodes := streamsReferencingImageComponent(g, cn)
 
 		for _, streamNode := range streamNodes {
-			stream := streamNode.ImageStream
-			streamName := fmt.Sprintf("%s/%s", stream.Namespace, stream.Name)
-
-			glog.V(4).Infof("Pruning registry=%q, repo=%q, %s", registryURL, streamName, cn.Describe())
+			streamName := getName(streamNode.ImageStream)
+			glog.V(4).Infof("Pruning repository %s/%s: %s", registryURL.Host, streamName, cn.Describe())
 			if err := layerLinkDeleter.DeleteLayerLink(registryClient, registryURL, streamName, cn.Component); err != nil {
-				errs = append(errs, fmt.Errorf("error pruning layer link %s in repo %q: %v", cn.Component, streamName, err))
+				errs = append(errs, fmt.Errorf("error pruning layer link %s in the repository %s: %v", cn.Component, streamName, err))
 			}
 		}
 	}
@@ -926,16 +851,16 @@ func pruneImageComponents(
 func pruneBlobs(
 	g graph.Graph,
 	registryClient *http.Client,
-	registryURL string,
+	registryURL *url.URL,
 	componentNodes []*imagegraph.ImageComponentNode,
 	blobPruner BlobDeleter,
 ) []error {
 	errs := []error{}
 
 	for _, cn := range componentNodes {
-		glog.V(4).Infof("Pruning registry=%q, blob=%q", registryURL, cn.Component)
 		if err := blobPruner.DeleteBlob(registryClient, registryURL, cn.Component); err != nil {
-			errs = append(errs, fmt.Errorf("error pruning blob %q: %v", cn.Component, err))
+			errs = append(errs, fmt.Errorf("error removing blob %s from the registry %s: %v",
+				cn.Component, registryURL.Host, err))
 		}
 	}
 
@@ -944,7 +869,13 @@ func pruneBlobs(
 
 // pruneManifests invokes manifestPruner.DeleteManifest for each repository
 // manifest to be deleted from the registry.
-func pruneManifests(g graph.Graph, registryClient *http.Client, registryURL string, imageNodes []*imagegraph.ImageNode, manifestPruner ManifestDeleter) []error {
+func pruneManifests(
+	g graph.Graph,
+	registryClient *http.Client,
+	registryURL *url.URL,
+	imageNodes []*imagegraph.ImageNode,
+	manifestPruner ManifestDeleter,
+) []error {
 	errs := []error{}
 
 	for _, imageNode := range imageNodes {
@@ -954,12 +885,12 @@ func pruneManifests(g graph.Graph, registryClient *http.Client, registryURL stri
 				continue
 			}
 
-			stream := streamNode.ImageStream
-			repoName := fmt.Sprintf("%s/%s", stream.Namespace, stream.Name)
+			repoName := getName(streamNode.ImageStream)
 
-			glog.V(4).Infof("Pruning manifest for registry %q, repo %q, image %q", registryURL, repoName, imageNode.Image.Name)
+			glog.V(4).Infof("Pruning manifest %s in the repository %s/%s", imageNode.Image.Name, registryURL.Host, repoName)
 			if err := manifestPruner.DeleteManifest(registryClient, registryURL, repoName, imageNode.Image.Name); err != nil {
-				errs = append(errs, fmt.Errorf("error pruning manifest for registry %q, repo %q, image %q: %v", registryURL, repoName, imageNode.Image.Name, err))
+				errs = append(errs, fmt.Errorf("error pruning manifest %s in the repository %s/%s: %v",
+					imageNode.Image.Name, registryURL.Host, repoName, err))
 			}
 		}
 	}
@@ -1000,71 +931,59 @@ func NewImageStreamDeleter(streams client.ImageStreamsNamespacer) ImageStreamDel
 	}
 }
 
-func (p *imageStreamDeleter) DeleteImageStream(stream *imageapi.ImageStream, image *imageapi.Image, updatedTags []string) (*imageapi.ImageStream, error) {
-	glog.V(4).Infof("Updating ImageStream %s/%s", stream.Namespace, stream.Name)
-	glog.V(5).Infof("Updated stream: %#v", stream)
-	return p.streams.ImageStreams(stream.Namespace).UpdateStatus(stream)
+func (p *imageStreamDeleter) GetImageStream(stream *imageapi.ImageStream) (*imageapi.ImageStream, error) {
+	return p.streams.ImageStreams(stream.Namespace).Get(stream.Name, metav1.GetOptions{})
+}
+
+func (p *imageStreamDeleter) UpdateImageStream(stream *imageapi.ImageStream, image *imageapi.Image, updatedTags []string) (*imageapi.ImageStream, error) {
+	glog.V(4).Infof("Updating ImageStream %s", getName(stream))
+	is, err := p.streams.ImageStreams(stream.Namespace).UpdateStatus(stream)
+	if err == nil {
+		glog.V(5).Infof("Updated ImageStream: %#v", is)
+	}
+	return is, err
 }
 
 // deleteFromRegistry uses registryClient to send a DELETE request to the
 // provided url. It attempts an https request first; if that fails, it fails
 // back to http.
 func deleteFromRegistry(registryClient *http.Client, url string) error {
-	deleteFunc := func(proto, url string) error {
-		req, err := http.NewRequest("DELETE", url, nil)
-		if err != nil {
-			glog.Errorf("Error creating request: %v", err)
-			return fmt.Errorf("error creating request: %v", err)
-		}
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return err
+	}
 
-		glog.V(4).Infof("Sending request to registry")
-		resp, err := registryClient.Do(req)
-		if err != nil {
-			return fmt.Errorf("error sending request: %v", err)
-		}
-		defer resp.Body.Close()
+	glog.V(5).Infof(`Sending request "%s %s" to the registry`, req.Method, req.URL.String())
+	resp, err := registryClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
 
-		// TODO: investigate why we're getting non-existent layers, for now we're logging
-		// them out and continue working
-		if resp.StatusCode == http.StatusNotFound {
-			glog.Warningf("Unable to prune layer %s, returned %v", url, resp.Status)
-			return nil
-		}
-		// non-2xx/3xx response doesn't cause an error, so we need to check for it
-		// manually and return it to caller
-		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusBadRequest {
-			return fmt.Errorf(resp.Status)
-		}
-		if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusAccepted {
-			glog.V(1).Infof("Unexpected status code in response: %d", resp.StatusCode)
-			var response errcode.Errors
-			decoder := json.NewDecoder(resp.Body)
-			if err := decoder.Decode(&response); err != nil {
-				return err
-			}
-			glog.V(1).Infof("Response: %#v", response)
-			return &response
-		}
-
+	// TODO: investigate why we're getting non-existent layers, for now we're logging
+	// them out and continue working
+	if resp.StatusCode == http.StatusNotFound {
+		glog.Warningf("Unable to prune layer %s, returned %v", url, resp.Status)
 		return nil
 	}
 
-	var err error
-	for _, proto := range []string{"https", "http"} {
-		glog.V(4).Infof("Trying %s for %s", proto, url)
-		err = deleteFunc(proto, fmt.Sprintf("%s://%s", proto, url))
-		if err == nil {
-			return nil
-		}
+	// non-2xx/3xx response doesn't cause an error, so we need to check for it
+	// manually and return it to caller
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusBadRequest {
+		return fmt.Errorf(resp.Status)
+	}
 
-		if _, ok := err.(*errcode.Errors); ok {
-			// we got a response back from the registry, so return it
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusAccepted {
+		glog.V(1).Infof("Unexpected status code in response: %d", resp.StatusCode)
+		var response errcode.Errors
+		decoder := json.NewDecoder(resp.Body)
+		if err := decoder.Decode(&response); err != nil {
 			return err
 		}
-
-		// we didn't get a success or a errcode.Errors response back from the registry
-		glog.V(4).Infof("Error with %s for %s: %v", proto, url, err)
+		glog.V(1).Infof("Response: %#v", response)
+		return &response
 	}
+
 	return err
 }
 
@@ -1078,9 +997,9 @@ func NewLayerLinkDeleter() LayerLinkDeleter {
 	return &layerLinkDeleter{}
 }
 
-func (p *layerLinkDeleter) DeleteLayerLink(registryClient *http.Client, registryURL, repoName, linkName string) error {
-	glog.V(4).Infof("Pruning registry %q, repo %q, layer link %q", registryURL, repoName, linkName)
-	return deleteFromRegistry(registryClient, fmt.Sprintf("%s/v2/%s/blobs/%s", registryURL, repoName, linkName))
+func (p *layerLinkDeleter) DeleteLayerLink(registryClient *http.Client, registryURL *url.URL, repoName, linkName string) error {
+	glog.V(4).Infof("Deleting layer link %s from repository %s/%s", linkName, registryURL.Host, repoName)
+	return deleteFromRegistry(registryClient, fmt.Sprintf("%s/v2/%s/blobs/%s", registryURL.String(), repoName, linkName))
 }
 
 // blobDeleter removes a blob from the registry.
@@ -1093,9 +1012,9 @@ func NewBlobDeleter() BlobDeleter {
 	return &blobDeleter{}
 }
 
-func (p *blobDeleter) DeleteBlob(registryClient *http.Client, registryURL, blob string) error {
-	glog.V(4).Infof("Pruning registry %q, blob %q", registryURL, blob)
-	return deleteFromRegistry(registryClient, fmt.Sprintf("%s/admin/blobs/%s", registryURL, blob))
+func (p *blobDeleter) DeleteBlob(registryClient *http.Client, registryURL *url.URL, blob string) error {
+	glog.V(4).Infof("Deleting blob %s from registry %s", blob, registryURL.Host)
+	return deleteFromRegistry(registryClient, fmt.Sprintf("%s/admin/blobs/%s", registryURL.String(), blob))
 }
 
 // manifestDeleter deletes repository manifest data from the registry.
@@ -1108,7 +1027,16 @@ func NewManifestDeleter() ManifestDeleter {
 	return &manifestDeleter{}
 }
 
-func (p *manifestDeleter) DeleteManifest(registryClient *http.Client, registryURL, repoName, manifest string) error {
-	glog.V(4).Infof("Pruning manifest for registry %q, repo %q, manifest %q", registryURL, repoName, manifest)
-	return deleteFromRegistry(registryClient, fmt.Sprintf("%s/v2/%s/manifests/%s", registryURL, repoName, manifest))
+func (p *manifestDeleter) DeleteManifest(registryClient *http.Client, registryURL *url.URL, repoName, manifest string) error {
+	glog.V(4).Infof("Deleting manifest %s from repository %s/%s", manifest, registryURL.Host, repoName)
+	return deleteFromRegistry(registryClient, fmt.Sprintf("%s/v2/%s/manifests/%s", registryURL.String(), repoName, manifest))
+}
+
+func getName(obj runtime.Object) string {
+	accessor, err := kmeta.Accessor(obj)
+	if err != nil {
+		glog.V(4).Infof("Error getting accessor for %#v", obj)
+		return "<unknown>"
+	}
+	return fmt.Sprintf("%s/%s", accessor.GetNamespace(), accessor.GetName())
 }

@@ -7,15 +7,15 @@ import (
 	"github.com/golang/glog"
 	lru "github.com/hashicorp/golang-lru"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/watch"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
-	"k8s.io/kubernetes/pkg/util/sets"
-	"k8s.io/kubernetes/pkg/watch"
 
-	"github.com/openshift/origin/pkg/client"
-	routeapi "github.com/openshift/origin/pkg/route/api"
+	routeapi "github.com/openshift/origin/pkg/route/apis/route"
+	client "github.com/openshift/origin/pkg/route/generated/internalclientset/typed/route/internalversion"
 	"github.com/openshift/origin/pkg/router"
 )
 
@@ -27,7 +27,7 @@ type RejectionRecorder interface {
 // StatusAdmitter ensures routes added to the plugin have status set.
 type StatusAdmitter struct {
 	plugin                  router.Plugin
-	client                  client.RoutesNamespacer
+	client                  client.RoutesGetter
 	routerName              string
 	routerCanonicalHostname string
 
@@ -39,7 +39,7 @@ type StatusAdmitter struct {
 // route has a status field set that matches this router. The admitter manages
 // an LRU of recently seen conflicting updates to handle when two router processes
 // with differing configurations are writing updates at the same time.
-func NewStatusAdmitter(plugin router.Plugin, client client.RoutesNamespacer, name, hostName string) *StatusAdmitter {
+func NewStatusAdmitter(plugin router.Plugin, client client.RoutesGetter, name, hostName string) *StatusAdmitter {
 	expected, _ := lru.New(1024)
 	return &StatusAdmitter{
 		plugin:                  plugin,
@@ -54,8 +54,8 @@ func NewStatusAdmitter(plugin router.Plugin, client client.RoutesNamespacer, nam
 
 // Return a time truncated to the second to ensure that in-memory and
 // serialized timestamps can be safely compared.
-func getRfc3339Timestamp() unversioned.Time {
-	return unversioned.Now().Rfc3339Copy()
+func getRfc3339Timestamp() metav1.Time {
+	return metav1.Now().Rfc3339Copy()
 }
 
 // nowFn allows the package to be tested
@@ -133,8 +133,8 @@ func setIngressCondition(ingress *routeapi.RouteIngress, condition routeapi.Rout
 	return true
 }
 
-func ingressConditionTouched(ingress *routeapi.RouteIngress) *unversioned.Time {
-	var lastTouch *unversioned.Time
+func ingressConditionTouched(ingress *routeapi.RouteIngress) *metav1.Time {
+	var lastTouch *metav1.Time
 	for _, condition := range ingress.Conditions {
 		if t := condition.LastTransitionTime; t != nil {
 			switch {
@@ -148,7 +148,7 @@ func ingressConditionTouched(ingress *routeapi.RouteIngress) *unversioned.Time {
 
 // recordIngressConditionFailure updates the matching ingress on the route (or adds a new one) with the specified
 // condition, returning true if the object was modified.
-func recordIngressConditionFailure(route *routeapi.Route, name, hostName string, condition routeapi.RouteIngressCondition) (*routeapi.RouteIngress, bool, *unversioned.Time) {
+func recordIngressConditionFailure(route *routeapi.Route, name, hostName string, condition routeapi.RouteIngressCondition) (*routeapi.RouteIngress, bool, *metav1.Time) {
 	for i := range route.Status.Ingress {
 		existing := &route.Status.Ingress[i]
 		if existing.RouterName != name {
@@ -175,7 +175,7 @@ func recordIngressConditionFailure(route *routeapi.Route, name, hostName string,
 }
 
 // hasIngressBeenTouched returns true if the route appears to have been touched since the last time
-func (a *StatusAdmitter) hasIngressBeenTouched(route *routeapi.Route, lastTouch *unversioned.Time) bool {
+func (a *StatusAdmitter) hasIngressBeenTouched(route *routeapi.Route, lastTouch *metav1.Time) bool {
 	glog.V(4).Infof("has last touch %v for %s/%s", lastTouch, route.Namespace, route.Name)
 	if lastTouch.IsZero() {
 		return false
@@ -200,7 +200,7 @@ func (a *StatusAdmitter) hasIngressBeenTouched(route *routeapi.Route, lastTouch 
 // recordIngressTouch tracks whether the ingress record updated succeeded and returns true if the admitter can
 // continue. Conflict errors are treated as no error, but indicate the touch was not successful and the caller
 // should retry.
-func (a *StatusAdmitter) recordIngressTouch(route *routeapi.Route, touch *unversioned.Time, oldTouch *unversioned.Time, err error) (bool, error) {
+func (a *StatusAdmitter) recordIngressTouch(route *routeapi.Route, touch *metav1.Time, oldTouch *metav1.Time, err error) (bool, error) {
 	switch {
 	case err == nil:
 		if touch != nil {
@@ -227,7 +227,7 @@ func (a *StatusAdmitter) recordIngressTouch(route *routeapi.Route, touch *unvers
 // admitRoute returns true if the route has already been accepted to this router, or
 // updates the route to contain an accepted condition. Returns an error if the route could
 // not be admitted due to a failure, or false if the route can't be admitted at this time.
-func (a *StatusAdmitter) admitRoute(oc client.RoutesNamespacer, route *routeapi.Route, name, hostName string) (bool, error) {
+func (a *StatusAdmitter) admitRoute(oc client.RoutesGetter, route *routeapi.Route, name, hostName string) (bool, error) {
 	ingress, updated := findOrCreateIngress(route, name, hostName)
 
 	// keep lastTouch around

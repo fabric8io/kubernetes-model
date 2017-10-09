@@ -5,84 +5,63 @@ import (
 	"strconv"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apiserver/pkg/authentication/user"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/auth/user"
+	"k8s.io/kubernetes/pkg/apis/rbac"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
-	"k8s.io/kubernetes/pkg/util/sets"
-
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
-	"github.com/openshift/origin/pkg/client"
+	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
+	authorizationlister "k8s.io/kubernetes/pkg/client/listers/rbac/internalversion"
+	"k8s.io/kubernetes/pkg/controller"
 )
 
-// MockPolicyClient implements the PolicyCache interface for testing
-type MockPolicyClient struct{}
+type MockRoleGetter struct{}
 
-// Following methods enable the MockPolicyClient to implement the PolicyCache interface
-
-// Policies gives access to a read-only policy interface
-func (this *MockPolicyClient) Policies(namespace string) client.PolicyLister {
-	return MockPolicyGetter{}
+func (m MockRoleGetter) Get(name string) (*rbac.Role, error) {
+	return &rbac.Role{}, nil
 }
-
-type MockPolicyGetter struct{}
-
-func (this MockPolicyGetter) List(options kapi.ListOptions) (*authorizationapi.PolicyList, error) {
-	return &authorizationapi.PolicyList{}, nil
+func (m MockRoleGetter) List(labels.Selector) ([]*rbac.Role, error) {
+	return nil, nil
 }
-
-func (this MockPolicyGetter) Get(name string) (*authorizationapi.Policy, error) {
-	return &authorizationapi.Policy{}, nil
+func (m MockRoleGetter) Roles(namespace string) authorizationlister.RoleNamespaceLister {
+	return m
 }
+func (m MockRoleGetter) LastSyncResourceVersion() string { return "" }
 
-// ClusterPolicies gives access to a read-only cluster policy interface
-func (this *MockPolicyClient) ClusterPolicies() client.ClusterPolicyLister {
-	return MockClusterPolicyGetter{}
+type MockClusterRoleGetter struct{}
+
+func (m MockClusterRoleGetter) List(labels.Selector) ([]*rbac.ClusterRole, error) {
+	return nil, nil
 }
-
-type MockClusterPolicyGetter struct{}
-
-func (this MockClusterPolicyGetter) List(options kapi.ListOptions) (*authorizationapi.ClusterPolicyList, error) {
-	return &authorizationapi.ClusterPolicyList{}, nil
+func (m MockClusterRoleGetter) Get(name string) (*rbac.ClusterRole, error) {
+	return &rbac.ClusterRole{}, nil
 }
+func (m MockClusterRoleGetter) LastSyncResourceVersion() string { return "" }
 
-func (this MockClusterPolicyGetter) Get(name string) (*authorizationapi.ClusterPolicy, error) {
-	return &authorizationapi.ClusterPolicy{}, nil
+type MockRoleBindingGetter struct{}
+
+func (m MockRoleBindingGetter) Get(name string) (*rbac.RoleBinding, error) {
+	return &rbac.RoleBinding{}, nil
 }
-
-// PolicyBindings gives access to a read-only policy binding interface
-func (this *MockPolicyClient) PolicyBindings(namespace string) client.PolicyBindingLister {
-	return MockPolicyBindingGetter{}
+func (m MockRoleBindingGetter) List(labels.Selector) ([]*rbac.RoleBinding, error) {
+	return nil, nil
 }
-
-type MockPolicyBindingGetter struct{}
-
-func (this MockPolicyBindingGetter) List(options kapi.ListOptions) (*authorizationapi.PolicyBindingList, error) {
-	return &authorizationapi.PolicyBindingList{}, nil
+func (m MockRoleBindingGetter) RoleBindings(namespace string) authorizationlister.RoleBindingNamespaceLister {
+	return m
 }
+func (m MockRoleBindingGetter) LastSyncResourceVersion() string { return "" }
 
-func (this MockPolicyBindingGetter) Get(name string) (*authorizationapi.PolicyBinding, error) {
-	return &authorizationapi.PolicyBinding{}, nil
+type MockClusterRoleBindingGetter struct{}
+
+func (m MockClusterRoleBindingGetter) List(labels.Selector) ([]*rbac.ClusterRoleBinding, error) {
+	return nil, nil
 }
-
-// ClusterPolicyBindings gives access to a read-only cluster policy binding interface
-func (this *MockPolicyClient) ClusterPolicyBindings() client.ClusterPolicyBindingLister {
-	return MockClusterPolicyBindingGetter{}
+func (m MockClusterRoleBindingGetter) Get(name string) (*rbac.ClusterRoleBinding, error) {
+	return &rbac.ClusterRoleBinding{}, nil
 }
-
-type MockClusterPolicyBindingGetter struct{}
-
-func (this MockClusterPolicyBindingGetter) List(options kapi.ListOptions) (*authorizationapi.ClusterPolicyBindingList, error) {
-	return &authorizationapi.ClusterPolicyBindingList{}, nil
-}
-
-func (this MockClusterPolicyBindingGetter) Get(name string) (*authorizationapi.ClusterPolicyBinding, error) {
-	return &authorizationapi.ClusterPolicyBinding{}, nil
-}
-
-// LastSyncResourceVersion returns the resource version for the last sync performed
-func (this *MockPolicyClient) LastSyncResourceVersion() string {
-	return ""
-}
+func (m MockClusterRoleBindingGetter) LastSyncResourceVersion() string { return "" }
 
 // mockReview implements the Review interface for test cases
 type mockReview struct {
@@ -161,13 +140,13 @@ func TestSyncNamespace(t *testing.T) {
 	namespaceList := kapi.NamespaceList{
 		Items: []kapi.Namespace{
 			{
-				ObjectMeta: kapi.ObjectMeta{Name: "foo", ResourceVersion: "1"},
+				ObjectMeta: metav1.ObjectMeta{Name: "foo", ResourceVersion: "1"},
 			},
 			{
-				ObjectMeta: kapi.ObjectMeta{Name: "bar", ResourceVersion: "2"},
+				ObjectMeta: metav1.ObjectMeta{Name: "bar", ResourceVersion: "2"},
 			},
 			{
-				ObjectMeta: kapi.ObjectMeta{Name: "car", ResourceVersion: "3"},
+				ObjectMeta: metav1.ObjectMeta{Name: "car", ResourceVersion: "3"},
 			},
 		},
 	}
@@ -190,9 +169,13 @@ func TestSyncNamespace(t *testing.T) {
 		},
 	}
 
-	mockPolicyCache := &MockPolicyClient{}
+	informers := informers.NewSharedInformerFactory(mockKubeClient, controller.NoResyncPeriodFunc())
 
-	authorizationCache := NewAuthorizationCache(reviewer, mockKubeClient.Core().Namespaces(), mockPolicyCache, mockPolicyCache, mockPolicyCache, mockPolicyCache)
+	authorizationCache := NewAuthorizationCache(
+		informers.Core().InternalVersion().Namespaces().Informer(),
+		reviewer,
+		informers.Rbac().InternalVersion(),
+	)
 	// we prime the data we need here since we are not running reflectors
 	for i := range namespaceList.Items {
 		authorizationCache.namespaceStore.Add(&namespaceList.Items[i])

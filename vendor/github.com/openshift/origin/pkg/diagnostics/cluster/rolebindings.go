@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	kerrs "k8s.io/kubernetes/pkg/api/errors"
+	kerrs "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	osclient "github.com/openshift/origin/pkg/client"
-	policycmd "github.com/openshift/origin/pkg/cmd/admin/policy"
 	"github.com/openshift/origin/pkg/diagnostics/types"
+	policycmd "github.com/openshift/origin/pkg/oc/admin/policy"
 )
 
 // ClusterRoleBindings is a Diagnostic to check that the default cluster role bindings match expectations
@@ -55,7 +56,7 @@ func (d *ClusterRoleBindings) Check() types.DiagnosticResult {
 		RoleBindingClient: d.ClusterRoleBindingsClient.ClusterRoleBindings(),
 	}
 
-	changedClusterRoleBindings, err := reconcileOptions.ChangedClusterRoleBindings()
+	changedClusterRoleBindings, _, err := reconcileOptions.ChangedClusterRoleBindings()
 	if policycmd.IsClusterRoleBindingLookupError(err) {
 		// we got a partial match, so we log the error that stopped us from getting a full match
 		// but continue to interpret the partial results that we did get
@@ -71,9 +72,9 @@ func (d *ClusterRoleBindings) Check() types.DiagnosticResult {
 	}
 
 	for _, changedClusterRoleBinding := range changedClusterRoleBindings {
-		actualClusterRole, err := d.ClusterRoleBindingsClient.ClusterRoleBindings().Get(changedClusterRoleBinding.Name)
+		actualClusterRole, err := d.ClusterRoleBindingsClient.ClusterRoleBindings().Get(changedClusterRoleBinding.Name, metav1.GetOptions{})
 		if kerrs.IsNotFound(err) {
-			r.Error("CRBD1001", nil, fmt.Sprintf("clusterrolebinding/%s is missing.\n\nUse the `oadm policy reconcile-cluster-role-bindings` command to create the role binding.", changedClusterRoleBinding.Name))
+			r.Error("CRBD1001", nil, fmt.Sprintf("clusterrolebinding/%s is missing.\n\nUse the `oc adm policy reconcile-cluster-role-bindings` command to create the role binding.", changedClusterRoleBinding.Name))
 			continue
 		}
 		if err != nil {
@@ -84,10 +85,10 @@ func (d *ClusterRoleBindings) Check() types.DiagnosticResult {
 		switch {
 		case len(missingSubjects) > 0:
 			// Only a warning, because they can remove things like self-provisioner role from system:unauthenticated, and it's not an error
-			r.Warn("CRBD1003", nil, fmt.Sprintf("clusterrolebinding/%s is missing expected subjects.\n\nUse the `oadm policy reconcile-cluster-role-bindings` command to update the role binding to include expected subjects.", changedClusterRoleBinding.Name))
+			r.Warn("CRBD1003", nil, fmt.Sprintf("clusterrolebinding/%s is missing expected subjects.\n\nUse the `oc adm policy reconcile-cluster-role-bindings` command to update the role binding to include expected subjects.", changedClusterRoleBinding.Name))
 		case len(extraSubjects) > 0:
 			// Only info, because it is normal to use policy to grant cluster roles to users
-			r.Info("CRBD1004", fmt.Sprintf("clusterrolebinding/%s has more subjects than expected.\n\nUse the `oadm policy reconcile-cluster-role-bindings` command to update the role binding to remove extra subjects.", changedClusterRoleBinding.Name))
+			r.Info("CRBD1004", fmt.Sprintf("clusterrolebinding/%s has more subjects than expected.\n\nUse the `oc adm policy reconcile-cluster-role-bindings` command to update the role binding to remove extra subjects.", changedClusterRoleBinding.Name))
 		}
 
 		for _, missingSubject := range missingSubjects {

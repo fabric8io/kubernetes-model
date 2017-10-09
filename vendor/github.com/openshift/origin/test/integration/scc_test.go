@@ -3,20 +3,20 @@ package integration
 import (
 	"testing"
 
+	kapierror "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
-	kapierror "k8s.io/kubernetes/pkg/api/errors"
 
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
 
 func TestPodUpdateSCCEnforcement(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
 	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
 	if err != nil {
@@ -48,7 +48,7 @@ func TestPodUpdateSCCEnforcement(t *testing.T) {
 	// so cluster-admin can create privileged pods, but harold cannot.  This means that harold should not be able
 	// to update the privileged pods either, even if he lies about its privileged nature
 	privilegedPod := &kapi.Pod{
-		ObjectMeta: kapi.ObjectMeta{Name: "unsafe"},
+		ObjectMeta: metav1.ObjectMeta{Name: "unsafe"},
 		Spec: kapi.PodSpec{
 			Containers: []kapi.Container{
 				{Name: "first", Image: "something-innocuous"},

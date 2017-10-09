@@ -5,15 +5,14 @@ import (
 
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/labels"
-	kerrors "k8s.io/kubernetes/pkg/util/errors"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	oclient "github.com/openshift/origin/pkg/client"
-	userapi "github.com/openshift/origin/pkg/user/api"
-	usercache "github.com/openshift/origin/pkg/user/cache"
+	userapi "github.com/openshift/origin/pkg/user/apis/user"
 )
 
 // SubjectChecker determines whether rolebindings on a subject (user, group, or
@@ -53,7 +52,7 @@ type RoleBindingRestrictionContext struct {
 	kclient kclientset.Interface
 
 	// groupCache maps user name to groups.
-	groupCache *usercache.GroupCache
+	groupCache GroupCache
 
 	// userToLabels maps user name to labels.Set.
 	userToLabelSet map[string]labels.Set
@@ -68,7 +67,7 @@ type RoleBindingRestrictionContext struct {
 
 // NewRoleBindingRestrictionContext returns a new RoleBindingRestrictionContext
 // object.
-func NewRoleBindingRestrictionContext(ns string, kc kclientset.Interface, oc oclient.Interface, groupCache *usercache.GroupCache) (*RoleBindingRestrictionContext, error) {
+func NewRoleBindingRestrictionContext(ns string, kc kclientset.Interface, oc oclient.Interface, groupCache GroupCache) (*RoleBindingRestrictionContext, error) {
 	return &RoleBindingRestrictionContext{
 		namespace:       ns,
 		kclient:         kc,
@@ -94,7 +93,7 @@ func (ctx *RoleBindingRestrictionContext) labelSetForUser(subject kapi.ObjectRef
 		return labelSet, nil
 	}
 
-	user, err := ctx.oclient.Users().Get(subject.Name)
+	user, err := ctx.oclient.Users().Get(subject.Name, metav1.GetOptions{})
 	if err != nil {
 		return labels.Set{}, err
 	}
@@ -132,7 +131,7 @@ func (ctx *RoleBindingRestrictionContext) labelSetForGroup(subject kapi.ObjectRe
 		return labelSet, nil
 	}
 
-	group, err := ctx.oclient.Groups().Get(subject.Name)
+	group, err := ctx.oclient.Groups().Get(subject.Name, metav1.GetOptions{})
 	if err != nil {
 		return labels.Set{}, err
 	}
@@ -194,7 +193,7 @@ func (checker UserSubjectChecker) Allowed(subject kapi.ObjectReference, ctx *Rol
 		}
 
 		for _, labelSelector := range checker.userRestriction.Selectors {
-			selector, err := unversioned.LabelSelectorAsSelector(&labelSelector)
+			selector, err := metav1.LabelSelectorAsSelector(&labelSelector)
 			if err != nil {
 				return false, err
 			}
@@ -245,7 +244,7 @@ func (checker GroupSubjectChecker) Allowed(subject kapi.ObjectReference, ctx *Ro
 		}
 
 		for _, labelSelector := range checker.groupRestriction.Selectors {
-			selector, err := unversioned.LabelSelectorAsSelector(&labelSelector)
+			selector, err := metav1.LabelSelectorAsSelector(&labelSelector)
 			if err != nil {
 				return false, err
 			}
@@ -279,8 +278,19 @@ func (checker ServiceAccountSubjectChecker) Allowed(subject kapi.ObjectReference
 		return false, nil
 	}
 
+	subjectNamespace := subject.Namespace
+	if len(subjectNamespace) == 0 {
+		// If a RoleBinding has a subject that is a ServiceAccount with
+		// no namespace specified, the namespace will be defaulted to
+		// that of the RoleBinding.  However, admission control plug-ins
+		// execute before this happens, so in order not to reject such
+		// subjects erroneously, we copy the logic here of using the
+		// RoleBinding's namespace if the subject's is empty.
+		subjectNamespace = ctx.namespace
+	}
+
 	for _, namespace := range checker.serviceAccountRestriction.Namespaces {
-		if subject.Namespace == namespace {
+		if subjectNamespace == namespace {
 			return true, nil
 		}
 	}
@@ -292,7 +302,7 @@ func (checker ServiceAccountSubjectChecker) Allowed(subject kapi.ObjectReference
 		}
 
 		if subject.Name == serviceAccountRef.Name &&
-			subject.Namespace == serviceAccountNamespace {
+			subjectNamespace == serviceAccountNamespace {
 			return true, nil
 		}
 	}

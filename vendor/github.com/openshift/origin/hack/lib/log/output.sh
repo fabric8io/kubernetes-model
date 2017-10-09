@@ -14,18 +14,18 @@ function os::log::info() {
 }
 readonly -f os::log::info
 
-# os::log::warn writes the message to stderr.
+# os::log::warning writes the message to stderr.
 # A warning indicates something went wrong but
 # not so wrong that we cannot recover.
 #
 # Arguments:
 #  - all: message to write
-function os::log::warn() {
+function os::log::warning() {
 	local message; message="$( os::log::internal::prefix_lines "[WARNING]" "$*" )"
 	os::log::internal::to_logfile "${message}"
 	os::text::print_yellow "${message}" 1>&2
 }
-readonly -f os::log::warn
+readonly -f os::log::warning
 
 # os::log::error writes the message to stderr.
 # An error indicates that something went wrong
@@ -79,7 +79,7 @@ readonly -f os::log::debug
 # Arguments:
 #  - all: message to write
 function os::log::internal::to_logfile() {
-	if [[ -n "${LOG_DIR:-}" ]]; then
+	if [[ -n "${LOG_DIR:-}" && -d "${LOG_DIR-}" ]]; then
 		echo "$*" >>"${LOG_DIR}/scripts.log"
 	fi
 }

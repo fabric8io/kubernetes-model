@@ -4,42 +4,51 @@ import (
 	"errors"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/api/v1"
 
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 )
 
 // GetBuildFromPod returns a build object encoded in a pod's BUILD environment variable along with
 // its encoding version
-func GetBuildFromPod(pod *kapi.Pod) (*buildapi.Build, unversioned.GroupVersion, error) {
-	envVar, err := buildEnvVar(pod)
-	if err != nil {
-		return nil, unversioned.GroupVersion{}, fmt.Errorf("unable to get build from pod: %v", err)
+func GetBuildFromPod(pod *v1.Pod) (*buildapi.Build, schema.GroupVersion, error) {
+	if len(pod.Spec.Containers) == 0 {
+		return nil, schema.GroupVersion{}, errors.New("unable to get build from pod: pod has no containers")
 	}
-	obj, groupVersionKind, err := kapi.Codecs.UniversalDecoder().Decode([]byte(envVar.Value), nil, nil)
+
+	buildEnvVar := getEnvVar(&pod.Spec.Containers[0], "BUILD")
+	if len(buildEnvVar) == 0 {
+		return nil, schema.GroupVersion{}, errors.New("unable to get build from pod: BUILD environment variable is empty")
+	}
+
+	obj, groupVersionKind, err := kapi.Codecs.UniversalDecoder().Decode([]byte(buildEnvVar), nil, nil)
 	if err != nil {
-		return nil, unversioned.GroupVersion{}, fmt.Errorf("unable to get build from pod: %v", err)
+		return nil, schema.GroupVersion{}, fmt.Errorf("unable to get build from pod: %v", err)
 	}
 	build, ok := obj.(*buildapi.Build)
 	if !ok {
-		return nil, unversioned.GroupVersion{}, fmt.Errorf("unable to get build from pod: %v", errors.New("decoded object is not of type Build"))
+		return nil, schema.GroupVersion{}, fmt.Errorf("unable to get build from pod: %v", errors.New("decoded object is not of type Build"))
 	}
 	return build, groupVersionKind.GroupVersion(), nil
 }
 
 // SetBuildInPod encodes a build object and sets it in a pod's BUILD environment variable
-func SetBuildInPod(pod *kapi.Pod, build *buildapi.Build, groupVersion unversioned.GroupVersion) error {
-	envVar, err := buildEnvVar(pod)
-	if err != nil {
-		return fmt.Errorf("unable to set build in pod: %v", err)
-	}
+func SetBuildInPod(pod *v1.Pod, build *buildapi.Build, groupVersion schema.GroupVersion) error {
 	encodedBuild, err := runtime.Encode(kapi.Codecs.LegacyCodec(groupVersion), build)
 	if err != nil {
 		return fmt.Errorf("unable to set build in pod: %v", err)
 	}
-	envVar.Value = string(encodedBuild)
+
+	for i := range pod.Spec.Containers {
+		setEnvVar(&pod.Spec.Containers[i], "BUILD", string(encodedBuild))
+	}
+	for i := range pod.Spec.InitContainers {
+		setEnvVar(&pod.Spec.InitContainers[i], "BUILD", string(encodedBuild))
+	}
+
 	return nil
 }
 
@@ -48,7 +57,7 @@ func SetBuildInPod(pod *kapi.Pod, build *buildapi.Build, groupVersion unversione
 // environment variable may have been set in multiple ways: a default value,
 // by a BuildConfig, or by the BuildDefaults admission plugin. In this method
 // we finally act on the value by injecting it into the Pod.
-func SetPodLogLevelFromBuild(pod *kapi.Pod, build *buildapi.Build) error {
+func SetPodLogLevelFromBuild(pod *v1.Pod, build *buildapi.Build) error {
 	var envs []kapi.EnvVar
 
 	// Check whether the build strategy supports --loglevel parameter.
@@ -72,31 +81,34 @@ func SetPodLogLevelFromBuild(pod *kapi.Pod, build *buildapi.Build) error {
 	}
 	c := &pod.Spec.Containers[0]
 	c.Args = append(c.Args, "--loglevel="+buildLogLevel)
+	for i := range pod.Spec.InitContainers {
+		pod.Spec.InitContainers[i].Args = append(pod.Spec.InitContainers[i].Args, "--loglevel="+buildLogLevel)
+	}
 	return nil
 }
 
-func buildEnvVar(pod *kapi.Pod) (*kapi.EnvVar, error) {
-	if len(pod.Spec.Containers) == 0 {
-		return nil, errors.New("pod has no containers")
-	}
-	env := pod.Spec.Containers[0].Env
-	for i := range env {
-		if env[i].Name == "BUILD" {
-			if len(env[i].Value) == 0 {
-				return nil, errors.New("BUILD environment variable is empty")
-			}
-			return &env[i], nil
+func getEnvVar(c *v1.Container, name string) string {
+	for _, envVar := range c.Env {
+		if envVar.Name == name {
+			return envVar.Value
 		}
 	}
-	return nil, errors.New("pod does not have a BUILD environment variable")
+
+	return ""
 }
 
-func hasBuildEnvVar(pod *kapi.Pod) bool {
-	_, err := buildEnvVar(pod)
-	return err == nil
+func setEnvVar(c *v1.Container, name, value string) {
+	for i, envVar := range c.Env {
+		if envVar.Name == name {
+			c.Env[i] = v1.EnvVar{Name: name, Value: value}
+			return
+		}
+	}
+
+	c.Env = append(c.Env, v1.EnvVar{Name: name, Value: value})
 }
 
-func hasBuildAnnotation(pod *kapi.Pod) bool {
+func hasBuildAnnotation(pod *v1.Pod) bool {
 	if pod.Annotations == nil {
 		return false
 	}

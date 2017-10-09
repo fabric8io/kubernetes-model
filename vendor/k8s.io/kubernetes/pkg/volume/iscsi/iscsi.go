@@ -22,8 +22,8 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/types"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/util/exec"
 	"k8s.io/kubernetes/pkg/util/mount"
 	utilstrings "k8s.io/kubernetes/pkg/util/strings"
@@ -82,19 +82,40 @@ func (plugin *iscsiPlugin) RequiresRemount() bool {
 	return false
 }
 
-func (plugin *iscsiPlugin) GetAccessModes() []api.PersistentVolumeAccessMode {
-	return []api.PersistentVolumeAccessMode{
-		api.ReadWriteOnce,
-		api.ReadOnlyMany,
+func (plugin *iscsiPlugin) SupportsMountOption() bool {
+	return true
+}
+
+func (plugin *iscsiPlugin) SupportsBulkVolumeVerification() bool {
+	return false
+}
+
+func (plugin *iscsiPlugin) GetAccessModes() []v1.PersistentVolumeAccessMode {
+	return []v1.PersistentVolumeAccessMode{
+		v1.ReadWriteOnce,
+		v1.ReadOnlyMany,
 	}
 }
 
-func (plugin *iscsiPlugin) NewMounter(spec *volume.Spec, pod *api.Pod, _ volume.VolumeOptions) (volume.Mounter, error) {
+func (plugin *iscsiPlugin) NewMounter(spec *volume.Spec, pod *v1.Pod, _ volume.VolumeOptions) (volume.Mounter, error) {
 	// Inject real implementations here, test through the internal function.
-	return plugin.newMounterInternal(spec, pod.UID, &ISCSIUtil{}, plugin.host.GetMounter())
+	var secret map[string]string
+	source, _, err := getVolumeSource(spec)
+	if err != nil {
+		return nil, err
+	}
+
+	if source.SecretRef != nil {
+		if secret, err = ioutil.GetSecretForPod(pod, source.SecretRef.Name, plugin.host.GetKubeClient()); err != nil {
+			glog.Errorf("Couldn't get secret from %v/%v", pod.Namespace, source.SecretRef)
+			return nil, err
+		}
+	}
+
+	return plugin.newMounterInternal(spec, pod.UID, &ISCSIUtil{}, plugin.host.GetMounter(), secret)
 }
 
-func (plugin *iscsiPlugin) newMounterInternal(spec *volume.Spec, podUID types.UID, manager diskManager, mounter mount.Interface) (volume.Mounter, error) {
+func (plugin *iscsiPlugin) newMounterInternal(spec *volume.Spec, podUID types.UID, manager diskManager, mounter mount.Interface, secret map[string]string) (volume.Mounter, error) {
 	// iscsi volumes used directly in a pod have a ReadOnly flag set by the pod author.
 	// iscsi volumes used as a PersistentVolume gets the ReadOnly flag indirectly through the persistent-claim volume used to mount the PV
 	iscsi, readOnly, err := getVolumeSource(spec)
@@ -104,23 +125,31 @@ func (plugin *iscsiPlugin) newMounterInternal(spec *volume.Spec, podUID types.UI
 
 	lun := strconv.Itoa(int(iscsi.Lun))
 	portal := portalMounter(iscsi.TargetPortal)
-
+	var bkportal []string
+	bkportal = append(bkportal, portal)
+	for _, tp := range iscsi.Portals {
+		bkportal = append(bkportal, portalMounter(string(tp)))
+	}
 	iface := iscsi.ISCSIInterface
 
 	return &iscsiDiskMounter{
 		iscsiDisk: &iscsiDisk{
-			podUID:  podUID,
-			volName: spec.Name(),
-			portal:  portal,
-			iqn:     iscsi.IQN,
-			lun:     lun,
-			iface:   iface,
-			manager: manager,
-			plugin:  plugin},
-		fsType:     iscsi.FSType,
-		readOnly:   readOnly,
-		mounter:    &mount.SafeFormatAndMount{Interface: mounter, Runner: exec.New()},
-		deviceUtil: ioutil.NewDeviceHandler(ioutil.NewIOHandler()),
+			podUID:         podUID,
+			volName:        spec.Name(),
+			Portals:        bkportal,
+			Iqn:            iscsi.IQN,
+			lun:            lun,
+			Iface:          iface,
+			chap_discovery: iscsi.DiscoveryCHAPAuth,
+			chap_session:   iscsi.SessionCHAPAuth,
+			secret:         secret,
+			manager:        manager,
+			plugin:         plugin},
+		fsType:       iscsi.FSType,
+		readOnly:     readOnly,
+		mounter:      &mount.SafeFormatAndMount{Interface: mounter, Runner: exec.New()},
+		deviceUtil:   ioutil.NewDeviceHandler(ioutil.NewIOHandler()),
+		mountOptions: volume.MountOptionFromSpec(spec),
 	}, nil
 }
 
@@ -147,10 +176,10 @@ func (plugin *iscsiPlugin) execCommand(command string, args []string) ([]byte, e
 }
 
 func (plugin *iscsiPlugin) ConstructVolumeSpec(volumeName, mountPath string) (*volume.Spec, error) {
-	iscsiVolume := &api.Volume{
+	iscsiVolume := &v1.Volume{
 		Name: volumeName,
-		VolumeSource: api.VolumeSource{
-			ISCSI: &api.ISCSIVolumeSource{
+		VolumeSource: v1.VolumeSource{
+			ISCSI: &v1.ISCSIVolumeSource{
 				TargetPortal: volumeName,
 				IQN:          volumeName,
 			},
@@ -160,13 +189,16 @@ func (plugin *iscsiPlugin) ConstructVolumeSpec(volumeName, mountPath string) (*v
 }
 
 type iscsiDisk struct {
-	volName string
-	podUID  types.UID
-	portal  string
-	iqn     string
-	lun     string
-	iface   string
-	plugin  *iscsiPlugin
+	volName        string
+	podUID         types.UID
+	Portals        []string
+	Iqn            string
+	lun            string
+	Iface          string
+	chap_discovery bool
+	chap_session   bool
+	secret         map[string]string
+	plugin         *iscsiPlugin
 	// Utility interface that provides API calls to the provider to attach/detach disks.
 	manager diskManager
 	volume.MetricsNil
@@ -180,10 +212,11 @@ func (iscsi *iscsiDisk) GetPath() string {
 
 type iscsiDiskMounter struct {
 	*iscsiDisk
-	readOnly   bool
-	fsType     string
-	mounter    *mount.SafeFormatAndMount
-	deviceUtil ioutil.DeviceUtil
+	readOnly     bool
+	fsType       string
+	mounter      *mount.SafeFormatAndMount
+	deviceUtil   ioutil.DeviceUtil
+	mountOptions []string
 }
 
 var _ volume.Mounter = &iscsiDiskMounter{}
@@ -230,6 +263,12 @@ func (c *iscsiDiskUnmounter) TearDown() error {
 }
 
 func (c *iscsiDiskUnmounter) TearDownAt(dir string) error {
+	if pathExists, pathErr := ioutil.PathExists(dir); pathErr != nil {
+		return fmt.Errorf("Error checking if path exists: %v", pathErr)
+	} else if !pathExists {
+		glog.Warningf("Warning: Unmount skipped because path does not exist: %v", dir)
+		return nil
+	}
 	return diskTearDown(c.manager, *c, dir, c.mounter)
 }
 
@@ -240,7 +279,7 @@ func portalMounter(portal string) string {
 	return portal
 }
 
-func getVolumeSource(spec *volume.Spec) (*api.ISCSIVolumeSource, bool, error) {
+func getVolumeSource(spec *volume.Spec) (*v1.ISCSIVolumeSource, bool, error) {
 	if spec.Volume != nil && spec.Volume.ISCSI != nil {
 		return spec.Volume.ISCSI, spec.Volume.ISCSI.ReadOnly, nil
 	} else if spec.PersistentVolume != nil &&

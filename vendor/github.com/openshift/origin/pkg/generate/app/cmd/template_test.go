@@ -2,14 +2,14 @@ package cmd
 
 import (
 	"github.com/openshift/origin/pkg/client/testclient"
-	templateapi "github.com/openshift/origin/pkg/template/api"
-	kapi "k8s.io/kubernetes/pkg/api"
+	templateapi "github.com/openshift/origin/pkg/template/apis/template"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 )
 
 func TestTransformTemplate(t *testing.T) {
 	templatefoobar := &templateapi.Template{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo_bar_template_name",
 			Namespace: "foo_bar_namespace",
 		},
@@ -23,7 +23,7 @@ func TestTransformTemplate(t *testing.T) {
 
 	fakeosClient := &testclient.Fake{}
 
-	template, err := TransformTemplate(templatefoobar, fakeosClient, "foo_bar_namespace", testParamMap)
+	template, err := TransformTemplate(templatefoobar, fakeosClient, "foo_bar_namespace", testParamMap, false)
 	if err != nil {
 		t.Errorf("unexpect err : %v", err)
 	}

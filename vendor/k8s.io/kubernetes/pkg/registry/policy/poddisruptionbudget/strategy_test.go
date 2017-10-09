@@ -19,14 +19,14 @@ package poddisruptionbudget
 import (
 	"testing"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/kubernetes/pkg/apis/policy"
-	"k8s.io/kubernetes/pkg/util/intstr"
 )
 
 func TestPodDisruptionBudgetStrategy(t *testing.T) {
-	ctx := api.NewDefaultContext()
+	ctx := genericapirequest.NewDefaultContext()
 	if !Strategy.NamespaceScoped() {
 		t.Errorf("PodDisruptionBudget must be namespace scoped")
 	}
@@ -35,11 +35,12 @@ func TestPodDisruptionBudgetStrategy(t *testing.T) {
 	}
 
 	validSelector := map[string]string{"a": "b"}
+	minAvailable := intstr.FromInt(3)
 	pdb := &policy.PodDisruptionBudget{
-		ObjectMeta: api.ObjectMeta{Name: "abc", Namespace: api.NamespaceDefault},
+		ObjectMeta: metav1.ObjectMeta{Name: "abc", Namespace: metav1.NamespaceDefault},
 		Spec: policy.PodDisruptionBudgetSpec{
-			MinAvailable: intstr.FromInt(3),
-			Selector:     &unversioned.LabelSelector{MatchLabels: validSelector},
+			MinAvailable: &minAvailable,
+			Selector:     &metav1.LabelSelector{MatchLabels: validSelector},
 		},
 	}
 
@@ -50,7 +51,7 @@ func TestPodDisruptionBudgetStrategy(t *testing.T) {
 	}
 
 	newPdb := &policy.PodDisruptionBudget{
-		ObjectMeta: api.ObjectMeta{Name: pdb.Name, Namespace: pdb.Namespace},
+		ObjectMeta: metav1.ObjectMeta{Name: pdb.Name, Namespace: pdb.Namespace},
 		Spec:       pdb.Spec,
 		Status: policy.PodDisruptionBudgetStatus{
 			PodDisruptionsAllowed: 1,
@@ -68,7 +69,7 @@ func TestPodDisruptionBudgetStrategy(t *testing.T) {
 	}
 
 	// Changing the selector?  No.
-	newPdb.Spec.Selector = &unversioned.LabelSelector{MatchLabels: map[string]string{"a": "bar"}}
+	newPdb.Spec.Selector = &metav1.LabelSelector{MatchLabels: map[string]string{"a": "bar"}}
 	Strategy.PrepareForUpdate(ctx, newPdb, pdb)
 	errs = Strategy.ValidateUpdate(ctx, newPdb, pdb)
 	if len(errs) == 0 {
@@ -77,7 +78,16 @@ func TestPodDisruptionBudgetStrategy(t *testing.T) {
 	newPdb.Spec.Selector = pdb.Spec.Selector
 
 	// Changing MinAvailable?  Also no.
-	newPdb.Spec.MinAvailable = intstr.FromString("28%")
+	newMinAvailable := intstr.FromString("28%")
+	newPdb.Spec.MinAvailable = &newMinAvailable
+	Strategy.PrepareForUpdate(ctx, newPdb, pdb)
+	errs = Strategy.ValidateUpdate(ctx, newPdb, pdb)
+	if len(errs) == 0 {
+		t.Errorf("Expected a validation error since updates are disallowed on poddisruptionbudgets.")
+	}
+
+	maxUnavailable := intstr.FromString("28%")
+	newPdb.Spec.MaxUnavailable = &maxUnavailable
 	Strategy.PrepareForUpdate(ctx, newPdb, pdb)
 	errs = Strategy.ValidateUpdate(ctx, newPdb, pdb)
 	if len(errs) == 0 {
@@ -86,19 +96,23 @@ func TestPodDisruptionBudgetStrategy(t *testing.T) {
 }
 
 func TestPodDisruptionBudgetStatusStrategy(t *testing.T) {
-	ctx := api.NewDefaultContext()
+	ctx := genericapirequest.NewDefaultContext()
 	if !StatusStrategy.NamespaceScoped() {
 		t.Errorf("PodDisruptionBudgetStatus must be namespace scoped")
 	}
 	if StatusStrategy.AllowCreateOnUpdate() {
 		t.Errorf("PodDisruptionBudgetStatus should not allow create on update")
 	}
+
+	oldMinAvailable := intstr.FromInt(3)
+	newMinAvailable := intstr.FromInt(2)
+
 	validSelector := map[string]string{"a": "b"}
 	oldPdb := &policy.PodDisruptionBudget{
-		ObjectMeta: api.ObjectMeta{Name: "abc", Namespace: api.NamespaceDefault, ResourceVersion: "10"},
+		ObjectMeta: metav1.ObjectMeta{Name: "abc", Namespace: metav1.NamespaceDefault, ResourceVersion: "10"},
 		Spec: policy.PodDisruptionBudgetSpec{
-			Selector:     &unversioned.LabelSelector{MatchLabels: validSelector},
-			MinAvailable: intstr.FromInt(3),
+			Selector:     &metav1.LabelSelector{MatchLabels: validSelector},
+			MinAvailable: &oldMinAvailable,
 		},
 		Status: policy.PodDisruptionBudgetStatus{
 			PodDisruptionsAllowed: 1,
@@ -108,10 +122,10 @@ func TestPodDisruptionBudgetStatusStrategy(t *testing.T) {
 		},
 	}
 	newPdb := &policy.PodDisruptionBudget{
-		ObjectMeta: api.ObjectMeta{Name: "abc", Namespace: api.NamespaceDefault, ResourceVersion: "9"},
+		ObjectMeta: metav1.ObjectMeta{Name: "abc", Namespace: metav1.NamespaceDefault, ResourceVersion: "9"},
 		Spec: policy.PodDisruptionBudgetSpec{
-			Selector:     &unversioned.LabelSelector{MatchLabels: validSelector},
-			MinAvailable: intstr.FromInt(2),
+			Selector:     &metav1.LabelSelector{MatchLabels: validSelector},
+			MinAvailable: &newMinAvailable,
 		},
 		Status: policy.PodDisruptionBudgetStatus{
 			PodDisruptionsAllowed: 0,

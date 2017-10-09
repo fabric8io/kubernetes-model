@@ -5,20 +5,23 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/tools/record"
 	kapi "k8s.io/kubernetes/pkg/api"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
-	"k8s.io/kubernetes/pkg/client/record"
 	"k8s.io/kubernetes/pkg/kubectl"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/watch"
 
 	"github.com/openshift/origin/pkg/client"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	strat "github.com/openshift/origin/pkg/deploy/strategy"
 	stratsupport "github.com/openshift/origin/pkg/deploy/strategy/support"
 	stratutil "github.com/openshift/origin/pkg/deploy/strategy/util"
@@ -88,7 +91,7 @@ func NewRecreateDeploymentStrategy(client kclientset.Interface, tagClient client
 		eventClient: client.Core(),
 		podClient:   client.Core(),
 		getUpdateAcceptor: func(timeout time.Duration, minReadySeconds int32) strat.UpdateAcceptor {
-			return stratsupport.NewAcceptAvailablePods(out, client.Core(), timeout, acceptorInterval, minReadySeconds)
+			return stratsupport.NewAcceptAvailablePods(out, client.Core(), timeout)
 		},
 		scaler:       scaler,
 		decoder:      decoder,
@@ -231,21 +234,39 @@ func (s *RecreateDeploymentStrategy) DeployWithAcceptor(from *kapi.ReplicationCo
 	return nil
 }
 
-func (s *RecreateDeploymentStrategy) scaleAndWait(deployment *kapi.ReplicationController, replicas int, retry *kubectl.RetryParams, wait *kubectl.RetryParams) (*kapi.ReplicationController, error) {
+func (s *RecreateDeploymentStrategy) scaleAndWait(deployment *kapi.ReplicationController, replicas int, retry *kubectl.RetryParams, retryParams *kubectl.RetryParams) (*kapi.ReplicationController, error) {
 	if int32(replicas) == deployment.Spec.Replicas && int32(replicas) == deployment.Status.Replicas {
 		return deployment, nil
 	}
-	if err := s.scaler.Scale(deployment.Namespace, deployment.Name, uint(replicas), &kubectl.ScalePrecondition{Size: -1, ResourceVersion: ""}, retry, wait); err != nil {
+	var scaleErr error
+	err := wait.PollImmediate(1*time.Second, 30*time.Second, func() (bool, error) {
+		scaleErr = s.scaler.Scale(deployment.Namespace, deployment.Name, uint(replicas), &kubectl.ScalePrecondition{Size: -1, ResourceVersion: ""}, retry, retryParams)
+		if scaleErr == nil {
+			return true, nil
+		}
+		// This error is returned when the lifecycle admission plugin cache is not fully
+		// synchronized. In that case the scaling should be retried.
+		//
+		// FIXME: The error returned from admission should not be forbidden but come-back-later error.
+		if errors.IsForbidden(scaleErr) && strings.Contains(scaleErr.Error(), "not yet ready to handle request") {
+			return false, nil
+		}
+		return false, scaleErr
+	})
+	if err == wait.ErrWaitTimeout {
+		return nil, fmt.Errorf("%v: %v", err, scaleErr)
+	}
+	if err != nil {
 		return nil, err
 	}
 
-	return s.rcClient.ReplicationControllers(deployment.Namespace).Get(deployment.Name)
+	return s.rcClient.ReplicationControllers(deployment.Namespace).Get(deployment.Name, metav1.GetOptions{})
 }
 
 // waitForTerminatedPods waits until all pods for the provided replication controller are terminated.
 func (s *RecreateDeploymentStrategy) waitForTerminatedPods(from *kapi.ReplicationController, timeout time.Duration) {
 	selector := labels.Set(from.Spec.Selector).AsSelector()
-	options := kapi.ListOptions{LabelSelector: selector}
+	options := metav1.ListOptions{LabelSelector: selector.String()}
 	podList, err := s.podClient.Pods(from.Namespace).List(options)
 	if err != nil {
 		fmt.Fprintf(s.out, "--> Cannot list pods: %v\nNew pods may be scaled up before old pods terminate\n", err)

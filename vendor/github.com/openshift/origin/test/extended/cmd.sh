@@ -9,43 +9,23 @@ os::util::environment::setup_time_vars
 
 os::build::setup_env
 
-function cleanup()
-{
-	out=$?
+function cleanup() {
+	return_code=$?
+
 	docker rmi test/scratchimage
-	cleanup_openshift
 
-	# TODO(skuznets): un-hack this nonsense once traps are in a better state
-	if [[ -n "${JUNIT_REPORT_OUTPUT:-}" ]]; then
-		# get the jUnit output file into a workable state in case we crashed in
-		# the middle of testing something
-		os::test::junit::reconcile_output
-
-		# check that we didn't mangle jUnit output
-		os::test::junit::check_test_counters
-
-		# use the junitreport tool to generate us a report
-		os::util::ensure::built_binary_exists 'junitreport'
-
-		cat "${JUNIT_REPORT_OUTPUT}" \
-			| junitreport --type oscmd \
-			--suites nested \
-			--roots github.com/openshift/origin \
-			--output "${ARTIFACT_DIR}/report.xml"
-		cat "${ARTIFACT_DIR}/report.xml" | junitreport summarize
-	fi
-
-	os::log::info "Exiting"
-	return "${out}"
+	os::test::junit::generate_report
+	os::cleanup::all
+	os::util::describe_return_code "${return_code}"
+	exit "${return_code}"
 }
-
-trap "exit" INT TERM
 trap "cleanup" EXIT
 
 os::log::info "Starting server"
 
 os::util::environment::use_sudo
-os::util::environment::setup_all_server_vars "test-extended/cmd/"
+os::cleanup::tmpdir
+os::util::environment::setup_all_server_vars
 
 os::log::system::start
 
@@ -61,7 +41,7 @@ export KUBECONFIG="${ADMIN_KUBECONFIG}"
 
 oc login -u system:admin -n default
 # let everyone be able to see stuff in the default namespace
-oadm policy add-role-to-group view system:authenticated -n default
+oc adm policy add-role-to-group view system:authenticated -n default
 
 os::start::registry
 oc rollout status dc/docker-registry
@@ -172,7 +152,7 @@ os::test::junit::declare_suite_start "extended/cmd/service-signer"
 # check to make sure that service serving cert signing works correctly
 # nginx currently needs to run as root
 os::cmd::expect_success "oc login -u system:admin -n default"
-os::cmd::expect_success "oadm policy add-scc-to-user anyuid system:serviceaccount:service-serving-cert-generation:default"
+os::cmd::expect_success "oc adm policy add-scc-to-user anyuid system:serviceaccount:service-serving-cert-generation:default"
 
 os::cmd::expect_success "oc login -u serving-cert -p asdf"
 VERBOSE=true os::cmd::expect_success "oc new-project service-serving-cert-generation"
@@ -200,7 +180,7 @@ os::test::junit::declare_suite_end
 
 os::test::junit::declare_suite_start "extended/cmd/oc-on-kube"
 os::cmd::expect_success "oc login -u system:admin -n default"
-os::cmd::expect_success "oc new-project kube"
+os::cmd::expect_success "oc new-project kubeapi"
 os::cmd::expect_success "oc create -f test/testdata/kubernetes-server/apiserver.yaml"
 os::cmd::try_until_text "oc get pods/kube-apiserver -o 'jsonpath={.status.conditions[?(@.type == "Ready")].status}'" "True"
 os::cmd::try_until_text "oc get pods/kube-apiserver -o 'jsonpath={.status.podIP}'" "172"

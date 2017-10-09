@@ -104,20 +104,9 @@ function verify-prereqs {
   export USING_KUBE_SCRIPTS=true
 }
 
-# Create a temp dir that'll be deleted at the end of this bash session.
-#
-# Vars set:
-#   KUBE_TEMP
-function ensure-temp-dir {
-  if [[ -z ${KUBE_TEMP-} ]]; then
-    export KUBE_TEMP=$(mktemp -d -t kubernetes.XXXXXX)
-    trap 'rm -rf "${KUBE_TEMP}"' EXIT
-  fi
-}
-
 # Create a set of provision scripts for the master and each of the nodes
 function create-provision-scripts {
-  ensure-temp-dir
+  kube::util::ensure-temp-dir
 
   (
     echo "#! /bin/bash"
@@ -248,7 +237,7 @@ function verify-cluster {
         echo "Timeout while waiting for echo node to be registered with cloud provider"
         exit 2
       fi
-      local nodes=$("${KUBE_ROOT}/cluster/kubectl.sh" get nodes -o name --api-version=v1)
+      local nodes=$("${KUBE_ROOT}/cluster/kubectl.sh" get nodes -o name)
       validated=$(echo $nodes | grep -c "${NODE_NAMES[i]}") || {
         printf "."
         sleep 2

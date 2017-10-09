@@ -19,10 +19,10 @@ package user
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/extensions"
 	psputil "k8s.io/kubernetes/pkg/security/podsecuritypolicy/util"
-	"k8s.io/kubernetes/pkg/util/validation/field"
 )
 
 // mustRunAs implements the RunAsUserStrategy interface
@@ -76,7 +76,7 @@ func (s *mustRunAs) Validate(pod *api.Pod, container *api.Container) field.Error
 
 func (s *mustRunAs) isValidUID(id int64) bool {
 	for _, rng := range s.opts.Ranges {
-		if psputil.FallsInRange(id, rng) {
+		if psputil.UserFallsInRange(id, rng) {
 			return true
 		}
 	}

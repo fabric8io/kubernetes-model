@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sync"
 
-	kcache "k8s.io/kubernetes/pkg/client/cache"
-	"k8s.io/kubernetes/pkg/util/sets"
-	"k8s.io/kubernetes/pkg/watch"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/watch"
+	kcache "k8s.io/client-go/tools/cache"
 )
 
 // EventQueue is a Store implementation that provides a sequence of compressed events to a consumer
@@ -152,6 +152,11 @@ func (eq *EventQueue) handleEvent(obj interface{}, newEventType watch.EventType)
 	case watchEventEffectDelete:
 		delete(eq.events, key)
 		eq.queue = eq.queueWithout(key)
+		// A delete means we added and deleted _before_ we popped, we need to clean up the store here
+		if err := eq.store.Delete(obj); err != nil {
+			panic(fmt.Sprintf("Delete of key not in store from handleEvent(): %v", key))
+		}
+
 	}
 	return nil
 }
@@ -296,7 +301,7 @@ func (eq *EventQueue) Pop() (watch.EventType, interface{}, error) {
 		// Track the last replace key immediately after the store
 		// state has been changed to prevent subsequent errors from
 		// leaving a stale key.
-		if eq.lastReplaceKey != "" && eq.lastReplaceKey == key {
+		if eq.lastReplaceKey == key {
 			eq.lastReplaceKey = ""
 		}
 
@@ -392,6 +397,7 @@ func (eq *EventQueue) Resync() error {
 	for _, id := range eq.store.ListKeys() {
 		if !inQueue.Has(id) {
 			eq.queue = append(eq.queue, id)
+			eq.events[id] = watch.Modified
 		}
 	}
 

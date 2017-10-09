@@ -1,80 +1,25 @@
 package server
 
 import (
-	"fmt"
-	"net/url"
 	"reflect"
 	"testing"
 
 	"github.com/docker/distribution"
 	"github.com/docker/distribution/context"
 	"github.com/docker/distribution/digest"
-	"github.com/docker/distribution/reference"
 
-	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
-
-	"github.com/openshift/origin/pkg/client/testclient"
+	registryclient "github.com/openshift/origin/pkg/dockerregistry/server/client"
 	registrytest "github.com/openshift/origin/pkg/dockerregistry/testutil"
-	imagetest "github.com/openshift/origin/pkg/image/admission/testutil"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 )
-
-func createTestImageReactor(t *testing.T, client *testclient.Fake, serverURL *url.URL, namespace, repo string) *imageapi.Image {
-	_, testManifest, _, err := registrytest.CreateRandomManifest(registrytest.ManifestSchema1, 3)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, testManifestSchema1, err := testManifest.Payload()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	testImage, err := registrytest.NewImageForManifest(
-		fmt.Sprintf("%s/%s", namespace, repo),
-		string(testManifestSchema1),
-		false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	testImage.DockerImageReference = fmt.Sprintf("%s/%s/%s@%s", serverURL.Host, namespace, repo, testImage.Name)
-
-	client.AddReactor("get", "images", registrytest.GetFakeImageGetHandler(t, *testImage))
-
-	return testImage
-}
-
-func createTestImageStreamReactor(t *testing.T, client *testclient.Fake, testImage *imageapi.Image, namespace, repo, tag string) *imageapi.ImageStream {
-	testImageStream := registrytest.TestNewImageStreamObject(namespace, repo, tag, testImage.Name, testImage.DockerImageReference)
-	if testImageStream.Annotations == nil {
-		testImageStream.Annotations = make(map[string]string)
-	}
-	testImageStream.Annotations[imageapi.InsecureRepositoryAnnotation] = "true"
-
-	client.AddReactor("get", "imagestreams", imagetest.GetFakeImageStreamGetHandler(t, *testImageStream))
-
-	return testImageStream
-}
 
 func TestTagGet(t *testing.T) {
 	namespace := "user"
 	repo := "app"
 	tag := "latest"
-	client := &testclient.Fake{}
 
-	// TODO: get rid of those nasty global vars
-	backupRegistryClient := DefaultRegistryClient
-	DefaultRegistryClient = makeFakeRegistryClient(client, fake.NewSimpleClientset())
-	defer func() {
-		// set it back once this test finishes to make other unit tests working again
-		DefaultRegistryClient = backupRegistryClient
-	}()
-
-	ctx := context.Background()
-	serverURL, _ := url.Parse("docker.io/centos")
-
-	testImage := createTestImageReactor(t, client, serverURL, namespace, repo)
-	createTestImageStreamReactor(t, client, testImage, namespace, repo, tag)
+	fos, client, imageClient := registrytest.NewFakeOpenShiftWithClient()
+	testImage := registrytest.AddRandomImage(t, fos, namespace, repo, tag)
 
 	testcases := []struct {
 		title                 string
@@ -123,26 +68,17 @@ func TestTagGet(t *testing.T) {
 			testImage.Annotations[imageapi.ManagedByOpenShiftAnnotation] = "false"
 		}
 
-		localTagService := newTestTagService(nil)
-
-		cachedLayers, err := newDigestToRepositoryCache(10)
-		if err != nil {
-			t.Fatal(err)
-		}
+		r := newTestRepository(t, namespace, repo, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(client, nil, imageClient),
+			enablePullThrough: tc.pullthrough,
+		})
 
 		ts := &tagService{
-			TagService: localTagService,
-			repo: &repository{
-				ctx:              ctx,
-				namespace:        namespace,
-				name:             repo,
-				pullthrough:      tc.pullthrough,
-				cachedLayers:     cachedLayers,
-				registryOSClient: client,
-			},
+			TagService: newTestTagService(nil),
+			repo:       r,
 		}
 
-		resultDesc, err := ts.Get(ctx, tc.tagName)
+		resultDesc, err := ts.Get(context.Background(), tc.tagName)
 
 		switch err.(type) {
 		case distribution.ErrTagUnknown:
@@ -170,51 +106,19 @@ func TestTagGetWithoutImageStream(t *testing.T) {
 	namespace := "user"
 	repo := "app"
 	tag := "latest"
-	client := &testclient.Fake{}
 
-	// TODO: get rid of those nasty global vars
-	backupRegistryClient := DefaultRegistryClient
-	DefaultRegistryClient = makeFakeRegistryClient(client, fake.NewSimpleClientset())
-	defer func() {
-		// set it back once this test finishes to make other unit tests working again
-		DefaultRegistryClient = backupRegistryClient
-	}()
+	_, client, imageClient := registrytest.NewFakeOpenShiftWithClient()
 
-	ctx := context.Background()
-
-	serverURL, _ := url.Parse("docker.io/centos")
-
-	testImage := createTestImageReactor(t, client, serverURL, namespace, repo)
-	createTestImageStreamReactor(t, client, testImage, namespace, repo+"-another", tag)
-
-	testImage.Annotations[imageapi.ManagedByOpenShiftAnnotation] = "true"
-
-	localTagService := newTestTagService(nil)
-
-	cachedLayers, err := newDigestToRepositoryCache(10)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := newTestRepository(t, namespace, repo, testRepositoryOptions{
+		client: registryclient.NewFakeRegistryAPIClient(client, nil, imageClient),
+	})
 
 	ts := &tagService{
-		TagService: localTagService,
-		repo: &repository{
-			Repository:       &testRepository{name: named},
-			ctx:              ctx,
-			namespace:        namespace,
-			name:             repo,
-			pullthrough:      true,
-			cachedLayers:     cachedLayers,
-			registryOSClient: client,
-		},
+		TagService: newTestTagService(nil),
+		repo:       r,
 	}
 
-	_, err = ts.Get(ctx, tag)
+	_, err := ts.Get(context.Background(), tag)
 	if err == nil {
 		t.Fatalf("error expected")
 	}
@@ -229,21 +133,9 @@ func TestTagCreation(t *testing.T) {
 	namespace := "user"
 	repo := "app"
 	tag := "latest"
-	client := &testclient.Fake{}
 
-	// TODO: get rid of those nasty global vars
-	backupRegistryClient := DefaultRegistryClient
-	DefaultRegistryClient = makeFakeRegistryClient(client, fake.NewSimpleClientset())
-	defer func() {
-		// set it back once this test finishes to make other unit tests working again
-		DefaultRegistryClient = backupRegistryClient
-	}()
-
-	ctx := context.Background()
-	serverURL, _ := url.Parse("docker.io/centos")
-
-	testImage := createTestImageReactor(t, client, serverURL, namespace, repo)
-	createTestImageStreamReactor(t, client, testImage, namespace, repo, tag)
+	fos, client, imageClient := registrytest.NewFakeOpenShiftWithClient()
+	testImage := registrytest.AddRandomImage(t, fos, namespace, repo, tag)
 
 	testcases := []struct {
 		title         string
@@ -281,32 +173,17 @@ func TestTagCreation(t *testing.T) {
 			testImage.Annotations[imageapi.ManagedByOpenShiftAnnotation] = "false"
 		}
 
-		localTagService := newTestTagService(nil)
-
-		cachedLayers, err := newDigestToRepositoryCache(10)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
-		if err != nil {
-			t.Fatal(err)
-		}
+		r := newTestRepository(t, namespace, repo, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(client, nil, imageClient),
+			enablePullThrough: tc.pullthrough,
+		})
 
 		ts := &tagService{
-			TagService: localTagService,
-			repo: &repository{
-				Repository:       &testRepository{name: named},
-				ctx:              ctx,
-				namespace:        namespace,
-				name:             repo,
-				pullthrough:      tc.pullthrough,
-				cachedLayers:     cachedLayers,
-				registryOSClient: client,
-			},
+			TagService: newTestTagService(nil),
+			repo:       r,
 		}
 
-		err = ts.Tag(ctx, tc.tagName, tc.tagValue)
+		err := ts.Tag(context.Background(), tc.tagName, tc.tagValue)
 		if tc.expectedError {
 			if err == nil {
 				t.Fatalf("[%s] error expected", tc.title)
@@ -314,9 +191,23 @@ func TestTagCreation(t *testing.T) {
 			continue
 		}
 
-		_, err = ts.Get(ctx, tc.tagName)
-		if err == nil {
-			t.Fatalf("error expected")
+		r = newTestRepository(t, namespace, repo, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(client, nil, imageClient),
+			enablePullThrough: tc.pullthrough,
+		})
+
+		ts = &tagService{
+			TagService: newTestTagService(nil),
+			repo:       r,
+		}
+
+		tag, err := ts.Get(context.Background(), tc.tagName)
+		if err != nil {
+			t.Fatalf("[%s] unexpected error: %s", tc.title, err)
+		}
+
+		if tag.Digest != tc.tagValue.Digest {
+			t.Fatalf("[%s] got %v, want %v", tc.title, tag.Digest, tc.tagValue.Digest)
 		}
 	}
 }
@@ -325,49 +216,22 @@ func TestTagCreationWithoutImageStream(t *testing.T) {
 	namespace := "user"
 	repo := "app"
 	tag := "latest"
-	client := &testclient.Fake{}
 
-	// TODO: get rid of those nasty global vars
-	backupRegistryClient := DefaultRegistryClient
-	DefaultRegistryClient = makeFakeRegistryClient(client, fake.NewSimpleClientset())
-	defer func() {
-		// set it back once this test finishes to make other unit tests working again
-		DefaultRegistryClient = backupRegistryClient
-	}()
+	fos, client, imageClient := registrytest.NewFakeOpenShiftWithClient()
+	anotherImage := registrytest.AddRandomImage(t, fos, namespace, repo+"-another", tag)
 
-	ctx := context.Background()
-
-	serverURL, _ := url.Parse("docker.io/centos")
-
-	testImage := createTestImageReactor(t, client, serverURL, namespace, repo)
-	createTestImageStreamReactor(t, client, testImage, namespace, repo+"-another", tag)
-
-	localTagService := newTestTagService(nil)
-
-	cachedLayers, err := newDigestToRepositoryCache(10)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := newTestRepository(t, namespace, repo, testRepositoryOptions{
+		client: registryclient.NewFakeRegistryAPIClient(client, nil, imageClient),
+	})
 
 	ts := &tagService{
-		TagService: localTagService,
-		repo: &repository{
-			Repository:       &testRepository{name: named},
-			ctx:              ctx,
-			namespace:        namespace,
-			name:             repo,
-			pullthrough:      true,
-			cachedLayers:     cachedLayers,
-			registryOSClient: client,
-		},
+		TagService: newTestTagService(nil),
+		repo:       r,
 	}
 
-	err = ts.Tag(ctx, tag, distribution.Descriptor{Digest: digest.Digest(testImage.Name)})
+	err := ts.Tag(context.Background(), tag, distribution.Descriptor{
+		Digest: digest.Digest(anotherImage.Name),
+	})
 	if err == nil {
 		t.Fatalf("error expected")
 	}
@@ -382,21 +246,9 @@ func TestTagDeletion(t *testing.T) {
 	namespace := "user"
 	repo := "app"
 	tag := "latest"
-	client := &testclient.Fake{}
 
-	// TODO: get rid of those nasty global vars
-	backupRegistryClient := DefaultRegistryClient
-	DefaultRegistryClient = makeFakeRegistryClient(client, fake.NewSimpleClientset())
-	defer func() {
-		// set it back once this test finishes to make other unit tests working again
-		DefaultRegistryClient = backupRegistryClient
-	}()
-
-	ctx := context.Background()
-	serverURL, _ := url.Parse("docker.io/centos")
-
-	testImage := createTestImageReactor(t, client, serverURL, namespace, repo)
-	createTestImageStreamReactor(t, client, testImage, namespace, repo, tag)
+	fos, client, imageClient := registrytest.NewFakeOpenShiftWithClient()
+	testImage := registrytest.AddRandomImage(t, fos, namespace, repo, tag)
 
 	testcases := []struct {
 		title                 string
@@ -442,32 +294,17 @@ func TestTagDeletion(t *testing.T) {
 			testImage.Annotations[imageapi.ManagedByOpenShiftAnnotation] = "false"
 		}
 
-		localTagService := newTestTagService(nil)
-
-		cachedLayers, err := newDigestToRepositoryCache(10)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
-		if err != nil {
-			t.Fatal(err)
-		}
+		r := newTestRepository(t, namespace, repo, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(client, nil, imageClient),
+			enablePullThrough: tc.pullthrough,
+		})
 
 		ts := &tagService{
-			TagService: localTagService,
-			repo: &repository{
-				Repository:       &testRepository{name: named},
-				ctx:              ctx,
-				namespace:        namespace,
-				name:             repo,
-				pullthrough:      tc.pullthrough,
-				cachedLayers:     cachedLayers,
-				registryOSClient: client,
-			},
+			TagService: newTestTagService(nil),
+			repo:       r,
 		}
 
-		err = ts.Untag(ctx, tc.tagName)
+		err := ts.Untag(context.Background(), tc.tagName)
 
 		switch err.(type) {
 		case distribution.ErrTagUnknown:
@@ -491,49 +328,19 @@ func TestTagDeletionWithoutImageStream(t *testing.T) {
 	namespace := "user"
 	repo := "app"
 	tag := "latest"
-	client := &testclient.Fake{}
 
-	// TODO: get rid of those nasty global vars
-	backupRegistryClient := DefaultRegistryClient
-	DefaultRegistryClient = makeFakeRegistryClient(client, fake.NewSimpleClientset())
-	defer func() {
-		// set it back once this test finishes to make other unit tests working again
-		DefaultRegistryClient = backupRegistryClient
-	}()
+	_, client, imageClient := registrytest.NewFakeOpenShiftWithClient()
 
-	ctx := context.Background()
-
-	serverURL, _ := url.Parse("docker.io/centos")
-
-	testImage := createTestImageReactor(t, client, serverURL, namespace, repo)
-	createTestImageStreamReactor(t, client, testImage, namespace, repo+"-another", tag)
-
-	localTagService := newTestTagService(nil)
-
-	cachedLayers, err := newDigestToRepositoryCache(10)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := newTestRepository(t, namespace, repo, testRepositoryOptions{
+		client: registryclient.NewFakeRegistryAPIClient(client, nil, imageClient),
+	})
 
 	ts := &tagService{
-		TagService: localTagService,
-		repo: &repository{
-			Repository:       &testRepository{name: named},
-			ctx:              ctx,
-			namespace:        namespace,
-			name:             repo,
-			pullthrough:      true,
-			cachedLayers:     cachedLayers,
-			registryOSClient: client,
-		},
+		TagService: newTestTagService(nil),
+		repo:       r,
 	}
 
-	err = ts.Untag(ctx, tag)
+	err := ts.Untag(context.Background(), tag)
 	if err == nil {
 		t.Fatalf("error expected")
 	}
@@ -548,21 +355,9 @@ func TestTagGetAll(t *testing.T) {
 	namespace := "user"
 	repo := "app"
 	tag := "latest"
-	client := &testclient.Fake{}
 
-	// TODO: get rid of those nasty global vars
-	backupRegistryClient := DefaultRegistryClient
-	DefaultRegistryClient = makeFakeRegistryClient(client, fake.NewSimpleClientset())
-	defer func() {
-		// set it back once this test finishes to make other unit tests working again
-		DefaultRegistryClient = backupRegistryClient
-	}()
-
-	ctx := context.Background()
-	serverURL, _ := url.Parse("docker.io/centos")
-
-	testImage := createTestImageReactor(t, client, serverURL, namespace, repo)
-	createTestImageStreamReactor(t, client, testImage, namespace, repo, tag)
+	fos, client, imageClient := registrytest.NewFakeOpenShiftWithClient()
+	testImage := registrytest.AddRandomImage(t, fos, namespace, repo, tag)
 
 	testcases := []struct {
 		title         string
@@ -595,32 +390,17 @@ func TestTagGetAll(t *testing.T) {
 			testImage.Annotations[imageapi.ManagedByOpenShiftAnnotation] = "false"
 		}
 
-		localTagService := newTestTagService(nil)
-
-		cachedLayers, err := newDigestToRepositoryCache(10)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
-		if err != nil {
-			t.Fatal(err)
-		}
+		r := newTestRepository(t, namespace, repo, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(client, nil, imageClient),
+			enablePullThrough: tc.pullthrough,
+		})
 
 		ts := &tagService{
-			TagService: localTagService,
-			repo: &repository{
-				Repository:       &testRepository{name: named},
-				ctx:              ctx,
-				namespace:        namespace,
-				name:             repo,
-				pullthrough:      tc.pullthrough,
-				cachedLayers:     cachedLayers,
-				registryOSClient: client,
-			},
+			TagService: newTestTagService(nil),
+			repo:       r,
 		}
 
-		result, err := ts.All(ctx)
+		result, err := ts.All(context.Background())
 
 		if err != nil && !tc.expectedError {
 			t.Fatalf("[%s] unexpected error: %#+v", tc.title, err)
@@ -635,50 +415,19 @@ func TestTagGetAll(t *testing.T) {
 func TestTagGetAllWithoutImageStream(t *testing.T) {
 	namespace := "user"
 	repo := "app"
-	tag := "latest"
-	client := &testclient.Fake{}
 
-	// TODO: get rid of those nasty global vars
-	backupRegistryClient := DefaultRegistryClient
-	DefaultRegistryClient = makeFakeRegistryClient(client, fake.NewSimpleClientset())
-	defer func() {
-		// set it back once this test finishes to make other unit tests working again
-		DefaultRegistryClient = backupRegistryClient
-	}()
+	_, client, imageClient := registrytest.NewFakeOpenShiftWithClient()
 
-	ctx := context.Background()
-
-	serverURL, _ := url.Parse("docker.io/centos")
-
-	testImage := createTestImageReactor(t, client, serverURL, namespace, repo)
-	createTestImageStreamReactor(t, client, testImage, namespace, repo+"-another", tag)
-
-	localTagService := newTestTagService(nil)
-
-	cachedLayers, err := newDigestToRepositoryCache(10)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := newTestRepository(t, namespace, repo, testRepositoryOptions{
+		client: registryclient.NewFakeRegistryAPIClient(client, nil, imageClient),
+	})
 
 	ts := &tagService{
-		TagService: localTagService,
-		repo: &repository{
-			Repository:       &testRepository{name: named},
-			ctx:              ctx,
-			namespace:        namespace,
-			name:             repo,
-			pullthrough:      true,
-			cachedLayers:     cachedLayers,
-			registryOSClient: client,
-		},
+		TagService: newTestTagService(nil),
+		repo:       r,
 	}
 
-	_, err = ts.All(ctx)
+	_, err := ts.All(context.Background())
 	if err == nil {
 		t.Fatalf("error expected")
 	}
@@ -693,21 +442,9 @@ func TestTagLookup(t *testing.T) {
 	namespace := "user"
 	repo := "app"
 	tag := "latest"
-	client := &testclient.Fake{}
 
-	// TODO: get rid of those nasty global vars
-	backupRegistryClient := DefaultRegistryClient
-	DefaultRegistryClient = makeFakeRegistryClient(client, fake.NewSimpleClientset())
-	defer func() {
-		// set it back once this test finishes to make other unit tests working again
-		DefaultRegistryClient = backupRegistryClient
-	}()
-
-	ctx := context.Background()
-	serverURL, _ := url.Parse("docker.io/centos")
-
-	testImage := createTestImageReactor(t, client, serverURL, namespace, repo)
-	createTestImageStreamReactor(t, client, testImage, namespace, repo, tag)
+	fos, client, imageClient := registrytest.NewFakeOpenShiftWithClient()
+	testImage := registrytest.AddRandomImage(t, fos, namespace, repo, tag)
 
 	testcases := []struct {
 		title         string
@@ -751,32 +488,17 @@ func TestTagLookup(t *testing.T) {
 			testImage.Annotations[imageapi.ManagedByOpenShiftAnnotation] = "false"
 		}
 
-		localTagService := newTestTagService(nil)
-
-		cachedLayers, err := newDigestToRepositoryCache(10)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
-		if err != nil {
-			t.Fatal(err)
-		}
+		r := newTestRepository(t, namespace, repo, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(client, nil, imageClient),
+			enablePullThrough: tc.pullthrough,
+		})
 
 		ts := &tagService{
-			TagService: localTagService,
-			repo: &repository{
-				Repository:       &testRepository{name: named},
-				ctx:              ctx,
-				namespace:        namespace,
-				name:             repo,
-				pullthrough:      tc.pullthrough,
-				cachedLayers:     cachedLayers,
-				registryOSClient: client,
-			},
+			TagService: newTestTagService(nil),
+			repo:       r,
 		}
 
-		result, err := ts.Lookup(ctx, tc.tagValue)
+		result, err := ts.Lookup(context.Background(), tc.tagValue)
 
 		if err != nil {
 			if !tc.expectedError {
@@ -799,49 +521,22 @@ func TestTagLookupWithoutImageStream(t *testing.T) {
 	namespace := "user"
 	repo := "app"
 	tag := "latest"
-	client := &testclient.Fake{}
 
-	// TODO: get rid of those nasty global vars
-	backupRegistryClient := DefaultRegistryClient
-	DefaultRegistryClient = makeFakeRegistryClient(client, fake.NewSimpleClientset())
-	defer func() {
-		// set it back once this test finishes to make other unit tests working again
-		DefaultRegistryClient = backupRegistryClient
-	}()
+	fos, client, imageClient := registrytest.NewFakeOpenShiftWithClient()
+	anotherImage := registrytest.AddRandomImage(t, fos, namespace, repo+"-another", tag)
 
-	ctx := context.Background()
-
-	serverURL, _ := url.Parse("docker.io/centos")
-
-	testImage := createTestImageReactor(t, client, serverURL, namespace, repo)
-	createTestImageStreamReactor(t, client, testImage, namespace, repo+"-another", tag)
-
-	localTagService := newTestTagService(nil)
-
-	cachedLayers, err := newDigestToRepositoryCache(10)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	named, err := reference.ParseNamed(fmt.Sprintf("%s/%s", namespace, repo))
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := newTestRepository(t, namespace, repo, testRepositoryOptions{
+		client: registryclient.NewFakeRegistryAPIClient(client, nil, imageClient),
+	})
 
 	ts := &tagService{
-		TagService: localTagService,
-		repo: &repository{
-			Repository:       &testRepository{name: named},
-			ctx:              ctx,
-			namespace:        namespace,
-			name:             repo,
-			pullthrough:      true,
-			cachedLayers:     cachedLayers,
-			registryOSClient: client,
-		},
+		TagService: newTestTagService(nil),
+		repo:       r,
 	}
 
-	_, err = ts.Lookup(ctx, distribution.Descriptor{Digest: digest.Digest(testImage.Name)})
+	_, err := ts.Lookup(context.Background(), distribution.Descriptor{
+		Digest: digest.Digest(anotherImage.Name),
+	})
 	if err == nil {
 		t.Fatalf("error expected")
 	}
@@ -850,16 +545,6 @@ func TestTagLookupWithoutImageStream(t *testing.T) {
 	if !ok {
 		t.Fatalf("unexpected error: %#+v", err)
 	}
-}
-
-type testRepository struct {
-	distribution.Repository
-
-	name reference.Named
-}
-
-func (r *testRepository) Named() reference.Named {
-	return r.name
 }
 
 type testTagService struct {

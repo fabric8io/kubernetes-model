@@ -3,30 +3,30 @@ package integration
 import (
 	"testing"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapierrors "k8s.io/kubernetes/pkg/api/errors"
+	kapierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apiserverserviceaccount "k8s.io/apiserver/pkg/authentication/serviceaccount"
+	"k8s.io/client-go/rest"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/serviceaccount"
 
 	authenticationapi "github.com/openshift/origin/pkg/auth/api"
 	"github.com/openshift/origin/pkg/authorization/authorizer/scope"
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/server/origin"
 	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	oauthapi "github.com/openshift/origin/pkg/oauth/api"
-	userapi "github.com/openshift/origin/pkg/user/api"
+	oauthapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
+	oauthapiserver "github.com/openshift/origin/pkg/oauth/apiserver"
+	userapi "github.com/openshift/origin/pkg/user/apis/user"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
 
 func TestScopedTokens(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
 	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
 	if err != nil {
@@ -45,18 +45,18 @@ func TestScopedTokens(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := haroldClient.Builds(projectName).List(kapi.ListOptions{}); err != nil {
+	if _, err := haroldClient.Builds(projectName).List(metav1.ListOptions{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	haroldUser, err := haroldClient.Users().Get("~")
+	haroldUser, err := haroldClient.Users().Get("~", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	whoamiOnlyToken := &oauthapi.OAuthAccessToken{
-		ObjectMeta: kapi.ObjectMeta{Name: "whoami-token-plus-some-padding-here-to-make-the-limit"},
-		ClientName: origin.OpenShiftCLIClientID,
+		ObjectMeta: metav1.ObjectMeta{Name: "whoami-token-plus-some-padding-here-to-make-the-limit"},
+		ClientName: oauthapiserver.OpenShiftCLIClientID,
 		ExpiresIn:  200,
 		Scopes:     []string{scope.UserInfo},
 		UserName:   userName,
@@ -73,11 +73,11 @@ func TestScopedTokens(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := whoamiClient.Builds(projectName).List(kapi.ListOptions{}); !kapierrors.IsForbidden(err) {
+	if _, err := whoamiClient.Builds(projectName).List(metav1.ListOptions{}); !kapierrors.IsForbidden(err) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	user, err := whoamiClient.Users().Get("~")
+	user, err := whoamiClient.Users().Get("~", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -86,24 +86,23 @@ func TestScopedTokens(t *testing.T) {
 	}
 
 	// try to impersonate a service account using this token
-	whoamiConfig.Impersonate = serviceaccount.MakeUsername(projectName, "default")
+	whoamiConfig.Impersonate = rest.ImpersonationConfig{UserName: apiserverserviceaccount.MakeUsername(projectName, "default")}
 	impersonatingClient, err := client.New(&whoamiConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	impersonatedUser, err := impersonatingClient.Users().Get("~")
+	impersonatedUser, err := impersonatingClient.Users().Get("~", metav1.GetOptions{})
 	if !kapierrors.IsForbidden(err) {
 		t.Fatalf("missing error: %v got user %#v", err, impersonatedUser)
 	}
 }
 
 func TestScopedImpersonation(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
 	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
 	if err != nil {
@@ -143,12 +142,11 @@ func TestScopedImpersonation(t *testing.T) {
 }
 
 func TestScopeEscalations(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
 	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
 	if err != nil {
@@ -167,18 +165,18 @@ func TestScopeEscalations(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := haroldClient.Builds(projectName).List(kapi.ListOptions{}); err != nil {
+	if _, err := haroldClient.Builds(projectName).List(metav1.ListOptions{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	haroldUser, err := haroldClient.Users().Get("~")
+	haroldUser, err := haroldClient.Users().Get("~", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	nonEscalatingEditToken := &oauthapi.OAuthAccessToken{
-		ObjectMeta: kapi.ObjectMeta{Name: "non-escalating-edit-plus-some-padding-here-to-make-the-limit"},
-		ClientName: origin.OpenShiftCLIClientID,
+		ObjectMeta: metav1.ObjectMeta{Name: "non-escalating-edit-plus-some-padding-here-to-make-the-limit"},
+		ClientName: oauthapiserver.OpenShiftCLIClientID,
 		ExpiresIn:  200,
 		Scopes:     []string{scope.ClusterRoleIndicator + "edit:*"},
 		UserName:   userName,
@@ -195,13 +193,13 @@ func TestScopeEscalations(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := nonEscalatingEditClient.Secrets(projectName).List(kapi.ListOptions{}); !kapierrors.IsForbidden(err) {
+	if _, err := nonEscalatingEditClient.Secrets(projectName).List(metav1.ListOptions{}); !kapierrors.IsForbidden(err) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	escalatingEditToken := &oauthapi.OAuthAccessToken{
-		ObjectMeta: kapi.ObjectMeta{Name: "escalating-edit-plus-some-padding-here-to-make-the-limit"},
-		ClientName: origin.OpenShiftCLIClientID,
+		ObjectMeta: metav1.ObjectMeta{Name: "escalating-edit-plus-some-padding-here-to-make-the-limit"},
+		ClientName: oauthapiserver.OpenShiftCLIClientID,
 		ExpiresIn:  200,
 		Scopes:     []string{scope.ClusterRoleIndicator + "edit:*:!"},
 		UserName:   userName,
@@ -218,18 +216,17 @@ func TestScopeEscalations(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := escalatingEditClient.Secrets(projectName).List(kapi.ListOptions{}); err != nil {
+	if _, err := escalatingEditClient.Secrets(projectName).List(metav1.ListOptions{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
 func TestTokensWithIllegalScopes(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
 	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
 	if err != nil {
@@ -237,7 +234,7 @@ func TestTokensWithIllegalScopes(t *testing.T) {
 	}
 
 	client := &oauthapi.OAuthClient{
-		ObjectMeta: kapi.ObjectMeta{Name: "testing-client"},
+		ObjectMeta: metav1.ObjectMeta{Name: "testing-client"},
 		ScopeRestrictions: []oauthapi.ScopeRestriction{
 			{ExactValues: []string{"user:info"}},
 			{
@@ -262,7 +259,7 @@ func TestTokensWithIllegalScopes(t *testing.T) {
 			name: "no scopes",
 			fail: true,
 			obj: &oauthapi.OAuthClientAuthorization{
-				ObjectMeta: kapi.ObjectMeta{Name: "testing-client"},
+				ObjectMeta: metav1.ObjectMeta{Name: "testing-client"},
 				ClientName: client.Name,
 				UserName:   "name",
 				UserUID:    "uid",
@@ -272,7 +269,7 @@ func TestTokensWithIllegalScopes(t *testing.T) {
 			name: "denied literal",
 			fail: true,
 			obj: &oauthapi.OAuthClientAuthorization{
-				ObjectMeta: kapi.ObjectMeta{Name: "testing-client"},
+				ObjectMeta: metav1.ObjectMeta{Name: "testing-client"},
 				ClientName: client.Name,
 				UserName:   "name",
 				UserUID:    "uid",
@@ -283,7 +280,7 @@ func TestTokensWithIllegalScopes(t *testing.T) {
 			name: "denied role",
 			fail: true,
 			obj: &oauthapi.OAuthClientAuthorization{
-				ObjectMeta: kapi.ObjectMeta{Name: "testing-client"},
+				ObjectMeta: metav1.ObjectMeta{Name: "testing-client"},
 				ClientName: client.Name,
 				UserName:   "name",
 				UserUID:    "uid",
@@ -293,7 +290,7 @@ func TestTokensWithIllegalScopes(t *testing.T) {
 		{
 			name: "ok role",
 			obj: &oauthapi.OAuthClientAuthorization{
-				ObjectMeta: kapi.ObjectMeta{Name: "testing-client"},
+				ObjectMeta: metav1.ObjectMeta{Name: "testing-client"},
 				ClientName: client.Name,
 				UserName:   "name",
 				UserUID:    "uid",
@@ -321,7 +318,7 @@ func TestTokensWithIllegalScopes(t *testing.T) {
 			name: "no scopes",
 			fail: true,
 			obj: &oauthapi.OAuthAccessToken{
-				ObjectMeta: kapi.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
+				ObjectMeta: metav1.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
 				ClientName: client.Name,
 				UserName:   "name",
 				UserUID:    "uid",
@@ -331,7 +328,7 @@ func TestTokensWithIllegalScopes(t *testing.T) {
 			name: "denied literal",
 			fail: true,
 			obj: &oauthapi.OAuthAccessToken{
-				ObjectMeta: kapi.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
+				ObjectMeta: metav1.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
 				ClientName: client.Name,
 				UserName:   "name",
 				UserUID:    "uid",
@@ -342,7 +339,7 @@ func TestTokensWithIllegalScopes(t *testing.T) {
 			name: "denied role",
 			fail: true,
 			obj: &oauthapi.OAuthAccessToken{
-				ObjectMeta: kapi.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
+				ObjectMeta: metav1.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
 				ClientName: client.Name,
 				UserName:   "name",
 				UserUID:    "uid",
@@ -352,7 +349,7 @@ func TestTokensWithIllegalScopes(t *testing.T) {
 		{
 			name: "ok role",
 			obj: &oauthapi.OAuthAccessToken{
-				ObjectMeta: kapi.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
+				ObjectMeta: metav1.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
 				ClientName: client.Name,
 				UserName:   "name",
 				UserUID:    "uid",
@@ -380,7 +377,7 @@ func TestTokensWithIllegalScopes(t *testing.T) {
 			name: "no scopes",
 			fail: true,
 			obj: &oauthapi.OAuthAuthorizeToken{
-				ObjectMeta: kapi.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
+				ObjectMeta: metav1.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
 				ClientName: client.Name,
 				UserName:   "name",
 				UserUID:    "uid",
@@ -390,7 +387,7 @@ func TestTokensWithIllegalScopes(t *testing.T) {
 			name: "denied literal",
 			fail: true,
 			obj: &oauthapi.OAuthAuthorizeToken{
-				ObjectMeta: kapi.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
+				ObjectMeta: metav1.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
 				ClientName: client.Name,
 				UserName:   "name",
 				UserUID:    "uid",
@@ -401,7 +398,7 @@ func TestTokensWithIllegalScopes(t *testing.T) {
 			name: "denied role",
 			fail: true,
 			obj: &oauthapi.OAuthAuthorizeToken{
-				ObjectMeta: kapi.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
+				ObjectMeta: metav1.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
 				ClientName: client.Name,
 				UserName:   "name",
 				UserUID:    "uid",
@@ -411,7 +408,7 @@ func TestTokensWithIllegalScopes(t *testing.T) {
 		{
 			name: "ok role",
 			obj: &oauthapi.OAuthAuthorizeToken{
-				ObjectMeta: kapi.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
+				ObjectMeta: metav1.ObjectMeta{Name: "tokenlongenoughtobecreatedwithoutfailing"},
 				ClientName: client.Name,
 				UserName:   "name",
 				UserUID:    "uid",

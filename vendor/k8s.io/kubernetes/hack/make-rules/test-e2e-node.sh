@@ -18,7 +18,7 @@ KUBE_ROOT=$(dirname "${BASH_SOURCE}")/../..
 source "${KUBE_ROOT}/hack/lib/init.sh"
 
 focus=${FOCUS:-""}
-skip=${SKIP:-""}
+skip=${SKIP-"\[Flaky\]|\[Slow\]|\[Serial\]"}
 # The number of tests that can run in parallel depends on what tests
 # are running and on the size of the node. Too many, and tests will
 # fail due to resource contention. 8 is a reasonable default for a
@@ -28,6 +28,9 @@ skip=${SKIP:-""}
 parallelism=${PARALLELISM:-8}
 artifacts=${ARTIFACTS:-"/tmp/_artifacts/`date +%y%m%dT%H%M%S`"}
 remote=${REMOTE:-"false"}
+runtime=${RUNTIME:-"docker"}
+container_runtime_endpoint=${CONTAINER_RUNTIME_ENDPOINT:-""}
+image_service_endpoint=${IMAGE_SERVICE_ENDPOINT:-""}
 run_until_failure=${RUN_UNTIL_FAILURE:-"false"}
 test_args=${TEST_ARGS:-""}
 
@@ -38,11 +41,11 @@ if [[ $parallelism > 1 ]]; then
 fi
 
 if [[ $focus != "" ]]; then
-  ginkgoflags="$ginkgoflags -focus='$focus' "
+  ginkgoflags="$ginkgoflags -focus=\"$focus\" "
 fi
 
 if [[ $skip != "" ]]; then
-  ginkgoflags="$ginkgoflags -skip='$skip' "
+  ginkgoflags="$ginkgoflags -skip=\"$skip\" "
 fi
 
 if [[ $run_until_failure != "" ]]; then
@@ -68,12 +71,13 @@ if [ $remote = true ] ; then
     exit 0
   fi
   gubernator=${GUBERNATOR:-"false"}
-  if [[ $hosts == "" && $images == "" ]]; then
-    image_project=${IMAGE_PROJECT:-"google-containers"}
+  image_config_file=${IMAGE_CONFIG_FILE:-""}
+  if [[ $hosts == "" && $images == "" && $image_config_file == "" ]]; then
+    image_project=${IMAGE_PROJECT:-"cos-cloud"}
     gci_image=$(gcloud compute images list --project $image_project \
-    --no-standard-images --regexp="gci-dev.*" --format="table[no-heading](name)")
+    --no-standard-images --regexp="cos-beta.*" --format="table[no-heading](name)")
     images=$gci_image
-    metadata="user-data<${KUBE_ROOT}/test/e2e_node/jenkins/gci-init.yaml"
+    metadata="user-data<${KUBE_ROOT}/test/e2e_node/jenkins/gci-init.yaml,gci-update-strategy=update_disabled"
   fi
   instance_prefix=${INSTANCE_PREFIX:-"test"}
   cleanup=${CLEANUP:-"true"}
@@ -123,13 +127,15 @@ if [ $remote = true ] ; then
   echo "Hosts: $hosts"
   echo "Ginkgo Flags: $ginkgoflags"
   echo "Instance Metadata: $metadata"
+  echo "Image Config File: $image_config_file"
   # Invoke the runner
   go run test/e2e_node/runner/remote/run_remote.go  --logtostderr --vmodule=*=4 --ssh-env="gce" \
     --zone="$zone" --project="$project" --gubernator="$gubernator" \
     --hosts="$hosts" --images="$images" --cleanup="$cleanup" \
     --results-dir="$artifacts" --ginkgo-flags="$ginkgoflags" \
-    --image-project="$image_project" --instance-name-prefix="$instance_prefix" --setup-node="true" \
+    --image-project="$image_project" --instance-name-prefix="$instance_prefix" \
     --delete-instances="$delete_instances" --test_args="$test_args" --instance-metadata="$metadata" \
+    --image-config-file="$image_config_file" \
     2>&1 | tee -i "${artifacts}/build-log.txt"
   exit $?
 
@@ -142,12 +148,26 @@ else
 
   # Do not use any network plugin by default. User could override the flags with
   # test_args.
-  test_args='--kubelet-flags="--network-plugin= --network-plugin-dir=" '$test_args
+  test_args='--kubelet-flags="--network-plugin= --cni-bin-dir=" '$test_args
+
+  # Runtime flags
+  test_args='--kubelet-flags="--container-runtime='$runtime'" '$test_args
+  if [[ $runtime == "remote" ]] ; then
+      if [[ ! -z $container_runtime_endpoint ]] ; then
+	      test_args='--kubelet-flags="--container-runtime-endpoint='$container_runtime_endpoint'" '$test_args
+      fi
+      if [[ ! -z $image_service_endpoint ]] ; then
+	      test_args='--kubelet-flags="--image-service-endpoint='$image_service_endpoint'" '$test_args
+      fi
+  fi
 
   # Test using the host the script was run on
   # Provided for backwards compatibility
   go run test/e2e_node/runner/local/run_local.go --ginkgo-flags="$ginkgoflags" \
-    --test-flags="--alsologtostderr --v 4 --report-dir=${artifacts} --node-name $(hostname) \
+    --test-flags="--container-runtime=${runtime} \
+    --container-runtime-endpoint=${container_runtime_endpoint} \
+    --image-service-endpoint=${image_service_endpoint} \
+    --alsologtostderr --v 4 --report-dir=${artifacts} --node-name $(hostname) \
     $test_args" --build-dependencies=true 2>&1 | tee -i "${artifacts}/build-log.txt"
   exit $?
 fi

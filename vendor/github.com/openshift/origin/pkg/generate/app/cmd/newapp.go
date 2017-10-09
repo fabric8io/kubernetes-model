@@ -10,21 +10,23 @@ import (
 	"strings"
 	"time"
 
+	dockerfileparser "github.com/docker/docker/builder/dockerfile/parser"
 	"github.com/fsouza/go-dockerclient"
 	"github.com/golang/glog"
+
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	kapi "k8s.io/kubernetes/pkg/api"
-	kerrors "k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/api/meta"
 	"k8s.io/kubernetes/pkg/api/validation"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
-	"k8s.io/kubernetes/pkg/runtime"
-	kutilerrors "k8s.io/kubernetes/pkg/util/errors"
 
-	dockerfileparser "github.com/docker/docker/builder/dockerfile/parser"
 	ometa "github.com/openshift/origin/pkg/api/meta"
-	authapi "github.com/openshift/origin/pkg/authorization/api"
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	authapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	buildutil "github.com/openshift/origin/pkg/build/util"
 	"github.com/openshift/origin/pkg/client"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
@@ -34,7 +36,7 @@ import (
 	"github.com/openshift/origin/pkg/generate/dockerfile"
 	"github.com/openshift/origin/pkg/generate/jenkinsfile"
 	"github.com/openshift/origin/pkg/generate/source"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	outil "github.com/openshift/origin/pkg/util"
 	dockerfileutil "github.com/openshift/origin/pkg/util/docker/dockerfile"
 )
@@ -53,13 +55,15 @@ type GenerationInputs struct {
 	TemplateParameters []string
 	Environment        []string
 	BuildEnvironment   []string
+	BuildArgs          []string
 	Labels             map[string]string
 
 	TemplateParameterFiles []string
 	EnvironmentFiles       []string
 	BuildEnvironmentFiles  []string
 
-	InsecureRegistry bool
+	IgnoreUnknownParameters bool
+	InsecureRegistry        bool
 
 	Strategy generate.Strategy
 
@@ -111,12 +115,20 @@ type AppConfig struct {
 
 	Resolvers
 
-	Typer        runtime.ObjectTyper
-	Mapper       meta.RESTMapper
-	ClientMapper resource.ClientMapper
+	Typer            runtime.ObjectTyper
+	Mapper           meta.RESTMapper
+	CategoryExpander resource.CategoryExpander
+	ClientMapper     resource.ClientMapper
 
 	OSClient        client.Interface
 	OriginNamespace string
+
+	ArgumentClassificationErrors []ArgumentClassificationError
+}
+
+type ArgumentClassificationError struct {
+	Key   string
+	Value error
 }
 
 type ErrRequiresExplicitAccess struct {
@@ -196,10 +208,11 @@ func (c *AppConfig) SetOpenShiftClient(osclient client.Interface, OriginNamespac
 		Namespaces:                namespaces,
 	}
 	c.TemplateFileSearcher = &app.TemplateFileSearcher{
-		Typer:        c.Typer,
-		Mapper:       c.Mapper,
-		ClientMapper: c.ClientMapper,
-		Namespace:    OriginNamespace,
+		Typer:            c.Typer,
+		Mapper:           c.Mapper,
+		ClientMapper:     c.ClientMapper,
+		CategoryExpander: c.CategoryExpander,
+		Namespace:        OriginNamespace,
 	}
 	// the hierarchy of docker searching is:
 	// 1) if we have an openshift client - query docker registries via openshift,
@@ -219,30 +232,92 @@ func (c *AppConfig) SetOpenShiftClient(osclient client.Interface, OriginNamespac
 	}
 }
 
+func (c *AppConfig) tryToAddEnvironmentArguments(s string) bool {
+	rc := cmdutil.IsEnvironmentArgument(s)
+	if rc {
+		glog.V(2).Infof("treating %s as possible environment argument\n", s)
+		c.Environment = append(c.Environment, s)
+	}
+	return rc
+}
+
+func (c *AppConfig) tryToAddSourceArguments(s string) bool {
+	remote, rerr := app.IsRemoteRepository(s)
+	local, derr := app.IsDirectory(s)
+
+	if remote || local {
+		glog.V(2).Infof("treating %s as possible source repo\n", s)
+		c.SourceRepositories = append(c.SourceRepositories, s)
+		return true
+	}
+
+	if rerr != nil {
+		c.ArgumentClassificationErrors = append(c.ArgumentClassificationErrors, ArgumentClassificationError{
+			Key:   fmt.Sprintf("%s as a Git repository URL", s),
+			Value: rerr,
+		})
+	}
+
+	if derr != nil {
+		c.ArgumentClassificationErrors = append(c.ArgumentClassificationErrors, ArgumentClassificationError{
+			Key:   fmt.Sprintf("%s as a local directory pointing to a Git repository", s),
+			Value: derr,
+		})
+	}
+
+	return false
+}
+
+func (c *AppConfig) tryToAddComponentArguments(s string) bool {
+	err := app.IsComponentReference(s)
+	if err == nil {
+		glog.V(2).Infof("treating %s as a component ref\n", s)
+		c.Components = append(c.Components, s)
+		return true
+	}
+	c.ArgumentClassificationErrors = append(c.ArgumentClassificationErrors, ArgumentClassificationError{
+		Key:   fmt.Sprintf("%s as a template loaded in an accessible project, an imagestream tag, or a docker image reference", s),
+		Value: err,
+	})
+
+	return false
+}
+
+func (c *AppConfig) tryToAddTemplateArguments(s string) bool {
+	rc, err := app.IsPossibleTemplateFile(s)
+	if rc {
+		glog.V(2).Infof("treating %s as possible template file\n", s)
+		c.Components = append(c.Components, s)
+		return true
+	}
+	if err != nil {
+		c.ArgumentClassificationErrors = append(c.ArgumentClassificationErrors, ArgumentClassificationError{
+			Key:   fmt.Sprintf("%s as a template stored in a local file", s),
+			Value: err,
+		})
+	}
+	return false
+}
+
 // AddArguments converts command line arguments into the appropriate bucket based on what they look like
 func (c *AppConfig) AddArguments(args []string) []string {
 	unknown := []string{}
+	c.ArgumentClassificationErrors = []ArgumentClassificationError{}
 	for _, s := range args {
+		if len(s) == 0 {
+			continue
+		}
+
 		switch {
-		case cmdutil.IsEnvironmentArgument(s):
-			glog.V(2).Infof("treating %s as possible environment argument\n", s)
-			c.Environment = append(c.Environment, s)
-		case app.IsPossibleSourceRepository(s):
-			glog.V(2).Infof("treating %s as possible source repo\n", s)
-			c.SourceRepositories = append(c.SourceRepositories, s)
-		case app.IsComponentReference(s):
-			glog.V(2).Infof("treating %s as a component ref\n", s)
-			c.Components = append(c.Components, s)
-		case app.IsPossibleTemplateFile(s):
-			glog.V(2).Infof("treating %s as possible template file\n", s)
-			c.Components = append(c.Components, s)
+		case c.tryToAddEnvironmentArguments(s):
+		case c.tryToAddSourceArguments(s):
+		case c.tryToAddComponentArguments(s):
+		case c.tryToAddTemplateArguments(s):
 		default:
 			glog.V(2).Infof("treating %s as unknown\n", s)
-			if len(s) == 0 {
-				break
-			}
 			unknown = append(unknown, s)
 		}
+
 	}
 	return unknown
 }
@@ -285,9 +360,24 @@ func validateOutputImageReference(ref string) error {
 }
 
 // buildPipelines converts a set of resolved, valid references into pipelines.
-func (c *AppConfig) buildPipelines(components app.ComponentReferences, environment app.Environment) (app.PipelineGroup, error) {
+func (c *AppConfig) buildPipelines(components app.ComponentReferences, environment app.Environment, buildEnvironment app.Environment) (app.PipelineGroup, error) {
 	pipelines := app.PipelineGroup{}
-	pipelineBuilder := app.NewPipelineBuilder(c.Name, c.GetBuildEnvironment(), c.OutputDocker).To(c.To)
+
+	buildArgs, err := cmdutil.ParseBuildArg(c.BuildArgs, c.In)
+	if err != nil {
+		return nil, err
+	}
+
+	var DockerStrategyOptions *buildapi.DockerStrategyOptions
+	if len(c.BuildArgs) > 0 {
+		DockerStrategyOptions = &buildapi.DockerStrategyOptions{
+			BuildArgs: buildArgs,
+		}
+	}
+
+	numDockerBuilds := 0
+
+	pipelineBuilder := app.NewPipelineBuilder(c.Name, buildEnvironment, DockerStrategyOptions, c.OutputDocker).To(c.To)
 	for _, group := range components.Group() {
 		glog.V(4).Infof("found group: %v", group)
 		common := app.PipelineGroup{}
@@ -299,8 +389,13 @@ func (c *AppConfig) buildPipelines(components app.ComponentReferences, environme
 			switch {
 			case refInput.ExpectToBuild:
 				glog.V(4).Infof("will add %q secrets into a build for a source build of %q", strings.Join(c.Secrets, ","), refInput.Uses)
+
 				if err := refInput.Uses.AddBuildSecrets(c.Secrets); err != nil {
 					return nil, fmt.Errorf("unable to add build secrets %q: %v", strings.Join(c.Secrets, ","), err)
+				}
+
+				if refInput.Uses.GetStrategy() == generate.StrategyDocker {
+					numDockerBuilds++
 				}
 
 				var (
@@ -320,7 +415,7 @@ func (c *AppConfig) buildPipelines(components app.ComponentReferences, environme
 				}
 
 				glog.V(4).Infof("will use %q as the base image for a source build of %q", ref, refInput.Uses)
-				if pipeline, err = pipelineBuilder.NewBuildPipeline(from, image, refInput.Uses); err != nil {
+				if pipeline, err = pipelineBuilder.NewBuildPipeline(from, image, refInput.Uses, c.BinaryBuild); err != nil {
 					return nil, fmt.Errorf("can't build %q: %v", refInput.Uses, err)
 				}
 			default:
@@ -360,18 +455,31 @@ func (c *AppConfig) buildPipelines(components app.ComponentReferences, environme
 		}
 		pipelines = append(pipelines, common...)
 	}
+
+	if len(c.BuildArgs) > 0 {
+		if numDockerBuilds == 0 {
+			return nil, fmt.Errorf("Cannot use '--build-arg' without a Docker build")
+		}
+		if numDockerBuilds > 1 {
+			fmt.Fprintf(c.ErrOut, "--> WARNING: Applying --build-arg to multiple Docker builds.\n")
+		}
+	}
+
 	return pipelines, nil
 }
 
 // buildTemplates converts a set of resolved, valid references into references to template objects.
-func (c *AppConfig) buildTemplates(components app.ComponentReferences, parameters app.Environment, environment app.Environment) (string, []runtime.Object, error) {
+func (c *AppConfig) buildTemplates(components app.ComponentReferences, parameters app.Environment, environment app.Environment, buildEnvironment app.Environment) (string, []runtime.Object, error) {
 	objects := []runtime.Object{}
 	name := ""
 	for _, ref := range components {
 		tpl := ref.Input().ResolvedMatch.Template
 
 		glog.V(4).Infof("processing template %s/%s", c.OriginNamespace, tpl.Name)
-		result, err := TransformTemplate(tpl, c.OSClient, c.OriginNamespace, parameters)
+		if len(c.ContextDir) > 0 {
+			return "", nil, fmt.Errorf("--context-dir is not supported when using a template")
+		}
+		result, err := TransformTemplate(tpl, c.OSClient, c.OriginNamespace, parameters, c.IgnoreUnknownParameters)
 		if err != nil {
 			return name, nil, err
 		}
@@ -383,6 +491,12 @@ func (c *AppConfig) buildTemplates(components app.ComponentReferences, parameter
 			// if environment variables were passed in, let's apply the environment variables
 			// to every pod template object
 			for i := range result.Objects {
+				switch result.Objects[i].(type) {
+				case *buildapi.BuildConfig:
+					buildEnv := buildutil.GetBuildConfigEnv(result.Objects[i].(*buildapi.BuildConfig))
+					buildEnv = app.JoinEnvironment(buildEnv, buildEnvironment.List())
+					buildutil.SetBuildConfigEnv(result.Objects[i].(*buildapi.BuildConfig), buildEnv)
+				}
 				podSpec, _, err := ometa.GetPodSpec(result.Objects[i])
 				if err == nil {
 					for ii := range podSpec.Containers {
@@ -470,14 +584,14 @@ func (c *AppConfig) installComponents(components app.ComponentReferences, env ap
 
 	serviceAccountName := "installer"
 	if token != nil && token.ServiceAccount {
-		if _, err := c.KubeClient.Core().ServiceAccounts(c.OriginNamespace).Get(serviceAccountName); err != nil {
+		if _, err := c.KubeClient.Core().ServiceAccounts(c.OriginNamespace).Get(serviceAccountName, metav1.GetOptions{}); err != nil {
 			if kerrors.IsNotFound(err) {
 				objects = append(objects,
 					// create a new service account
-					&kapi.ServiceAccount{ObjectMeta: kapi.ObjectMeta{Name: serviceAccountName}},
+					&kapi.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: serviceAccountName}},
 					// grant the service account the edit role on the project (TODO: installer)
 					&authapi.RoleBinding{
-						ObjectMeta: kapi.ObjectMeta{Name: "installer-role-binding"},
+						ObjectMeta: metav1.ObjectMeta{Name: "installer-role-binding"},
 						Subjects:   []kapi.ObjectReference{{Kind: "ServiceAccount", Name: serviceAccountName}},
 						RoleRef:    kapi.ObjectReference{Name: "edit"},
 					},
@@ -623,14 +737,15 @@ func (c *AppConfig) validate() (app.Environment, app.Environment, app.Environmen
 
 // Run executes the provided config to generate objects.
 func (c *AppConfig) Run() (*AppResult, error) {
-	env, _, parameters, err := c.validate()
+	env, buildenv, parameters, err := c.validate()
+
 	if err != nil {
 		return nil, err
 	}
 	// TODO: I don't belong here
 	c.ensureDockerSearch()
 
-	resolved, err := Resolve(&c.Resolvers, &c.ComponentInputs, &c.GenerationInputs)
+	resolved, err := Resolve(c)
 	if err != nil {
 		return nil, err
 	}
@@ -684,7 +799,7 @@ func (c *AppConfig) Run() (*AppResult, error) {
 		}, nil
 	}
 
-	pipelines, err := c.buildPipelines(components.ImageComponentRefs(), env)
+	pipelines, err := c.buildPipelines(components.ImageComponentRefs(), env, buildenv)
 	if err != nil {
 		return nil, err
 	}
@@ -702,7 +817,7 @@ func (c *AppConfig) Run() (*AppResult, error) {
 
 	objects = app.AddServices(objects, false)
 
-	templateName, templateObjects, err := c.buildTemplates(components.TemplateComponentRefs(), parameters, env)
+	templateName, templateObjects, err := c.buildTemplates(components.TemplateComponentRefs(), parameters, env, buildenv)
 	if err != nil {
 		return nil, err
 	}
@@ -809,6 +924,15 @@ func (c *AppConfig) followRefToDockerImage(ref *kapi.ObjectReference, isContext 
 		return &copy, nil
 	}
 
+	if ref.Kind == "ImageStreamImage" {
+		// even if the associated tag for this ImageStreamImage matches a output ImageStreamTag, when the image
+		// is built it will have a new sha ... you are essentially using a single/unique older version of a image as the base
+		// to build future images;  all this means we can leave the ref name as is and return with no error
+		// also do shallow copy like above
+		copy := *ref
+		return &copy, nil
+	}
+
 	if ref.Kind != "ImageStreamTag" {
 		return nil, fmt.Errorf("Unable to follow reference type: %q", ref.Kind)
 	}
@@ -841,7 +965,7 @@ func (c *AppConfig) followRefToDockerImage(ref *kapi.ObjectReference, isContext 
 
 		if isContext == nil {
 			var err error
-			isContext, err = c.OSClient.ImageStreams(isNS).Get(isName)
+			isContext, err = c.OSClient.ImageStreams(isNS).Get(isName, metav1.GetOptions{})
 			if err != nil {
 				return nil, fmt.Errorf("Unable to check for circular build input/outputs: %v", err)
 			}
@@ -938,12 +1062,6 @@ func (c *AppConfig) HasArguments() bool {
 		len(c.DockerImages) > 0 ||
 		len(c.Templates) > 0 ||
 		len(c.TemplateFiles) > 0
-}
-
-func (c *AppConfig) GetBuildEnvironment() app.Environment {
-	_, buildEnv, _, _ := c.validate()
-	return buildEnv
-
 }
 
 func optionallyValidateExposedPorts(config *AppConfig, repositories app.SourceRepositories) error {

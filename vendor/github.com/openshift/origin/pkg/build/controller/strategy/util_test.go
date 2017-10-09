@@ -1,17 +1,20 @@
 package strategy
 
 import (
+	"reflect"
 	"testing"
+	"unsafe"
 
 	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/v1"
 
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 )
 
 func TestSetupDockerSocketHostSocket(t *testing.T) {
-	pod := kapi.Pod{
-		Spec: kapi.PodSpec{
-			Containers: []kapi.Container{
+	pod := v1.Pod{
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
 				{},
 			},
 		},
@@ -57,7 +60,7 @@ func TestSetupDockerSocketHostSocket(t *testing.T) {
 	}
 }
 
-func isVolumeSourceEmpty(volumeSource kapi.VolumeSource) bool {
+func isVolumeSourceEmpty(volumeSource v1.VolumeSource) bool {
 	if volumeSource.EmptyDir == nil &&
 		volumeSource.HostPath == nil &&
 		volumeSource.GCEPersistentDisk == nil &&
@@ -68,47 +71,17 @@ func isVolumeSourceEmpty(volumeSource kapi.VolumeSource) bool {
 	return false
 }
 
-func TestTrustedMergeEnvWithoutDuplicates(t *testing.T) {
-	input := []kapi.EnvVar{
-		{Name: "foo", Value: "bar"},
-		{Name: "input", Value: "inputVal"},
-		{Name: "BUILD_LOGLEVEL", Value: "loglevel"},
-	}
-	output := []kapi.EnvVar{
-		{Name: "foo", Value: "test"},
-	}
-
-	mergeTrustedEnvWithoutDuplicates(input, &output)
-
-	if len(output) != 2 {
-		t.Errorf("Expected output to contain input items len==2 (%d)", len(output))
-	}
-
-	if output[0].Name != "foo" {
-		t.Errorf("Expected output to have env 'foo', got %+v", output[0])
-	}
-	if output[0].Value != "test" {
-		t.Errorf("Expected output env 'foo' to have value 'test', got %+v", output[0])
-	}
-	if output[1].Name != "BUILD_LOGLEVEL" {
-		t.Errorf("Expected output to have env 'BUILD_LOGLEVEL', got %+v", output[1])
-	}
-	if output[1].Value != "loglevel" {
-		t.Errorf("Expected output env 'BUILD_LOGLEVEL' to have value 'loglevel', got %+v", output[1])
-	}
-}
-
 func TestSetupDockerSecrets(t *testing.T) {
-	pod := kapi.Pod{
-		Spec: kapi.PodSpec{
-			Containers: []kapi.Container{
+	pod := v1.Pod{
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
 				{},
 			},
 		},
 	}
 
 	pushSecret := &kapi.LocalObjectReference{
-		Name: "pushSecret",
+		Name: "my.pushSecret.with.full.stops.and.longer.than.sixty.three.characters",
 	}
 	pullSecret := &kapi.LocalObjectReference{
 		Name: "pullSecret",
@@ -119,7 +92,7 @@ func TestSetupDockerSecrets(t *testing.T) {
 		{PullSecret: &kapi.LocalObjectReference{Name: "imageSourceSecret1"}},
 	}
 
-	setupDockerSecrets(&pod, pushSecret, pullSecret, imageSources)
+	setupDockerSecrets(&pod, &pod.Spec.Containers[0], pushSecret, pullSecret, imageSources)
 
 	if len(pod.Spec.Volumes) != 4 {
 		t.Fatalf("Expected 4 volumes, got: %#v", pod.Spec.Volumes)
@@ -131,6 +104,13 @@ func TestSetupDockerSecrets(t *testing.T) {
 			t.Errorf("Duplicate volume name %s", v.Name)
 		}
 		seenName[v.Name] = true
+	}
+
+	if !seenName["my-pushSecret-with-full-stops-and-longer-than-six-c6eb4d75-push"] {
+		t.Errorf("volume my-pushSecret-with-full-stops-and-longer-than-six-c6eb4d75-push was not seen")
+	}
+	if !seenName["pullSecret-pull"] {
+		t.Errorf("volume pullSecret-pull was not seen")
 	}
 
 	seenMount := map[string]bool{}
@@ -145,5 +125,45 @@ func TestSetupDockerSecrets(t *testing.T) {
 			t.Errorf("Duplicate volume mount path %s", m.MountPath)
 		}
 		seenMountPath[m.Name] = true
+	}
+
+	if !seenMount["my-pushSecret-with-full-stops-and-longer-than-six-c6eb4d75-push"] {
+		t.Errorf("volumemount my-pushSecret-with-full-stops-and-longer-than-six-c6eb4d75-push was not seen")
+	}
+	if !seenMount["pullSecret-pull"] {
+		t.Errorf("volumemount pullSecret-pull was not seen")
+	}
+}
+
+func TestCopyEnvVarSlice(t *testing.T) {
+	s1 := []v1.EnvVar{{Name: "FOO", Value: "bar"}, {Name: "BAZ", Value: "qux"}}
+	s2 := copyEnvVarSlice(s1)
+
+	if !reflect.DeepEqual(s1, s2) {
+		t.Error(s2)
+	}
+
+	if (*reflect.SliceHeader)(unsafe.Pointer(&s1)).Data == (*reflect.SliceHeader)(unsafe.Pointer(&s2)).Data {
+		t.Error("copyEnvVarSlice didn't copy backing store")
+	}
+}
+
+func checkAliasing(t *testing.T, pod *v1.Pod) {
+	m := map[uintptr]bool{}
+	for _, c := range pod.Spec.Containers {
+		p := (*reflect.SliceHeader)(unsafe.Pointer(&c.Env)).Data
+		if m[p] {
+			t.Error("pod Env slices are aliased")
+			return
+		}
+		m[p] = true
+	}
+	for _, c := range pod.Spec.InitContainers {
+		p := (*reflect.SliceHeader)(unsafe.Pointer(&c.Env)).Data
+		if m[p] {
+			t.Error("pod Env slices are aliased")
+			return
+		}
+		m[p] = true
 	}
 }

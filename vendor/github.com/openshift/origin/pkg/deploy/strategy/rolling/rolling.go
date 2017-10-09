@@ -8,17 +8,18 @@ import (
 	"os"
 	"time"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/record"
 	kapi "k8s.io/kubernetes/pkg/api"
-	kerrors "k8s.io/kubernetes/pkg/api/errors"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
-	"k8s.io/kubernetes/pkg/client/record"
 	"k8s.io/kubernetes/pkg/kubectl"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/wait"
 
 	"github.com/openshift/origin/pkg/client"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	strat "github.com/openshift/origin/pkg/deploy/strategy"
 	stratsupport "github.com/openshift/origin/pkg/deploy/strategy/support"
 	stratutil "github.com/openshift/origin/pkg/deploy/strategy/util"
@@ -113,7 +114,7 @@ func NewRollingDeploymentStrategy(namespace string, client kclientset.Interface,
 		},
 		hookExecutor: stratsupport.NewHookExecutor(client.Core(), tags, client.Core(), os.Stdout, decoder),
 		getUpdateAcceptor: func(timeout time.Duration, minReadySeconds int32) strat.UpdateAcceptor {
-			return stratsupport.NewAcceptAvailablePods(out, client.Core(), timeout, acceptorInterval, minReadySeconds)
+			return stratsupport.NewAcceptAvailablePods(out, client.Core(), timeout)
 		},
 	}
 }
@@ -183,7 +184,7 @@ func (s *RollingDeploymentStrategy) Deploy(from *kapi.ReplicationController, to 
 	// Related upstream issue:
 	// https://github.com/kubernetes/kubernetes/pull/7183
 	err = wait.Poll(s.apiRetryPeriod, s.apiRetryTimeout, func() (done bool, err error) {
-		existing, err := s.rcClient.ReplicationControllers(to.Namespace).Get(to.Name)
+		existing, err := s.rcClient.ReplicationControllers(to.Namespace).Get(to.Name, metav1.GetOptions{})
 		if err != nil {
 			msg := fmt.Sprintf("couldn't look up deployment %s: %s", to.Name, err)
 			if kerrors.IsNotFound(err) {
@@ -210,7 +211,7 @@ func (s *RollingDeploymentStrategy) Deploy(from *kapi.ReplicationController, to 
 	if err != nil {
 		return err
 	}
-	to, err = s.rcClient.ReplicationControllers(to.Namespace).Get(to.Name)
+	to, err = s.rcClient.ReplicationControllers(to.Namespace).Get(to.Name, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}

@@ -2,15 +2,15 @@ package image
 
 import (
 	"testing"
-	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
 	kquota "k8s.io/kubernetes/pkg/quota"
 
-	oscache "github.com/openshift/origin/pkg/client/cache"
 	imagetest "github.com/openshift/origin/pkg/image/admission/testutil"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageinformer "github.com/openshift/origin/pkg/image/generated/informers/internalversion"
+	imageinternal "github.com/openshift/origin/pkg/image/generated/internalclientset/fake"
 )
 
 func TestImageStreamEvaluatorUsageStats(t *testing.T) {
@@ -31,7 +31,7 @@ func TestImageStreamEvaluatorUsageStats(t *testing.T) {
 			name: "one image stream",
 			iss: []imageapi.ImageStream{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "test",
 						Name:      "onetag",
 					},
@@ -45,13 +45,13 @@ func TestImageStreamEvaluatorUsageStats(t *testing.T) {
 			name: "two image streams",
 			iss: []imageapi.ImageStream{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "test",
 						Name:      "is1",
 					},
 				},
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "test",
 						Name:      "is2",
 					},
@@ -65,13 +65,13 @@ func TestImageStreamEvaluatorUsageStats(t *testing.T) {
 			name: "two image streams in different namespaces",
 			iss: []imageapi.ImageStream{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "test",
 						Name:      "is1",
 					},
 				},
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "other",
 						Name:      "is2",
 					},
@@ -81,19 +81,19 @@ func TestImageStreamEvaluatorUsageStats(t *testing.T) {
 			expectedISCount: 1,
 		},
 	} {
-		isInformer := cache.NewSharedIndexInformer(
-			&cache.ListWatch{},
-			&imageapi.ImageStream{},
-			2*time.Minute,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		)
-		store := oscache.StoreToImageStreamLister{Indexer: isInformer.GetIndexer()}
+		imageInformers := imageinformer.NewSharedInformerFactory(imageinternal.NewSimpleClientset(), 0)
+		isInformer := imageInformers.Image().InternalVersion().ImageStreams()
 		for _, is := range tc.iss {
-			store.Indexer.Add(&is)
+			isInformer.Informer().GetIndexer().Add(&is)
 		}
-		evaluator := NewImageStreamEvaluator(&store)
+		evaluator := NewImageStreamEvaluator(isInformer.Lister())
 
-		stats, err := evaluator.UsageStats(kquota.UsageStatsOptions{Namespace: tc.namespace})
+		stats, err := evaluator.UsageStats(
+			kquota.UsageStatsOptions{
+				Resources: []kapi.ResourceName{imageapi.ResourceImageStreams},
+				Namespace: tc.namespace,
+			},
+		)
 		if err != nil {
 			t.Errorf("[%s]: could not get usage stats for namespace %q: %v", tc.name, tc.namespace, err)
 			continue
@@ -145,7 +145,7 @@ func TestImageStreamEvaluatorUsage(t *testing.T) {
 			name: "image stream already exists",
 			iss: []imageapi.ImageStream{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "test",
 						Name:      "is",
 					},
@@ -158,7 +158,7 @@ func TestImageStreamEvaluatorUsage(t *testing.T) {
 			name: "new image stream in non-empty project",
 			iss: []imageapi.ImageStream{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "test",
 						Name:      "existing",
 					},
@@ -168,24 +168,22 @@ func TestImageStreamEvaluatorUsage(t *testing.T) {
 		},
 	} {
 		newIS := &imageapi.ImageStream{
-			ObjectMeta: kapi.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "test",
 				Name:      "is",
 			},
 		}
-		isInformer := cache.NewSharedIndexInformer(
-			&cache.ListWatch{},
-			&imageapi.ImageStream{},
-			2*time.Minute,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		)
-		store := oscache.StoreToImageStreamLister{Indexer: isInformer.GetIndexer()}
+		imageInformers := imageinformer.NewSharedInformerFactory(imageinternal.NewSimpleClientset(), 0)
+		isInformer := imageInformers.Image().InternalVersion().ImageStreams()
 		for _, is := range tc.iss {
-			store.Indexer.Add(&is)
+			isInformer.Informer().GetIndexer().Add(&is)
 		}
-		evaluator := NewImageStreamEvaluator(&store)
+		evaluator := NewImageStreamEvaluator(isInformer.Lister())
 
-		usage := evaluator.Usage(newIS)
+		usage, err := evaluator.Usage(newIS)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
 		expectedUsage := imagetest.ExpectedResourceListFor(tc.expectedISCount)
 		expectedResources := kquota.ResourceNames(expectedUsage)
 		if len(usage) != len(expectedResources) {

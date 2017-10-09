@@ -7,21 +7,18 @@ import (
 	"net/url"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
 	context "github.com/docker/distribution/context"
 	registryauth "github.com/docker/distribution/registry/auth"
 
-	kerrors "k8s.io/kubernetes/pkg/api/errors"
-	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/client/restclient"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	authorizationapi "k8s.io/kubernetes/pkg/apis/authorization/v1"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	"github.com/openshift/origin/pkg/util/httprequest"
 
 	"github.com/openshift/origin/pkg/dockerregistry/server/audit"
+	"github.com/openshift/origin/pkg/dockerregistry/server/client"
 )
 
 type deferredErrors map[string]error
@@ -45,57 +42,14 @@ const (
 
 	RealmKey      = "realm"
 	TokenRealmKey = "tokenrealm"
+
+	// AccessControllerOptionParams is an option name for passing
+	// AccessControllerParams to AccessController.
+	AccessControllerOptionParams = "_params"
 )
-
-// RegistryClient encapsulates getting access to the OpenShift API.
-type RegistryClient interface {
-	// Clients return the authenticated clients to use with the server.
-	Clients() (client.Interface, kclientset.Interface, error)
-	// SafeClientConfig returns a client config without authentication info.
-	SafeClientConfig() restclient.Config
-}
-
-// DefaultRegistryClient is exposed for testing the registry with fake client.
-var DefaultRegistryClient = NewRegistryClient(clientcmd.NewConfig().BindToFile())
-
-// registryClient implements RegistryClient
-type registryClient struct {
-	config *clientcmd.Config
-}
-
-var _ RegistryClient = &registryClient{}
-
-// NewRegistryClient creates a registry client.
-func NewRegistryClient(config *clientcmd.Config) RegistryClient {
-	return &registryClient{config: config}
-}
-
-// Client returns the authenticated client to use with the server.
-func (r *registryClient) Clients() (client.Interface, kclientset.Interface, error) {
-	oc, kc, err := r.config.Clients()
-	return oc, kc, err
-}
-
-// SafeClientConfig returns a client config without authentication info.
-func (r *registryClient) SafeClientConfig() restclient.Config {
-	return clientcmd.AnonymousClientConfig(r.config.OpenShiftConfig())
-}
 
 func init() {
 	registryauth.Register(OpenShiftAuth, registryauth.InitFunc(newAccessController))
-}
-
-type contextKey int
-
-var userClientKey contextKey = 0
-
-func WithUserClient(parent context.Context, userClient client.Interface) context.Context {
-	return context.WithValue(parent, userClientKey, userClient)
-}
-
-func UserClientFrom(ctx context.Context) (client.Interface, bool) {
-	userClient, ok := ctx.Value(userClientKey).(client.Interface)
-	return userClient, ok
 }
 
 // WithUserInfoLogger creates a new context with provided user infomation.
@@ -110,32 +64,11 @@ func WithUserInfoLogger(ctx context.Context, username, userid string) context.Co
 	))
 }
 
-const authPerformedKey = "openshift.auth.performed"
-
-func WithAuthPerformed(parent context.Context) context.Context {
-	return context.WithValue(parent, authPerformedKey, true)
-}
-
-func AuthPerformed(ctx context.Context) bool {
-	authPerformed, ok := ctx.Value(authPerformedKey).(bool)
-	return ok && authPerformed
-}
-
-const deferredErrorsKey = "openshift.auth.deferredErrors"
-
-func WithDeferredErrors(parent context.Context, errs deferredErrors) context.Context {
-	return context.WithValue(parent, deferredErrorsKey, errs)
-}
-func DeferredErrorsFrom(ctx context.Context) (deferredErrors, bool) {
-	errs, ok := ctx.Value(deferredErrorsKey).(deferredErrors)
-	return errs, ok
-}
-
 type AccessController struct {
-	realm      string
-	tokenRealm *url.URL
-	config     restclient.Config
-	auditLog   bool
+	realm          string
+	tokenRealm     *url.URL
+	registryClient client.RegistryClient
+	auditLog       bool
 }
 
 var _ registryauth.AccessController = &AccessController{}
@@ -198,8 +131,19 @@ func TokenRealm(options map[string]interface{}) (*url.URL, error) {
 	return tokenRealm, nil
 }
 
+// AccessControllerParams is the parameters for newAccessController
+type AccessControllerParams struct {
+	Logger         context.Logger
+	RegistryClient client.RegistryClient
+}
+
 func newAccessController(options map[string]interface{}) (registryauth.AccessController, error) {
-	log.Info("Using Origin Auth handler")
+	params, ok := options[AccessControllerOptionParams].(AccessControllerParams)
+	if !ok {
+		return nil, fmt.Errorf("no parameters provided to Origin Auth handler")
+	}
+
+	params.Logger.Info("Using Origin Auth handler")
 
 	realm, err := getStringOption("", RealmKey, "origin", options)
 	if err != nil {
@@ -212,9 +156,9 @@ func newAccessController(options map[string]interface{}) (registryauth.AccessCon
 	}
 
 	ac := &AccessController{
-		realm:      realm,
-		tokenRealm: tokenRealm,
-		config:     DefaultRegistryClient.SafeClientConfig(),
+		realm:          realm,
+		tokenRealm:     tokenRealm,
+		registryClient: params.RegistryClient,
 	}
 
 	if audit, ok := options["audit"]; ok {
@@ -324,15 +268,13 @@ func (ac *AccessController) Authorized(ctx context.Context, accessRecords ...reg
 		return nil, ac.wrapErr(ctx, err)
 	}
 
-	copied := ac.config
-	copied.BearerToken = bearerToken
-	osClient, err := client.New(&copied)
+	osClient, err := ac.registryClient.ClientFromToken(bearerToken)
 	if err != nil {
 		return nil, ac.wrapErr(ctx, err)
 	}
 
 	// In case of docker login, hits endpoint /v2
-	if len(bearerToken) > 0 {
+	if len(bearerToken) > 0 && !isMetricsBearerToken(ctx, bearerToken) {
 		user, userid, err := verifyOpenShiftUser(ctx, osClient)
 		if err != nil {
 			return nil, ac.wrapErr(ctx, err)
@@ -413,6 +355,16 @@ func (ac *AccessController) Authorized(ctx context.Context, accessRecords ...reg
 				}
 			}
 
+		case "metrics":
+			switch access.Action {
+			case "get":
+				if !isMetricsBearerToken(ctx, bearerToken) {
+					return nil, ac.wrapErr(ctx, ErrOpenShiftAccessDenied)
+				}
+			default:
+				return nil, ac.wrapErr(ctx, ErrUnsupportedAction)
+			}
+
 		case "admin":
 			switch access.Action {
 			case "prune":
@@ -446,12 +398,12 @@ func (ac *AccessController) Authorized(ctx context.Context, accessRecords ...reg
 	// Conditionally add auth errors we want to handle later to the context
 	if !possibleCrossMountErrors.Empty() {
 		context.GetLogger(ctx).Debugf("Origin auth: deferring errors: %#v", possibleCrossMountErrors)
-		ctx = WithDeferredErrors(ctx, possibleCrossMountErrors)
+		ctx = withDeferredErrors(ctx, possibleCrossMountErrors)
 	}
 	// Always add a marker to the context so we know auth was run
-	ctx = WithAuthPerformed(ctx)
+	ctx = withAuthPerformed(ctx)
 
-	return WithUserClient(ctx, osClient), nil
+	return withUserClient(ctx, osClient), nil
 }
 
 func getOpenShiftAPIToken(ctx context.Context, req *http.Request) (string, error) {
@@ -485,8 +437,8 @@ func getOpenShiftAPIToken(ctx context.Context, req *http.Request) (string, error
 	return token, nil
 }
 
-func verifyOpenShiftUser(ctx context.Context, client client.UsersInterface) (string, string, error) {
-	userInfo, err := client.Users().Get("~")
+func verifyOpenShiftUser(ctx context.Context, c client.UsersInterfacer) (string, string, error) {
+	userInfo, err := c.Users().Get("~", metav1.GetOptions{})
 	if err != nil {
 		context.GetLogger(ctx).Errorf("Get user failed with error: %s", err)
 		if kerrors.IsUnauthorized(err) || kerrors.IsForbidden(err) {
@@ -498,17 +450,19 @@ func verifyOpenShiftUser(ctx context.Context, client client.UsersInterface) (str
 	return userInfo.GetName(), string(userInfo.GetUID()), nil
 }
 
-func verifyWithSAR(ctx context.Context, resource, namespace, name, verb string, client client.LocalSubjectAccessReviewsNamespacer) error {
-	sar := authorizationapi.LocalSubjectAccessReview{
-		Action: authorizationapi.Action{
-			Verb:         verb,
-			Group:        imageapi.GroupName,
-			Resource:     resource,
-			ResourceName: name,
+func verifyWithSAR(ctx context.Context, resource, namespace, name, verb string, c client.SelfSubjectAccessReviewsNamespacer) error {
+	sar := authorizationapi.SelfSubjectAccessReview{
+		Spec: authorizationapi.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationapi.ResourceAttributes{
+				Namespace: namespace,
+				Verb:      verb,
+				Group:     imageapi.GroupName,
+				Resource:  resource,
+				Name:      name,
+			},
 		},
 	}
-	response, err := client.LocalSubjectAccessReviews(namespace).Create(&sar)
-
+	response, err := c.SelfSubjectAccessReviews().Create(&sar)
 	if err != nil {
 		context.GetLogger(ctx).Errorf("OpenShift client error: %s", err)
 		if kerrors.IsUnauthorized(err) || kerrors.IsForbidden(err) {
@@ -517,31 +471,33 @@ func verifyWithSAR(ctx context.Context, resource, namespace, name, verb string, 
 		return err
 	}
 
-	if !response.Allowed {
-		context.GetLogger(ctx).Errorf("OpenShift access denied: %s", response.Reason)
+	if !response.Status.Allowed {
+		context.GetLogger(ctx).Errorf("OpenShift access denied: %s", response.Status.Reason)
 		return ErrOpenShiftAccessDenied
 	}
 
 	return nil
 }
 
-func verifyImageStreamAccess(ctx context.Context, namespace, imageRepo, verb string, client client.LocalSubjectAccessReviewsNamespacer) error {
-	return verifyWithSAR(ctx, "imagestreams/layers", namespace, imageRepo, verb, client)
+func verifyImageStreamAccess(ctx context.Context, namespace, imageRepo, verb string, c client.SelfSubjectAccessReviewsNamespacer) error {
+	return verifyWithSAR(ctx, "imagestreams/layers", namespace, imageRepo, verb, c)
 }
 
-func verifyImageSignatureAccess(ctx context.Context, namespace, imageRepo string, client client.LocalSubjectAccessReviewsNamespacer) error {
-	return verifyWithSAR(ctx, "imagesignatures", namespace, imageRepo, "create", client)
+func verifyImageSignatureAccess(ctx context.Context, namespace, imageRepo string, c client.SelfSubjectAccessReviewsNamespacer) error {
+	return verifyWithSAR(ctx, "imagesignatures", namespace, imageRepo, "create", c)
 }
 
-func verifyPruneAccess(ctx context.Context, client client.SubjectAccessReviews) error {
-	sar := authorizationapi.SubjectAccessReview{
-		Action: authorizationapi.Action{
-			Verb:     "delete",
-			Group:    imageapi.GroupName,
-			Resource: "images",
+func verifyPruneAccess(ctx context.Context, c client.SelfSubjectAccessReviewsNamespacer) error {
+	sar := authorizationapi.SelfSubjectAccessReview{
+		Spec: authorizationapi.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationapi.ResourceAttributes{
+				Verb:     "delete",
+				Group:    imageapi.GroupName,
+				Resource: "images",
+			},
 		},
 	}
-	response, err := client.SubjectAccessReviews().Create(&sar)
+	response, err := c.SelfSubjectAccessReviews().Create(&sar)
 	if err != nil {
 		context.GetLogger(ctx).Errorf("OpenShift client error: %s", err)
 		if kerrors.IsUnauthorized(err) || kerrors.IsForbidden(err) {
@@ -549,9 +505,17 @@ func verifyPruneAccess(ctx context.Context, client client.SubjectAccessReviews) 
 		}
 		return err
 	}
-	if !response.Allowed {
-		context.GetLogger(ctx).Errorf("OpenShift access denied: %s", response.Reason)
+	if !response.Status.Allowed {
+		context.GetLogger(ctx).Errorf("OpenShift access denied: %s", response.Status.Reason)
 		return ErrOpenShiftAccessDenied
 	}
 	return nil
+}
+
+func isMetricsBearerToken(ctx context.Context, token string) bool {
+	config := ConfigurationFrom(ctx)
+	if config.Metrics.Enabled {
+		return config.Metrics.Secret == token
+	}
+	return false
 }

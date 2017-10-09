@@ -9,8 +9,8 @@ import (
 
 	"github.com/RangelReale/osincli"
 	"github.com/golang/glog"
-	"k8s.io/kubernetes/pkg/auth/authenticator"
-	"k8s.io/kubernetes/pkg/auth/user"
+	"k8s.io/apiserver/pkg/authentication/authenticator"
+	"k8s.io/apiserver/pkg/authentication/user"
 
 	authapi "github.com/openshift/origin/pkg/auth/api"
 	"github.com/openshift/origin/pkg/auth/oauth/handlers"
@@ -161,14 +161,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// Validate state before making any server-to-server calls
 	ok, err := h.state.Check(authData.State, req)
-	if !ok {
-		glog.V(4).Infof("State is invalid")
-		err := errors.New("State is invalid")
+	if err != nil {
+		glog.V(4).Infof("Error verifying state: %v", err)
 		h.handleError(err, w, req)
 		return
 	}
-	if err != nil {
-		glog.V(4).Infof("Error verifying state: %v", err)
+	if !ok {
+		glog.V(4).Infof("State is invalid")
+		err := errors.New("State is invalid")
 		h.handleError(err, w, req)
 		return
 	}

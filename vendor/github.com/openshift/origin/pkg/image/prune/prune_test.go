@@ -2,11 +2,11 @@ package prune
 
 import (
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"reflect"
 	"testing"
 	"time"
@@ -14,29 +14,22 @@ import (
 	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/manifest/schema2"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/rest/fake"
+	clientgotesting "k8s.io/client-go/testing"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/resource"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/client/restclient/fake"
-	"k8s.io/kubernetes/pkg/client/testing/core"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/sets"
+	"k8s.io/kubernetes/staging/src/k8s.io/apimachinery/pkg/util/diff"
 
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	"github.com/openshift/origin/pkg/api/graph"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	"github.com/openshift/origin/pkg/client/testclient"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imagegraph "github.com/openshift/origin/pkg/image/graph/nodes"
 )
-
-type fakeRegistryPinger struct {
-	err      error
-	requests []string
-}
-
-func (f *fakeRegistryPinger) ping(registry string) error {
-	f.requests = append(f.requests, registry)
-	return f.err
-}
 
 func imageList(images ...imageapi.Image) imageapi.ImageList {
 	return imageapi.ImageList{
@@ -61,7 +54,7 @@ func agedImage(id, ref string, ageInMinutes int64) imageapi.Image {
 	image := imageWithLayers(id, ref, nil, layer1, layer2, layer3, layer4, layer5)
 
 	if ageInMinutes >= 0 {
-		image.CreationTimestamp = unversioned.NewTime(unversioned.Now().Add(time.Duration(-1*ageInMinutes) * time.Minute))
+		image.CreationTimestamp = metav1.NewTime(metav1.Now().Add(time.Duration(-1*ageInMinutes) * time.Minute))
 	}
 
 	return image
@@ -69,7 +62,7 @@ func agedImage(id, ref string, ageInMinutes int64) imageapi.Image {
 
 func sizedImage(id, ref string, size int64, configName *string) imageapi.Image {
 	image := imageWithLayers(id, ref, configName, layer1, layer2, layer3, layer4, layer5)
-	image.CreationTimestamp = unversioned.NewTime(unversioned.Now().Add(time.Duration(-1) * time.Minute))
+	image.CreationTimestamp = metav1.NewTime(metav1.Now().Add(time.Duration(-1) * time.Minute))
 	image.DockerImageMetadata.Size = size
 
 	return image
@@ -81,7 +74,7 @@ func image(id, ref string) imageapi.Image {
 
 func imageWithLayers(id, ref string, configName *string, layers ...string) imageapi.Image {
 	image := imageapi.Image{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: id,
 			Annotations: map[string]string{
 				imageapi.ManagedByOpenShiftAnnotation: "true",
@@ -130,7 +123,7 @@ func pod(namespace, name string, phase kapi.PodPhase, containerImages ...string)
 
 func agedPod(namespace, name string, phase kapi.PodPhase, ageInMinutes int64, containerImages ...string) kapi.Pod {
 	pod := kapi.Pod{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
 		},
@@ -141,7 +134,7 @@ func agedPod(namespace, name string, phase kapi.PodPhase, ageInMinutes int64, co
 	}
 
 	if ageInMinutes >= 0 {
-		pod.CreationTimestamp = unversioned.NewTime(unversioned.Now().Add(time.Duration(-1*ageInMinutes) * time.Minute))
+		pod.CreationTimestamp = metav1.NewTime(metav1.Now().Add(time.Duration(-1*ageInMinutes) * time.Minute))
 	}
 
 	return pod
@@ -172,7 +165,7 @@ func stream(registry, namespace, name string, tags map[string]imageapi.TagEventL
 
 func agedStream(registry, namespace, name string, ageInMinutes int64, tags map[string]imageapi.TagEventList) imageapi.ImageStream {
 	stream := imageapi.ImageStream{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
 		},
@@ -183,7 +176,7 @@ func agedStream(registry, namespace, name string, ageInMinutes int64, tags map[s
 	}
 
 	if ageInMinutes >= 0 {
-		stream.CreationTimestamp = unversioned.NewTime(unversioned.Now().Add(time.Duration(-1*ageInMinutes) * time.Minute))
+		stream.CreationTimestamp = metav1.NewTime(metav1.Now().Add(time.Duration(-1*ageInMinutes) * time.Minute))
 	}
 
 	return stream
@@ -231,7 +224,7 @@ func rcList(rcs ...kapi.ReplicationController) kapi.ReplicationControllerList {
 
 func rc(namespace, name string, containerImages ...string) kapi.ReplicationController {
 	return kapi.ReplicationController{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
 		},
@@ -251,7 +244,7 @@ func dcList(dcs ...deployapi.DeploymentConfig) deployapi.DeploymentConfigList {
 
 func dc(namespace, name string, containerImages ...string) deployapi.DeploymentConfig {
 	return deployapi.DeploymentConfig{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
 		},
@@ -271,7 +264,7 @@ func bcList(bcs ...buildapi.BuildConfig) buildapi.BuildConfigList {
 
 func bc(namespace, name, strategyType, fromKind, fromNamespace, fromName string) buildapi.BuildConfig {
 	return buildapi.BuildConfig{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
 		},
@@ -289,7 +282,7 @@ func buildList(builds ...buildapi.Build) buildapi.BuildList {
 
 func build(namespace, name, strategyType, fromKind, fromNamespace, fromName string) buildapi.Build {
 	return buildapi.Build{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
 		},
@@ -372,7 +365,11 @@ type fakeImageStreamDeleter struct {
 
 var _ ImageStreamDeleter = &fakeImageStreamDeleter{}
 
-func (p *fakeImageStreamDeleter) DeleteImageStream(stream *imageapi.ImageStream, image *imageapi.Image, updatedTags []string) (*imageapi.ImageStream, error) {
+func (p *fakeImageStreamDeleter) GetImageStream(stream *imageapi.ImageStream) (*imageapi.ImageStream, error) {
+	return stream, p.err
+}
+
+func (p *fakeImageStreamDeleter) UpdateImageStream(stream *imageapi.ImageStream, image *imageapi.Image, updatedTags []string) (*imageapi.ImageStream, error) {
 	p.invocations.Insert(fmt.Sprintf("%s/%s|%s", stream.Namespace, stream.Name, image.Name))
 	return stream, p.err
 }
@@ -384,8 +381,8 @@ type fakeBlobDeleter struct {
 
 var _ BlobDeleter = &fakeBlobDeleter{}
 
-func (p *fakeBlobDeleter) DeleteBlob(registryClient *http.Client, registryURL, blob string) error {
-	p.invocations.Insert(fmt.Sprintf("%s|%s", registryURL, blob))
+func (p *fakeBlobDeleter) DeleteBlob(registryClient *http.Client, registryURL *url.URL, blob string) error {
+	p.invocations.Insert(fmt.Sprintf("%s|%s", registryURL.String(), blob))
 	return p.err
 }
 
@@ -396,8 +393,8 @@ type fakeLayerLinkDeleter struct {
 
 var _ LayerLinkDeleter = &fakeLayerLinkDeleter{}
 
-func (p *fakeLayerLinkDeleter) DeleteLayerLink(registryClient *http.Client, registryURL, repo, layer string) error {
-	p.invocations.Insert(fmt.Sprintf("%s|%s|%s", registryURL, repo, layer))
+func (p *fakeLayerLinkDeleter) DeleteLayerLink(registryClient *http.Client, registryURL *url.URL, repo, layer string) error {
+	p.invocations.Insert(fmt.Sprintf("%s|%s|%s", registryURL.String(), repo, layer))
 	return p.err
 }
 
@@ -408,8 +405,8 @@ type fakeManifestDeleter struct {
 
 var _ ManifestDeleter = &fakeManifestDeleter{}
 
-func (p *fakeManifestDeleter) DeleteManifest(registryClient *http.Client, registryURL, repo, manifest string) error {
-	p.invocations.Insert(fmt.Sprintf("%s|%s|%s", registryURL, repo, manifest))
+func (p *fakeManifestDeleter) DeleteManifest(registryClient *http.Client, registryURL *url.URL, repo, manifest string) error {
+	p.invocations.Insert(fmt.Sprintf("%s|%s|%s", registryURL.String(), repo, manifest))
 	return p.err
 }
 
@@ -418,11 +415,12 @@ var testCase = flag.String("testcase", "", "")
 
 func TestImagePruning(t *testing.T) {
 	flag.Lookup("v").Value.Set(fmt.Sprint(*logLevel))
-	registryURL := "registry.io"
+	registryHost := "registry.io"
+	registryURL := "https://" + registryHost
 
 	tests := map[string]struct {
 		pruneOverSizeLimit         *bool
-		registryURLs               []string
+		allImages                  *bool
 		namespace                  string
 		images                     imageapi.ImageList
 		pods                       kapi.PodList
@@ -438,36 +436,40 @@ func TestImagePruning(t *testing.T) {
 		expectedBlobDeletions      []string
 	}{
 		"1 pod - phase pending - don't prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
-			pods:   podList(pod("foo", "pod1", kapi.PodPending, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			pods:   podList(pod("foo", "pod1", kapi.PodPending, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"3 pods - last phase pending - don't prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			pods: podList(
-				pod("foo", "pod1", kapi.PodSucceeded, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-				pod("foo", "pod2", kapi.PodSucceeded, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-				pod("foo", "pod3", kapi.PodPending, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+				pod("foo", "pod1", kapi.PodSucceeded, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+				pod("foo", "pod2", kapi.PodSucceeded, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+				pod("foo", "pod3", kapi.PodPending, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
 			),
 			expectedImageDeletions: []string{},
 		},
+
 		"1 pod - phase running - don't prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
-			pods:   podList(pod("foo", "pod1", kapi.PodRunning, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			pods:   podList(pod("foo", "pod1", kapi.PodRunning, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"3 pods - last phase running - don't prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			pods: podList(
-				pod("foo", "pod1", kapi.PodSucceeded, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-				pod("foo", "pod2", kapi.PodSucceeded, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-				pod("foo", "pod3", kapi.PodRunning, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+				pod("foo", "pod1", kapi.PodSucceeded, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+				pod("foo", "pod2", kapi.PodSucceeded, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+				pod("foo", "pod3", kapi.PodRunning, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
 			),
 			expectedImageDeletions: []string{},
 		},
+
 		"pod phase succeeded - prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
-			pods:   podList(pod("foo", "pod1", kapi.PodSucceeded, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			pods:   podList(pod("foo", "pod1", kapi.PodSucceeded, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{"sha256:0000000000000000000000000000000000000000000000000000000000000000"},
 			expectedBlobDeletions: []string{
 				registryURL + "|" + layer1,
@@ -477,22 +479,25 @@ func TestImagePruning(t *testing.T) {
 				registryURL + "|" + layer5,
 			},
 		},
+
 		"pod phase succeeded, pod less than min pruning age - don't prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
-			pods:   podList(agedPod("foo", "pod1", kapi.PodSucceeded, 5, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			pods:   podList(agedPod("foo", "pod1", kapi.PodSucceeded, 5, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"pod phase succeeded, image less than min pruning age - don't prune": {
-			images: imageList(agedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", 5)),
-			pods:   podList(pod("foo", "pod1", kapi.PodSucceeded, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(agedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", 5)),
+			pods:   podList(pod("foo", "pod1", kapi.PodSucceeded, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"pod phase failed - prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			pods: podList(
-				pod("foo", "pod1", kapi.PodFailed, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-				pod("foo", "pod2", kapi.PodFailed, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-				pod("foo", "pod3", kapi.PodFailed, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+				pod("foo", "pod1", kapi.PodFailed, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+				pod("foo", "pod2", kapi.PodFailed, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+				pod("foo", "pod3", kapi.PodFailed, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
 			),
 			expectedImageDeletions: []string{"sha256:0000000000000000000000000000000000000000000000000000000000000000"},
 			expectedBlobDeletions: []string{
@@ -503,12 +508,13 @@ func TestImagePruning(t *testing.T) {
 				registryURL + "|" + layer5,
 			},
 		},
+
 		"pod phase unknown - prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			pods: podList(
-				pod("foo", "pod1", kapi.PodUnknown, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-				pod("foo", "pod2", kapi.PodUnknown, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-				pod("foo", "pod3", kapi.PodUnknown, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+				pod("foo", "pod1", kapi.PodUnknown, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+				pod("foo", "pod2", kapi.PodUnknown, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+				pod("foo", "pod3", kapi.PodUnknown, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
 			),
 			expectedImageDeletions: []string{"sha256:0000000000000000000000000000000000000000000000000000000000000000"},
 			expectedBlobDeletions: []string{
@@ -519,8 +525,9 @@ func TestImagePruning(t *testing.T) {
 				registryURL + "|" + layer5,
 			},
 		},
+
 		"pod container image not parsable": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			pods: podList(
 				pod("foo", "pod1", kapi.PodRunning, "a/b/c/d/e"),
 			),
@@ -533,8 +540,9 @@ func TestImagePruning(t *testing.T) {
 				registryURL + "|" + layer5,
 			},
 		},
+
 		"pod container image doesn't have an id": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			pods: podList(
 				pod("foo", "pod1", kapi.PodRunning, "foo/bar:latest"),
 			),
@@ -547,10 +555,11 @@ func TestImagePruning(t *testing.T) {
 				registryURL + "|" + layer5,
 			},
 		},
+
 		"pod refers to image not in graph": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			pods: podList(
-				pod("foo", "pod1", kapi.PodRunning, registryURL+"/foo/bar@otherid"),
+				pod("foo", "pod1", kapi.PodRunning, registryHost+"/foo/bar@otherid"),
 			),
 			expectedImageDeletions: []string{"sha256:0000000000000000000000000000000000000000000000000000000000000000"},
 			expectedBlobDeletions: []string{
@@ -561,193 +570,293 @@ func TestImagePruning(t *testing.T) {
 				registryURL + "|" + layer5,
 			},
 		},
+
 		"referenced by rc - don't prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
-			rcs:    rcList(rc("foo", "rc1", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			rcs:    rcList(rc("foo", "rc1", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"referenced by dc - don't prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
-			dcs:    dcList(dc("foo", "rc1", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			dcs:    dcList(dc("foo", "rc1", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"referenced by bc - sti - ImageStreamImage - don't prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			bcs:    bcList(bc("foo", "bc1", "source", "ImageStreamImage", "foo", "bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"referenced by bc - docker - ImageStreamImage - don't prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			bcs:    bcList(bc("foo", "bc1", "docker", "ImageStreamImage", "foo", "bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"referenced by bc - custom - ImageStreamImage - don't prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			bcs:    bcList(bc("foo", "bc1", "custom", "ImageStreamImage", "foo", "bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"referenced by bc - sti - DockerImage - don't prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
-			bcs:    bcList(bc("foo", "bc1", "source", "DockerImage", "foo", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			bcs:    bcList(bc("foo", "bc1", "source", "DockerImage", "foo", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"referenced by bc - docker - DockerImage - don't prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
-			bcs:    bcList(bc("foo", "bc1", "docker", "DockerImage", "foo", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			bcs:    bcList(bc("foo", "bc1", "docker", "DockerImage", "foo", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"referenced by bc - custom - DockerImage - don't prune": {
-			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
-			bcs:    bcList(bc("foo", "bc1", "custom", "DockerImage", "foo", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images: imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			bcs:    bcList(bc("foo", "bc1", "custom", "DockerImage", "foo", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"referenced by build - sti - ImageStreamImage - don't prune": {
-			images:                 imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images:                 imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			builds:                 buildList(build("foo", "build1", "source", "ImageStreamImage", "foo", "bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"referenced by build - docker - ImageStreamImage - don't prune": {
-			images:                 imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images:                 imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			builds:                 buildList(build("foo", "build1", "docker", "ImageStreamImage", "foo", "bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"referenced by build - custom - ImageStreamImage - don't prune": {
-			images:                 imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images:                 imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			builds:                 buildList(build("foo", "build1", "custom", "ImageStreamImage", "foo", "bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"referenced by build - sti - DockerImage - don't prune": {
-			images:                 imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
-			builds:                 buildList(build("foo", "build1", "source", "DockerImage", "foo", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images:                 imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			builds:                 buildList(build("foo", "build1", "source", "DockerImage", "foo", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"referenced by build - docker - DockerImage - don't prune": {
-			images:                 imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
-			builds:                 buildList(build("foo", "build1", "docker", "DockerImage", "foo", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images:                 imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			builds:                 buildList(build("foo", "build1", "docker", "DockerImage", "foo", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"referenced by build - custom - DockerImage - don't prune": {
-			images:                 imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
-			builds:                 buildList(build("foo", "build1", "custom", "DockerImage", "foo", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			images:                 imageList(image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			builds:                 buildList(build("foo", "build1", "custom", "DockerImage", "foo", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 		},
+
 		"image stream - keep most recent n images": {
 			images: imageList(
 				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "otherregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", false, "", ""),
-				image("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
-				image("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
-				image("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004"),
+				image("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+				image("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
+				image("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004"),
 			),
 			streams: streamList(
-				stream(registryURL, "foo", "bar", tags(
+				stream(registryHost, "foo", "bar", tags(
 					tag("latest",
 						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000000", "otherregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004"),
 					),
 				)),
 			),
 			expectedImageDeletions: []string{"sha256:0000000000000000000000000000000000000000000000000000000000000004"},
 			expectedStreamUpdates:  []string{"foo/bar|sha256:0000000000000000000000000000000000000000000000000000000000000004"},
 		},
+
 		"image stream - same manifest listed multiple times in tag history": {
 			images: imageList(
-				image("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
-				image("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+				image("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
+				image("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
 			),
 			streams: streamList(
-				stream(registryURL, "foo", "bar", tags(
+				stream(registryHost, "foo", "bar", tags(
 					tag("latest",
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
 					),
 				)),
 			),
 		},
+
 		"image stream age less than min pruning age - don't prune": {
 			images: imageList(
-				image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-				image("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
-				image("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
-				image("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004"),
+				image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+				image("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+				image("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
+				image("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004"),
 			),
 			streams: streamList(
-				agedStream(registryURL, "foo", "bar", 5, tags(
+				agedStream(registryHost, "foo", "bar", 5, tags(
 					tag("latest",
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004"),
 					),
 				)),
 			),
 			expectedImageDeletions: []string{},
 			expectedStreamUpdates:  []string{},
 		},
+
 		"multiple resources pointing to image - don't prune": {
 			images: imageList(
-				image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-				image("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+				image("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+				image("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
 			),
 			streams: streamList(
-				stream(registryURL, "foo", "bar", tags(
+				stream(registryHost, "foo", "bar", tags(
 					tag("latest",
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000000", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
 					),
 				)),
 			),
-			rcs:                    rcList(rc("foo", "rc1", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002")),
-			pods:                   podList(pod("foo", "pod1", kapi.PodRunning, registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002")),
-			dcs:                    dcList(dc("foo", "rc1", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
-			bcs:                    bcList(bc("foo", "bc1", "source", "DockerImage", "foo", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			rcs:                    rcList(rc("foo", "rc1", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002")),
+			pods:                   podList(pod("foo", "pod1", kapi.PodRunning, registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002")),
+			dcs:                    dcList(dc("foo", "rc1", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
+			bcs:                    bcList(bc("foo", "bc1", "source", "DockerImage", "foo", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			builds:                 buildList(build("foo", "build1", "custom", "ImageStreamImage", "foo", "bar@sha256:0000000000000000000000000000000000000000000000000000000000000000")),
 			expectedImageDeletions: []string{},
 			expectedStreamUpdates:  []string{},
 		},
+
 		"image with nil annotations": {
+			images: imageList(
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", false, "", ""),
+			),
+			expectedImageDeletions: []string{"sha256:0000000000000000000000000000000000000000000000000000000000000000"},
+			expectedStreamUpdates:  []string{},
+		},
+
+		"prune all-images=true image with nil annotations": {
+			allImages: newBool(true),
+			images: imageList(
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", false, "", ""),
+			),
+			expectedImageDeletions: []string{"sha256:0000000000000000000000000000000000000000000000000000000000000000"},
+			expectedStreamUpdates:  []string{},
+		},
+
+		"prune all-images=false image with nil annotations": {
+			allImages: newBool(false),
 			images: imageList(
 				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", false, "", ""),
 			),
 			expectedImageDeletions: []string{},
 			expectedStreamUpdates:  []string{},
 		},
+
 		"image missing managed annotation": {
+			images: imageList(
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, "foo", "bar"),
+			),
+			expectedImageDeletions: []string{"sha256:0000000000000000000000000000000000000000000000000000000000000000"},
+			expectedStreamUpdates:  []string{},
+		},
+
+		"image with managed annotation != true": {
+			images: imageList(
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "false"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000001", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "0"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000002", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "1"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000003", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "True"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000004", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "yes"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000005", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "Yes"),
+			),
+			expectedImageDeletions: []string{
+				"sha256:0000000000000000000000000000000000000000000000000000000000000000",
+				"sha256:0000000000000000000000000000000000000000000000000000000000000001",
+				"sha256:0000000000000000000000000000000000000000000000000000000000000002",
+				"sha256:0000000000000000000000000000000000000000000000000000000000000003",
+				"sha256:0000000000000000000000000000000000000000000000000000000000000004",
+				"sha256:0000000000000000000000000000000000000000000000000000000000000005",
+			},
+			expectedStreamUpdates: []string{},
+		},
+
+		"prune all-images=true with image missing managed annotation": {
+			allImages: newBool(true),
+			images: imageList(
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, "foo", "bar"),
+			),
+			expectedImageDeletions: []string{"sha256:0000000000000000000000000000000000000000000000000000000000000000"},
+			expectedStreamUpdates:  []string{},
+		},
+
+		"prune all-images=true with image with managed annotation != true": {
+			allImages: newBool(true),
+			images: imageList(
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "false"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000001", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "0"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000002", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "1"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000003", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "True"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000004", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "yes"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000005", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "Yes"),
+			),
+			expectedImageDeletions: []string{
+				"sha256:0000000000000000000000000000000000000000000000000000000000000000",
+				"sha256:0000000000000000000000000000000000000000000000000000000000000001",
+				"sha256:0000000000000000000000000000000000000000000000000000000000000002",
+				"sha256:0000000000000000000000000000000000000000000000000000000000000003",
+				"sha256:0000000000000000000000000000000000000000000000000000000000000004",
+				"sha256:0000000000000000000000000000000000000000000000000000000000000005",
+			},
+			expectedStreamUpdates: []string{},
+		},
+
+		"prune all-images=false with image missing managed annotation": {
+			allImages: newBool(false),
 			images: imageList(
 				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, "foo", "bar"),
 			),
 			expectedImageDeletions: []string{},
 			expectedStreamUpdates:  []string{},
 		},
-		"image with managed annotation != true": {
+
+		"prune all-images=false with image with managed annotation != true": {
+			allImages: newBool(false),
 			images: imageList(
 				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "false"),
-				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "0"),
-				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "1"),
-				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "True"),
-				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "yes"),
-				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "Yes"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000001", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "0"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000002", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "1"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000003", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "True"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000004", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "yes"),
+				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000005", "someregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", true, imageapi.ManagedByOpenShiftAnnotation, "Yes"),
 			),
 			expectedImageDeletions: []string{},
 			expectedStreamUpdates:  []string{},
 		},
+
 		"image with layers": {
 			images: imageList(
-				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001", &config1, "layer1", "layer2", "layer3", "layer4"),
-				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002", &config2, "layer1", "layer2", "layer3", "layer4"),
-				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003", nil, "layer1", "layer2", "layer3", "layer4"),
-				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004", nil, "layer5", "layer6", "layer7", "layer8"),
+				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001", &config1, "layer1", "layer2", "layer3", "layer4"),
+				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002", &config2, "layer1", "layer2", "layer3", "layer4"),
+				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003", nil, "layer1", "layer2", "layer3", "layer4"),
+				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004", nil, "layer5", "layer6", "layer7", "layer8"),
 			),
 			streams: streamList(
-				stream(registryURL, "foo", "bar", tags(
+				stream(registryHost, "foo", "bar", tags(
 					tag("latest",
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004"),
 					),
 				)),
 			),
@@ -766,21 +875,22 @@ func TestImagePruning(t *testing.T) {
 				registryURL + "|layer8",
 			},
 		},
+
 		"images with duplicate layers and configs": {
 			images: imageList(
-				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001", &config1, "layer1", "layer2", "layer3", "layer4"),
-				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002", &config1, "layer1", "layer2", "layer3", "layer4"),
-				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003", &config1, "layer1", "layer2", "layer3", "layer4"),
-				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004", &config2, "layer5", "layer6", "layer7", "layer8"),
-				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000005", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000005", &config2, "layer5", "layer6", "layer9", "layerX"),
+				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001", &config1, "layer1", "layer2", "layer3", "layer4"),
+				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002", &config1, "layer1", "layer2", "layer3", "layer4"),
+				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003", &config1, "layer1", "layer2", "layer3", "layer4"),
+				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004", &config2, "layer5", "layer6", "layer7", "layer8"),
+				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000005", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000005", &config2, "layer5", "layer6", "layer9", "layerX"),
 			),
 			streams: streamList(
-				stream(registryURL, "foo", "bar", tags(
+				stream(registryHost, "foo", "bar", tags(
 					tag("latest",
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000004"),
 					),
 				)),
 			),
@@ -803,19 +913,20 @@ func TestImagePruning(t *testing.T) {
 				registryURL + "|layerX",
 			},
 		},
+
 		"image exceeding limits": {
 			pruneOverSizeLimit: newBool(true),
 			images: imageList(
 				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "otherregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", false, "", ""),
-				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002", 100, nil),
-				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003", 200, nil),
+				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002", 100, nil),
+				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003", 200, nil),
 			),
 			streams: streamList(
-				stream(registryURL, "foo", "bar", tags(
+				stream(registryHost, "foo", "bar", tags(
 					tag("latest",
 						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000000", "otherregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
 					),
 				)),
 			),
@@ -825,25 +936,26 @@ func TestImagePruning(t *testing.T) {
 			expectedImageDeletions: []string{"sha256:0000000000000000000000000000000000000000000000000000000000000003"},
 			expectedStreamUpdates:  []string{"foo/bar|sha256:0000000000000000000000000000000000000000000000000000000000000003"},
 		},
+
 		"multiple images in different namespaces exceeding different limits": {
 			pruneOverSizeLimit: newBool(true),
 			images: imageList(
-				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001", 100, nil),
-				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002", 200, nil),
-				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/bar/foo@sha256:0000000000000000000000000000000000000000000000000000000000000003", 500, nil),
-				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryURL+"/bar/foo@sha256:0000000000000000000000000000000000000000000000000000000000000004", 600, nil),
+				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001", 100, nil),
+				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002", 200, nil),
+				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/bar/foo@sha256:0000000000000000000000000000000000000000000000000000000000000003", 500, nil),
+				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryHost+"/bar/foo@sha256:0000000000000000000000000000000000000000000000000000000000000004", 600, nil),
 			),
 			streams: streamList(
-				stream(registryURL, "foo", "bar", tags(
+				stream(registryHost, "foo", "bar", tags(
 					tag("latest",
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000001", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
 					),
 				)),
-				stream(registryURL, "bar", "foo", tags(
+				stream(registryHost, "bar", "foo", tags(
 					tag("latest",
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/bar/foo@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryURL+"/bar/foo@sha256:0000000000000000000000000000000000000000000000000000000000000004"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/bar/foo@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000004", registryHost+"/bar/foo@sha256:0000000000000000000000000000000000000000000000000000000000000004"),
 					),
 				)),
 			),
@@ -854,19 +966,20 @@ func TestImagePruning(t *testing.T) {
 			expectedImageDeletions: []string{"sha256:0000000000000000000000000000000000000000000000000000000000000002", "sha256:0000000000000000000000000000000000000000000000000000000000000004"},
 			expectedStreamUpdates:  []string{"foo/bar|sha256:0000000000000000000000000000000000000000000000000000000000000002", "bar/foo|sha256:0000000000000000000000000000000000000000000000000000000000000004"},
 		},
+
 		"image within allowed limits": {
 			pruneOverSizeLimit: newBool(true),
 			images: imageList(
 				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "otherregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", false, "", ""),
-				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002", 100, nil),
-				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003", 200, nil),
+				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002", 100, nil),
+				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003", 200, nil),
 			),
 			streams: streamList(
-				stream(registryURL, "foo", "bar", tags(
+				stream(registryHost, "foo", "bar", tags(
 					tag("latest",
 						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000000", "otherregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
 					),
 				)),
 			),
@@ -876,20 +989,21 @@ func TestImagePruning(t *testing.T) {
 			expectedImageDeletions: []string{},
 			expectedStreamUpdates:  []string{},
 		},
+
 		"image exceeding limits with namespace specified": {
 			pruneOverSizeLimit: newBool(true),
 			namespace:          "foo",
 			images: imageList(
 				unmanagedImage("sha256:0000000000000000000000000000000000000000000000000000000000000000", "otherregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000", false, "", ""),
-				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002", 100, nil),
-				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003", 200, nil),
+				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002", 100, nil),
+				sizedImage("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003", 200, nil),
 			),
 			streams: streamList(
-				stream(registryURL, "foo", "bar", tags(
+				stream(registryHost, "foo", "bar", tags(
 					tag("latest",
 						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000000", "otherregistry/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000000"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryURL+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000003", registryHost+"/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
 					),
 				)),
 			),
@@ -908,6 +1022,7 @@ func TestImagePruning(t *testing.T) {
 
 		options := PrunerOptions{
 			Namespace:   test.namespace,
+			AllImages:   test.allImages,
 			Images:      &test.images,
 			Streams:     &test.streams,
 			Pods:        &test.pods,
@@ -916,6 +1031,7 @@ func TestImagePruning(t *testing.T) {
 			Builds:      &test.builds,
 			DCs:         &test.dcs,
 			LimitRanges: test.limits,
+			RegistryURL: &url.URL{Scheme: "https", Host: registryHost},
 		}
 		if test.pruneOverSizeLimit != nil {
 			options.PruneOverSizeLimit = test.pruneOverSizeLimit
@@ -926,7 +1042,6 @@ func TestImagePruning(t *testing.T) {
 			options.KeepTagRevisions = &keepTagRevisions
 		}
 		p := NewPruner(options)
-		p.(*pruner).registryPinger = &fakeRegistryPinger{}
 
 		imageDeleter := &fakeImageDeleter{invocations: sets.NewString()}
 		streamDeleter := &fakeImageStreamDeleter{invocations: sets.NewString()}
@@ -937,23 +1052,23 @@ func TestImagePruning(t *testing.T) {
 		p.Prune(imageDeleter, streamDeleter, layerLinkDeleter, blobDeleter, manifestDeleter)
 
 		expectedImageDeletions := sets.NewString(test.expectedImageDeletions...)
-		if !reflect.DeepEqual(expectedImageDeletions, imageDeleter.invocations) {
-			t.Errorf("%s: expected image deletions %q, got %q", name, expectedImageDeletions.List(), imageDeleter.invocations.List())
+		if a, e := imageDeleter.invocations, expectedImageDeletions; !reflect.DeepEqual(a, e) {
+			t.Errorf("%s: unexpected image deletions: %s", name, diff.ObjectDiff(a, e))
 		}
 
 		expectedStreamUpdates := sets.NewString(test.expectedStreamUpdates...)
-		if !reflect.DeepEqual(expectedStreamUpdates, streamDeleter.invocations) {
-			t.Errorf("%s: expected stream updates %q, got %q", name, expectedStreamUpdates.List(), streamDeleter.invocations.List())
+		if a, e := streamDeleter.invocations, expectedStreamUpdates; !reflect.DeepEqual(a, e) {
+			t.Errorf("%s: unexpected stream updates: %s", name, diff.ObjectDiff(a, e))
 		}
 
 		expectedLayerLinkDeletions := sets.NewString(test.expectedLayerLinkDeletions...)
-		if !reflect.DeepEqual(expectedLayerLinkDeletions, layerLinkDeleter.invocations) {
-			t.Errorf("%s: expected layer link deletions %q, got %q", name, expectedLayerLinkDeletions.List(), layerLinkDeleter.invocations.List())
+		if a, e := layerLinkDeleter.invocations, expectedLayerLinkDeletions; !reflect.DeepEqual(a, e) {
+			t.Errorf("%s: unexpected layer link deletions: %s", name, diff.ObjectDiff(a, e))
 		}
 
 		expectedBlobDeletions := sets.NewString(test.expectedBlobDeletions...)
-		if !reflect.DeepEqual(expectedBlobDeletions, blobDeleter.invocations) {
-			t.Errorf("%s: expected blob deletions %q, got %q", name, expectedBlobDeletions.List(), blobDeleter.invocations.List())
+		if a, e := blobDeleter.invocations, expectedBlobDeletions; !reflect.DeepEqual(a, e) {
+			t.Errorf("%s: unexpected blob deletions: %s", name, diff.ObjectDiff(a, e))
 		}
 	}
 }
@@ -972,11 +1087,11 @@ func TestImageDeleter(t *testing.T) {
 
 	for name, test := range tests {
 		imageClient := testclient.Fake{}
-		imageClient.AddReactor("delete", "images", func(action core.Action) (handled bool, ret runtime.Object, err error) {
+		imageClient.AddReactor("delete", "images", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 			return true, nil, test.imageDeletionError
 		})
 		imageDeleter := NewImageDeleter(imageClient.Images())
-		err := imageDeleter.DeleteImage(&imageapi.Image{ObjectMeta: kapi.ObjectMeta{Name: "sha256:0000000000000000000000000000000000000000000000000000000000000002"}})
+		err := imageDeleter.DeleteImage(&imageapi.Image{ObjectMeta: metav1.ObjectMeta{Name: "sha256:0000000000000000000000000000000000000000000000000000000000000002"}})
 		if test.imageDeletionError != nil {
 			if e, a := test.imageDeletionError, err; e != a {
 				t.Errorf("%s: err: expected %v, got %v", name, e, a)
@@ -1004,11 +1119,10 @@ func TestLayerDeleter(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusServiceUnavailable, Body: ioutil.NopCloser(bytes.NewReader([]byte{}))}, nil
 	})
 	layerLinkDeleter := NewLayerLinkDeleter()
-	layerLinkDeleter.DeleteLayerLink(client, "registry1", "repo", "layer1")
+	layerLinkDeleter.DeleteLayerLink(client, &url.URL{Scheme: "http", Host: "registry1"}, "repo", "layer1")
 
-	if !reflect.DeepEqual(actions, []string{"DELETE:https://registry1/v2/repo/blobs/layer1",
-		"DELETE:http://registry1/v2/repo/blobs/layer1"}) {
-		t.Errorf("Unexpected actions %v", actions)
+	if e := []string{"DELETE:http://registry1/v2/repo/blobs/layer1"}; !reflect.DeepEqual(actions, e) {
+		t.Errorf("unexpected actions: %s", diff.ObjectDiff(actions, e))
 	}
 }
 
@@ -1021,10 +1135,10 @@ func TestNotFoundLayerDeleter(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusNotFound, Body: ioutil.NopCloser(bytes.NewReader([]byte{}))}, nil
 	})
 	layerLinkDeleter := NewLayerLinkDeleter()
-	layerLinkDeleter.DeleteLayerLink(client, "registry1", "repo", "layer1")
+	layerLinkDeleter.DeleteLayerLink(client, &url.URL{Scheme: "https", Host: "registry1"}, "repo", "layer1")
 
-	if !reflect.DeepEqual(actions, []string{"DELETE:https://registry1/v2/repo/blobs/layer1"}) {
-		t.Errorf("Unexpected actions %v", actions)
+	if e := []string{"DELETE:https://registry1/v2/repo/blobs/layer1"}; !reflect.DeepEqual(actions, e) {
+		t.Errorf("unexpected actions: %s", diff.ObjectDiff(actions, e))
 	}
 }
 
@@ -1058,17 +1172,17 @@ func TestRegistryPruning(t *testing.T) {
 				)),
 			),
 			expectedLayerLinkDeletions: sets.NewString(
-				"registry1.io|foo/bar|"+config1,
-				"registry1.io|foo/bar|layer1",
-				"registry1.io|foo/bar|layer2",
+				"https://registry1.io|foo/bar|"+config1,
+				"https://registry1.io|foo/bar|layer1",
+				"https://registry1.io|foo/bar|layer2",
 			),
 			expectedBlobDeletions: sets.NewString(
-				"registry1.io|"+config1,
-				"registry1.io|layer1",
-				"registry1.io|layer2",
+				"https://registry1.io|"+config1,
+				"https://registry1.io|layer1",
+				"https://registry1.io|layer2",
 			),
 			expectedManifestDeletions: sets.NewString(
-				"registry1.io|foo/bar|sha256:0000000000000000000000000000000000000000000000000000000000000001",
+				"https://registry1.io|foo/bar|sha256:0000000000000000000000000000000000000000000000000000000000000001",
 			),
 		},
 		"no pruning when no images are pruned": {
@@ -1093,39 +1207,16 @@ func TestRegistryPruning(t *testing.T) {
 			),
 			expectedLayerLinkDeletions: sets.NewString(),
 			expectedBlobDeletions: sets.NewString(
-				"registry1.io|"+config1,
-				"registry1.io|"+config2,
-				"registry1.io|layer1",
-				"registry1.io|layer2",
-				"registry1.io|layer3",
-				"registry1.io|layer4",
-				"registry1.io|layer5",
-				"registry1.io|layer6",
+				"https://registry1.io|"+config1,
+				"https://registry1.io|"+config2,
+				"https://registry1.io|layer1",
+				"https://registry1.io|layer2",
+				"https://registry1.io|layer3",
+				"https://registry1.io|layer4",
+				"https://registry1.io|layer5",
+				"https://registry1.io|layer6",
 			),
 			expectedManifestDeletions: sets.NewString(),
-		},
-		"ping error": {
-			images: imageList(
-				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000001", "registry1.io/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001", &config1, "layer1", "layer2", "layer3", "layer4"),
-				imageWithLayers("sha256:0000000000000000000000000000000000000000000000000000000000000002", "registry1.io/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002", &config2, "layer3", "layer4", "layer5", "layer6"),
-			),
-			streams: streamList(
-				stream("registry1.io", "foo", "bar", tags(
-					tag("latest",
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", "registry1.io/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000001", "registry1.io/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
-					),
-				)),
-				stream("registry1.io", "foo", "other", tags(
-					tag("latest",
-						tagEvent("sha256:0000000000000000000000000000000000000000000000000000000000000002", "registry1.io/foo/other@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
-					),
-				)),
-			),
-			expectedLayerLinkDeletions: sets.NewString(),
-			expectedBlobDeletions:      sets.NewString(),
-			expectedManifestDeletions:  sets.NewString(),
-			pingErr:                    errors.New("foo"),
 		},
 		"config used as a layer": {
 			images: imageList(
@@ -1148,16 +1239,16 @@ func TestRegistryPruning(t *testing.T) {
 				)),
 			),
 			expectedLayerLinkDeletions: sets.NewString(
-				"registry1.io|foo/bar|layer1",
-				"registry1.io|foo/bar|layer2",
+				"https://registry1.io|foo/bar|layer1",
+				"https://registry1.io|foo/bar|layer2",
 				// TODO: ideally, pruner should remove layers of id2 from foo/bar as well
 			),
 			expectedBlobDeletions: sets.NewString(
-				"registry1.io|layer1",
-				"registry1.io|layer2",
+				"https://registry1.io|layer1",
+				"https://registry1.io|layer2",
 			),
 			expectedManifestDeletions: sets.NewString(
-				"registry1.io|foo/bar|sha256:0000000000000000000000000000000000000000000000000000000000000001",
+				"https://registry1.io|foo/bar|sha256:0000000000000000000000000000000000000000000000000000000000000001",
 			),
 		},
 	}
@@ -1182,9 +1273,9 @@ func TestRegistryPruning(t *testing.T) {
 			BCs:              &buildapi.BuildConfigList{},
 			Builds:           &buildapi.BuildList{},
 			DCs:              &deployapi.DeploymentConfigList{},
+			RegistryURL:      &url.URL{Scheme: "https", Host: "registry1.io"},
 		}
 		p := NewPruner(options)
-		p.(*pruner).registryPinger = &fakeRegistryPinger{err: test.pingErr}
 
 		imageDeleter := &fakeImageDeleter{invocations: sets.NewString()}
 		streamDeleter := &fakeImageStreamDeleter{invocations: sets.NewString()}
@@ -1194,14 +1285,14 @@ func TestRegistryPruning(t *testing.T) {
 
 		p.Prune(imageDeleter, streamDeleter, layerLinkDeleter, blobDeleter, manifestDeleter)
 
-		if !reflect.DeepEqual(test.expectedLayerLinkDeletions, layerLinkDeleter.invocations) {
-			t.Errorf("%s: expected layer link deletions %#v, got %#v", name, test.expectedLayerLinkDeletions.List(), layerLinkDeleter.invocations.List())
+		if a, e := layerLinkDeleter.invocations, test.expectedLayerLinkDeletions; !reflect.DeepEqual(a, e) {
+			t.Errorf("%s: unexpected layer link deletions: %s", name, diff.ObjectDiff(a, e))
 		}
-		if !reflect.DeepEqual(test.expectedBlobDeletions, blobDeleter.invocations) {
-			t.Errorf("%s: expected blob deletions %#v, got %#v", name, test.expectedBlobDeletions.List(), blobDeleter.invocations.List())
+		if a, e := blobDeleter.invocations, test.expectedBlobDeletions; !reflect.DeepEqual(a, e) {
+			t.Errorf("%s: unexpected blob deletions: %s", name, diff.ObjectDiff(a, e))
 		}
-		if !reflect.DeepEqual(test.expectedManifestDeletions, manifestDeleter.invocations) {
-			t.Errorf("%s: expected manifest deletions %#v, got %#v", name, test.expectedManifestDeletions.List(), manifestDeleter.invocations.List())
+		if a, e := manifestDeleter.invocations, test.expectedManifestDeletions; !reflect.DeepEqual(a, e) {
+			t.Errorf("%s: unexpected manifest deletions: %s", name, diff.ObjectDiff(a, e))
 		}
 	}
 }
@@ -1210,4 +1301,84 @@ func newBool(a bool) *bool {
 	r := new(bool)
 	*r = a
 	return r
+}
+
+func TestImageWithStrongAndWeakRefsIsNotPruned(t *testing.T) {
+	flag.Lookup("v").Value.Set(fmt.Sprint(*logLevel))
+
+	images := imageList(
+		agedImage("0000000000000000000000000000000000000000000000000000000000000001", "registry1.io/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001", 1540),
+		agedImage("0000000000000000000000000000000000000000000000000000000000000002", "registry1.io/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002", 1540),
+		agedImage("0000000000000000000000000000000000000000000000000000000000000003", "registry1.io/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003", 1540),
+	)
+	streams := streamList(
+		stream("registry1", "foo", "bar", tags(
+			tag("latest",
+				tagEvent("0000000000000000000000000000000000000000000000000000000000000003", "registry1.io/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000003"),
+				tagEvent("0000000000000000000000000000000000000000000000000000000000000002", "registry1.io/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000002"),
+				tagEvent("0000000000000000000000000000000000000000000000000000000000000001", "registry1.io/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
+			),
+			tag("strong",
+				tagEvent("0000000000000000000000000000000000000000000000000000000000000001", "registry1.io/foo/bar@sha256:0000000000000000000000000000000000000000000000000000000000000001"),
+			),
+		)),
+	)
+	pods := podList()
+	rcs := rcList()
+	bcs := bcList()
+	builds := buildList()
+	dcs := dcList()
+
+	options := PrunerOptions{
+		Images:  &images,
+		Streams: &streams,
+		Pods:    &pods,
+		RCs:     &rcs,
+		BCs:     &bcs,
+		Builds:  &builds,
+		DCs:     &dcs,
+	}
+	keepYoungerThan := 24 * time.Hour
+	keepTagRevisions := 2
+	options.KeepYoungerThan = &keepYoungerThan
+	options.KeepTagRevisions = &keepTagRevisions
+	p := NewPruner(options)
+
+	imageDeleter := &fakeImageDeleter{invocations: sets.NewString()}
+	streamDeleter := &fakeImageStreamDeleter{invocations: sets.NewString()}
+	layerLinkDeleter := &fakeLayerLinkDeleter{invocations: sets.NewString()}
+	blobDeleter := &fakeBlobDeleter{invocations: sets.NewString()}
+	manifestDeleter := &fakeManifestDeleter{invocations: sets.NewString()}
+
+	if err := p.Prune(imageDeleter, streamDeleter, layerLinkDeleter, blobDeleter, manifestDeleter); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if imageDeleter.invocations.Len() > 0 {
+		t.Fatalf("unexpected imageDeleter invocations: %v", imageDeleter.invocations)
+	}
+	if streamDeleter.invocations.Len() > 0 {
+		t.Fatalf("unexpected streamDeleter invocations: %v", streamDeleter.invocations)
+	}
+	if layerLinkDeleter.invocations.Len() > 0 {
+		t.Fatalf("unexpected layerLinkDeleter invocations: %v", layerLinkDeleter.invocations)
+	}
+	if blobDeleter.invocations.Len() > 0 {
+		t.Fatalf("unexpected blobDeleter invocations: %v", blobDeleter.invocations)
+	}
+	if manifestDeleter.invocations.Len() > 0 {
+		t.Fatalf("unexpected manifestDeleter invocations: %v", manifestDeleter.invocations)
+	}
+}
+
+func TestImageIsPrunable(t *testing.T) {
+	g := graph.New()
+	imageNode := imagegraph.EnsureImageNode(g, &imageapi.Image{ObjectMeta: metav1.ObjectMeta{Name: "myImage"}})
+	streamNode := imagegraph.EnsureImageStreamNode(g, &imageapi.ImageStream{ObjectMeta: metav1.ObjectMeta{Name: "myStream"}})
+	g.AddEdge(streamNode, imageNode, ReferencedImageEdgeKind)
+	g.AddEdge(streamNode, imageNode, WeakReferencedImageEdgeKind)
+
+	if imageIsPrunable(g, imageNode.(*imagegraph.ImageNode)) {
+		t.Fatalf("Image is prunable although it should not")
+	}
 }

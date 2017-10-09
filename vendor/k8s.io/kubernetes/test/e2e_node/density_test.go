@@ -25,15 +25,15 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/client/cache"
-	"k8s.io/kubernetes/pkg/kubelet/api/v1alpha1/stats"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubernetes/pkg/api/v1"
+	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 	kubemetrics "k8s.io/kubernetes/pkg/kubelet/metrics"
-	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/metrics"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/watch"
 	"k8s.io/kubernetes/test/e2e/framework"
 
 	. "github.com/onsi/ginkgo"
@@ -94,10 +94,10 @@ var _ = framework.KubeDescribe("Density [Serial] [Slow]", func() {
 
 		for _, testArg := range dTests {
 			itArg := testArg
-			It(fmt.Sprintf("latency/resource should be within limit when create %d pods with %v interval",
-				itArg.podsNr, itArg.interval), func() {
+			desc := fmt.Sprintf("latency/resource should be within limit when create %d pods with %v interval", itArg.podsNr, itArg.interval)
+			It(desc, func() {
 				itArg.createMethod = "batch"
-				testInfo := getTestNodeInfo(f, itArg.getTestName())
+				testInfo := getTestNodeInfo(f, itArg.getTestName(), desc)
 
 				batchLag, e2eLags := runDensityBatchTest(f, rc, itArg, testInfo, false)
 
@@ -152,10 +152,10 @@ var _ = framework.KubeDescribe("Density [Serial] [Slow]", func() {
 
 		for _, testArg := range dTests {
 			itArg := testArg
-			It(fmt.Sprintf("latency/resource should be within limit when create %d pods with %v interval [Benchmark]",
-				itArg.podsNr, itArg.interval), func() {
+			desc := fmt.Sprintf("latency/resource should be within limit when create %d pods with %v interval [Benchmark]", itArg.podsNr, itArg.interval)
+			It(desc, func() {
 				itArg.createMethod = "batch"
-				testInfo := getTestNodeInfo(f, itArg.getTestName())
+				testInfo := getTestNodeInfo(f, itArg.getTestName(), desc)
 
 				batchLag, e2eLags := runDensityBatchTest(f, rc, itArg, testInfo, true)
 
@@ -189,10 +189,10 @@ var _ = framework.KubeDescribe("Density [Serial] [Slow]", func() {
 
 		for _, testArg := range dTests {
 			itArg := testArg
-			It(fmt.Sprintf("latency/resource should be within limit when create %d pods with %v interval (QPS %d) [Benchmark]",
-				itArg.podsNr, itArg.interval, itArg.APIQPSLimit), func() {
+			desc := fmt.Sprintf("latency/resource should be within limit when create %d pods with %v interval (QPS %d) [Benchmark]", itArg.podsNr, itArg.interval, itArg.APIQPSLimit)
+			It(desc, func() {
 				itArg.createMethod = "batch"
-				testInfo := getTestNodeInfo(f, itArg.getTestName())
+				testInfo := getTestNodeInfo(f, itArg.getTestName(), desc)
 				// The latency caused by API QPS limit takes a large portion (up to ~33%) of e2e latency.
 				// It makes the pod startup latency of Kubelet (creation throughput as well) under-estimated.
 				// Here we set API QPS limit from default 5 to 60 in order to test real Kubelet performance.
@@ -232,10 +232,10 @@ var _ = framework.KubeDescribe("Density [Serial] [Slow]", func() {
 
 		for _, testArg := range dTests {
 			itArg := testArg
-			It(fmt.Sprintf("latency/resource should be within limit when create %d pods with %d background pods",
-				itArg.podsNr, itArg.bgPodsNr), func() {
+			desc := fmt.Sprintf("latency/resource should be within limit when create %d pods with %d background pods", itArg.podsNr, itArg.bgPodsNr)
+			It(desc, func() {
 				itArg.createMethod = "sequence"
-				testInfo := getTestNodeInfo(f, itArg.getTestName())
+				testInfo := getTestNodeInfo(f, itArg.getTestName(), desc)
 				batchlag, e2eLags := runDensitySeqTest(f, rc, itArg, testInfo)
 
 				By("Verifying latency")
@@ -265,10 +265,10 @@ var _ = framework.KubeDescribe("Density [Serial] [Slow]", func() {
 
 		for _, testArg := range dTests {
 			itArg := testArg
-			It(fmt.Sprintf("latency/resource should be within limit when create %d pods with %d background pods [Benchmark]",
-				itArg.podsNr, itArg.bgPodsNr), func() {
+			desc := fmt.Sprintf("latency/resource should be within limit when create %d pods with %d background pods [Benchmark]", itArg.podsNr, itArg.bgPodsNr)
+			It(desc, func() {
 				itArg.createMethod = "sequence"
-				testInfo := getTestNodeInfo(f, itArg.getTestName())
+				testInfo := getTestNodeInfo(f, itArg.getTestName(), desc)
 				batchlag, e2eLags := runDensitySeqTest(f, rc, itArg, testInfo)
 
 				By("Verifying latency")
@@ -319,12 +319,12 @@ func runDensityBatchTest(f *framework.Framework, rc *ResourceCollector, testArg 
 	)
 	var (
 		mutex      = &sync.Mutex{}
-		watchTimes = make(map[string]unversioned.Time, 0)
+		watchTimes = make(map[string]metav1.Time, 0)
 		stopCh     = make(chan struct{})
 	)
 
 	// create test pod data structure
-	pods := newTestPods(testArg.podsNr, framework.GetPauseImageNameForHostArch(), podType)
+	pods := newTestPods(testArg.podsNr, true, framework.GetPauseImageNameForHostArch(), podType)
 
 	// the controller watches the change of pod status
 	controller := newInformerWatchPod(f, mutex, watchTimes, podType)
@@ -338,9 +338,6 @@ func runDensityBatchTest(f *framework.Framework, rc *ResourceCollector, testArg 
 	time.Sleep(sleepBeforeCreatePods)
 
 	rc.Start()
-	// Explicitly delete pods to prevent namespace controller cleanning up timeout
-	defer deletePodsSync(f, append(pods, getCadvisorPod()))
-	defer rc.Stop()
 
 	By("Creating a batch of pods")
 	// It returns a map['pod name']'creation time' containing the creation timestamps
@@ -358,8 +355,8 @@ func runDensityBatchTest(f *framework.Framework, rc *ResourceCollector, testArg 
 
 	// Analyze results
 	var (
-		firstCreate unversioned.Time
-		lastRunning unversioned.Time
+		firstCreate metav1.Time
+		lastRunning metav1.Time
 		init        = true
 		e2eLags     = make([]framework.PodLatencyData, 0)
 	)
@@ -387,12 +384,17 @@ func runDensityBatchTest(f *framework.Framework, rc *ResourceCollector, testArg 
 	sort.Sort(framework.LatencySlice(e2eLags))
 	batchLag := lastRunning.Time.Sub(firstCreate.Time)
 
+	rc.Stop()
+	deletePodsSync(f, pods)
+
 	// Log time series data.
 	if isLogTimeSeries {
 		logDensityTimeSeries(rc, createTimes, watchTimes, testInfo)
 	}
 	// Log throughput data.
 	logPodCreateThroughput(batchLag, e2eLags, testArg.podsNr, testInfo)
+
+	deletePodsSync(f, []*v1.Pod{getCadvisorPod()})
 
 	return batchLag, e2eLags
 }
@@ -403,8 +405,8 @@ func runDensitySeqTest(f *framework.Framework, rc *ResourceCollector, testArg de
 		podType               = "density_test_pod"
 		sleepBeforeCreatePods = 30 * time.Second
 	)
-	bgPods := newTestPods(testArg.bgPodsNr, framework.GetPauseImageNameForHostArch(), "background_pod")
-	testPods := newTestPods(testArg.podsNr, framework.GetPauseImageNameForHostArch(), podType)
+	bgPods := newTestPods(testArg.bgPodsNr, true, framework.GetPauseImageNameForHostArch(), "background_pod")
+	testPods := newTestPods(testArg.podsNr, true, framework.GetPauseImageNameForHostArch(), podType)
 
 	By("Creating a batch of background pods")
 
@@ -414,25 +416,27 @@ func runDensitySeqTest(f *framework.Framework, rc *ResourceCollector, testArg de
 	time.Sleep(sleepBeforeCreatePods)
 
 	rc.Start()
-	// Explicitly delete pods to prevent namespace controller cleanning up timeout
-	defer deletePodsSync(f, append(bgPods, append(testPods, getCadvisorPod())...))
-	defer rc.Stop()
 
 	// Create pods sequentially (back-to-back). e2eLags have been sorted.
 	batchlag, e2eLags := createBatchPodSequential(f, testPods)
 
+	rc.Stop()
+	deletePodsSync(f, append(bgPods, testPods...))
+
 	// Log throughput data.
 	logPodCreateThroughput(batchlag, e2eLags, testArg.podsNr, testInfo)
+
+	deletePodsSync(f, []*v1.Pod{getCadvisorPod()})
 
 	return batchlag, e2eLags
 }
 
 // createBatchPodWithRateControl creates a batch of pods concurrently, uses one goroutine for each creation.
 // between creations there is an interval for throughput control
-func createBatchPodWithRateControl(f *framework.Framework, pods []*api.Pod, interval time.Duration) map[string]unversioned.Time {
-	createTimes := make(map[string]unversioned.Time)
+func createBatchPodWithRateControl(f *framework.Framework, pods []*v1.Pod, interval time.Duration) map[string]metav1.Time {
+	createTimes := make(map[string]metav1.Time)
 	for _, pod := range pods {
-		createTimes[pod.ObjectMeta.Name] = unversioned.Now()
+		createTimes[pod.ObjectMeta.Name] = metav1.Now()
 		go f.PodClient().Create(pod)
 		time.Sleep(interval)
 	}
@@ -476,43 +480,42 @@ func verifyPodStartupLatency(expect, actual framework.LatencyMetric) error {
 }
 
 // newInformerWatchPod creates an informer to check whether all pods are running.
-func newInformerWatchPod(f *framework.Framework, mutex *sync.Mutex, watchTimes map[string]unversioned.Time,
-	podType string) *cache.Controller {
+func newInformerWatchPod(f *framework.Framework, mutex *sync.Mutex, watchTimes map[string]metav1.Time, podType string) cache.Controller {
 	ns := f.Namespace.Name
-	checkPodRunning := func(p *api.Pod) {
+	checkPodRunning := func(p *v1.Pod) {
 		mutex.Lock()
 		defer mutex.Unlock()
 		defer GinkgoRecover()
 
-		if p.Status.Phase == api.PodRunning {
+		if p.Status.Phase == v1.PodRunning {
 			if _, found := watchTimes[p.Name]; !found {
-				watchTimes[p.Name] = unversioned.Now()
+				watchTimes[p.Name] = metav1.Now()
 			}
 		}
 	}
 
 	_, controller := cache.NewInformer(
 		&cache.ListWatch{
-			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				options.LabelSelector = labels.SelectorFromSet(labels.Set{"type": podType})
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				options.LabelSelector = labels.SelectorFromSet(labels.Set{"type": podType}).String()
 				obj, err := f.ClientSet.Core().Pods(ns).List(options)
 				return runtime.Object(obj), err
 			},
-			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				options.LabelSelector = labels.SelectorFromSet(labels.Set{"type": podType})
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				options.LabelSelector = labels.SelectorFromSet(labels.Set{"type": podType}).String()
 				return f.ClientSet.Core().Pods(ns).Watch(options)
 			},
 		},
-		&api.Pod{},
+		&v1.Pod{},
 		0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				p, ok := obj.(*api.Pod)
+				p, ok := obj.(*v1.Pod)
 				Expect(ok).To(Equal(true))
 				go checkPodRunning(p)
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				p, ok := newObj.(*api.Pod)
+				p, ok := newObj.(*v1.Pod)
 				Expect(ok).To(Equal(true))
 				go checkPodRunning(p)
 			},
@@ -522,16 +525,16 @@ func newInformerWatchPod(f *framework.Framework, mutex *sync.Mutex, watchTimes m
 }
 
 // createBatchPodSequential creats pods back-to-back in sequence.
-func createBatchPodSequential(f *framework.Framework, pods []*api.Pod) (time.Duration, []framework.PodLatencyData) {
-	batchStartTime := unversioned.Now()
+func createBatchPodSequential(f *framework.Framework, pods []*v1.Pod) (time.Duration, []framework.PodLatencyData) {
+	batchStartTime := metav1.Now()
 	e2eLags := make([]framework.PodLatencyData, 0)
 	for _, pod := range pods {
-		create := unversioned.Now()
+		create := metav1.Now()
 		f.PodClient().CreateSync(pod)
 		e2eLags = append(e2eLags,
-			framework.PodLatencyData{Name: pod.Name, Latency: unversioned.Now().Time.Sub(create.Time)})
+			framework.PodLatencyData{Name: pod.Name, Latency: metav1.Now().Time.Sub(create.Time)})
 	}
-	batchLag := unversioned.Now().Time.Sub(batchStartTime.Time)
+	batchLag := metav1.Now().Time.Sub(batchStartTime.Time)
 	sort.Sort(framework.LatencySlice(e2eLags))
 	return batchLag, e2eLags
 }
@@ -548,7 +551,7 @@ func logAndVerifyLatency(batchLag time.Duration, e2eLags []framework.PodLatencyD
 	podCreateLatency := framework.PodStartupLatency{Latency: framework.ExtractLatencyMetrics(e2eLags)}
 
 	// log latency perf data
-	framework.PrintPerfData(getLatencyPerfData(podCreateLatency.Latency, testInfo))
+	logPerfData(getLatencyPerfData(podCreateLatency.Latency, testInfo), "latency")
 
 	if isVerify {
 		// check whether e2e pod startup time is acceptable.
@@ -564,7 +567,7 @@ func logAndVerifyLatency(batchLag time.Duration, e2eLags []framework.PodLatencyD
 
 // logThroughput calculates and logs pod creation throughput.
 func logPodCreateThroughput(batchLag time.Duration, e2eLags []framework.PodLatencyData, podsNr int, testInfo map[string]string) {
-	framework.PrintPerfData(getThroughputPerfData(batchLag, e2eLags, podsNr, testInfo))
+	logPerfData(getThroughputPerfData(batchLag, e2eLags, podsNr, testInfo), "throughput")
 }
 
 // increaseKubeletAPIQPSLimit sets Kubelet API QPS via ConfigMap. Kubelet will restart with the new QPS.

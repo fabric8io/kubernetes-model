@@ -1,26 +1,31 @@
 package appliedclusterresourcequota
 
 import (
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapierrors "k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/client/cache"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/sets"
+	kapierrors "k8s.io/apimachinery/pkg/api/errors"
+	metainternal "k8s.io/apimachinery/pkg/apis/meta/internalversion"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/registry/rest"
+	"k8s.io/apiserver/pkg/storage"
+	kcorelisters "k8s.io/kubernetes/pkg/client/listers/core/internalversion"
 
 	oapi "github.com/openshift/origin/pkg/api"
-	ocache "github.com/openshift/origin/pkg/client/cache"
-	quotaapi "github.com/openshift/origin/pkg/quota/api"
+	quotaapi "github.com/openshift/origin/pkg/quota/apis/quota"
 	"github.com/openshift/origin/pkg/quota/controller/clusterquotamapping"
-	clusterresourcequotaregistry "github.com/openshift/origin/pkg/quota/registry/clusterresourcequota"
+	quotalister "github.com/openshift/origin/pkg/quota/generated/listers/quota/internalversion"
 )
 
 type AppliedClusterResourceQuotaREST struct {
 	quotaMapper     clusterquotamapping.ClusterQuotaMapper
-	quotaLister     *ocache.IndexerToClusterResourceQuotaLister
-	namespaceLister *cache.IndexerToNamespaceLister
+	quotaLister     quotalister.ClusterResourceQuotaLister
+	namespaceLister kcorelisters.NamespaceLister
 }
 
-func NewREST(quotaMapper clusterquotamapping.ClusterQuotaMapper, quotaLister *ocache.IndexerToClusterResourceQuotaLister, namespaceLister *cache.IndexerToNamespaceLister) *AppliedClusterResourceQuotaREST {
+func NewREST(quotaMapper clusterquotamapping.ClusterQuotaMapper, quotaLister quotalister.ClusterResourceQuotaLister, namespaceLister kcorelisters.NamespaceLister) *AppliedClusterResourceQuotaREST {
 	return &AppliedClusterResourceQuotaREST{
 		quotaMapper:     quotaMapper,
 		quotaLister:     quotaLister,
@@ -28,12 +33,15 @@ func NewREST(quotaMapper clusterquotamapping.ClusterQuotaMapper, quotaLister *oc
 	}
 }
 
+var _ rest.Getter = &AppliedClusterResourceQuotaREST{}
+var _ rest.Lister = &AppliedClusterResourceQuotaREST{}
+
 func (r *AppliedClusterResourceQuotaREST) New() runtime.Object {
 	return &quotaapi.AppliedClusterResourceQuota{}
 }
 
-func (r *AppliedClusterResourceQuotaREST) Get(ctx kapi.Context, name string) (runtime.Object, error) {
-	namespace, ok := kapi.NamespaceFrom(ctx)
+func (r *AppliedClusterResourceQuotaREST) Get(ctx apirequest.Context, name string, options *metav1.GetOptions) (runtime.Object, error) {
+	namespace, ok := apirequest.NamespaceFrom(ctx)
 	if !ok {
 		return nil, kapierrors.NewBadRequest("namespace is required")
 	}
@@ -56,15 +64,15 @@ func (r *AppliedClusterResourceQuotaREST) NewList() runtime.Object {
 	return &quotaapi.AppliedClusterResourceQuotaList{}
 }
 
-func (r *AppliedClusterResourceQuotaREST) List(ctx kapi.Context, options *kapi.ListOptions) (runtime.Object, error) {
-	namespace, ok := kapi.NamespaceFrom(ctx)
+func (r *AppliedClusterResourceQuotaREST) List(ctx apirequest.Context, options *metainternal.ListOptions) (runtime.Object, error) {
+	namespace, ok := apirequest.NamespaceFrom(ctx)
 	if !ok {
 		return nil, kapierrors.NewBadRequest("namespace is required")
 	}
 
 	// TODO max resource version?  watch?
 	list := &quotaapi.AppliedClusterResourceQuotaList{}
-	matcher := clusterresourcequotaregistry.Matcher(oapi.ListOptionsToSelectors(options))
+	matcher := matcher(oapi.InternalListOptionsToSelectors(options))
 	quotaNames, _ := r.quotaMapper.GetClusterQuotasFor(namespace)
 
 	for _, name := range quotaNames {
@@ -79,4 +87,13 @@ func (r *AppliedClusterResourceQuotaREST) List(ctx kapi.Context, options *kapi.L
 	}
 
 	return list, nil
+}
+
+// Matcher returns a generic matcher for a given label and field selector.
+func matcher(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
+	return storage.SelectionPredicate{
+		Label:    label,
+		Field:    field,
+		GetAttrs: storage.DefaultClusterScopedAttr,
+	}
 }

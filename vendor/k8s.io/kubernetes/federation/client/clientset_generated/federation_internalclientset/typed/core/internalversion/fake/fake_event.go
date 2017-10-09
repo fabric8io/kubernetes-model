@@ -17,11 +17,13 @@ limitations under the License.
 package fake
 
 import (
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
+	types "k8s.io/apimachinery/pkg/types"
+	watch "k8s.io/apimachinery/pkg/watch"
+	testing "k8s.io/client-go/testing"
 	api "k8s.io/kubernetes/pkg/api"
-	unversioned "k8s.io/kubernetes/pkg/api/unversioned"
-	core "k8s.io/kubernetes/pkg/client/testing/core"
-	labels "k8s.io/kubernetes/pkg/labels"
-	watch "k8s.io/kubernetes/pkg/watch"
 )
 
 // FakeEvents implements EventInterface
@@ -30,11 +32,14 @@ type FakeEvents struct {
 	ns   string
 }
 
-var eventsResource = unversioned.GroupVersionResource{Group: "", Version: "", Resource: "events"}
+var eventsResource = schema.GroupVersionResource{Group: "", Version: "", Resource: "events"}
 
-func (c *FakeEvents) Create(event *api.Event) (result *api.Event, err error) {
+var eventsKind = schema.GroupVersionKind{Group: "", Version: "", Kind: "Event"}
+
+// Get takes name of the event, and returns the corresponding event object, and an error if there is any.
+func (c *FakeEvents) Get(name string, options v1.GetOptions) (result *api.Event, err error) {
 	obj, err := c.Fake.
-		Invokes(core.NewCreateAction(eventsResource, c.ns, event), &api.Event{})
+		Invokes(testing.NewGetAction(eventsResource, c.ns, name), &api.Event{})
 
 	if obj == nil {
 		return nil, err
@@ -42,49 +47,16 @@ func (c *FakeEvents) Create(event *api.Event) (result *api.Event, err error) {
 	return obj.(*api.Event), err
 }
 
-func (c *FakeEvents) Update(event *api.Event) (result *api.Event, err error) {
+// List takes label and field selectors, and returns the list of Events that match those selectors.
+func (c *FakeEvents) List(opts v1.ListOptions) (result *api.EventList, err error) {
 	obj, err := c.Fake.
-		Invokes(core.NewUpdateAction(eventsResource, c.ns, event), &api.Event{})
-
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*api.Event), err
-}
-
-func (c *FakeEvents) Delete(name string, options *api.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(core.NewDeleteAction(eventsResource, c.ns, name), &api.Event{})
-
-	return err
-}
-
-func (c *FakeEvents) DeleteCollection(options *api.DeleteOptions, listOptions api.ListOptions) error {
-	action := core.NewDeleteCollectionAction(eventsResource, c.ns, listOptions)
-
-	_, err := c.Fake.Invokes(action, &api.EventList{})
-	return err
-}
-
-func (c *FakeEvents) Get(name string) (result *api.Event, err error) {
-	obj, err := c.Fake.
-		Invokes(core.NewGetAction(eventsResource, c.ns, name), &api.Event{})
-
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*api.Event), err
-}
-
-func (c *FakeEvents) List(opts api.ListOptions) (result *api.EventList, err error) {
-	obj, err := c.Fake.
-		Invokes(core.NewListAction(eventsResource, c.ns, opts), &api.EventList{})
+		Invokes(testing.NewListAction(eventsResource, eventsKind, c.ns, opts), &api.EventList{})
 
 	if obj == nil {
 		return nil, err
 	}
 
-	label, _, _ := core.ExtractFromListOptions(opts)
+	label, _, _ := testing.ExtractFromListOptions(opts)
 	if label == nil {
 		label = labels.Everything()
 	}
@@ -98,16 +70,54 @@ func (c *FakeEvents) List(opts api.ListOptions) (result *api.EventList, err erro
 }
 
 // Watch returns a watch.Interface that watches the requested events.
-func (c *FakeEvents) Watch(opts api.ListOptions) (watch.Interface, error) {
+func (c *FakeEvents) Watch(opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(core.NewWatchAction(eventsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchAction(eventsResource, c.ns, opts))
 
 }
 
-// Patch applies the patch and returns the patched event.
-func (c *FakeEvents) Patch(name string, pt api.PatchType, data []byte, subresources ...string) (result *api.Event, err error) {
+// Create takes the representation of a event and creates it.  Returns the server's representation of the event, and an error, if there is any.
+func (c *FakeEvents) Create(event *api.Event) (result *api.Event, err error) {
 	obj, err := c.Fake.
-		Invokes(core.NewPatchSubresourceAction(eventsResource, c.ns, name, data, subresources...), &api.Event{})
+		Invokes(testing.NewCreateAction(eventsResource, c.ns, event), &api.Event{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*api.Event), err
+}
+
+// Update takes the representation of a event and updates it. Returns the server's representation of the event, and an error, if there is any.
+func (c *FakeEvents) Update(event *api.Event) (result *api.Event, err error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateAction(eventsResource, c.ns, event), &api.Event{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*api.Event), err
+}
+
+// Delete takes name of the event and deletes it. Returns an error if one occurs.
+func (c *FakeEvents) Delete(name string, options *v1.DeleteOptions) error {
+	_, err := c.Fake.
+		Invokes(testing.NewDeleteAction(eventsResource, c.ns, name), &api.Event{})
+
+	return err
+}
+
+// DeleteCollection deletes a collection of objects.
+func (c *FakeEvents) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(eventsResource, c.ns, listOptions)
+
+	_, err := c.Fake.Invokes(action, &api.EventList{})
+	return err
+}
+
+// Patch applies the patch and returns the patched event.
+func (c *FakeEvents) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *api.Event, err error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(eventsResource, c.ns, name, data, subresources...), &api.Event{})
 
 	if obj == nil {
 		return nil, err

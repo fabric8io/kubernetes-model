@@ -3,10 +3,12 @@ package rollback
 import (
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
+	kapihelper "k8s.io/kubernetes/pkg/api/helper"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
-	deploytest "github.com/openshift/origin/pkg/deploy/api/test"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	deploytest "github.com/openshift/origin/pkg/deploy/apis/apps/test"
 )
 
 func TestGeneration(t *testing.T) {
@@ -31,7 +33,7 @@ func TestGeneration(t *testing.T) {
 		spec := &deployapi.DeploymentConfigRollbackSpec{
 			From: kapi.ObjectReference{
 				Name:      "deployment",
-				Namespace: kapi.NamespaceDefault,
+				Namespace: metav1.NamespaceDefault,
 			},
 			IncludeTriggers:        i&(1<<0) > 0,
 			IncludeTemplate:        i&(1<<1) > 0,
@@ -117,5 +119,5 @@ func hasReplicationMetaDiff(a, b *deployapi.DeploymentConfig) bool {
 
 func hasPodTemplateDiff(a, b *deployapi.DeploymentConfig) bool {
 	specA, specB := a.Spec.Template.Spec, b.Spec.Template.Spec
-	return !kapi.Semantic.DeepEqual(specA, specB)
+	return !kapihelper.Semantic.DeepEqual(specA, specB)
 }

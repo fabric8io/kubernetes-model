@@ -1,22 +1,23 @@
 package testclient
 
 import (
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/client/testing/core"
-	"k8s.io/kubernetes/pkg/watch"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/watch"
+	clientgotesting "k8s.io/client-go/testing"
 
-	oauthapi "github.com/openshift/origin/pkg/oauth/api"
+	oauthapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
 )
 
 type FakeOAuthClient struct {
 	Fake *Fake
 }
 
-var oAuthClientsResource = unversioned.GroupVersionResource{Group: "", Version: "", Resource: "oauthclients"}
+var oAuthClientsResource = schema.GroupVersionResource{Group: "", Version: "", Resource: "oauthclients"}
+var oAuthClientsKind = schema.GroupVersionKind{Group: "", Version: "", Kind: "OAuthClient"}
 
-func (c *FakeOAuthClient) Get(name string) (*oauthapi.OAuthClient, error) {
-	obj, err := c.Fake.Invokes(core.NewRootGetAction(oAuthClientsResource, name), &oauthapi.OAuthClient{})
+func (c *FakeOAuthClient) Get(name string, options metav1.GetOptions) (*oauthapi.OAuthClient, error) {
+	obj, err := c.Fake.Invokes(clientgotesting.NewRootGetAction(oAuthClientsResource, name), &oauthapi.OAuthClient{})
 	if obj == nil {
 		return nil, err
 	}
@@ -24,8 +25,8 @@ func (c *FakeOAuthClient) Get(name string) (*oauthapi.OAuthClient, error) {
 	return obj.(*oauthapi.OAuthClient), err
 }
 
-func (c *FakeOAuthClient) List(opts kapi.ListOptions) (*oauthapi.OAuthClientList, error) {
-	obj, err := c.Fake.Invokes(core.NewRootListAction(oAuthClientsResource, opts), &oauthapi.OAuthClientList{})
+func (c *FakeOAuthClient) List(opts metav1.ListOptions) (*oauthapi.OAuthClientList, error) {
+	obj, err := c.Fake.Invokes(clientgotesting.NewRootListAction(oAuthClientsResource, oAuthClientsKind, opts), &oauthapi.OAuthClientList{})
 	if obj == nil {
 		return nil, err
 	}
@@ -34,7 +35,7 @@ func (c *FakeOAuthClient) List(opts kapi.ListOptions) (*oauthapi.OAuthClientList
 }
 
 func (c *FakeOAuthClient) Create(inObj *oauthapi.OAuthClient) (*oauthapi.OAuthClient, error) {
-	obj, err := c.Fake.Invokes(core.NewRootCreateAction(oAuthClientsResource, inObj), inObj)
+	obj, err := c.Fake.Invokes(clientgotesting.NewRootCreateAction(oAuthClientsResource, inObj), inObj)
 	if obj == nil {
 		return nil, err
 	}
@@ -43,16 +44,16 @@ func (c *FakeOAuthClient) Create(inObj *oauthapi.OAuthClient) (*oauthapi.OAuthCl
 }
 
 func (c *FakeOAuthClient) Delete(name string) error {
-	_, err := c.Fake.Invokes(core.NewRootDeleteAction(oAuthClientsResource, name), &oauthapi.OAuthClient{})
+	_, err := c.Fake.Invokes(clientgotesting.NewRootDeleteAction(oAuthClientsResource, name), &oauthapi.OAuthClient{})
 	return err
 }
 
-func (c *FakeOAuthClient) Watch(opts kapi.ListOptions) (watch.Interface, error) {
-	return c.Fake.InvokesWatch(core.NewRootWatchAction(oAuthClientsResource, opts))
+func (c *FakeOAuthClient) Watch(opts metav1.ListOptions) (watch.Interface, error) {
+	return c.Fake.InvokesWatch(clientgotesting.NewRootWatchAction(oAuthClientsResource, opts))
 }
 
 func (c *FakeOAuthClient) Update(client *oauthapi.OAuthClient) (*oauthapi.OAuthClient, error) {
-	obj, err := c.Fake.Invokes(core.NewRootUpdateAction(oAuthClientsResource, client), &oauthapi.OAuthClient{})
+	obj, err := c.Fake.Invokes(clientgotesting.NewRootUpdateAction(oAuthClientsResource, client), &oauthapi.OAuthClient{})
 	if obj == nil {
 		return nil, err
 	}

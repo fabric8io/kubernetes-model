@@ -1,22 +1,24 @@
 package generictrigger
 
 import (
+	"fmt"
 	"reflect"
 	"time"
 
 	"github.com/golang/glog"
 
-	"k8s.io/kubernetes/pkg/client/cache"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
+	kcorelisters "k8s.io/kubernetes/pkg/client/listers/core/v1"
 	kcontroller "k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/pkg/runtime"
-	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
-	"k8s.io/kubernetes/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/util/workqueue"
 
 	osclient "github.com/openshift/origin/pkg/client"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	deployutil "github.com/openshift/origin/pkg/deploy/util"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 )
 
 const (
@@ -24,9 +26,6 @@ const (
 	// stream stores have synced. If it hasn't synced, to avoid a hot loop, we'll wait this long
 	// between checks.
 	storeSyncedPollPeriod = 100 * time.Millisecond
-	// MaxRetries is the number of times a deployment config will be retried before it is dropped
-	// out of the queue.
-	MaxRetries = 5
 )
 
 // NewDeploymentTriggerController returns a new DeploymentTriggerController.
@@ -43,14 +42,19 @@ func NewDeploymentTriggerController(dcInformer, rcInformer, streamInformer cache
 		AddFunc:    c.addDeploymentConfig,
 		UpdateFunc: c.updateDeploymentConfig,
 	})
-	streamInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.addImageStream,
-		UpdateFunc: c.updateImageStream,
-	})
+
+	if streamInformer != nil {
+		c.triggerFromImages = true
+		streamInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.addImageStream,
+			UpdateFunc: c.updateImageStream,
+		})
+	}
 
 	c.dcLister.Indexer = dcInformer.GetIndexer()
-	c.rcLister.Indexer = rcInformer.GetIndexer()
 	c.dcListerSynced = dcInformer.HasSynced
+
+	c.rcLister = kcorelisters.NewReplicationControllerLister(rcInformer.GetIndexer())
 	c.rcListerSynced = rcInformer.HasSynced
 	return c
 }
@@ -138,11 +142,11 @@ func (c *DeploymentTriggerController) updateDeploymentConfig(old, cur interface{
 	if err != nil {
 		// If we get an error here it may be due to the rc cache lagging behind. In such a case
 		// just defer to the api server (instantiate REST) where we will retry this.
-		glog.V(2).Infof("Cannot get latest rc for dc %s:%d (%v) - will defer to instantiate", deployutil.LabelForDeploymentConfig(newDc), newDc.Status.LatestVersion, err)
+		glog.V(4).Infof("Cannot get latest rc for dc %s:%d (%v) - will defer to instantiate", deployutil.LabelForDeploymentConfig(newDc), newDc.Status.LatestVersion, err)
 	} else {
 		initial, err := deployutil.DecodeDeploymentConfig(latestRc, c.codec)
 		if err != nil {
-			glog.V(2).Infof("Cannot decode dc from replication controller %s: %v", deployutil.LabelForDeployment(latestRc), err)
+			glog.V(2).Infof("Cannot decode dc from replication controller %s: %v", deployutil.LabelForDeploymentV1(latestRc), err)
 			return
 		}
 		shouldInstantiate = !reflect.DeepEqual(newDc.Spec.Template, initial.Spec.Template)
@@ -193,7 +197,7 @@ func (c *DeploymentTriggerController) updateImageStream(old, cur interface{}) {
 func (c *DeploymentTriggerController) enqueueDeploymentConfig(dc *deployapi.DeploymentConfig) {
 	key, err := kcontroller.KeyFunc(dc)
 	if err != nil {
-		glog.Errorf("Couldn't get key for object %+v: %v", dc, err)
+		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %+v: %v", dc, err))
 		return
 	}
 	c.queue.Add(key)
@@ -216,7 +220,7 @@ func (c *DeploymentTriggerController) work() bool {
 
 	dc, err := c.getByKey(key.(string))
 	if err != nil {
-		glog.Error(err.Error())
+		utilruntime.HandleError(err)
 	}
 
 	if dc == nil {
@@ -232,12 +236,11 @@ func (c *DeploymentTriggerController) work() bool {
 func (c *DeploymentTriggerController) getByKey(key string) (*deployapi.DeploymentConfig, error) {
 	obj, exists, err := c.dcLister.Indexer.GetByKey(key)
 	if err != nil {
-		glog.Infof("Unable to retrieve deployment config %q from store: %v", key, err)
-		c.queue.Add(key)
+		c.queue.AddRateLimited(key)
 		return nil, err
 	}
 	if !exists {
-		glog.Infof("Deployment config %q has been deleted", key)
+		glog.V(4).Infof("Deployment config %q has been deleted", key)
 		return nil, nil
 	}
 

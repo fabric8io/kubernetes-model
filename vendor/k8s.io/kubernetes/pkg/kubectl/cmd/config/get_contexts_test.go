@@ -22,8 +22,8 @@ import (
 	"os"
 	"testing"
 
-	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-	clientcmdapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 type getContextsTest struct {
@@ -123,9 +123,12 @@ func TestGetContextsSelectOneOfTwo(t *testing.T) {
 }
 
 func (test getContextsTest) run(t *testing.T) {
-	fakeKubeFile, _ := ioutil.TempFile("", "")
+	fakeKubeFile, err := ioutil.TempFile("", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	defer os.Remove(fakeKubeFile.Name())
-	err := clientcmd.WriteToFile(test.startingConfig, fakeKubeFile.Name())
+	err = clientcmd.WriteToFile(test.startingConfig, fakeKubeFile.Name())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

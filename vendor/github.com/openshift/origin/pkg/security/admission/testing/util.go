@@ -1,15 +1,17 @@
 package testing
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	allocator "github.com/openshift/origin/pkg/security"
+	securityapi "github.com/openshift/origin/pkg/security/apis/security"
 )
 
 // CreateSAForTest Build and Initializes a ServiceAccount for tests
 func CreateSAForTest() *kapi.ServiceAccount {
 	return &kapi.ServiceAccount{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default",
 			Namespace: "default",
 		},
@@ -19,7 +21,7 @@ func CreateSAForTest() *kapi.ServiceAccount {
 // CreateNamespaceForTest builds and initializes a Namespaces for tests
 func CreateNamespaceForTest() *kapi.Namespace {
 	return &kapi.Namespace{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "default",
 			Annotations: map[string]string{
 				allocator.UIDRangeAnnotation:           "1/3",
@@ -31,30 +33,30 @@ func CreateNamespaceForTest() *kapi.Namespace {
 }
 
 // UserScc creates a SCC for a given user name
-func UserScc(user string) *kapi.SecurityContextConstraints {
+func UserScc(user string) *securityapi.SecurityContextConstraints {
 	var uid int64 = 9999
 	fsGroup := int64(1)
-	return &kapi.SecurityContextConstraints{
-		ObjectMeta: kapi.ObjectMeta{
+	return &securityapi.SecurityContextConstraints{
+		ObjectMeta: metav1.ObjectMeta{
 			SelfLink: "/api/version/securitycontextconstraints/" + user,
 			Name:     user,
 		},
 		Users: []string{user},
-		SELinuxContext: kapi.SELinuxContextStrategyOptions{
-			Type: kapi.SELinuxStrategyRunAsAny,
+		SELinuxContext: securityapi.SELinuxContextStrategyOptions{
+			Type: securityapi.SELinuxStrategyRunAsAny,
 		},
-		RunAsUser: kapi.RunAsUserStrategyOptions{
-			Type: kapi.RunAsUserStrategyMustRunAs,
+		RunAsUser: securityapi.RunAsUserStrategyOptions{
+			Type: securityapi.RunAsUserStrategyMustRunAs,
 			UID:  &uid,
 		},
-		FSGroup: kapi.FSGroupStrategyOptions{
-			Type: kapi.FSGroupStrategyMustRunAs,
-			Ranges: []kapi.IDRange{
+		FSGroup: securityapi.FSGroupStrategyOptions{
+			Type: securityapi.FSGroupStrategyMustRunAs,
+			Ranges: []securityapi.IDRange{
 				{Min: fsGroup, Max: fsGroup},
 			},
 		},
-		SupplementalGroups: kapi.SupplementalGroupsStrategyOptions{
-			Type: kapi.SupplementalGroupsStrategyRunAsAny,
+		SupplementalGroups: securityapi.SupplementalGroupsStrategyOptions{
+			Type: securityapi.SupplementalGroupsStrategyRunAsAny,
 		},
 	}
 }

@@ -8,12 +8,12 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
-	kerrors "k8s.io/kubernetes/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
 	"github.com/openshift/origin/pkg/cmd/flagtypes"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	"github.com/openshift/origin/pkg/cmd/templates"
 )
 
 var controllersLong = templates.LongDesc(`
@@ -78,10 +78,20 @@ func NewCommandStartMasterControllers(name, basename string, out, errout io.Writ
 		}.Default(),
 	}
 
+	var lockServiceName string
 	options.MasterArgs = NewDefaultMasterArgs()
 	options.MasterArgs.StartControllers = true
 	options.MasterArgs.OverrideConfig = func(config *configapi.MasterConfig) error {
 		config.ServingInfo.BindAddress = listenArg.ListenAddr.URL.Host
+		if len(lockServiceName) > 0 {
+			config.ControllerConfig.Election = &configapi.ControllerElectionConfig{
+				LockName:      lockServiceName,
+				LockNamespace: "kube-system",
+				LockResource: configapi.GroupResource{
+					Resource: "endpoints",
+				},
+			}
+		}
 		return nil
 	}
 
@@ -89,6 +99,7 @@ func NewCommandStartMasterControllers(name, basename string, out, errout io.Writ
 	// This command only supports reading from config and the listen argument
 	flags.StringVar(&options.ConfigFile, "config", "", "Location of the master configuration file to run from. Required")
 	cmd.MarkFlagFilename("config", "yaml", "yml")
+	flags.StringVar(&lockServiceName, "lock-service-name", "", "Name of a service in the kube-system namespace to use as a lock, overrides config.")
 	BindListenArg(listenArg, flags, "")
 
 	return cmd, options

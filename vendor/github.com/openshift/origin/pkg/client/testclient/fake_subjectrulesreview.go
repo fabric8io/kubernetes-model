@@ -1,9 +1,9 @@
 package testclient
 
 import (
-	"k8s.io/kubernetes/pkg/client/testing/core"
+	clientgotesting "k8s.io/client-go/testing"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 )
 
 type FakeSubjectRulesReviews struct {
@@ -12,7 +12,7 @@ type FakeSubjectRulesReviews struct {
 }
 
 func (c *FakeSubjectRulesReviews) Create(inObj *authorizationapi.SubjectRulesReview) (*authorizationapi.SubjectRulesReview, error) {
-	obj, err := c.Fake.Invokes(core.NewCreateAction(selfSubjectRulesReviewsResource, c.Namespace, inObj), &authorizationapi.SubjectRulesReview{})
+	obj, err := c.Fake.Invokes(clientgotesting.NewCreateAction(selfSubjectRulesReviewsResource, c.Namespace, inObj), &authorizationapi.SubjectRulesReview{})
 	if cast, ok := obj.(*authorizationapi.SubjectRulesReview); ok {
 		return cast, err
 	}

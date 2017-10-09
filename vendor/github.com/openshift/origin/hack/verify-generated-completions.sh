@@ -5,7 +5,7 @@ echo "===== Verifying Generated Completions ====="
 
 platform="$(os::build::host_platform)"
 if [[ "${platform}" != "linux/amd64" ]]; then
-  os::log::warn "Completions cannot be verified on non-Linux systems (${platform})"
+  os::log::warning "Completions cannot be verified on non-Linux systems (${platform})"
   exit 0
 fi
 
@@ -25,7 +25,7 @@ fi
 
 echo "Diffing current completions against freshly generated completions..."
 ret=0
-diff -Naupr "${COMPLETION_ROOT}" "${TMP_COMPLETION_ROOT}" || ret=$?
+diff -Naupr -x "OWNERS" "${COMPLETION_ROOT}" "${TMP_COMPLETION_ROOT}" || ret=$?
 rm -rf "${TMP_COMPLETION_ROOT}"
 if [[ $ret -eq 0 ]]
 then

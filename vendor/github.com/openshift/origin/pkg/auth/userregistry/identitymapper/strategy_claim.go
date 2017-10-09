@@ -3,13 +3,14 @@ package identitymapper
 import (
 	"fmt"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	kerrs "k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/util/sets"
+	kerrs "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 
 	"github.com/openshift/origin/pkg/user"
-	userapi "github.com/openshift/origin/pkg/user/api"
-	userregistry "github.com/openshift/origin/pkg/user/registry/user"
+	userapi "github.com/openshift/origin/pkg/user/apis/user"
+	userclient "github.com/openshift/origin/pkg/user/generated/internalclientset/typed/user/internalversion"
 )
 
 var _ = UserForNewIdentityGetter(&StrategyClaim{})
@@ -17,7 +18,7 @@ var _ = UserForNewIdentityGetter(&StrategyClaim{})
 // StrategyClaim associates a new identity with a user with the identity's preferred username
 // if no other identities are already associated with the user
 type StrategyClaim struct {
-	user        userregistry.Registry
+	user        userclient.UserResourceInterface
 	initializer user.Initializer
 }
 
@@ -38,22 +39,22 @@ func (c claimError) Error() string {
 	return fmt.Sprintf("user %q cannot be claimed by identity %q because it is already mapped to %v", c.User.Name, c.Identity.Name, c.User.Identities)
 }
 
-func NewStrategyClaim(user userregistry.Registry, initializer user.Initializer) UserForNewIdentityGetter {
+func NewStrategyClaim(user userclient.UserResourceInterface, initializer user.Initializer) UserForNewIdentityGetter {
 	return &StrategyClaim{user, initializer}
 }
 
-func (s *StrategyClaim) UserForNewIdentity(ctx kapi.Context, preferredUserName string, identity *userapi.Identity) (*userapi.User, error) {
+func (s *StrategyClaim) UserForNewIdentity(ctx apirequest.Context, preferredUserName string, identity *userapi.Identity) (*userapi.User, error) {
 
-	persistedUser, err := s.user.GetUser(ctx, preferredUserName)
+	persistedUser, err := s.user.Get(preferredUserName, metav1.GetOptions{})
 
 	switch {
 	case kerrs.IsNotFound(err):
-		// Create a new user, propagating any "already exists" errors
+		// CreateUser a new user, propagating any "already exists" errors
 		desiredUser := &userapi.User{}
 		desiredUser.Name = preferredUserName
 		desiredUser.Identities = []string{identity.Name}
 		s.initializer.InitializeUser(identity, desiredUser)
-		return s.user.CreateUser(ctx, desiredUser)
+		return s.user.Create(desiredUser)
 
 	case err == nil:
 		// If the existing user already references our identity, we're done
@@ -65,7 +66,7 @@ func (s *StrategyClaim) UserForNewIdentity(ctx kapi.Context, preferredUserName s
 		if len(persistedUser.Identities) == 0 {
 			persistedUser.Identities = []string{identity.Name}
 			s.initializer.InitializeUser(identity, persistedUser)
-			return s.user.UpdateUser(ctx, persistedUser)
+			return s.user.Update(persistedUser)
 		}
 
 		// Otherwise another identity has already claimed this user, return an error

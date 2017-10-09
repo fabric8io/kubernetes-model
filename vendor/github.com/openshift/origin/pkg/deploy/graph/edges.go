@@ -3,14 +3,15 @@ package graph
 import (
 	"github.com/gonum/graph"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	osgraph "github.com/openshift/origin/pkg/api/graph"
 	kubeedges "github.com/openshift/origin/pkg/api/kubegraph"
 	kubegraph "github.com/openshift/origin/pkg/api/kubegraph/nodes"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	deploygraph "github.com/openshift/origin/pkg/deploy/graph/nodes"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	imagegraph "github.com/openshift/origin/pkg/image/graph/nodes"
 )
 
@@ -98,7 +99,7 @@ func AddVolumeClaimEdges(g osgraph.Graph, dcNode *deploygraph.DeploymentConfigNo
 		}
 
 		syntheticClaim := &kapi.PersistentVolumeClaim{
-			ObjectMeta: kapi.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:      source.PersistentVolumeClaim.ClaimName,
 				Namespace: dcNode.DeploymentConfig.Namespace,
 			},

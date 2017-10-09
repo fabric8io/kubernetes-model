@@ -17,57 +17,51 @@ import (
 	"github.com/docker/distribution/registry/handlers"
 	_ "github.com/docker/distribution/registry/storage/driver/inmemory"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
-	"k8s.io/kubernetes/pkg/client/testing/core"
-	"k8s.io/kubernetes/pkg/runtime"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgotesting "k8s.io/client-go/testing"
 
-	"github.com/openshift/origin/pkg/client/testclient"
+	registryclient "github.com/openshift/origin/pkg/dockerregistry/server/client"
+	regconfig "github.com/openshift/origin/pkg/dockerregistry/server/configuration"
 	registrytest "github.com/openshift/origin/pkg/dockerregistry/testutil"
-	imagetest "github.com/openshift/origin/pkg/image/admission/testutil"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageapiv1 "github.com/openshift/origin/pkg/image/apis/image/v1"
+	imagefakeclient "github.com/openshift/origin/pkg/image/generated/clientset/typed/image/v1/fake"
 )
 
 func TestSignatureGet(t *testing.T) {
-	client := &testclient.Fake{}
-	// TODO: get rid of those nasty global vars
-	backupRegistryClient := DefaultRegistryClient
-	DefaultRegistryClient = makeFakeRegistryClient(client, fake.NewSimpleClientset())
-	defer func() {
-		// set it back once this test finishes to make other unit tests working again
-		DefaultRegistryClient = backupRegistryClient
-	}()
-
-	ctx := WithUserClient(context.Background(), client)
-
 	installFakeAccessController(t)
 
-	testSignature := imageapi.ImageSignature{
-		ObjectMeta: kapi.ObjectMeta{
+	testSignature := imageapiv1.ImageSignature{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "sha256:4028782c08eae4a8c9a28bf661c0a8d1c2fc8e19dbaae2b018b21011197e1484@cddeb7006d914716e2728000746a0b23",
 		},
 		Type:    "atomic",
 		Content: []byte("owGbwMvMwMQorp341GLVgXeMpw9kJDFE1LxLq1ZKLsosyUxOzFGyqlbKTEnNK8ksqQSxU/KTs1OLdItS01KLUvOSU5WslHLygeoy8otLrEwNDAz0S1KLS8CEVU4iiFKq1VHKzE1MT0XSnpuYl5kGlNNNyUwHKbFSKs5INDI1szIxMLIwtzBKNrBITUw1SbRItkw0skhKMzMzTDZItEgxTDZKS7ZINbRMSUpMTDVKMjC0SDIyNDA0NLQ0TzU0sTABWVZSWQByVmJJfm5mskJyfl5JYmZeapFCcWZ6XmJJaVE"),
 	}
 
-	testImage, err := registrytest.NewImageForManifest("user/app", registrytest.SampleImageManifestSchema1, false)
+	testImage, err := registrytest.NewImageForManifest("user/app", registrytest.SampleImageManifestSchema1, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	testImage.DockerImageManifest = ""
 	testImage.Signatures = append(testImage.Signatures, testSignature)
 
-	client.AddReactor("get", "images", registrytest.GetFakeImageGetHandler(t, *testImage))
+	fos, client, imageClient := registrytest.NewFakeOpenShiftWithClient()
+	registrytest.AddImageStream(t, fos, "user", "app", map[string]string{
+		imageapi.InsecureRepositoryAnnotation: "true",
+	})
+	registrytest.AddImage(t, fos, testImage, "user", "app", "latest")
 
-	testImageStream := registrytest.TestNewImageStreamObject("user", "app", "latest", testImage.Name, testImage.DockerImageReference)
-	if testImageStream.Annotations == nil {
-		testImageStream.Annotations = make(map[string]string)
+	osclient, err := registryclient.NewFakeRegistryClient(client, imageClient).Client()
+	if err != nil {
+		t.Fatal(err)
 	}
-	testImageStream.Annotations[imageapi.InsecureRepositoryAnnotation] = "true"
-	client.AddReactor("get", "imagestreams", imagetest.GetFakeImageStreamGetHandler(t, *testImageStream))
 
-	client.AddReactor("get", "imagestreamimages", registrytest.GetFakeImageStreamImageGetHandler(t, testImageStream, *testImage))
-
+	ctx := context.Background()
+	ctx = WithRegistryClient(ctx, registryclient.NewFakeRegistryClient(client, imageClient))
+	ctx = WithConfiguration(ctx, &regconfig.Configuration{})
+	ctx = withUserClient(ctx, osclient)
 	registryApp := handlers.NewApp(ctx, &configuration.Configuration{
 		Loglevel: "debug",
 		Auth: map[string]configuration.Parameters{
@@ -80,6 +74,11 @@ func TestSignatureGet(t *testing.T) {
 			},
 			"delete": configuration.Parameters{
 				"enabled": true,
+			},
+			"maintenance": configuration.Parameters{
+				"uploadpurging": map[interface{}]interface{}{
+					"enabled": false,
+				},
 			},
 		},
 		Middleware: map[string][]configuration.Middleware{
@@ -96,7 +95,7 @@ func TestSignatureGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error parsing server url: %v", err)
 	}
-	os.Setenv("DOCKER_REGISTRY_URL", serverURL.Host)
+	os.Setenv("OPENSHIFT_DEFAULT_REGISTRY", serverURL.Host)
 
 	url := fmt.Sprintf("http://%s/extensions/v2/user/app/signatures/%s", serverURL.Host, testImage.Name)
 
@@ -142,16 +141,7 @@ func TestSignatureGet(t *testing.T) {
 }
 
 func TestSignaturePut(t *testing.T) {
-	client := &testclient.Fake{}
-	// TODO: get rid of those nasty global vars
-	backupRegistryClient := DefaultRegistryClient
-	DefaultRegistryClient = makeFakeRegistryClient(client, fake.NewSimpleClientset())
-	defer func() {
-		// set it back once this test finishes to make other unit tests working again
-		DefaultRegistryClient = backupRegistryClient
-	}()
-
-	ctx := WithUserClient(context.Background(), client)
+	imageClient := &imagefakeclient.FakeImageV1{&clientgotesting.Fake{}}
 
 	installFakeAccessController(t)
 
@@ -161,10 +151,10 @@ func TestSignaturePut(t *testing.T) {
 		Type:    "atomic",
 		Content: []byte("owGbwMvMwMQorp341GLVgXeMpw9kJDFE1LxLq1ZKLsosyUxOzFGyqlbKTEnNK8ksqQSxU/KTs1OLdItS01KLUvOSU5WslHLygeoy8otLrEwNDAz0S1KLS8CEVU4iiFKq1VHKzE1MT0XSnpuYl5kGlNNNyUwHKbFSKs5INDI1szIxMLIwtzBKNrBITUw1SbRItkw0skhKMzMzTDZItEgxTDZKS7ZINbRMSUpMTDVKMjC0SDIyNDA0NLQ0TzU0sTABWVZSWQByVmJJfm5mskJyfl5JYmZeapFCcWZ6XmJJaVE"),
 	}
-	var newImageSignature *imageapi.ImageSignature
+	var newImageSignature *imageapiv1.ImageSignature
 
-	client.AddReactor("create", "imagesignatures", func(action core.Action) (handled bool, ret runtime.Object, err error) {
-		sign, ok := action.(core.CreateAction).GetObject().(*imageapi.ImageSignature)
+	imageClient.AddReactor("create", "imagesignatures", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+		sign, ok := action.(clientgotesting.CreateAction).GetObject().(*imageapiv1.ImageSignature)
 		if !ok {
 			return true, nil, fmt.Errorf("unexpected object received: %#v", sign)
 		}
@@ -172,6 +162,15 @@ func TestSignaturePut(t *testing.T) {
 		return true, sign, nil
 	})
 
+	osclient, err := registryclient.NewFakeRegistryClient(nil, imageClient).Client()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	ctx = WithRegistryClient(ctx, registryclient.NewFakeRegistryClient(nil, imageClient))
+	ctx = WithConfiguration(ctx, &regconfig.Configuration{})
+	ctx = withUserClient(ctx, osclient)
 	registryApp := handlers.NewApp(ctx, &configuration.Configuration{
 		Loglevel: "debug",
 		Auth: map[string]configuration.Parameters{
@@ -184,6 +183,11 @@ func TestSignaturePut(t *testing.T) {
 			},
 			"delete": configuration.Parameters{
 				"enabled": true,
+			},
+			"maintenance": configuration.Parameters{
+				"uploadpurging": map[interface{}]interface{}{
+					"enabled": false,
+				},
 			},
 		},
 		Middleware: map[string][]configuration.Middleware{
@@ -200,7 +204,7 @@ func TestSignaturePut(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error parsing server url: %v", err)
 	}
-	os.Setenv("DOCKER_REGISTRY_URL", serverURL.Host)
+	os.Setenv("OPENSHIFT_DEFAULT_REGISTRY", serverURL.Host)
 
 	signData, err := json.Marshal(testSignature)
 	if err != nil {

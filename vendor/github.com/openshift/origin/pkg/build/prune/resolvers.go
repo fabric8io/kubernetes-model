@@ -3,9 +3,9 @@ package prune
 import (
 	"sort"
 
-	"k8s.io/kubernetes/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/sets"
 
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 )
 
 // Resolver knows how to resolve the set of candidate objects to prune

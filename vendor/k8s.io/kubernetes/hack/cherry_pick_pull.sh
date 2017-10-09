@@ -173,11 +173,24 @@ for pull in "${PULLS[@]}"; do
       exit 1
     fi
   }
+
   # set the subject
   subject=$(grep -m 1 "^Subject" "/tmp/${pull}.patch" | sed -e 's/Subject: \[PATCH//g' | sed 's/.*] //')
   SUBJECTS+=("#${pull}: ${subject}")
+
+  # remove the patch file from /tmp
+  rm -f "/tmp/${pull}.patch"
 done
 gitamcleanup=false
+
+# Re-generate docs (if needed)
+echo
+echo "Regenerating docs..."
+if ! hack/generate-docs.sh; then
+  echo
+  echo "hack/generate-docs.sh FAILED to complete."
+  exit 1
+fi
 
 if [[ -n "${DRY_RUN}" ]]; then
   echo "!!! Skipping git push and PR creation because you set DRY_RUN."

@@ -5,32 +5,36 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/apiserver/pkg/authentication/user"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	kstorage "k8s.io/apiserver/pkg/storage"
+	"k8s.io/apiserver/pkg/storage/names"
 	kapi "k8s.io/kubernetes/pkg/api"
-	kerrors "k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/auth/user"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/runtime"
-	kstorage "k8s.io/kubernetes/pkg/storage"
-	"k8s.io/kubernetes/pkg/util/validation/field"
+	kapihelper "k8s.io/kubernetes/pkg/api/helper"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	"github.com/openshift/origin/pkg/authorization/registry/subjectaccessreview"
 	imageadmission "github.com/openshift/origin/pkg/image/admission"
-	"github.com/openshift/origin/pkg/image/api"
-	"github.com/openshift/origin/pkg/image/api/validation"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	"github.com/openshift/origin/pkg/image/apis/image/validation"
 )
 
 type ResourceGetter interface {
-	Get(kapi.Context, string) (runtime.Object, error)
+	Get(apirequest.Context, string, *metav1.GetOptions) (runtime.Object, error)
 }
 
 // Strategy implements behavior for ImageStreams.
 type Strategy struct {
 	runtime.ObjectTyper
-	kapi.NameGenerator
-	defaultRegistry   api.DefaultRegistry
+	names.NameGenerator
+	defaultRegistry   imageapi.DefaultRegistry
 	tagVerifier       *TagVerifier
 	limitVerifier     imageadmission.LimitVerifier
 	imageStreamGetter ResourceGetter
@@ -38,10 +42,10 @@ type Strategy struct {
 
 // NewStrategy is the default logic that applies when creating and updating
 // ImageStream objects via the REST API.
-func NewStrategy(defaultRegistry api.DefaultRegistry, subjectAccessReviewClient subjectaccessreview.Registry, limitVerifier imageadmission.LimitVerifier, imageStreamGetter ResourceGetter) Strategy {
+func NewStrategy(defaultRegistry imageapi.DefaultRegistry, subjectAccessReviewClient subjectaccessreview.Registry, limitVerifier imageadmission.LimitVerifier, imageStreamGetter ResourceGetter) Strategy {
 	return Strategy{
 		ObjectTyper:       kapi.Scheme,
-		NameGenerator:     kapi.SimpleNameGenerator,
+		NameGenerator:     names.SimpleNameGenerator,
 		defaultRegistry:   defaultRegistry,
 		tagVerifier:       &TagVerifier{subjectAccessReviewClient},
 		limitVerifier:     limitVerifier,
@@ -55,11 +59,11 @@ func (s Strategy) NamespaceScoped() bool {
 }
 
 // PrepareForCreate clears fields that are not allowed to be set by end users on creation.
-func (s Strategy) PrepareForCreate(ctx kapi.Context, obj runtime.Object) {
-	stream := obj.(*api.ImageStream)
-	stream.Status = api.ImageStreamStatus{
+func (s Strategy) PrepareForCreate(ctx apirequest.Context, obj runtime.Object) {
+	stream := obj.(*imageapi.ImageStream)
+	stream.Status = imageapi.ImageStreamStatus{
 		DockerImageRepository: s.dockerImageRepository(stream),
-		Tags: make(map[string]api.TagEventList),
+		Tags: make(map[string]imageapi.TagEventList),
 	}
 	stream.Generation = 1
 	for tag, ref := range stream.Spec.Tags {
@@ -70,8 +74,8 @@ func (s Strategy) PrepareForCreate(ctx kapi.Context, obj runtime.Object) {
 
 // Validate validates a new image stream and verifies the current user is
 // authorized to access any image streams newly referenced in spec.tags.
-func (s Strategy) Validate(ctx kapi.Context, obj runtime.Object) field.ErrorList {
-	stream := obj.(*api.ImageStream)
+func (s Strategy) Validate(ctx apirequest.Context, obj runtime.Object) field.ErrorList {
+	stream := obj.(*imageapi.ImageStream)
 	var errs field.ErrorList
 	if err := s.validateTagsAndLimits(ctx, nil, stream); err != nil {
 		errs = append(errs, field.InternalError(field.NewPath(""), err))
@@ -80,19 +84,19 @@ func (s Strategy) Validate(ctx kapi.Context, obj runtime.Object) field.ErrorList
 	return errs
 }
 
-func (s Strategy) validateTagsAndLimits(ctx kapi.Context, oldStream, newStream *api.ImageStream) error {
-	user, ok := kapi.UserFrom(ctx)
+func (s Strategy) validateTagsAndLimits(ctx apirequest.Context, oldStream, newStream *imageapi.ImageStream) error {
+	user, ok := apirequest.UserFrom(ctx)
 	if !ok {
-		return kerrors.NewForbidden(unversioned.GroupResource{Resource: "imagestreams"}, newStream.Name, fmt.Errorf("no user context available"))
+		return kerrors.NewForbidden(schema.GroupResource{Resource: "imagestreams"}, newStream.Name, fmt.Errorf("no user context available"))
 	}
 
 	errs := s.tagVerifier.Verify(oldStream, newStream, user)
 	errs = append(errs, s.tagsChanged(oldStream, newStream)...)
 	if len(errs) > 0 {
-		return kerrors.NewInvalid(unversioned.GroupKind{Kind: "imagestreams"}, newStream.Name, errs)
+		return kerrors.NewInvalid(schema.GroupKind{Kind: "imagestreams"}, newStream.Name, errs)
 	}
 
-	ns, ok := kapi.NamespaceFrom(ctx)
+	ns, ok := apirequest.NamespaceFrom(ctx)
 	if !ok {
 		ns = newStream.Namespace
 	}
@@ -112,16 +116,16 @@ func (Strategy) AllowUnconditionalUpdate() bool {
 // If stream.DockerImageRepository is set, that value is returned. Otherwise,
 // if a default registry exists, the value returned is of the form
 // <default registry>/<namespace>/<stream name>.
-func (s Strategy) dockerImageRepository(stream *api.ImageStream) string {
+func (s Strategy) dockerImageRepository(stream *imageapi.ImageStream) string {
 	registry, ok := s.defaultRegistry.DefaultRegistry()
 	if !ok {
 		return stream.Spec.DockerImageRepository
 	}
 
 	if len(stream.Namespace) == 0 {
-		stream.Namespace = kapi.NamespaceDefault
+		stream.Namespace = metav1.NamespaceDefault
 	}
-	ref := api.DockerImageReference{
+	ref := imageapi.DockerImageReference{
 		Registry:  registry,
 		Namespace: stream.Namespace,
 		Name:      stream.Name,
@@ -129,7 +133,7 @@ func (s Strategy) dockerImageRepository(stream *api.ImageStream) string {
 	return ref.String()
 }
 
-func parseFromReference(stream *api.ImageStream, from *kapi.ObjectReference) (string, string, error) {
+func parseFromReference(stream *imageapi.ImageStream, from *kapi.ObjectReference) (string, string, error) {
 	splitChar := ""
 	refType := ""
 
@@ -159,12 +163,12 @@ func parseFromReference(stream *api.ImageStream, from *kapi.ObjectReference) (st
 
 // tagsChanged updates stream.Status.Tags based on the old and new image stream.
 // if the old stream is nil, all tags are considered additions.
-func (s Strategy) tagsChanged(old, stream *api.ImageStream) field.ErrorList {
+func (s Strategy) tagsChanged(old, stream *imageapi.ImageStream) field.ErrorList {
 	internalRegistry, hasInternalRegistry := s.defaultRegistry.DefaultRegistry()
 
 	var errs field.ErrorList
 
-	oldTags := map[string]api.TagReference{}
+	oldTags := map[string]imageapi.TagReference{}
 	if old != nil && old.Spec.Tags != nil {
 		oldTags = old.Spec.Tags
 	}
@@ -192,7 +196,7 @@ func (s Strategy) tagsChanged(old, stream *api.ImageStream) field.ErrorList {
 					continue
 				}
 				stream.Spec.Tags[tag] = tagRef
-				api.AddTagEventToImageStream(stream, tag, *event)
+				imageapi.AddTagEventToImageStream(stream, tag, *event)
 			}
 			continue
 		}
@@ -209,7 +213,7 @@ func (s Strategy) tagsChanged(old, stream *api.ImageStream) field.ErrorList {
 			streamRefNamespace = stream.Namespace
 		}
 		if streamRefNamespace != stream.Namespace || tagRefStreamName != stream.Name {
-			obj, err := s.imageStreamGetter.Get(kapi.WithNamespace(kapi.NewContext(), streamRefNamespace), tagRefStreamName)
+			obj, err := s.imageStreamGetter.Get(apirequest.WithNamespace(apirequest.NewContext(), streamRefNamespace), tagRefStreamName, &metav1.GetOptions{})
 			if err != nil {
 				if kerrors.IsNotFound(err) {
 					errs = append(errs, field.NotFound(fromPath.Child("name"), tagRef.From.Name))
@@ -219,7 +223,7 @@ func (s Strategy) tagsChanged(old, stream *api.ImageStream) field.ErrorList {
 				continue
 			}
 
-			streamRef = obj.(*api.ImageStream)
+			streamRef = obj.(*imageapi.ImageStream)
 		}
 
 		event, err := tagReferenceToTagEvent(streamRef, tagRef, tagOrID)
@@ -235,7 +239,7 @@ func (s Strategy) tagsChanged(old, stream *api.ImageStream) field.ErrorList {
 		// if this is not a reference tag, and the tag points to the internal registry for the other namespace, alter it to
 		// point to this stream so that pulls happen from this stream in the future.
 		if !tagRef.Reference {
-			if ref, err := api.ParseDockerImageReference(event.DockerImageReference); err == nil {
+			if ref, err := imageapi.ParseDockerImageReference(event.DockerImageReference); err == nil {
 				if hasInternalRegistry && ref.Registry == internalRegistry && ref.Namespace == streamRef.Namespace && ref.Name == streamRef.Name {
 					ref.Namespace = stream.Namespace
 					ref.Name = stream.Name
@@ -245,10 +249,10 @@ func (s Strategy) tagsChanged(old, stream *api.ImageStream) field.ErrorList {
 		}
 
 		stream.Spec.Tags[tag] = tagRef
-		api.AddTagEventToImageStream(stream, tag, *event)
+		imageapi.AddTagEventToImageStream(stream, tag, *event)
 	}
 
-	api.UpdateChangedTrackingTags(stream, old)
+	imageapi.UpdateChangedTrackingTags(stream, old)
 
 	// use a consistent timestamp on creation
 	if old == nil && !stream.CreationTimestamp.IsZero() {
@@ -263,22 +267,22 @@ func (s Strategy) tagsChanged(old, stream *api.ImageStream) field.ErrorList {
 	return errs
 }
 
-func tagReferenceToTagEvent(stream *api.ImageStream, tagRef api.TagReference, tagOrID string) (*api.TagEvent, error) {
+func tagReferenceToTagEvent(stream *imageapi.ImageStream, tagRef imageapi.TagReference, tagOrID string) (*imageapi.TagEvent, error) {
 	var (
-		event *api.TagEvent
+		event *imageapi.TagEvent
 		err   error
 	)
 	switch tagRef.From.Kind {
 	case "DockerImage":
-		event = &api.TagEvent{
-			Created:              unversioned.Now(),
+		event = &imageapi.TagEvent{
+			Created:              metav1.Now(),
 			DockerImageReference: tagRef.From.Name,
 		}
 
 	case "ImageStreamImage":
-		event, err = api.ResolveImageID(stream, tagOrID)
+		event, err = imageapi.ResolveImageID(stream, tagOrID)
 	case "ImageStreamTag":
-		event, err = api.LatestTaggedImage(stream, tagOrID), nil
+		event, err = imageapi.LatestTaggedImage(stream, tagOrID), nil
 	default:
 		err = fmt.Errorf("invalid from.kind %q: it must be DockerImage, ImageStreamImage or ImageStreamTag", tagRef.From.Kind)
 	}
@@ -292,7 +296,7 @@ func tagReferenceToTagEvent(stream *api.ImageStream, tagRef api.TagReference, ta
 }
 
 // tagRefChanged returns true if the tag ref changed between two spec updates.
-func tagRefChanged(old, next api.TagReference, streamNamespace string) bool {
+func tagRefChanged(old, next imageapi.TagReference, streamNamespace string) bool {
 	if next.From == nil {
 		// both fields in next are empty
 		return false
@@ -324,7 +328,7 @@ func tagRefChanged(old, next api.TagReference, streamNamespace string) bool {
 
 // tagRefGenerationChanged returns true if and only the values were set and the new generation
 // is at zero.
-func tagRefGenerationChanged(old, next api.TagReference) bool {
+func tagRefGenerationChanged(old, next imageapi.TagReference) bool {
 	switch {
 	case old.Generation != nil && next.Generation != nil:
 		if *old.Generation == *next.Generation {
@@ -339,13 +343,13 @@ func tagRefGenerationChanged(old, next api.TagReference) bool {
 	}
 }
 
-func tagEventChanged(old, next api.TagEvent) bool {
+func tagEventChanged(old, next imageapi.TagEvent) bool {
 	return old.Image != next.Image || old.DockerImageReference != next.DockerImageReference || old.Generation > next.Generation
 }
 
 // updateSpecTagGenerationsForUpdate ensures that new spec updates always have a generation set, and that the value
 // cannot be updated by an end user (except by setting generation 0).
-func updateSpecTagGenerationsForUpdate(stream, oldStream *api.ImageStream) {
+func updateSpecTagGenerationsForUpdate(stream, oldStream *imageapi.ImageStream) {
 	for tag, ref := range stream.Spec.Tags {
 		if ref.Generation != nil && *ref.Generation == 0 {
 			continue
@@ -359,8 +363,8 @@ func updateSpecTagGenerationsForUpdate(stream, oldStream *api.ImageStream) {
 
 // ensureSpecTagGenerationsAreSet ensures that all spec tags have a generation set to either 0 or the
 // current stream value.
-func ensureSpecTagGenerationsAreSet(stream, oldStream *api.ImageStream) {
-	oldTags := map[string]api.TagReference{}
+func ensureSpecTagGenerationsAreSet(stream, oldStream *imageapi.ImageStream) {
+	oldTags := map[string]imageapi.TagReference{}
 	if oldStream != nil && oldStream.Spec.Tags != nil {
 		oldTags = oldStream.Spec.Tags
 	}
@@ -380,7 +384,7 @@ func ensureSpecTagGenerationsAreSet(stream, oldStream *api.ImageStream) {
 }
 
 // updateObservedGenerationForStatusUpdate ensures every status item has a generation set.
-func updateObservedGenerationForStatusUpdate(stream, oldStream *api.ImageStream) {
+func updateObservedGenerationForStatusUpdate(stream, oldStream *imageapi.ImageStream) {
 	for tag, newer := range stream.Status.Tags {
 		if len(newer.Items) == 0 || newer.Items[0].Generation != 0 {
 			// generation is set, continue
@@ -413,9 +417,9 @@ type TagVerifier struct {
 	subjectAccessReviewClient subjectaccessreview.Registry
 }
 
-func (v *TagVerifier) Verify(old, stream *api.ImageStream, user user.Info) field.ErrorList {
+func (v *TagVerifier) Verify(old, stream *imageapi.ImageStream, user user.Info) field.ErrorList {
 	var errors field.ErrorList
-	oldTags := map[string]api.TagReference{}
+	oldTags := map[string]imageapi.TagReference{}
 	if old != nil && old.Spec.Tags != nil {
 		oldTags = old.Spec.Tags
 	}
@@ -444,16 +448,23 @@ func (v *TagVerifier) Verify(old, stream *api.ImageStream, user user.Info) field
 		subjectAccessReview := authorizationapi.AddUserToSAR(user, &authorizationapi.SubjectAccessReview{
 			Action: authorizationapi.Action{
 				Verb:         "get",
-				Group:        api.GroupName,
+				Group:        imageapi.LegacyGroupName,
 				Resource:     "imagestreams/layers",
 				ResourceName: streamName,
 			},
 		})
-		ctx := kapi.WithNamespace(kapi.NewContext(), tagRef.From.Namespace)
+		ctx := apirequest.WithNamespace(apirequest.WithUser(apirequest.NewContext(), user), tagRef.From.Namespace)
 		glog.V(4).Infof("Performing SubjectAccessReview for user=%s, groups=%v to %s/%s", user.GetName(), user.GetGroups(), tagRef.From.Namespace, streamName)
 		resp, err := v.subjectAccessReviewClient.CreateSubjectAccessReview(ctx, subjectAccessReview)
 		if err != nil || resp == nil || (resp != nil && !resp.Allowed) {
-			errors = append(errors, field.Forbidden(fromPath, fmt.Sprintf("%s/%s", tagRef.From.Namespace, streamName)))
+			message := fmt.Sprintf("%s/%s", tagRef.From.Namespace, streamName)
+			if resp != nil {
+				message = message + fmt.Sprintf(": %q %q", resp.Reason, resp.EvaluationError)
+			}
+			if err != nil {
+				message = message + fmt.Sprintf("- %v", err)
+			}
+			errors = append(errors, field.Forbidden(fromPath, message))
 			continue
 		}
 	}
@@ -465,8 +476,8 @@ func (Strategy) Canonicalize(obj runtime.Object) {
 }
 
 func (s Strategy) prepareForUpdate(obj, old runtime.Object, resetStatus bool) {
-	oldStream := old.(*api.ImageStream)
-	stream := obj.(*api.ImageStream)
+	oldStream := old.(*imageapi.ImageStream)
+	stream := obj.(*imageapi.ImageStream)
 
 	stream.Generation = oldStream.Generation
 	if resetStatus {
@@ -481,7 +492,7 @@ func (s Strategy) prepareForUpdate(obj, old runtime.Object, resetStatus bool) {
 	//
 	// TODO: Any changes to a part of the object that represents desired state (labels,
 	// annotations etc) should also increment the generation.
-	if !kapi.Semantic.DeepEqual(oldStream.Spec, stream.Spec) || stream.Generation == 0 {
+	if !kapihelper.Semantic.DeepEqual(oldStream.Spec, stream.Spec) || stream.Generation == 0 {
 		stream.Generation = oldStream.Generation + 1
 	}
 
@@ -489,14 +500,14 @@ func (s Strategy) prepareForUpdate(obj, old runtime.Object, resetStatus bool) {
 	ensureSpecTagGenerationsAreSet(stream, oldStream)
 }
 
-func (s Strategy) PrepareForUpdate(ctx kapi.Context, obj, old runtime.Object) {
+func (s Strategy) PrepareForUpdate(ctx apirequest.Context, obj, old runtime.Object) {
 	s.prepareForUpdate(obj, old, true)
 }
 
 // ValidateUpdate is the default update validation for an end user.
-func (s Strategy) ValidateUpdate(ctx kapi.Context, obj, old runtime.Object) field.ErrorList {
-	stream := obj.(*api.ImageStream)
-	oldStream := old.(*api.ImageStream)
+func (s Strategy) ValidateUpdate(ctx apirequest.Context, obj, old runtime.Object) field.ErrorList {
+	stream := obj.(*imageapi.ImageStream)
+	oldStream := old.(*imageapi.ImageStream)
 	var errs field.ErrorList
 	if err := s.validateTagsAndLimits(ctx, oldStream, stream); err != nil {
 		errs = append(errs, field.InternalError(field.NewPath(""), err))
@@ -509,9 +520,9 @@ func (s Strategy) ValidateUpdate(ctx kapi.Context, obj, old runtime.Object) fiel
 // dockerImageRepository().
 func (s Strategy) Decorate(obj runtime.Object) error {
 	switch t := obj.(type) {
-	case *api.ImageStream:
+	case *imageapi.ImageStream:
 		t.Status.DockerImageRepository = s.dockerImageRepository(t)
-	case *api.ImageStreamList:
+	case *imageapi.ImageStreamList:
 		for i := range t.Items {
 			is := &t.Items[i]
 			is.Status.DockerImageRepository = s.dockerImageRepository(is)
@@ -536,9 +547,9 @@ func NewStatusStrategy(strategy Strategy) StatusStrategy {
 func (StatusStrategy) Canonicalize(obj runtime.Object) {
 }
 
-func (StatusStrategy) PrepareForUpdate(ctx kapi.Context, obj, old runtime.Object) {
-	oldStream := old.(*api.ImageStream)
-	stream := obj.(*api.ImageStream)
+func (StatusStrategy) PrepareForUpdate(ctx apirequest.Context, obj, old runtime.Object) {
+	oldStream := old.(*imageapi.ImageStream)
+	stream := obj.(*imageapi.ImageStream)
 
 	stream.Spec.Tags = oldStream.Spec.Tags
 	stream.Spec.DockerImageRepository = oldStream.Spec.DockerImageRepository
@@ -546,11 +557,11 @@ func (StatusStrategy) PrepareForUpdate(ctx kapi.Context, obj, old runtime.Object
 	updateObservedGenerationForStatusUpdate(stream, oldStream)
 }
 
-func (s StatusStrategy) ValidateUpdate(ctx kapi.Context, obj, old runtime.Object) field.ErrorList {
-	newIS := obj.(*api.ImageStream)
+func (s StatusStrategy) ValidateUpdate(ctx apirequest.Context, obj, old runtime.Object) field.ErrorList {
+	newIS := obj.(*imageapi.ImageStream)
 	errs := field.ErrorList{}
 
-	ns, ok := kapi.NamespaceFrom(ctx)
+	ns, ok := apirequest.NamespaceFrom(ctx)
 	if !ok {
 		ns = newIS.Namespace
 	}
@@ -560,28 +571,31 @@ func (s StatusStrategy) ValidateUpdate(ctx kapi.Context, obj, old runtime.Object
 	}
 
 	// TODO: merge valid fields after update
-	errs = append(errs, validation.ValidateImageStreamStatusUpdate(newIS, old.(*api.ImageStream))...)
+	errs = append(errs, validation.ValidateImageStreamStatusUpdate(newIS, old.(*imageapi.ImageStream))...)
 	return errs
+}
+
+// GetAttrs returns labels and fields of a given object for filtering purposes
+func GetAttrs(o runtime.Object) (labels.Set, fields.Set, bool, error) {
+	obj, ok := o.(*imageapi.ImageStream)
+	if !ok {
+		return nil, nil, false, fmt.Errorf("not an ImageStream")
+	}
+	return labels.Set(obj.Labels), SelectableFields(obj), obj.Initializers != nil, nil
 }
 
 // Matcher returns a generic matcher for a given label and field selector.
 func Matcher(label labels.Selector, field fields.Selector) kstorage.SelectionPredicate {
 	return kstorage.SelectionPredicate{
-		Label: label,
-		Field: field,
-		GetAttrs: func(o runtime.Object) (labels.Set, fields.Set, error) {
-			obj, ok := o.(*api.ImageStream)
-			if !ok {
-				return nil, nil, fmt.Errorf("not an ImageStream")
-			}
-			return labels.Set(obj.Labels), SelectableFields(obj), nil
-		},
+		Label:    label,
+		Field:    field,
+		GetAttrs: GetAttrs,
 	}
 }
 
 // SelectableFields returns a field set that can be used for filter selection
-func SelectableFields(obj *api.ImageStream) fields.Set {
-	return api.ImageStreamToSelectableFields(obj)
+func SelectableFields(obj *imageapi.ImageStream) fields.Set {
+	return imageapi.ImageStreamToSelectableFields(obj)
 }
 
 // InternalStrategy implements behavior for updating both the spec and status
@@ -600,8 +614,8 @@ func NewInternalStrategy(strategy Strategy) InternalStrategy {
 func (InternalStrategy) Canonicalize(obj runtime.Object) {
 }
 
-func (s InternalStrategy) PrepareForCreate(ctx kapi.Context, obj runtime.Object) {
-	stream := obj.(*api.ImageStream)
+func (s InternalStrategy) PrepareForCreate(ctx apirequest.Context, obj runtime.Object) {
+	stream := obj.(*imageapi.ImageStream)
 
 	stream.Status.DockerImageRepository = s.dockerImageRepository(stream)
 	stream.Generation = 1
@@ -611,6 +625,6 @@ func (s InternalStrategy) PrepareForCreate(ctx kapi.Context, obj runtime.Object)
 	}
 }
 
-func (s InternalStrategy) PrepareForUpdate(ctx kapi.Context, obj, old runtime.Object) {
+func (s InternalStrategy) PrepareForUpdate(ctx apirequest.Context, obj, old runtime.Object) {
 	s.prepareForUpdate(obj, old, false)
 }

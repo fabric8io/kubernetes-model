@@ -7,27 +7,39 @@ import (
 	"time"
 
 	etcdclient "github.com/coreos/etcd/client"
+	"github.com/coreos/etcd/clientv3"
 	"golang.org/x/net/context"
 
-	"k8s.io/kubernetes/pkg/client/restclient"
-	etcdutil "k8s.io/kubernetes/pkg/storage/etcd/util"
-	knet "k8s.io/kubernetes/pkg/util/net"
+	knet "k8s.io/apimachinery/pkg/util/net"
+	etcdutil "k8s.io/apiserver/pkg/storage/etcd/util"
+	restclient "k8s.io/client-go/rest"
 
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
 )
 
-// GetAndTestEtcdClient creates an etcd client based on the provided config. It will attempt to
+// TestEtcdConnectionInfo creates an etcd client based on the provided config and attempts to
 // connect to the etcd server and block until the server responds at least once, or return an
 // error if the server never responded.
-func GetAndTestEtcdClient(etcdClientInfo configapi.EtcdConnectionInfo) (etcdclient.Client, error) {
-	etcdClient, err := MakeEtcdClient(etcdClientInfo)
+func TestEtcdConnectionInfo(etcdClientInfo configapi.EtcdConnectionInfo) error {
+	tlsConfig, err := restclient.TLSConfigFor(&restclient.Config{
+		TLSClientConfig: restclient.TLSClientConfig{
+			CertFile: etcdClientInfo.ClientCert.CertFile,
+			KeyFile:  etcdClientInfo.ClientCert.KeyFile,
+			CAFile:   etcdClientInfo.CA,
+		},
+	})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if err := TestEtcdClient(etcdClient); err != nil {
-		return nil, err
+	client, err := clientv3.New(clientv3.Config{
+		Endpoints: etcdClientInfo.URLs,
+		TLS:       tlsConfig,
+	})
+	if err != nil {
+		return err
 	}
-	return etcdClient, nil
+	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(5*time.Second))
+	return client.Sync(ctx)
 }
 
 // MakeEtcdClient creates an etcd client based on the provided config.
@@ -73,7 +85,53 @@ func TestEtcdClient(etcdClient etcdclient.Client) error {
 			break
 		}
 		if i > 100 {
-			return fmt.Errorf("could not reach etcd: %v", err)
+			return fmt.Errorf("could not reach etcd(v2): %v", err)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return nil
+}
+
+// MakeEtcdClientV3Config creates client configuration based on the configapi.
+func MakeEtcdClientV3Config(etcdClientInfo configapi.EtcdConnectionInfo) (*clientv3.Config, error) {
+	tlsConfig, err := restclient.TLSConfigFor(&restclient.Config{
+		TLSClientConfig: restclient.TLSClientConfig{
+			CertFile: etcdClientInfo.ClientCert.CertFile,
+			KeyFile:  etcdClientInfo.ClientCert.KeyFile,
+			CAFile:   etcdClientInfo.CA,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &clientv3.Config{
+		Endpoints:   etcdClientInfo.URLs,
+		DialTimeout: 30 * time.Second,
+		TLS:         tlsConfig,
+	}, nil
+}
+
+// MakeEtcdClientV3 creates an etcd v3 client based on the provided config.
+func MakeEtcdClientV3(etcdClientInfo configapi.EtcdConnectionInfo) (*clientv3.Client, error) {
+	cfg, err := MakeEtcdClientV3Config(etcdClientInfo)
+	if err != nil {
+		return nil, err
+	}
+	return clientv3.New(*cfg)
+}
+
+// TestEtcdClientV3 verifies a client is functional.  It will attempt to
+// connect to the etcd server and block until the server responds at least once, or return an
+// error if the server never responded.
+func TestEtcdClientV3(etcdClient *clientv3.Client) error {
+	for i := 0; ; i++ {
+		_, err := clientv3.NewKV(etcdClient).Get(context.Background(), "/", clientv3.WithLimit(1))
+		if err == nil || etcdutil.IsEtcdNotFound(err) {
+			break
+		}
+		if i > 100 {
+			return fmt.Errorf("could not reach etcd(v3): %v", err)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}

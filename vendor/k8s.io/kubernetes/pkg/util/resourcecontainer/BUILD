@@ -4,10 +4,7 @@ licenses(["notice"])
 
 load(
     "@io_bazel_rules_go//go:def.bzl",
-    "go_binary",
     "go_library",
-    "go_test",
-    "cgo_library",
 )
 
 go_library(
@@ -15,7 +12,20 @@ go_library(
     srcs = ["resource_container_linux.go"],
     tags = ["automanaged"],
     deps = [
-        "//vendor:github.com/opencontainers/runc/libcontainer/cgroups/fs",
-        "//vendor:github.com/opencontainers/runc/libcontainer/configs",
+        "//vendor/github.com/opencontainers/runc/libcontainer/cgroups/fs:go_default_library",
+        "//vendor/github.com/opencontainers/runc/libcontainer/configs:go_default_library",
     ],
+)
+
+filegroup(
+    name = "package-srcs",
+    srcs = glob(["**"]),
+    tags = ["automanaged"],
+    visibility = ["//visibility:private"],
+)
+
+filegroup(
+    name = "all-srcs",
+    srcs = [":package-srcs"],
+    tags = ["automanaged"],
 )

@@ -2,8 +2,9 @@ package docker
 
 import (
 	"os"
+	"time"
 
-	"k8s.io/kubernetes/pkg/kubelet/dockertools"
+	dockertools "k8s.io/kubernetes/pkg/kubelet/dockershim/libdocker"
 
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/golang/glog"
@@ -39,15 +40,14 @@ func (_ *Helper) GetClient() (client *docker.Client, endpoint string, err error)
 }
 
 // GetKubeClient returns the Kubernetes Docker client.
-func (_ *Helper) GetKubeClient() (*KubeDocker, string, error) {
+func (_ *Helper) GetKubeClient(requestTimeout, imagePullProgressDeadline time.Duration) (*KubeDocker, string, error) {
 	var endpoint string
 	if len(os.Getenv("DOCKER_HOST")) > 0 {
 		endpoint = os.Getenv("DOCKER_HOST")
 	} else {
 		endpoint = "unix:///var/run/docker.sock"
 	}
-	// TODO: set a timeout here
-	client := dockertools.ConnectToDockerOrDie(endpoint, 0)
+	client := dockertools.ConnectToDockerOrDie(endpoint, requestTimeout, imagePullProgressDeadline)
 	originClient := &KubeDocker{client}
 	return originClient, endpoint, nil
 }
@@ -65,7 +65,7 @@ func (h *Helper) GetClientOrExit() (*docker.Client, string) {
 // KubeDocker provides a wrapper to Kubernetes Docker interface
 // This wrapper is compatible with OpenShift Docker interface.
 type KubeDocker struct {
-	dockertools.DockerInterface
+	dockertools.Interface
 }
 
 // Ping implements the DockerInterface Ping method.

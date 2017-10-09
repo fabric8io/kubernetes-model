@@ -1,8 +1,9 @@
 package policy
 
 import (
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	buildclient "github.com/openshift/origin/pkg/build/client"
+	buildlister "github.com/openshift/origin/pkg/build/generated/listers/build/internalversion"
 	buildutil "github.com/openshift/origin/pkg/build/util"
 )
 
@@ -12,7 +13,7 @@ import (
 // order as they were created and using this policy might cause unpredictable
 // behavior.
 type ParallelPolicy struct {
-	BuildLister  buildclient.BuildLister
+	BuildLister  buildlister.BuildLister
 	BuildUpdater buildclient.BuildUpdater
 }
 
@@ -29,4 +30,9 @@ func (s *ParallelPolicy) IsRunnable(build *buildapi.Build) (bool, error) {
 // OnComplete implements the RunPolicy interface.
 func (s *ParallelPolicy) OnComplete(build *buildapi.Build) error {
 	return handleComplete(s.BuildLister, s.BuildUpdater, build)
+}
+
+// Handles returns true for the build run parallel policy
+func (s *ParallelPolicy) Handles(policy buildapi.BuildRunPolicy) bool {
+	return policy == buildapi.BuildRunPolicyParallel
 }

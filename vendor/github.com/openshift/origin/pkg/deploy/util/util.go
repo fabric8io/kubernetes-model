@@ -3,58 +3,42 @@ package util
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
+	"k8s.io/kubernetes/pkg/api/v1"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 	kdeplutil "k8s.io/kubernetes/pkg/controller/deployment/util"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/watch"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	deployapiv1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
 	"github.com/openshift/origin/pkg/util/namer"
 )
 
-const (
-	// Reasons for deployment config conditions:
-	//
-	// ReplicationControllerUpdatedReason is added in a deployment config when one of its replication
-	// controllers is updated as part of the rollout process.
-	ReplicationControllerUpdatedReason = "ReplicationControllerUpdated"
-	// FailedRcCreateReason is added in a deployment config when it cannot create a new replication
-	// controller.
-	FailedRcCreateReason = "ReplicationControllerCreateError"
-	// NewReplicationControllerReason is added in a deployment config when it creates a new replication
-	// controller.
-	NewReplicationControllerReason = "NewReplicationControllerCreated"
-	// NewRcAvailableReason is added in a deployment config when its newest replication controller is made
-	// available ie. the number of new pods that have passed readiness checks and run for at least
-	// minReadySeconds is at least the minimum available pods that need to run for the deployment config.
-	NewRcAvailableReason = "NewReplicationControllerAvailable"
-	// TimedOutReason is added in a deployment config when its newest replication controller fails to show
-	// any progress within the given deadline (progressDeadlineSeconds).
-	TimedOutReason = "ProgressDeadlineExceeded"
-	// PausedDeployReason is added in a deployment config when it is paused. Lack of progress shouldn't be
-	// estimated once a deployment config is paused.
-	PausedDeployReason = "DeploymentConfigPaused"
-	// ResumedDeployReason is added in a deployment config when it is resumed. Useful for not failing accidentally
-	// deployment configs that paused amidst a rollout.
-	ResumedDeployReason = "DeploymentConfigResumed"
+var (
+	// DeploymentConfigControllerRefKind contains the schema.GroupVersionKind for the
+	// deployment config. This is used in the ownerRef and GC client picks the appropriate
+	// client to get the deployment config.
+	DeploymentConfigControllerRefKind = deployapiv1.SchemeGroupVersion.WithKind("DeploymentConfig")
 )
 
 // NewDeploymentCondition creates a new deployment condition.
-func NewDeploymentCondition(condType deployapi.DeploymentConditionType, status api.ConditionStatus, reason, message string) *deployapi.DeploymentCondition {
+func NewDeploymentCondition(condType deployapi.DeploymentConditionType, status api.ConditionStatus, reason deployapi.DeploymentConditionReason, message string) *deployapi.DeploymentCondition {
 	return &deployapi.DeploymentCondition{
 		Type:               condType,
 		Status:             status,
-		LastUpdateTime:     unversioned.Now(),
-		LastTransitionTime: unversioned.Now(),
+		LastUpdateTime:     metav1.Now(),
+		LastTransitionTime: metav1.Now(),
 		Reason:             reason,
 		Message:            message,
 	}
@@ -111,11 +95,11 @@ func LatestDeploymentNameForConfig(config *deployapi.DeploymentConfig) string {
 // LatestDeploymentInfo returns info about the latest deployment for a config,
 // or nil if there is no latest deployment. The latest deployment is not
 // always the same as the active deployment.
-func LatestDeploymentInfo(config *deployapi.DeploymentConfig, deployments []*api.ReplicationController) (bool, *api.ReplicationController) {
+func LatestDeploymentInfo(config *deployapi.DeploymentConfig, deployments []*v1.ReplicationController) (bool, *v1.ReplicationController) {
 	if config.Status.LatestVersion == 0 || len(deployments) == 0 {
 		return false, nil
 	}
-	sort.Sort(ByLatestVersionDesc(deployments))
+	sort.Sort(ByLatestVersionDescV1(deployments))
 	candidate := deployments[0]
 	return DeploymentVersionFor(candidate) == config.Status.LatestVersion, candidate
 }
@@ -125,6 +109,23 @@ func LatestDeploymentInfo(config *deployapi.DeploymentConfig, deployments []*api
 // latest deployment.
 func ActiveDeployment(input []*api.ReplicationController) *api.ReplicationController {
 	var activeDeployment *api.ReplicationController
+	var lastCompleteDeploymentVersion int64 = 0
+	for i := range input {
+		deployment := input[i]
+		deploymentVersion := DeploymentVersionFor(deployment)
+		if IsCompleteDeployment(deployment) && deploymentVersion > lastCompleteDeploymentVersion {
+			activeDeployment = deployment
+			lastCompleteDeploymentVersion = deploymentVersion
+		}
+	}
+	return activeDeployment
+}
+
+// ActiveDeploymentV1 returns the latest complete deployment, or nil if there is
+// no such deployment. The active deployment is not always the same as the
+// latest deployment.
+func ActiveDeploymentV1(input []*v1.ReplicationController) *v1.ReplicationController {
+	var activeDeployment *v1.ReplicationController
 	var lastCompleteDeploymentVersion int64 = 0
 	for i := range input {
 		deployment := input[i]
@@ -147,6 +148,11 @@ func DeployerPodNameForDeployment(deployment string) string {
 
 // LabelForDeployment builds a string identifier for a Deployment.
 func LabelForDeployment(deployment *api.ReplicationController) string {
+	return fmt.Sprintf("%s/%s", deployment.Namespace, deployment.Name)
+}
+
+// LabelForDeployment builds a string identifier for a Deployment.
+func LabelForDeploymentV1(deployment *v1.ReplicationController) string {
 	return fmt.Sprintf("%s/%s", deployment.Namespace, deployment.Name)
 }
 
@@ -230,9 +236,49 @@ func DeploymentDeepCopy(rc *api.ReplicationController) (*api.ReplicationControll
 	return copied, nil
 }
 
+func DeploymentDeepCopyV1(rc *v1.ReplicationController) (*v1.ReplicationController, error) {
+	objCopy, err := api.Scheme.DeepCopy(rc)
+	if err != nil {
+		return nil, err
+	}
+	copied, ok := objCopy.(*v1.ReplicationController)
+	if !ok {
+		return nil, fmt.Errorf("expected ReplicationController, got %#v", objCopy)
+	}
+	return copied, nil
+}
+
+func CopyApiResourcesToV1Resources(in *api.ResourceRequirements) v1.ResourceRequirements {
+	copied, err := api.Scheme.DeepCopy(in)
+	if err != nil {
+		panic(err)
+	}
+	in = copied.(*api.ResourceRequirements)
+	out := v1.ResourceRequirements{}
+	if err := v1.Convert_api_ResourceRequirements_To_v1_ResourceRequirements(in, &out, nil); err != nil {
+		panic(err)
+	}
+	return out
+}
+
+func CopyApiEnvVarToV1EnvVar(in []api.EnvVar) []v1.EnvVar {
+	copied, err := api.Scheme.DeepCopy(in)
+	if err != nil {
+		panic(err)
+	}
+	in = copied.([]api.EnvVar)
+	out := make([]v1.EnvVar, len(in))
+	for i := range in {
+		if err := v1.Convert_api_EnvVar_To_v1_EnvVar(&in[i], &out[i], nil); err != nil {
+			panic(err)
+		}
+	}
+	return out
+}
+
 // DecodeDeploymentConfig decodes a DeploymentConfig from controller using codec. An error is returned
 // if the controller doesn't contain an encoded config.
-func DecodeDeploymentConfig(controller *api.ReplicationController, decoder runtime.Decoder) (*deployapi.DeploymentConfig, error) {
+func DecodeDeploymentConfig(controller runtime.Object, decoder runtime.Decoder) (*deployapi.DeploymentConfig, error) {
 	encodedConfig := []byte(EncodedDeploymentConfigFor(controller))
 	decoded, err := runtime.Decode(decoder, encodedConfig)
 	if err != nil {
@@ -254,9 +300,39 @@ func EncodeDeploymentConfig(config *deployapi.DeploymentConfig, codec runtime.Co
 	return string(bytes[:]), nil
 }
 
-// MakeDeployment creates a deployment represented as a ReplicationController and based on the given
+func NewControllerRef(config *deployapi.DeploymentConfig) *metav1.OwnerReference {
+	blockOwnerDeletion := true
+	isController := true
+	return &metav1.OwnerReference{
+		APIVersion:         DeploymentConfigControllerRefKind.GroupVersion().String(),
+		Kind:               DeploymentConfigControllerRefKind.Kind,
+		Name:               config.Name,
+		UID:                config.UID,
+		BlockOwnerDeletion: &blockOwnerDeletion,
+		Controller:         &isController,
+	}
+}
+
+// MakeDeployment creates a deployment represented as an internal ReplicationController and based on the given
 // DeploymentConfig. The controller replica count will be zero.
+// DEPRECATED: Will be replaced with external version eventually.
 func MakeDeployment(config *deployapi.DeploymentConfig, codec runtime.Codec) (*api.ReplicationController, error) {
+	obj, err := MakeDeploymentV1(config, codec)
+	if err != nil {
+		return nil, err
+	}
+	v1.SetObjectDefaults_ReplicationController(obj)
+	converted, err := api.Scheme.ConvertToVersion(obj, api.SchemeGroupVersion)
+	if err != nil {
+		return nil, err
+	}
+	deployment := converted.(*api.ReplicationController)
+	return deployment, nil
+}
+
+// MakeDeploymentV1 creates a deployment represented as a ReplicationController and based on the given
+// DeploymentConfig. The controller replica count will be zero.
+func MakeDeploymentV1(config *deployapi.DeploymentConfig, codec runtime.Codec) (*v1.ReplicationController, error) {
 	var err error
 	var encodedConfig string
 
@@ -266,9 +342,16 @@ func MakeDeployment(config *deployapi.DeploymentConfig, codec runtime.Codec) (*a
 
 	deploymentName := LatestDeploymentNameForConfig(config)
 
-	podSpec := api.PodSpec{}
+	podSpec := v1.PodSpec{}
 	if err := api.Scheme.Convert(&config.Spec.Template.Spec, &podSpec, nil); err != nil {
 		return nil, fmt.Errorf("couldn't clone podSpec: %v", err)
+	}
+
+	// Fix trailing and leading whitespace in the image field
+	// This is needed to sanitize old deployment configs where spaces were permitted but
+	// kubernetes 3.7 (#47491) tightened the validation of container image fields.
+	for i := range podSpec.Containers {
+		podSpec.Containers[i].Image = strings.TrimSpace(podSpec.Containers[i].Image)
 	}
 
 	controllerLabels := make(labels.Set)
@@ -305,8 +388,10 @@ func MakeDeployment(config *deployapi.DeploymentConfig, codec runtime.Codec) (*a
 	podAnnotations[deployapi.DeploymentConfigAnnotation] = config.Name
 	podAnnotations[deployapi.DeploymentVersionAnnotation] = strconv.FormatInt(config.Status.LatestVersion, 10)
 
-	deployment := &api.ReplicationController{
-		ObjectMeta: api.ObjectMeta{
+	controllerRef := NewControllerRef(config)
+	zero := int32(0)
+	deployment := &v1.ReplicationController{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      deploymentName,
 			Namespace: config.Namespace,
 			Annotations: map[string]string{
@@ -318,14 +403,16 @@ func MakeDeployment(config *deployapi.DeploymentConfig, codec runtime.Codec) (*a
 				deployapi.DesiredReplicasAnnotation:    strconv.Itoa(int(config.Spec.Replicas)),
 				deployapi.DeploymentReplicasAnnotation: strconv.Itoa(0),
 			},
-			Labels: controllerLabels,
+			Labels:          controllerLabels,
+			OwnerReferences: []metav1.OwnerReference{*controllerRef},
 		},
-		Spec: api.ReplicationControllerSpec{
+		Spec: v1.ReplicationControllerSpec{
 			// The deployment should be inactive initially
-			Replicas: 0,
-			Selector: selector,
-			Template: &api.PodTemplateSpec{
-				ObjectMeta: api.ObjectMeta{
+			Replicas:        &zero,
+			Selector:        selector,
+			MinReadySeconds: config.Spec.MinReadySeconds,
+			Template: &v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
 					Labels:      podLabels,
 					Annotations: podAnnotations,
 				},
@@ -345,17 +432,21 @@ func MakeDeployment(config *deployapi.DeploymentConfig, codec runtime.Codec) (*a
 
 // GetReplicaCountForDeployments returns the sum of all replicas for the
 // given deployments.
-func GetReplicaCountForDeployments(deployments []*api.ReplicationController) int32 {
+func GetReplicaCountForDeployments(deployments []*v1.ReplicationController) int32 {
 	totalReplicaCount := int32(0)
 	for _, deployment := range deployments {
-		totalReplicaCount += deployment.Spec.Replicas
+		count := deployment.Spec.Replicas
+		if count == nil {
+			continue
+		}
+		totalReplicaCount += *count
 	}
 	return totalReplicaCount
 }
 
 // GetStatusReplicaCountForDeployments returns the sum of the replicas reported in the
 // status of the given deployments.
-func GetStatusReplicaCountForDeployments(deployments []*api.ReplicationController) int32 {
+func GetStatusReplicaCountForDeployments(deployments []*v1.ReplicationController) int32 {
 	totalReplicaCount := int32(0)
 	for _, deployment := range deployments {
 		totalReplicaCount += deployment.Status.Replicas
@@ -363,21 +454,9 @@ func GetStatusReplicaCountForDeployments(deployments []*api.ReplicationControlle
 	return totalReplicaCount
 }
 
-// GetAvailablePods returns all the available pods from the provided pod list.
-func GetAvailablePods(pods []*api.Pod, minReadySeconds int32) int32 {
-	available := int32(0)
-	for i := range pods {
-		pod := pods[i]
-		if kdeplutil.IsPodAvailable(pod, minReadySeconds, time.Now()) {
-			available++
-		}
-	}
-	return available
-}
-
 // GetReadyReplicaCountForReplicationControllers returns the number of ready pods corresponding to
 // the given replication controller.
-func GetReadyReplicaCountForReplicationControllers(replicationControllers []*api.ReplicationController) int32 {
+func GetReadyReplicaCountForReplicationControllers(replicationControllers []*v1.ReplicationController) int32 {
 	totalReadyReplicas := int32(0)
 	for _, rc := range replicationControllers {
 		if rc != nil {
@@ -385,6 +464,18 @@ func GetReadyReplicaCountForReplicationControllers(replicationControllers []*api
 		}
 	}
 	return totalReadyReplicas
+}
+
+// GetAvailableReplicaCountForReplicationControllers returns the number of available pods corresponding to
+// the given replication controller.
+func GetAvailableReplicaCountForReplicationControllers(replicationControllers []*v1.ReplicationController) int32 {
+	totalAvailableReplicas := int32(0)
+	for _, rc := range replicationControllers {
+		if rc != nil {
+			totalAvailableReplicas += rc.Status.AvailableReplicas
+		}
+	}
+	return totalAvailableReplicas
 }
 
 func DeploymentConfigNameFor(obj runtime.Object) string {
@@ -427,7 +518,7 @@ func DeploymentVersionFor(obj runtime.Object) int64 {
 	return v
 }
 
-func IsDeploymentCancelled(deployment *api.ReplicationController) bool {
+func IsDeploymentCancelled(deployment runtime.Object) bool {
 	value := annotationFor(deployment, deployapi.DeploymentCancelledAnnotation)
 	return strings.EqualFold(value, deployapi.DeploymentCancelledAnnotationValue)
 }
@@ -441,25 +532,25 @@ func HasSynced(dc *deployapi.DeploymentConfig, generation int64) bool {
 // IsOwnedByConfig checks whether the provided replication controller is part of a
 // deployment configuration.
 // TODO: Switch to use owner references once we got those working.
-func IsOwnedByConfig(deployment *api.ReplicationController) bool {
-	_, ok := deployment.Annotations[deployapi.DeploymentConfigAnnotation]
+func IsOwnedByConfig(obj metav1.Object) bool {
+	_, ok := obj.GetAnnotations()[deployapi.DeploymentConfigAnnotation]
 	return ok
 }
 
 // IsTerminatedDeployment returns true if the passed deployment has terminated (either
 // complete or failed).
-func IsTerminatedDeployment(deployment *api.ReplicationController) bool {
+func IsTerminatedDeployment(deployment runtime.Object) bool {
 	return IsCompleteDeployment(deployment) || IsFailedDeployment(deployment)
 }
 
-// IsCompleteDeployment returns true if the passed deployment failed.
-func IsCompleteDeployment(deployment *api.ReplicationController) bool {
+// IsCompleteDeployment returns true if the passed deployment is in state complete.
+func IsCompleteDeployment(deployment runtime.Object) bool {
 	current := DeploymentStatusFor(deployment)
 	return current == deployapi.DeploymentStatusComplete
 }
 
 // IsFailedDeployment returns true if the passed deployment failed.
-func IsFailedDeployment(deployment *api.ReplicationController) bool {
+func IsFailedDeployment(deployment runtime.Object) bool {
 	current := DeploymentStatusFor(deployment)
 	return current == deployapi.DeploymentStatusFailed
 }
@@ -498,7 +589,7 @@ func IsRollingConfig(config *deployapi.DeploymentConfig) bool {
 
 // IsProgressing expects a state deployment config and its updated status in order to
 // determine if there is any progress.
-func IsProgressing(config deployapi.DeploymentConfig, newStatus deployapi.DeploymentConfigStatus) bool {
+func IsProgressing(config *deployapi.DeploymentConfig, newStatus *deployapi.DeploymentConfigStatus) bool {
 	oldStatusOldReplicas := config.Status.Replicas - config.Status.UpdatedReplicas
 	newStatusOldReplicas := newStatus.Replicas - newStatus.UpdatedReplicas
 
@@ -506,8 +597,8 @@ func IsProgressing(config deployapi.DeploymentConfig, newStatus deployapi.Deploy
 }
 
 // MaxUnavailable returns the maximum unavailable pods a rolling deployment config can take.
-func MaxUnavailable(config deployapi.DeploymentConfig) int32 {
-	if !IsRollingConfig(&config) {
+func MaxUnavailable(config *deployapi.DeploymentConfig) int32 {
+	if !IsRollingConfig(config) {
 		return int32(0)
 	}
 	// Error caught by validation
@@ -527,11 +618,14 @@ func MaxSurge(config deployapi.DeploymentConfig) int32 {
 
 // annotationFor returns the annotation with key for obj.
 func annotationFor(obj runtime.Object, key string) string {
-	meta, err := api.ObjectMetaFor(obj)
+	meta, err := meta.Accessor(obj)
 	if err != nil {
 		return ""
 	}
-	return meta.Annotations[key]
+	if meta == nil || reflect.ValueOf(meta).IsNil() {
+		return ""
+	}
+	return meta.GetAnnotations()[key]
 }
 
 func int32AnnotationFor(obj runtime.Object, key string) (int32, bool) {
@@ -548,13 +642,13 @@ func int32AnnotationFor(obj runtime.Object, key string) (int32, bool) {
 
 // DeploymentsForCleanup determines which deployments for a configuration are relevant for the
 // revision history limit quota
-func DeploymentsForCleanup(configuration *deployapi.DeploymentConfig, deployments []*api.ReplicationController) []api.ReplicationController {
+func DeploymentsForCleanup(configuration *deployapi.DeploymentConfig, deployments []*v1.ReplicationController) []v1.ReplicationController {
 	// if the past deployment quota has been exceeded, we need to prune the oldest deployments
 	// until we are not exceeding the quota any longer, so we sort oldest first
-	sort.Sort(ByLatestVersionAsc(deployments))
+	sort.Sort(ByLatestVersionAscV1(deployments))
 
-	relevantDeployments := []api.ReplicationController{}
-	activeDeployment := ActiveDeployment(deployments)
+	relevantDeployments := []v1.ReplicationController{}
+	activeDeployment := ActiveDeploymentV1(deployments)
 	if activeDeployment == nil {
 		// if cleanup policy is set but no successful deployments have happened, there will be
 		// no active deployment. We can consider all of the deployments in this case except for
@@ -586,13 +680,13 @@ func WaitForRunningDeployerPod(podClient kcoreclient.PodsGetter, rc *api.Replica
 	canGetLogs := func(p *api.Pod) bool {
 		return api.PodSucceeded == p.Status.Phase || api.PodFailed == p.Status.Phase || api.PodRunning == p.Status.Phase
 	}
-	pod, err := podClient.Pods(rc.Namespace).Get(podName)
+	pod, err := podClient.Pods(rc.Namespace).Get(podName, metav1.GetOptions{})
 	if err == nil && canGetLogs(pod) {
 		return nil
 	}
 	watcher, err := podClient.Pods(rc.Namespace).Watch(
-		api.ListOptions{
-			FieldSelector: fields.Set{"metadata.name": podName}.AsSelector(),
+		metav1.ListOptions{
+			FieldSelector: fields.Set{"metadata.name": podName}.AsSelector().String(),
 		},
 	)
 	if err != nil {
@@ -624,12 +718,29 @@ func (d ByLatestVersionAsc) Less(i, j int) bool {
 	return DeploymentVersionFor(d[i]) < DeploymentVersionFor(d[j])
 }
 
+type ByLatestVersionAscV1 []*v1.ReplicationController
+
+func (d ByLatestVersionAscV1) Len() int      { return len(d) }
+func (d ByLatestVersionAscV1) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
+func (d ByLatestVersionAscV1) Less(i, j int) bool {
+	return DeploymentVersionFor(d[i]) < DeploymentVersionFor(d[j])
+}
+
 // ByLatestVersionDesc sorts deployments by LatestVersion descending.
 type ByLatestVersionDesc []*api.ReplicationController
 
 func (d ByLatestVersionDesc) Len() int      { return len(d) }
 func (d ByLatestVersionDesc) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
 func (d ByLatestVersionDesc) Less(i, j int) bool {
+	return DeploymentVersionFor(d[j]) < DeploymentVersionFor(d[i])
+}
+
+// ByLatestVersionDescV1 sorts deployments by LatestVersion descending.
+type ByLatestVersionDescV1 []*v1.ReplicationController
+
+func (d ByLatestVersionDescV1) Len() int      { return len(d) }
+func (d ByLatestVersionDescV1) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
+func (d ByLatestVersionDescV1) Less(i, j int) bool {
 	return DeploymentVersionFor(d[j]) < DeploymentVersionFor(d[i])
 }
 

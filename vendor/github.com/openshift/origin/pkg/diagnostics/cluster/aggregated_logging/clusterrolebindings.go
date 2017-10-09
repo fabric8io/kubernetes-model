@@ -3,8 +3,8 @@ package aggregated_logging
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/apis/rbac"
-	"k8s.io/kubernetes/pkg/util/sets"
 )
 
 const clusterReaderRoleBindingName = "cluster-readers"
@@ -17,7 +17,7 @@ is required to enable Fluentd to look up pod metadata for the logs it gathers.
 As a user with a cluster-admin role, you can grant the permissions by running
 the following:
 
-  $ oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:%[2]s:%[1]s
+  $ oc adm policy add-cluster-role-to-user cluster-reader system:serviceaccount:%[2]s:%[1]s
 `
 
 func checkClusterRoleBindings(r diagnosticReporter, adapter clusterRoleBindingsAdapter, project string) {

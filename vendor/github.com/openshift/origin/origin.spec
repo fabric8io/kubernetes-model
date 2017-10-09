@@ -9,15 +9,15 @@
 %global kube_plugin_path /usr/libexec/kubernetes/kubelet-plugins/net/exec/redhat~openshift-ovs-subnet
 
 # docker_version is the version of docker requires by packages
-%global docker_version 1.9.1
+%global docker_version 1.12
 # tuned_version is the version of tuned requires by packages
 %global tuned_version  2.3
 # openvswitch_version is the version of openvswitch requires by packages
-%global openvswitch_version 2.3.1
+%global openvswitch_version 2.6.1
 # this is the version we obsolete up to. The packaging changed for Origin
 # 1.0.6 and OSE 3.1 such that 'openshift' package names were no longer used.
 %global package_refector_version 3.0.2.900
-%global golang_version 1.6.2
+%global golang_version 1.8.3
 # %commit and %os_git_vars are intended to be set by tito custom builders provided
 # in the .tito/lib directory. The values in this spec file will not be kept up to date.
 %{!?commit:
@@ -107,7 +107,6 @@ Obsoletes:      openshift-master < %{package_refector_version}
 
 %package tests
 Summary: %{product_name} Test Suite
-Requires:       %{name} = %{version}-%{release}
 
 %description tests
 %{summary}
@@ -142,6 +141,7 @@ Obsoletes:      tuned-profiles-openshift-node < %{package_refector_version}
 Summary:        %{product_name} Client binaries for Linux
 Obsoletes:      openshift-clients < %{package_refector_version}
 Requires:       git
+Requires:       bash-completion
 
 %description clients
 %{summary}
@@ -150,6 +150,7 @@ Requires:       git
 %package clients-redistributable
 Summary:        %{product_name} Client binaries for Linux, Mac OSX, and Windows
 Obsoletes:      openshift-clients-redistributable < %{package_refector_version}
+BuildRequires:  goversioninfo
 
 %description clients-redistributable
 %{summary}
@@ -157,7 +158,6 @@ Obsoletes:      openshift-clients-redistributable < %{package_refector_version}
 
 %package dockerregistry
 Summary:        Docker Registry v2 for %{product_name}
-Requires:       %{name} = %{version}-%{release}
 
 %description dockerregistry
 %{summary}
@@ -173,12 +173,30 @@ Summary:          %{product_name} SDN Plugin for Open vSwitch
 Requires:         openvswitch >= %{openvswitch_version}
 Requires:         %{name}-node = %{version}-%{release}
 Requires:         bridge-utils
+Requires:         bind-utils
 Requires:         ethtool
 Requires:         procps-ng
 Requires:         iproute
 Obsoletes:        openshift-sdn-ovs < %{package_refector_version}
 
 %description sdn-ovs
+%{summary}
+
+%package federation-services
+Summary:        %{produce_name} Federation Services
+
+%description federation-services
+
+%package service-catalog
+Summary:        %{product_name} Service Catalog
+
+%description service-catalog
+%{summary}
+
+%package cluster-capacity
+Summary:        %{product_name} Cluster Capacity Analysis Tool
+
+%description cluster-capacity
 %{summary}
 
 %package excluder
@@ -210,6 +228,9 @@ of docker.  Exclude those versions of docker.
 %if 0%{make_redistributable}
 # Create Binaries for all supported arches
 %{os_git_vars} hack/build-cross.sh
+%{os_git_vars} hack/build-go.sh vendor/github.com/onsi/ginkgo/ginkgo
+%{os_git_vars} unset GOPATH; cmd/service-catalog/go/src/github.com/kubernetes-incubator/service-catalog/hack/build-cross.sh
+%{os_git_vars} unset GOPATH; cmd/cluster-capacity/go/src/github.com/kubernetes-incubator/cluster-capacity/hack/build-cross.sh
 %else
 # Create Binaries only for building arch
 %ifarch x86_64
@@ -228,6 +249,9 @@ of docker.  Exclude those versions of docker.
   BUILD_PLATFORM="linux/s390x"
 %endif
 OS_ONLY_BUILD_PLATFORMS="${BUILD_PLATFORM}" %{os_git_vars} hack/build-cross.sh
+OS_ONLY_BUILD_PLATFORMS="${BUILD_PLATFORM}" %{os_git_vars} hack/build-go.sh vendor/github.com/onsi/ginkgo/ginkgo
+OS_ONLY_BUILD_PLATFORMS="${BUILD_PLATFORM}" %{os_git_vars} unset GOPATH; cmd/service-catalog/go/src/github.com/kubernetes-incubator/service-catalog/hack/build-cross.sh
+OS_ONLY_BUILD_PLATFORMS="${BUILD_PLATFORM}" %{os_git_vars} unset GOPATH; cmd/cluster-capacity/go/src/github.com/kubernetes-incubator/cluster-capacity/hack/build-cross.sh
 %endif
 
 # Generate man pages
@@ -239,13 +263,16 @@ PLATFORM="$(go env GOHOSTOS)/$(go env GOHOSTARCH)"
 install -d %{buildroot}%{_bindir}
 
 # Install linux components
-for bin in oc openshift dockerregistry
+for bin in oc openshift dockerregistry kubefed
 do
   echo "+++ INSTALLING ${bin}"
   install -p -m 755 _output/local/bin/${PLATFORM}/${bin} %{buildroot}%{_bindir}/${bin}
 done
+
+# Install tests
 install -d %{buildroot}%{_libexecdir}/%{name}
 install -p -m 755 _output/local/bin/${PLATFORM}/extended.test %{buildroot}%{_libexecdir}/%{name}/
+install -p -m 755 _output/local/bin/${PLATFORM}/ginkgo %{buildroot}%{_libexecdir}/%{name}/
 
 %if 0%{?make_redistributable}
 # Install client executable for windows and mac
@@ -254,6 +281,17 @@ install -p -m 755 _output/local/bin/linux/amd64/oc %{buildroot}%{_datadir}/%{nam
 install -p -m 755 _output/local/bin/darwin/amd64/oc %{buildroot}/%{_datadir}/%{name}/macosx/oc
 install -p -m 755 _output/local/bin/windows/amd64/oc.exe %{buildroot}/%{_datadir}/%{name}/windows/oc.exe
 %endif
+
+# Install federation services
+install -p -m 755 _output/local/bin/${PLATFORM}/hyperkube %{buildroot}%{_bindir}/
+
+# Install cluster capacity
+install -p -m 755 cmd/cluster-capacity/go/src/github.com/kubernetes-incubator/cluster-capacity/_output/local/bin/${PLATFORM}/hypercc %{buildroot}%{_bindir}/
+ln -s hypercc %{buildroot}%{_bindir}/cluster-capacity
+
+# Install service-catalog
+install -p -m 755 cmd/service-catalog/go/src/github.com/kubernetes-incubator/service-catalog/_output/local/bin/${PLATFORM}/apiserver %{buildroot}%{_bindir}/
+install -p -m 755 cmd/service-catalog/go/src/github.com/kubernetes-incubator/service-catalog/_output/local/bin/${PLATFORM}/controller-manager %{buildroot}%{_bindir}/
 
 # Install pod
 install -p -m 755 _output/local/bin/${PLATFORM}/pod %{buildroot}%{_bindir}/
@@ -272,10 +310,13 @@ for cmd in \
     oadm \
     openshift-deploy \
     openshift-docker-build \
+    openshift-sti-build \
+    openshift-git-clone \
+    openshift-manage-dockerfile \
+    openshift-extract-image-content \
     openshift-f5-router \
     openshift-recycle \
     openshift-router \
-    openshift-sti-build \
     origin
 do
     ln -s openshift %{buildroot}%{_bindir}/$cmd
@@ -311,15 +352,8 @@ install -m 0644 contrib/tuned/man/tuned-profiles-origin-node.7 %{buildroot}%{_ma
 
 mkdir -p %{buildroot}%{_sharedstatedir}/origin
 
-
 # Install sdn scripts
 install -d -m 0755 %{buildroot}%{_sysconfdir}/cni/net.d
-pushd pkg/sdn/plugin/sdn-cni-plugin
-   install -p -m 0644 80-openshift-sdn.conf %{buildroot}%{_sysconfdir}/cni/net.d
-popd
-pushd pkg/sdn/plugin/bin
-   install -p -m 0755 openshift-sdn-ovs %{buildroot}%{_bindir}/openshift-sdn-ovs
-popd
 install -d -m 0755 %{buildroot}/opt/cni/bin
 install -p -m 0755 _output/local/bin/${PLATFORM}/sdn-cni-plugin %{buildroot}/opt/cni/bin/openshift-sdn
 install -p -m 0755 _output/local/bin/${PLATFORM}/host-local %{buildroot}/opt/cni/bin
@@ -351,7 +385,7 @@ mkdir -p $RPM_BUILD_ROOT/usr/sbin
 
 # Install openshift-excluder script
 sed "s|@@CONF_FILE-VARIABLE@@|${OS_CONF_FILE}|" contrib/excluder/excluder-template > $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
-sed -i "s|@@PACKAGE_LIST-VARIABLE@@|%{name} %{name}-clients %{name}-clients-redistributable %{name}-dockerregistry %{name}-master %{name}-node %{name}-pod %{name}-recycle %{name}-sdn-ovs %{name}-tests tuned-profiles-%{name}-node %{name}-excluder %{name}-docker-excluder|" $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
+sed -i "s|@@PACKAGE_LIST-VARIABLE@@|%{name} %{name}-clients %{name}-clients-redistributable %{name}-dockerregistry %{name}-master %{name}-node %{name}-pod %{name}-recycle %{name}-sdn-ovs %{name}-tests tuned-profiles-%{name}-node|" $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
 chmod 0744 $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
 
 # Install docker-excluder script
@@ -359,6 +393,9 @@ sed "s|@@CONF_FILE-VARIABLE@@|${OS_CONF_FILE}|" contrib/excluder/excluder-templa
 sed -i "s|@@PACKAGE_LIST-VARIABLE@@|docker*1.13* docker*1.14* docker*1.15* docker*1.16* docker*1.17* docker*1.18* docker*1.19* docker*1.20*|" $RPM_BUILD_ROOT/usr/sbin/%{name}-docker-excluder
 chmod 0744 $RPM_BUILD_ROOT/usr/sbin/%{name}-docker-excluder
 
+# Install migration scripts
+install -d %{buildroot}%{_datadir}/%{name}/migration
+install -p -m 755 contrib/migration/* %{buildroot}%{_datadir}/%{name}/migration/
 
 %files
 %doc README.md
@@ -372,11 +409,14 @@ chmod 0744 $RPM_BUILD_ROOT/usr/sbin/%{name}-docker-excluder
 %{_bindir}/kubernetes
 %{_bindir}/oadm
 %{_bindir}/openshift-deploy
-%{_bindir}/openshift-docker-build
 %{_bindir}/openshift-f5-router
 %{_bindir}/openshift-recycle
 %{_bindir}/openshift-router
+%{_bindir}/openshift-docker-build
 %{_bindir}/openshift-sti-build
+%{_bindir}/openshift-git-clone
+%{_bindir}/openshift-extract-image-content
+%{_bindir}/openshift-manage-dockerfile
 %{_bindir}/origin
 %{_sharedstatedir}/origin
 %{_sysconfdir}/bash_completion.d/oadm
@@ -408,6 +448,8 @@ fi
 %files master
 %{_unitdir}/%{name}-master.service
 %config(noreplace) %{_sysconfdir}/sysconfig/%{name}-master
+%dir %{_datadir}/%{name}/migration/
+%{_datadir}/%{name}/migration/*
 %defattr(-,root,root,0700)
 %config(noreplace) %{_sysconfdir}/origin/master
 %ghost %config(noreplace) %{_sysconfdir}/origin/admin.crt
@@ -447,7 +489,7 @@ if [[ ! -e %{_sysconfdir}/origin/master/master-config.yaml &&
   %{_bindir}/openshift start master --write-config=%{_sysconfdir}/origin/master
   # Create node configs if they do not already exist
   if ! find %{_sysconfdir}/origin/ -type f -name "node-config.yaml" | grep -E "node-config.yaml"; then
-    %{_bindir}/oadm create-node-config --node-dir=%{_sysconfdir}/origin/node/ --node=localhost --hostnames=localhost,127.0.0.1 --node-client-certificate-authority=%{_sysconfdir}/origin/master/ca.crt --signer-cert=%{_sysconfdir}/origin/master/ca.crt --signer-key=%{_sysconfdir}/origin/master/ca.key --signer-serial=%{_sysconfdir}/origin/master/ca.serial.txt --certificate-authority=%{_sysconfdir}/origin/master/ca.crt
+    %{_bindir}/oc adm create-node-config --node-dir=%{_sysconfdir}/origin/node/ --node=localhost --hostnames=localhost,127.0.0.1 --node-client-certificate-authority=%{_sysconfdir}/origin/master/ca.crt --signer-cert=%{_sysconfdir}/origin/master/ca.crt --signer-key=%{_sysconfdir}/origin/master/ca.key --signer-serial=%{_sysconfdir}/origin/master/ca.serial.txt --certificate-authority=%{_sysconfdir}/origin/master/ca.crt
   fi
   # Generate a marker file that indicates config and certs were RPM generated
   echo "# Config generated by RPM at "`date -u` > %{_sysconfdir}/origin/.config_managed
@@ -486,9 +528,7 @@ fi
 %dir %{_unitdir}/%{name}-node.service.d/
 %dir %{_sysconfdir}/cni/net.d
 %dir /opt/cni/bin
-%{_bindir}/openshift-sdn-ovs
 %{_unitdir}/%{name}-node.service.d/openshift-sdn-ovs.conf
-%{_sysconfdir}/cni/net.d/80-openshift-sdn.conf
 /opt/cni/bin/*
 
 %posttrans sdn-ovs
@@ -498,6 +538,10 @@ fi
 if [ -d %{kube_plugin_path} ]; then
   rmdir %{kube_plugin_path}
 fi
+
+%files service-catalog
+%{_bindir}/apiserver
+%{_bindir}/controller-manager
 
 %files -n tuned-profiles-%{name}-node
 %license LICENSE
@@ -525,6 +569,7 @@ fi
 %license LICENSE
 %{_bindir}/oc
 %{_bindir}/kubectl
+%{_bindir}/kubefed
 %{_sysconfdir}/bash_completion.d/oc
 %{_mandir}/man1/oc*
 
@@ -547,12 +592,19 @@ fi
 %files excluder
 /usr/sbin/%{name}-excluder
 
-%post excluder
-if [ "$1" -eq 1 ] ; then
-  %{name}-excluder exclude
+%pretrans excluder
+# we always want to clear this out using the last
+#   versions script.  Otherwise excludes might get left in
+if [ -s /usr/sbin/%{name}-excluder ] ; then
+  /usr/sbin/%{name}-excluder unexclude
 fi
 
+%posttrans excluder
+# we always want to run this after an install or update
+/usr/sbin/%{name}-excluder exclude
+
 %preun excluder
+# If we are the last one, clean things up
 if [ "$1" -eq 0 ] ; then
   /usr/sbin/%{name}-excluder unexclude
 fi
@@ -560,15 +612,30 @@ fi
 %files docker-excluder
 /usr/sbin/%{name}-docker-excluder
 
-%post docker-excluder
-# we always want to run this, since the
-#   package-list may be different with each version
-%{name}-docker-excluder exclude
+%files cluster-capacity
+%{_bindir}/hypercc
+%{_bindir}/cluster-capacity
+
+
+%pretrans docker-excluder
+# we always want to clear this out using the last
+#   versions script.  Otherwise excludes might get left in
+if [ -s /usr/sbin/%{name}-docker-excluder ] ; then
+  /usr/sbin/%{name}-docker-excluder unexclude
+fi
+
+%posttrans docker-excluder
+# we always want to run this after an install or update
+/usr/sbin/%{name}-docker-excluder exclude
 
 %preun docker-excluder
-# we always want to clear this out, since the
-#   package-list may be different with each version
-/usr/sbin/%{name}-docker-excluder unexclude
+# If we are the last one, clean things up
+if [ "$1" -eq 0 ] ; then
+  /usr/sbin/%{name}-docker-excluder unexclude
+fi
+
+%files federation-services
+%{_bindir}/hyperkube
 
 %changelog
 * Fri Sep 18 2015 Scott Dodson <sdodson@redhat.com> 0.2-9

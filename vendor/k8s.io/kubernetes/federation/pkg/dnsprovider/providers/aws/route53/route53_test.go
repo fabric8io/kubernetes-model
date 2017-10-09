@@ -40,7 +40,7 @@ func newTestInterface() (dnsprovider.Interface, error) {
 func newFakeInterface() (dnsprovider.Interface, error) {
 	var service route53testing.Route53API
 	service = route53testing.NewRoute53APIStub()
-	iface := newInterfaceWithStub(service)
+	iface := New(service)
 	// Add a fake zone to test against.
 	params := &route53.CreateHostedZoneInput{
 		CallerReference: aws.String("Nonce"),       // Required
@@ -288,7 +288,7 @@ func TestResourceRecordSetsReplaceAll(t *testing.T) {
 	tests.CommonTestResourceRecordSetsReplaceAll(t, zone)
 }
 
-/* TestResourceRecordSetsHonorsType verifies that we can add records of the same name but different types */
+/* TestResourceRecordSetsDifferentTypes verifies that we can add records of the same name but different types */
 func TestResourceRecordSetsDifferentTypes(t *testing.T) {
 	zone := firstZone(t)
 	tests.CommonTestResourceRecordSetsDifferentTypes(t, zone)

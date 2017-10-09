@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/rest"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/watch"
+	metainternal "k8s.io/apimachinery/pkg/apis/meta/internalversion"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/watch"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/registry/rest"
 
-	"github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 )
 
 var (
@@ -21,9 +22,9 @@ var (
 // WaitForRunningBuild waits until the specified build is no longer New or Pending. Returns true if
 // the build ran within timeout, false if it did not, and an error if any other error state occurred.
 // The last observed Build state is returned.
-func WaitForRunningBuild(watcher rest.Watcher, ctx kapi.Context, build *api.Build, timeout time.Duration) (*api.Build, bool, error) {
+func WaitForRunningBuild(watcher rest.Watcher, ctx apirequest.Context, build *buildapi.Build, timeout time.Duration) (*buildapi.Build, bool, error) {
 	fieldSelector := fields.OneTermEqualSelector("metadata.name", build.Name)
-	options := &kapi.ListOptions{FieldSelector: fieldSelector, ResourceVersion: build.ResourceVersion}
+	options := &metainternal.ListOptions{FieldSelector: fieldSelector, ResourceVersion: build.ResourceVersion}
 	w, err := watcher.Watch(ctx, options)
 	if err != nil {
 		return build, false, err
@@ -36,7 +37,7 @@ func WaitForRunningBuild(watcher rest.Watcher, ctx kapi.Context, build *api.Buil
 	for {
 		select {
 		case event := <-ch:
-			obj, ok := event.Object.(*api.Build)
+			obj, ok := event.Object.(*buildapi.Build)
 			if !ok {
 				return observed, false, fmt.Errorf("received unknown object while watching for builds")
 			}
@@ -46,9 +47,9 @@ func WaitForRunningBuild(watcher rest.Watcher, ctx kapi.Context, build *api.Buil
 				return observed, false, ErrBuildDeleted
 			}
 			switch obj.Status.Phase {
-			case api.BuildPhaseRunning, api.BuildPhaseComplete, api.BuildPhaseFailed, api.BuildPhaseError, api.BuildPhaseCancelled:
+			case buildapi.BuildPhaseRunning, buildapi.BuildPhaseComplete, buildapi.BuildPhaseFailed, buildapi.BuildPhaseError, buildapi.BuildPhaseCancelled:
 				return observed, true, nil
-			case api.BuildPhaseNew, api.BuildPhasePending:
+			case buildapi.BuildPhaseNew, buildapi.BuildPhasePending:
 			default:
 				return observed, false, ErrUnknownBuildPhase
 			}
