@@ -323,7 +323,8 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 			continue
 		}
 		// Skip dockerImageMetadata field
-		if pkgPath(t) == "github.com/openshift/origin/pkg/image/api/v1" && t.Name() == "Image" && name == "dockerImageMetadata" {
+		path := pkgPath(t)
+		if path == "github.com/openshift/origin/pkg/image/api/v1" && t.Name() == "Image" && name == "dockerImageMetadata" {
 			continue
 		}
 
@@ -351,10 +352,14 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 						},
 					}
 				case "apiVersion":
-					apiVersion := filepath.Base(pkgPath(t))
-					apiGroup := filepath.Base(strings.TrimSuffix(pkgPath(t), apiVersion))
+					apiVersion := filepath.Base(path)
+					apiGroup := filepath.Base(strings.TrimSuffix(path, apiVersion))
 					if apiGroup != "api" {
-						apiVersion = apiGroup + "/" + apiVersion
+						groupPostfix := ""
+						if strings.HasPrefix(path, "github.com/openshift/origin/pkg/") {
+							groupPostfix = ".openshift.io"
+						}
+						apiVersion = apiGroup + groupPostfix + "/" + apiVersion
 					}
 					v = JSONPropertyDescriptor{
 						JSONDescriptor: &JSONDescriptor{

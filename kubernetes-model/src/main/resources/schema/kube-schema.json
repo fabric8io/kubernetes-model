@@ -8299,7 +8299,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -8338,7 +8338,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -8381,7 +8381,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -8417,7 +8417,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -8453,7 +8453,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -8488,7 +8488,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "groupNames": {
@@ -8543,7 +8543,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -8606,7 +8606,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "content": {
@@ -8761,7 +8761,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -8800,7 +8800,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -8843,7 +8843,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -8879,7 +8879,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -8970,7 +8970,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -9005,7 +9005,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "groupNames": {
@@ -9060,7 +9060,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -9096,7 +9096,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -9150,7 +9150,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -9232,7 +9232,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "content": {
@@ -9315,7 +9315,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
         },
         "evaluationError": {
@@ -9419,7 +9419,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "build/v1",
+          "default": "build.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -9454,7 +9454,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "build/v1",
+          "default": "build.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -9489,7 +9489,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "build/v1",
+          "default": "build.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -9614,7 +9614,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "build/v1",
+          "default": "build.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -9708,7 +9708,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "build/v1",
+          "default": "build.openshift.io/v1",
           "required": true
         },
         "binary": {
@@ -10842,7 +10842,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "apps/v1",
+          "default": "apps.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -10877,7 +10877,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "apps/v1",
+          "default": "apps.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -11304,7 +11304,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "image/v1",
+          "default": "image.openshift.io/v1",
           "required": true
         },
         "dockerImageConfig": {
@@ -11403,7 +11403,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "image/v1",
+          "default": "image.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -11454,7 +11454,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "image/v1",
+          "default": "image.openshift.io/v1",
           "required": true
         },
         "conditions": {
@@ -11522,7 +11522,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "image/v1",
+          "default": "image.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -11557,7 +11557,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "image/v1",
+          "default": "image.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -11647,7 +11647,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "image/v1",
+          "default": "image.openshift.io/v1",
           "required": true
         },
         "conditions": {
@@ -11699,7 +11699,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "image/v1",
+          "default": "image.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -12036,7 +12036,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "oauth/v1",
+          "default": "oauth.openshift.io/v1",
           "required": true
         },
         "authorizeToken": {
@@ -12100,7 +12100,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "oauth/v1",
+          "default": "oauth.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -12136,7 +12136,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "oauth/v1",
+          "default": "oauth.openshift.io/v1",
           "required": true
         },
         "clientName": {
@@ -12204,7 +12204,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "oauth/v1",
+          "default": "oauth.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -12248,7 +12248,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "oauth/v1",
+          "default": "oauth.openshift.io/v1",
           "required": true
         },
         "grantMethod": {
@@ -12303,7 +12303,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "oauth/v1",
+          "default": "oauth.openshift.io/v1",
           "required": true
         },
         "clientName": {
@@ -12350,7 +12350,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "oauth/v1",
+          "default": "oauth.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -12386,7 +12386,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "oauth/v1",
+          "default": "oauth.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -12445,7 +12445,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "project/v1",
+          "default": "project.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -12480,7 +12480,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "project/v1",
+          "default": "project.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -12516,7 +12516,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "project/v1",
+          "default": "project.openshift.io/v1",
           "required": true
         },
         "description": {
@@ -12585,7 +12585,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "route/v1",
+          "default": "route.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -12686,7 +12686,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "route/v1",
+          "default": "route.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -12982,7 +12982,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "security/v1",
+          "default": "security.openshift.io/v1",
           "required": true
         },
         "defaultAddCapabilities": {
@@ -13081,7 +13081,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "security/v1",
+          "default": "security.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -13179,7 +13179,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "template/v1",
+          "default": "template.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -13235,7 +13235,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "template/v1",
+          "default": "template.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -13271,7 +13271,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "user/v1",
+          "default": "user.openshift.io/v1",
           "required": true
         },
         "kind": {
@@ -13306,7 +13306,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "user/v1",
+          "default": "user.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -13342,7 +13342,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "user/v1",
+          "default": "user.openshift.io/v1",
           "required": true
         },
         "extra": {
@@ -13390,7 +13390,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "user/v1",
+          "default": "user.openshift.io/v1",
           "required": true
         },
         "items": {
@@ -13426,7 +13426,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "user/v1",
+          "default": "user.openshift.io/v1",
           "required": true
         },
         "fullName": {
@@ -13473,7 +13473,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "user/v1",
+          "default": "user.openshift.io/v1",
           "required": true
         },
         "items": {
