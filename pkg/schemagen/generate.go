@@ -87,20 +87,9 @@ func (g *schemaGenerator) qualifiedName(t reflect.Type) string {
 	}
 }
 
-func (g *schemaGenerator) resourceDetails(t reflect.Type) (string, string) {
-	pckDesc, ok := g.packages[pkgPath(t)]
-	var kind string
+func (g *schemaGenerator) resourceDetails(t reflect.Type) (string) {
 	var name = strings.ToLower(t.Name())
-
-	if ok {
-		if strings.Compare(strings.Split(pckDesc.Prefix, "_")[0], "os") == 0 {
-			kind = ResourceOpenshift
-		} else {
-			kind = ResourceKubernetes
-		}
-	}
-
-	return kind, name
+	return name
 }
 
 func (g *schemaGenerator) generateReference(t reflect.Type) string {
@@ -214,13 +203,11 @@ func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
 	s.JSONObjectDescriptor = g.generateObjectDescriptor(t)
 	if len(g.types) > 0 {
 		s.Definitions = make(map[string]JSONPropertyDescriptor)
-		s.Resources = Resource{
-			Kubernetes: make(map[string]*JSONObjectDescriptor),
-			OpenShift:  make(map[string]*JSONObjectDescriptor),
-		}
+		s.Resources = make(map[string]*JSONObjectDescriptor)
+
 		for k, v := range g.types {
 			name := g.qualifiedName(k)
-			kind, resource := g.resourceDetails(k)
+			resource := g.resourceDetails(k)
 			value := JSONPropertyDescriptor{
 				JSONDescriptor: &JSONDescriptor{
 					Type: "object",
@@ -234,9 +221,7 @@ func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
 				},
 			}
 			s.Definitions[name] = value
-			if kind != "" {
-				s.Resources.add(kind, resource, v)
-			}
+			s.Resources[resource] = v
 		}
 	}
 
@@ -449,13 +434,4 @@ func (g *schemaGenerator) addConstraints(objectName string, propName string, pro
 
 func pkgPath(t reflect.Type) string {
 	return strings.TrimPrefix(t.PkgPath(), "github.com/fabric8io/kubernetes-model/vendor/")
-}
-
-func (r *Resource) add(kind string, resource string, val *JSONObjectDescriptor) {
-	switch kind {
-	case ResourceOpenshift:
-		r.OpenShift[resource] = val
-	case ResourceKubernetes:
-		r.Kubernetes[resource] = val
-	}
 }
