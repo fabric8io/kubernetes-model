@@ -22,11 +22,6 @@ import (
 	"strings"
 )
 
-const (
-	ResourceOpenshift  = "openshift"
-	ResourceKubernetes = "kubernetes"
-)
-
 type PackageDescriptor struct {
 	GoPackage   string
 	JavaPackage string
@@ -87,7 +82,7 @@ func (g *schemaGenerator) qualifiedName(t reflect.Type) string {
 	}
 }
 
-func (g *schemaGenerator) resourceDetails(t reflect.Type) (string) {
+func (g *schemaGenerator) resourceDetails(t reflect.Type) string {
 	var name = strings.ToLower(t.Name())
 	return name
 }
