@@ -125,6 +125,8 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 	pkgDesc, ok := g.packages[pkgPath(t)]
 	if t.Kind() == reflect.Struct && ok {
 		switch t.Name() {
+		case "Time":
+			return "String"
 		case "RawExtension":
 			return "io.fabric8.kubernetes.api.model.HasMetadata"
 		case "List":
@@ -152,6 +154,9 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 		case reflect.Map:
 			return "java.util.Map<String," + g.javaTypeWrapPrimitive(t.Elem()) + ">"
 		default:
+			if t.Name() == "Time" {
+				return "String"
+			}
 			if len(t.Name()) == 0 && t.NumField() == 0 {
 				return "Object"
 			}

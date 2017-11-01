@@ -124,6 +124,11 @@
                 <delete file="${basedir}/target/generated-sources/io/fabric8/openshift/api/model/Template.java" verbose="true" />
                 <delete file="${basedir}/target/generated-sources/io/fabric8/kubernetes/api/model/HasMetadata.java" verbose="true" />
                 <delete file="${basedir}/target/generated-sources/io/fabric8/kubernetes/api/model/WatchEvent.java" verbose="true" />
+                <delete verbose="true">
+                  <fileset dir="${basedir}/target/generated-sources">
+                    <include name="*.java"/>
+                  </fileset>
+                </delete>
               </target>
             </configuration>
             <goals>
