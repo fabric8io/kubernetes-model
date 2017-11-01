@@ -62,7 +62,7 @@
       "properties": {
         "lastTransitionTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "message": {
           "type": "string",
@@ -339,7 +339,7 @@
         },
         "creationTimestamp": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "deletionGracePeriodSeconds": {
           "type": "integer",
@@ -348,7 +348,7 @@
         },
         "deletionTimestamp": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "finalizers": {
           "type": "array",
@@ -599,7 +599,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.Time",
+      "javaType": "String",
       "javaInterfaces": [
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
@@ -1379,7 +1379,7 @@
       "properties": {
         "startedAt": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         }
       },
       "additionalProperties": true,
@@ -1402,7 +1402,7 @@
         },
         "finishedAt": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "message": {
           "type": "string",
@@ -1418,7 +1418,7 @@
         },
         "startedAt": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         }
       },
       "additionalProperties": true,
@@ -1882,7 +1882,7 @@
         },
         "firstTimestamp": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "involvedObject": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
@@ -1896,7 +1896,7 @@
         },
         "lastTimestamp": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "message": {
           "type": "string",
@@ -2831,11 +2831,11 @@
       "properties": {
         "lastHeartbeatTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "lastTransitionTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "message": {
           "type": "string",
@@ -3812,11 +3812,11 @@
       "properties": {
         "lastProbeTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "lastTransitionTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "message": {
           "type": "string",
@@ -4103,7 +4103,7 @@
         },
         "startTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         }
       },
       "additionalProperties": true,
@@ -4440,7 +4440,7 @@
       "properties": {
         "lastTransitionTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "message": {
           "type": "string",
@@ -5421,7 +5421,7 @@
         },
         "timeAdded": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "value": {
           "type": "string",
@@ -6250,7 +6250,7 @@
         },
         "lastScaleTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "observedGeneration": {
           "type": "integer",
@@ -6389,7 +6389,7 @@
         },
         "lastScheduleTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         }
       },
       "additionalProperties": true,
@@ -6439,11 +6439,11 @@
       "properties": {
         "lastProbeTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "lastTransitionTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "message": {
           "type": "string",
@@ -6550,7 +6550,7 @@
         },
         "completionTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "conditions": {
           "type": "array",
@@ -6566,7 +6566,7 @@
         },
         "startTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "succeeded": {
           "type": "integer",
@@ -7157,11 +7157,11 @@
       "properties": {
         "lastTransitionTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "lastUpdateTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "message": {
           "type": "string",
@@ -7804,7 +7804,7 @@
       "properties": {
         "lastTransitionTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "message": {
           "type": "string",
@@ -8310,7 +8310,7 @@
         },
         "lastModified": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "metadata": {
           "$ref": "#/definitions/k8s_io_apimachinery_ObjectMeta",
@@ -8349,7 +8349,7 @@
         },
         "lastModified": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "metadata": {
           "$ref": "#/definitions/k8s_io_apimachinery_ObjectMeta",
@@ -8772,7 +8772,7 @@
         },
         "lastModified": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "metadata": {
           "$ref": "#/definitions/k8s_io_apimachinery_ObjectMeta",
@@ -8811,7 +8811,7 @@
         },
         "lastModified": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "metadata": {
           "$ref": "#/definitions/k8s_io_apimachinery_ObjectMeta",
@@ -9891,7 +9891,7 @@
         },
         "completionTimestamp": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "config": {
           "$ref": "#/definitions/kubernetes_ObjectReference",
@@ -9936,7 +9936,7 @@
         },
         "startTimestamp": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         }
       },
       "additionalProperties": true,
@@ -10675,7 +10675,7 @@
         },
         "startTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "steps": {
           "type": "array",
@@ -10707,7 +10707,7 @@
         },
         "startTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         }
       },
       "additionalProperties": true,
@@ -10806,11 +10806,11 @@
       "properties": {
         "lastTransitionTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "lastUpdateTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "message": {
           "type": "string",
@@ -11471,7 +11471,7 @@
         },
         "created": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "imageIdentity": {
           "type": "string",
@@ -11765,11 +11765,11 @@
       "properties": {
         "lastProbeTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "lastTransitionTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "message": {
           "type": "string",
@@ -11861,7 +11861,7 @@
       "properties": {
         "created": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "dockerImageReference": {
           "type": "string",
@@ -11894,7 +11894,7 @@
         },
         "lastTransitionTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "message": {
           "type": "string",
@@ -12654,7 +12654,7 @@
       "properties": {
         "lastTransitionTime": {
           "$ref": "#/definitions/k8s_io_apimachinery_Time",
-          "javaType": "io.fabric8.kubernetes.api.model.Time"
+          "javaType": "String"
         },
         "message": {
           "type": "string",
