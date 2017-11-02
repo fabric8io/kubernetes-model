@@ -82,6 +82,11 @@ func (g *schemaGenerator) qualifiedName(t reflect.Type) string {
 	}
 }
 
+func (g *schemaGenerator) resourceDetails(t reflect.Type) string {
+	var name = strings.ToLower(t.Name())
+	return name
+}
+
 func (g *schemaGenerator) generateReference(t reflect.Type) string {
 	return "#/definitions/" + g.qualifiedName(t)
 }
@@ -193,8 +198,11 @@ func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
 	s.JSONObjectDescriptor = g.generateObjectDescriptor(t)
 	if len(g.types) > 0 {
 		s.Definitions = make(map[string]JSONPropertyDescriptor)
+		s.Resources = make(map[string]*JSONObjectDescriptor)
+
 		for k, v := range g.types {
 			name := g.qualifiedName(k)
+			resource := g.resourceDetails(k)
 			value := JSONPropertyDescriptor{
 				JSONDescriptor: &JSONDescriptor{
 					Type: "object",
@@ -208,8 +216,10 @@ func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
 				},
 			}
 			s.Definitions[name] = value
+			s.Resources[resource] = v
 		}
 	}
+
 	return &s, nil
 }
 
@@ -312,6 +322,7 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSO
 			},
 		}
 	}
+
 	return JSONPropertyDescriptor{}
 }
 

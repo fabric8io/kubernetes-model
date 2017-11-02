@@ -50,6 +50,8 @@ import (
 	watch "k8s.io/kubernetes/pkg/watch/json"
 
 	"github.com/fabric8io/kubernetes-model/pkg/schemagen"
+	//"os"
+	"os"
 )
 
 type Schema struct {
@@ -91,7 +93,9 @@ type Schema struct {
 	ImageList                         imageapi.ImageList
 	ImageStreamList                   imageapi.ImageStreamList
 	ImageStreamTagList                imageapi.ImageStreamTagList
+	DeploymentConfig                  deployapi.DeploymentConfig
 	DeploymentConfigList              deployapi.DeploymentConfigList
+	Route                             routeapi.Route
 	RouteList                         routeapi.RouteList
 	ComponentStatusList               kapi.ComponentStatusList
 	ContainerStatus                   kapi.ContainerStatus
@@ -215,6 +219,11 @@ func main() {
 	if err != nil {
 		fmt.Errorf("An error occurred: %v", err)
 		return
+	}
+
+	args := os.Args[1:]
+	if len(args) < 1 || args[0] != "validation" {
+		schema.Resources = nil
 	}
 
 	b, err := json.Marshal(&schema)
