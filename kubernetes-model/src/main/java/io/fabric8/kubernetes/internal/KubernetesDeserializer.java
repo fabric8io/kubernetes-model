@@ -61,6 +61,13 @@ public class KubernetesDeserializer extends JsonDeserializer<KubernetesResource>
         return null;
     }
 
+    /**
+     * Registers a Custom Resource Definition Kind
+     */
+    public static void registerCustomKind(String kind, Class<? extends KubernetesResource> clazz) {
+        MAP.put(kind, clazz);
+    }
+
     private static Class getTypeForName(String name) {
         Class result = MAP.get(name);
         if (result == null) {
