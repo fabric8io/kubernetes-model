@@ -47,6 +47,7 @@ import (
 	batchapiv2alpha1 "k8s.io/kubernetes/pkg/apis/batch/v2alpha1"
 	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 	storageclassapi "k8s.io/kubernetes/pkg/apis/storage/v1"
+	certificatesapi "k8s.io/kubernetes/pkg/apis/certificates/v1beta1"
 	watch "k8s.io/kubernetes/pkg/watch/json"
 
 	"github.com/fabric8io/kubernetes-model/pkg/schemagen"
@@ -173,6 +174,8 @@ type Schema struct {
 	CustomResourceDefinitionNames     apiextensions.CustomResourceDefinitionNames
 	CustomResourceDefinitionCondition apiextensions.CustomResourceDefinitionCondition
 	CustomResourceDefinitionStatus    apiextensions.CustomResourceDefinitionStatus
+	CertificateSigningRequest         certificatesapi.CertificateSigningRequest
+	CertificateSigningRequestList     certificatesapi.CertificateSigningRequestList
 	StorageClass                      storageclassapi.StorageClass
 	StorageClassList                  storageclassapi.StorageClassList
 }
@@ -201,6 +204,7 @@ func main() {
 		{"k8s.io/kubernetes/pkg/api/unversioned", "io.fabric8.kubernetes.api.model", "api_"},
 		{"k8s.io/kubernetes/pkg/apis/extensions/v1beta1", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_extensions_"},
 		{"k8s.io/kubernetes/pkg/apis/authentication/v1", "io.fabric8.kubernetes.api.model.authentication", "kubernetes_authentication_"},
+		{"k8s.io/kubernetes/pkg/apis/certificates/v1beta1", "io.fabric8.kubernetes.api.model", "kubernetes_certificates_"},
 		{"k8s.io/kubernetes/pkg/apis/apps/v1beta1", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_apps_"},
 		{"k8s.io/kubernetes/pkg/apis/batch/v2alpha1", "io.fabric8.kubernetes.api.model", "kubernetes_batch_"},
 		{"k8s.io/kubernetes/pkg/apis/batch/v1", "io.fabric8.kubernetes.api.model", "kubernetes_batch_"},
