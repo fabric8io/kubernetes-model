@@ -1,34 +1,39 @@
 # JSON Schema Generator for OpenShift v3 Origin API Objects
 
-Uses Go reflection to generate a JSON schema that describes one or more 
-API resources in Openshift Origin.
+Uses [Go reflection](https://blog.golang.org/laws-of-reflection) to generate a JSON schema that describes one or more
+API resources in OpenShift Origin.
 
-## Pre-requisits
+## Prerequisites
 
-Install [go](https://golang.org/doc/install)   
-Install [glide](https://github.com/Masterminds/glide#install)   
+- Install [Go](https://golang.org/doc/install)
+- Install [Glide](https://github.com/Masterminds/glide#install)
 
 
 ## Getting the code
 
-```
-git clone https://github.com/fabric8io/kubernetes-model $GOPATH/src/github.com/fabric8io/kubernetes-model
-```
+  ```
+  git clone https://github.com/fabric8io/kubernetes-model $GOPATH/src/github.com/fabric8io/kubernetes-model
+  ```
 
 
 ## Building
 
-To build, clone repo and run:  
+- Navigate into the cloned repo:
 
-```
-make
-```
+  ```
+  cd $GOPATH/src/github.com/fabric8io/kubernetes-model
+  ```
 
-You should now be able to view the generated schema in `kube-schema.json`
+- Run:
+  ```
+  make
+  ```
+
+  You should now be able to view the generated schema in `kube-schema.json`
 
 ## Update dependency API's
 
-To update openshift/kubernetes dependencies, run:
+To update OpenShift/Kubernetes dependencies, run:
 ```
 make vendoring
 ```
