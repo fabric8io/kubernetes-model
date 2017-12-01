@@ -17,8 +17,6 @@ package io.fabric8.kubernetes.api.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fabric8.kubernetes.api.builder.Visitor;
-import io.fabric8.openshift.api.model.Template;
-import io.fabric8.openshift.api.model.TemplateBuilder;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -50,15 +48,6 @@ public class UnmarshallTest {
         //We just want to make sure that it visits nested objects when deserialization from json is used.
         // The exact number is volatile so we just care about the minimum number of objects (list, pod and service).
         Assert.assertTrue(integer.intValue() >= 3);
-
-
-        Template template = (Template) mapper.readValue(getClass().getResourceAsStream("/simple-template.json"), KubernetesResource.class);
-        integer.set(0);
-        new TemplateBuilder(template).accept(new Visitor() {
-            public void visit(Object o) {
-                integer.incrementAndGet();
-            }
-        });
 
         //We just want to make sure that it visits nested objects when deserialization from json is used.
         // The exact number is volatile so we just care about the minimum number of objects (list, pod and service).
