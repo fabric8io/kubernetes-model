@@ -26,7 +26,7 @@
     </parent>
 
     <groupId>io.ucosty</groupId>
-    <version>3.0-SNAPSHOT</version>
+    <version>3.0</version>
 
     <artifactId>kubernetes-api-parent</artifactId>
     <packaging>pom</packaging>
@@ -58,12 +58,12 @@
         </developer>
     </developers>
 
-    <!--<scm>-->
-        <!--<connection>scm:git:git@github.com:ucosty/kubernetes-model.git</connection>-->
-        <!--<developerConnection>scm:git:git@github.com:ucosty/kubernetes-model.git</developerConnection>-->
-        <!--<url>http://github.com/ucosty/kubernetes-model/</url>-->
+    <scm>
+        <connection>scm:git:git@github.com:ucosty/kubernetes-model.git</connection>
+        <developerConnection>scm:git:git@github.com:ucosty/kubernetes-model.git</developerConnection>
+        <url>http://github.com/ucosty/kubernetes-model/</url>
         <!--<tag>kubernetes-model-generator-1.0.15</tag>-->
-    <!--</scm>-->
+    </scm>
 
     <distributionManagement>
         <repository>
