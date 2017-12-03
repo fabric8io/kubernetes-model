@@ -26,7 +26,7 @@
 
     <groupId>io.ucosty</groupId>
     <artifactId>kubernetes-client</artifactId>
-    <name>Fabric8 :: Kubernetes :: Java Client</name>
+    <name>Kubernetes Client</name>
     <packaging>jar</packaging>
 
     <properties>
