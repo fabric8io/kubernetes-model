@@ -1,0 +1,43 @@
+#
+# Copyright (C) 2015 Red Hat, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+io.ucosty.kubernetes.client.handlers.ClusterRoleHandler
+io.ucosty.kubernetes.client.handlers.ClusterRoleBindingHandler
+io.ucosty.kubernetes.client.handlers.RoleHandler
+io.ucosty.kubernetes.client.handlers.RoleBindingHandler
+io.ucosty.kubernetes.client.handlers.ConfigMapHandler
+io.ucosty.kubernetes.client.handlers.CustomResourceDefinitionHandler
+io.ucosty.kubernetes.client.handlers.DaemonSetHandler
+io.ucosty.kubernetes.client.handlers.DeploymentHandler
+io.ucosty.kubernetes.client.handlers.EndpointsHandler
+io.ucosty.kubernetes.client.handlers.EventHandler
+io.ucosty.kubernetes.client.handlers.HorizontalPodAutoscalerHandler
+io.ucosty.kubernetes.client.handlers.IngressHandler
+io.ucosty.kubernetes.client.handlers.NetworkPolicyHandler
+io.ucosty.kubernetes.client.handlers.JobHandler
+io.ucosty.kubernetes.client.handlers.NamespaceHandler
+io.ucosty.kubernetes.client.handlers.NodeHandler
+io.ucosty.kubernetes.client.handlers.PersistentVolumeClaimHandler
+io.ucosty.kubernetes.client.handlers.PersistentVolumeHandler
+io.ucosty.kubernetes.client.handlers.PodHandler
+io.ucosty.kubernetes.client.handlers.ReplicaSetHandler
+io.ucosty.kubernetes.client.handlers.ReplicationControllerHandler
+io.ucosty.kubernetes.client.handlers.ResourceQuotaHandler
+io.ucosty.kubernetes.client.handlers.SecretHandler
+io.ucosty.kubernetes.client.handlers.ServiceAccountHandler
+io.ucosty.kubernetes.client.handlers.ServiceHandler
+io.ucosty.kubernetes.client.handlers.StatefulSetHandler
+io.ucosty.kubernetes.client.handlers.ThirdPartyResourceHandler

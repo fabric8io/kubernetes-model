@@ -1,4 +1,4 @@
-# JSON Schema Generator for OpenShift v3 Origin API Objects
+# JSON Schema Generator for Kubernetes API Objects
 
 Uses [Go reflection](https://blog.golang.org/laws-of-reflection) to generate a JSON schema that describes one or more
 API resources in OpenShift Origin.
@@ -33,7 +33,7 @@ API resources in OpenShift Origin.
 
 ## Update dependency API's
 
-To update OpenShift/Kubernetes dependencies, run:
+To update Kubernetes dependencies, run:
 ```
 make vendoring
 ```
