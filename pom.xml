@@ -26,7 +26,7 @@
     </parent>
 
     <groupId>io.ucosty</groupId>
-    <version>3.1-SNAPSHOT</version>
+    <version>3.1</version>
 
     <artifactId>kubernetes-api-parent</artifactId>
     <packaging>pom</packaging>
@@ -67,15 +67,10 @@
 
     <distributionManagement>
         <repository>
-            <id>oss-sonatype-staging</id>
-            <name>Sonatype Staging Repository</name>
-            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2</url>
+            <id>central</id>
+            <name>artifactory.a2org.com-releases</name>
+            <url>https://artifactory.a2org.com/artifactory/libs-release</url>
         </repository>
-        <snapshotRepository>
-            <id>oss-sonatype-snapshots</id>
-            <name>OSS Sonatype Nexus Snapshots</name>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
-        </snapshotRepository>
     </distributionManagement>
 
     <properties>
