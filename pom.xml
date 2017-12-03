@@ -58,12 +58,12 @@
         </developer>
     </developers>
 
-    <scm>
-        <connection>scm:git:git@github.com:ucosty/kubernetes-model.git</connection>
-        <developerConnection>scm:git:git@github.com:ucosty/kubernetes-model.git</developerConnection>
-        <url>http://github.com/ucosty/kubernetes-model/</url>
-        <tag>kubernetes-model-generator-1.0.15</tag>
-    </scm>
+    <!--<scm>-->
+        <!--<connection>scm:git:git@github.com:ucosty/kubernetes-model.git</connection>-->
+        <!--<developerConnection>scm:git:git@github.com:ucosty/kubernetes-model.git</developerConnection>-->
+        <!--<url>http://github.com/ucosty/kubernetes-model/</url>-->
+        <!--<tag>kubernetes-model-generator-1.0.15</tag>-->
+    <!--</scm>-->
 
     <distributionManagement>
         <repository>
@@ -223,47 +223,47 @@
                             <Os-Name>${os.name}</Os-Name>
                             <Os-Arch>${os.arch}</Os-Arch>
                             <Os-Version>${os.version}</Os-Version>
-                            <Scm-Url>${project.scm.url}</Scm-Url>
-                            <Scm-Connection>${project.scm.connection}</Scm-Connection>
-                            <Scm-Revision>${buildNumber}</Scm-Revision>
+                            <!--<Scm-Url>${project.scm.url}</Scm-Url>-->
+                            <!--<Scm-Connection>${project.scm.connection}</Scm-Connection>-->
+                            <!--<Scm-Revision>${buildNumber}</Scm-Revision>-->
                             <Build-Timestamp>${build.datetime}</Build-Timestamp>
                         </manifestEntries>
                     </archive>
                 </configuration>
             </plugin>
             <!-- Set properties containing the scm revision and build timestamp -->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>buildnumber-maven-plugin</artifactId>
-                <version>${buildnumber.plugin.version}</version>
-                <executions>
-                    <execution>
-                        <id>get-build-timestamp</id>
-                        <phase>initialize</phase>
-                        <goals>
-                            <goal>create-timestamp</goal>
-                        </goals>
-                        <configuration>
-                            <!-- Example date: Wed, 4 Jul 2001 12:08:56 -0700 -->
-                            <timestampFormat>EEE, d MMM yyyy HH:mm:ss Z</timestampFormat>
-                            <timestampPropertyName>build.datetime</timestampPropertyName>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>get-scm-revision</id>
-                        <phase>initialize</phase>
-                        <goals>
-                            <goal>create</goal>
-                        </goals>
-                        <configuration>
-                            <doCheck>false</doCheck>
-                            <doUpdate>false</doUpdate>
-                            <revisionOnScmFailure>UNKNOWN</revisionOnScmFailure>
-                            <getRevisionOnlyOnce>true</getRevisionOnlyOnce>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
+            <!--<plugin>-->
+                <!--<groupId>org.codehaus.mojo</groupId>-->
+                <!--<artifactId>buildnumber-maven-plugin</artifactId>-->
+                <!--<version>${buildnumber.plugin.version}</version>-->
+                <!--<executions>-->
+                    <!--<execution>-->
+                        <!--<id>get-build-timestamp</id>-->
+                        <!--<phase>initialize</phase>-->
+                        <!--<goals>-->
+                            <!--<goal>create-timestamp</goal>-->
+                        <!--</goals>-->
+                        <!--<configuration>-->
+                            <!--&lt;!&ndash; Example date: Wed, 4 Jul 2001 12:08:56 -0700 &ndash;&gt;-->
+                            <!--<timestampFormat>EEE, d MMM yyyy HH:mm:ss Z</timestampFormat>-->
+                            <!--<timestampPropertyName>build.datetime</timestampPropertyName>-->
+                        <!--</configuration>-->
+                    <!--</execution>-->
+                    <!--<execution>-->
+                        <!--<id>get-scm-revision</id>-->
+                        <!--<phase>initialize</phase>-->
+                        <!--<goals>-->
+                            <!--<goal>create</goal>-->
+                        <!--</goals>-->
+                        <!--<configuration>-->
+                            <!--<doCheck>false</doCheck>-->
+                            <!--<doUpdate>false</doUpdate>-->
+                            <!--<revisionOnScmFailure>UNKNOWN</revisionOnScmFailure>-->
+                            <!--<getRevisionOnlyOnce>true</getRevisionOnlyOnce>-->
+                        <!--</configuration>-->
+                    <!--</execution>-->
+                <!--</executions>-->
+            <!--</plugin>-->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
