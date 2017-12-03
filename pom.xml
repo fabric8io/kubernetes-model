@@ -26,7 +26,7 @@
     </parent>
 
     <groupId>io.ucosty</groupId>
-    <version>3.0</version>
+    <version>3.0-SNAPSHOT</version>
 
     <artifactId>kubernetes-api-parent</artifactId>
     <packaging>pom</packaging>
