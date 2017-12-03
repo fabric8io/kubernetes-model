@@ -18,13 +18,13 @@
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <groupId>io.fabric8</groupId>
+        <groupId>io.ucosty</groupId>
         <artifactId>kubernetes-api-parent</artifactId>
         <version>3.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.fabric8</groupId>
+    <groupId>io.ucosty</groupId>
     <artifactId>kubernetes-client</artifactId>
     <name>Fabric8 :: Kubernetes :: Java Client</name>
     <packaging>jar</packaging>
@@ -35,14 +35,14 @@
             *
         </osgi.import>
         <osgi.export>
-            io.fabric8.kubernetes.client*;-noimport:=true,
-            io.fabric8.kubernetes.internal;-noimport:=true,
+            io.ucosty.kubernetes.client*;-noimport:=true,
+            io.ucosty.kubernetes.internal;-noimport:=true,
         </osgi.export>
         <osgi.private>
-            io.fabric8.kubernetes.client.internal,
-            io.fabric8.kubernetes.client.handlers,
-            io.fabric8.kubernetes.client.dsl.base,
-            io.fabric8.kubernetes.client.dsl.internal
+            io.ucosty.kubernetes.client.internal,
+            io.ucosty.kubernetes.client.handlers,
+            io.ucosty.kubernetes.client.dsl.base,
+            io.ucosty.kubernetes.client.dsl.internal
         </osgi.private>
     </properties>
 
@@ -156,7 +156,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>io.fabric8</groupId>
+            <groupId>io.ucosty</groupId>
             <artifactId>kubernetes-model</artifactId>
             <version>${project.parent.version}</version>
         </dependency>

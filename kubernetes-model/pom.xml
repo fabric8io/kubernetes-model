@@ -18,7 +18,7 @@
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <parent>
-        <groupId>io.fabric8</groupId>
+        <groupId>io.ucosty</groupId>
         <artifactId>kubernetes-api-parent</artifactId>
         <version>3.0-SNAPSHOT</version>
     </parent>
@@ -89,13 +89,13 @@
                 <version>${jsonschema2pojo.version}</version>
                 <configuration>
                     <sourceDirectory>${kube.dir}/schema</sourceDirectory>
-                    <targetPackage>io.fabric8.kubernetes.api.model</targetPackage>
+                    <targetPackage>io.ucosty.kubernetes.api.model</targetPackage>
                     <includeConstructors>true</includeConstructors>
                     <includeJsr303Annotations>true</includeJsr303Annotations>
                     <includeToString>false</includeToString>
                     <includeHashcodeAndEquals>false</includeHashcodeAndEquals>
                     <outputDirectory>${basedir}/target/generated-sources</outputDirectory>
-                    <customAnnotator>io.fabric8.kubernetes.annotator.KubernetesTypeAnnotator</customAnnotator>
+                    <customAnnotator>io.ucosty.kubernetes.annotator.KubernetesTypeAnnotator</customAnnotator>
                     <annotationStyle>none</annotationStyle>
                 </configuration>
                 <executions>
@@ -107,7 +107,7 @@
                 </executions>
                 <dependencies>
                     <dependency>
-                        <groupId>io.fabric8</groupId>
+                        <groupId>io.ucosty</groupId>
                         <artifactId>kubernetes-model-annotator</artifactId>
                         <version>${project.version}</version>
                     </dependency>
@@ -122,10 +122,10 @@
                         <configuration>
                             <target>
                                 <echo>removing the duplicate generated calss</echo>
-                                <delete file="${basedir}/target/generated-sources/io/fabric8/kubernetes/api/model/IntOrString.java" verbose="true" />
-                                <delete file="${basedir}/target/generated-sources/io/fabric8/kubernetes/api/model/Quantity.java" verbose="true" />
-                                <delete file="${basedir}/target/generated-sources/io/fabric8/kubernetes/api/model/HasMetadata.java" verbose="true" />
-                                <delete file="${basedir}/target/generated-sources/io/fabric8/kubernetes/api/model/WatchEvent.java" verbose="true" />
+                                <delete file="${basedir}/target/generated-sources/io/ucosty/kubernetes/api/model/IntOrString.java" verbose="true" />
+                                <delete file="${basedir}/target/generated-sources/io/ucosty/kubernetes/api/model/Quantity.java" verbose="true" />
+                                <delete file="${basedir}/target/generated-sources/io/ucosty/kubernetes/api/model/HasMetadata.java" verbose="true" />
+                                <delete file="${basedir}/target/generated-sources/io/ucosty/kubernetes/api/model/WatchEvent.java" verbose="true" />
                                 <delete verbose="true">
                                     <fileset dir="${basedir}/target/generated-sources">
                                         <include name="*.java"/>
@@ -148,11 +148,11 @@
                     <instructions>
                         <Bundle-SymbolicName>${project.groupId}.${project.artifactId}</Bundle-SymbolicName>
                         <Export-Package>
-                            io.fabric8.kubernetes.api.builder,
-                            io.fabric8.kubernetes.api.model,
-                            io.fabric8.kubernetes.api.model.apiextensions,
-                            io.fabric8.kubernetes.api.model.extensions,
-                            io.fabric8.kubernetes.api.model.validators
+                            io.ucosty.kubernetes.api.builder,
+                            io.ucosty.kubernetes.api.model,
+                            io.ucosty.kubernetes.api.model.apiextensions,
+                            io.ucosty.kubernetes.api.model.extensions,
+                            io.ucosty.kubernetes.api.model.validators
                         </Export-Package>
                     </instructions>
                 </configuration>
