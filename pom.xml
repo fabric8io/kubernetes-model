@@ -26,7 +26,7 @@
     </parent>
 
     <groupId>io.ucosty</groupId>
-    <version>3.0-SNAPSHOT</version>
+    <version>3.0</version>
 
     <artifactId>kubernetes-api-parent</artifactId>
     <packaging>pom</packaging>
@@ -81,6 +81,7 @@
     </distributionManagement>
 
     <properties>
+        <maven.javadoc.skip>true</maven.javadoc.skip>
 
         <!-- should we include the integration test in this build? -->
         <itest>true</itest>
@@ -137,16 +138,16 @@
         <exec.master>https://localhost:8443</exec.master>
         <mockwebserver.version>0.0.17</mockwebserver.version>
         <javadoc.include.deps>false</javadoc.include.deps>
-        <javadoc.source.includes/>
-        <javadoc.package.excludes/>
+        <javadoc.source.includes />
+        <javadoc.package.excludes />
 
-        <osgi.import/>
-        <osgi.export/>
-        <osgi.private/>
-        <osgi.dynamic.import/>
-        <osgi.bundles/>
-        <osgi.activator/>
-        <osgi.export.service/>
+        <osgi.import />
+        <osgi.export />
+        <osgi.private />
+        <osgi.dynamic.import />
+        <osgi.bundles />
+        <osgi.activator />
+        <osgi.export.service />
     </properties>
 
     <modules>
