@@ -8315,7 +8315,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "rbac/v1alpha1",
+          "default": "rbac/v1beta1",
           "required": true
         },
         "kind": {
@@ -8350,7 +8350,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "rbac/v1alpha1",
+          "default": "rbac/v1beta1",
           "required": true
         },
         "kind": {
@@ -8389,7 +8389,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "rbac/v1alpha1",
+          "default": "rbac/v1beta1",
           "required": true
         },
         "items": {
@@ -8425,7 +8425,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "rbac/v1alpha1",
+          "default": "rbac/v1beta1",
           "required": true
         },
         "items": {
@@ -8512,7 +8512,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "rbac/v1alpha1",
+          "default": "rbac/v1beta1",
           "required": true
         },
         "kind": {
@@ -8547,7 +8547,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "rbac/v1alpha1",
+          "default": "rbac/v1beta1",
           "required": true
         },
         "kind": {
@@ -8586,7 +8586,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "rbac/v1alpha1",
+          "default": "rbac/v1beta1",
           "required": true
         },
         "items": {
@@ -8622,7 +8622,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "rbac/v1alpha1",
+          "default": "rbac/v1beta1",
           "required": true
         },
         "items": {
@@ -8678,7 +8678,7 @@
       "type": "object",
       "description": "",
       "properties": {
-        "apiVersion": {
+        "apiGroup": {
           "type": "string",
           "description": ""
         },

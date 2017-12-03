@@ -39,7 +39,7 @@ import (
 	storageclassapi "k8s.io/kubernetes/pkg/apis/storage/v1"
 	certificatesapi "k8s.io/kubernetes/pkg/apis/certificates/v1beta1"
 	watch "k8s.io/kubernetes/pkg/watch/json"
-	rbacv1alpha1 "k8s.io/kubernetes/pkg/apis/rbac/v1alpha1"
+	rbac "k8s.io/kubernetes/pkg/apis/rbac/v1beta1"
 
 	"github.com/fabric8io/kubernetes-model/pkg/schemagen"
 	//"os"
@@ -80,14 +80,14 @@ type Schema struct {
 	ComponentStatusList               kapi.ComponentStatusList
 	ContainerStatus                   kapi.ContainerStatus
 	TokenReview                       authenticationapi.TokenReview
-	Role                              rbacv1alpha1.Role
-	RoleList                          rbacv1alpha1.RoleList
-	RoleBinding                       rbacv1alpha1.RoleBinding
-	RoleBindingList                   rbacv1alpha1.RoleBindingList
-    ClusterRole                       rbacv1alpha1.ClusterRole
-    ClusterRoleList                   rbacv1alpha1.ClusterRoleList
-    ClusterRoleBinding                rbacv1alpha1.ClusterRoleBinding
-    ClusterRoleBindingList            rbacv1alpha1.ClusterRoleBindingList
+	Role                              rbac.Role
+	RoleList                          rbac.RoleList
+	RoleBinding                       rbac.RoleBinding
+	RoleBindingList                   rbac.RoleBindingList
+  ClusterRole                       rbac.ClusterRole
+  ClusterRoleList                   rbac.ClusterRoleList
+  ClusterRoleBinding                rbac.ClusterRoleBinding
+  ClusterRoleBindingList            rbac.ClusterRoleBindingList
 	Config                            configapi.Config
 	WatchEvent                        watch.WatchEvent
 	RootPaths                         metav1.RootPaths
@@ -150,8 +150,8 @@ func main() {
 		{"k8s.io/kubernetes/pkg/apis/autoscaling/v1", "io.fabric8.kubernetes.api.model", "kubernetes_autoscaling_"},
 		{"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1", "io.fabric8.kubernetes.api.model.apiextensions", "k8s_io_apiextensions_"},
 		{"k8s.io/apimachinery/pkg/apis/meta/v1", "io.fabric8.kubernetes.api.model", "k8s_io_apimachinery_"},
-        {"k8s.io/kubernetes/pkg/apis/storage/v1", "io.fabric8.kubernetes.api.model", "kubernetes_storageclass_"},
-		{"k8s.io/kubernetes/pkg/apis/rbac/v1alpha1", "io.fabric8.kubernetes.api.model", "kubernetes_rbac_"},
+    {"k8s.io/kubernetes/pkg/apis/storage/v1", "io.fabric8.kubernetes.api.model", "kubernetes_storageclass_"},
+		{"k8s.io/kubernetes/pkg/apis/rbac/v1beta1", "io.fabric8.kubernetes.api.model", "kubernetes_rbac_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{
