@@ -23,9 +23,6 @@ import java.io.Serializable;
 
 @JsonDeserialize(using = KubernetesDeserializer.class)
 public interface KubernetesResourceList<E extends io.ucosty.kubernetes.api.model.HasMetadata> extends Serializable  {
-
-  ListMeta getMetadata();
-
-  List<E> getItems();
-
+    ListMeta getMetadata();
+    List<E> getItems();
 }

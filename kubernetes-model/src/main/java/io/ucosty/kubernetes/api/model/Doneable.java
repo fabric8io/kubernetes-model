@@ -16,6 +16,5 @@
 package io.ucosty.kubernetes.api.model;
 
 public interface Doneable<T> {
-
     T done();
 }

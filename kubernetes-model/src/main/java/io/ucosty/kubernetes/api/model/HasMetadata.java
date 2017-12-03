@@ -17,11 +17,11 @@ package io.ucosty.kubernetes.api.model;
 
 public interface HasMetadata extends KubernetesResource {
 
-  ObjectMeta getMetadata();
-  void setMetadata(ObjectMeta metadata);
+    ObjectMeta getMetadata();
+    void setMetadata(ObjectMeta metadata);
 
-  String getKind();
+    String getKind();
 
-  String getApiVersion();
-  void setApiVersion(String version);
+    String getApiVersion();
+    void setApiVersion(String version);
 }

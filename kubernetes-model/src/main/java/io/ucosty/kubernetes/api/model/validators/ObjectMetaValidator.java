@@ -22,83 +22,83 @@ import javax.validation.ConstraintValidatorContext;
 
 public class ObjectMetaValidator implements ConstraintValidator<CheckObjectMeta, ObjectMeta> {
 
-  private String regexp;
-  private int max;
-  private boolean minimal;
+    private String regexp;
+    private int max;
+    private boolean minimal;
 
-  private static final String[] NAME_MAY_NOT_BE = new String[]{".", ".."};
-  private static final String[] NAME_MAY_NOT_CONTAIN = new String[]{"/", "%"};
+    private static final String[] NAME_MAY_NOT_BE = new String[]{".", ".."};
+    private static final String[] NAME_MAY_NOT_CONTAIN = new String[]{"/", "%"};
 
-  @Override
-  public void initialize(CheckObjectMeta constraintAnnotation) {
-    regexp = constraintAnnotation.regexp();
-    max = constraintAnnotation.max();
-    minimal = constraintAnnotation.minimal();
-  }
-
-  @Override
-  public boolean isValid(ObjectMeta value, ConstraintValidatorContext context) {
-    if (value == null || value.getName() == null) {
-      return true;
+    @Override
+    public void initialize(CheckObjectMeta constraintAnnotation) {
+        regexp = constraintAnnotation.regexp();
+        max = constraintAnnotation.max();
+        minimal = constraintAnnotation.minimal();
     }
 
-    String name = value.getName();
+    @Override
+    public boolean isValid(ObjectMeta value, ConstraintValidatorContext context) {
+        if (value == null || value.getName() == null) {
+            return true;
+        }
 
-    if (minimal) {
-      return validateMinimal(name, context);
+        String name = value.getName();
+
+        if (minimal) {
+            return validateMinimal(name, context);
+        }
+
+        return validateRegex(name, context);
     }
 
-    return validateRegex(name, context);
-  }
+    private boolean validateRegex(String name, ConstraintValidatorContext context) {
+        if (!name.matches(regexp)) {
+            context.disableDefaultConstraintViolation();
+            context.buildConstraintViolationWithTemplate(
+                    "{io.ucosty.kubernetes.api.model.Pattern.message}")
+                    .addPropertyNode("name")
+                    .addConstraintViolation();
 
-  private boolean validateRegex(String name, ConstraintValidatorContext context) {
-    if (!name.matches(regexp)) {
-      context.disableDefaultConstraintViolation();
-      context.buildConstraintViolationWithTemplate(
-          "{io.ucosty.kubernetes.api.model.Pattern.message}")
-          .addPropertyNode("name")
-          .addConstraintViolation();
+            return false;
+        }
+        if (0 <= max && max < name.length()) {
+            context.disableDefaultConstraintViolation();
+            context.buildConstraintViolationWithTemplate(
+                    "{io.ucosty.kubernetes.api.model.MaxLength.message}")
+                    .addPropertyNode("name")
+                    .addConstraintViolation();
 
-      return false;
-    }
-    if (0 <= max && max < name.length()) {
-      context.disableDefaultConstraintViolation();
-      context.buildConstraintViolationWithTemplate(
-          "{io.ucosty.kubernetes.api.model.MaxLength.message}")
-          .addPropertyNode("name")
-          .addConstraintViolation();
+            return false;
+        }
 
-      return false;
-    }
-
-    return true;
-  }
-
-  private boolean validateMinimal(String name, ConstraintValidatorContext context) {
-    for (String illegalName : NAME_MAY_NOT_BE) {
-      if (illegalName.equals(name)) {
-        context.disableDefaultConstraintViolation();
-        context.buildConstraintViolationWithTemplate(
-            "name may not be " + illegalName)
-            .addPropertyNode("name")
-            .addConstraintViolation();
-
-        return false;
-      }
+        return true;
     }
 
-    for (String illegalContent : NAME_MAY_NOT_CONTAIN) {
-      if (name.contains(illegalContent)) {
-        context.disableDefaultConstraintViolation();
-        context.buildConstraintViolationWithTemplate(
-            "name may not contain " + illegalContent)
-            .addPropertyNode("name")
-            .addConstraintViolation();
+    private boolean validateMinimal(String name, ConstraintValidatorContext context) {
+        for (String illegalName : NAME_MAY_NOT_BE) {
+            if (illegalName.equals(name)) {
+                context.disableDefaultConstraintViolation();
+                context.buildConstraintViolationWithTemplate(
+                        "name may not be " + illegalName)
+                        .addPropertyNode("name")
+                        .addConstraintViolation();
 
-        return false;
-      }
+                return false;
+            }
+        }
+
+        for (String illegalContent : NAME_MAY_NOT_CONTAIN) {
+            if (name.contains(illegalContent)) {
+                context.disableDefaultConstraintViolation();
+                context.buildConstraintViolationWithTemplate(
+                        "name may not contain " + illegalContent)
+                        .addPropertyNode("name")
+                        .addConstraintViolation();
+
+                return false;
+            }
+        }
+
+        return true;
     }
-
-    return true;
-  }
 }

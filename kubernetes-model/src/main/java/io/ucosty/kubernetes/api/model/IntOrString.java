@@ -47,9 +47,9 @@ import java.util.Map;
 @JsonDeserialize(using = IntOrString.Deserializer.class)
 @JsonSerialize(using = IntOrString.Serializer.class)
 @JsonPropertyOrder({
-    "IntVal",
-    "Kind",
-    "StrVal"
+        "IntVal",
+        "Kind",
+        "StrVal"
 })
 @ToString
 @EqualsAndHashCode

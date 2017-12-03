@@ -31,17 +31,10 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Documented
 @Inherited
 public @interface CheckObjectMeta {
-
-  String message() default "{io.ucosty.kubernetes.api.model.ObjectMeta.message}";
-
-  Class<?>[] groups() default { };
-
-  Class<? extends Payload>[] payload() default { };
-
-  String regexp() default "";
-
-  int max() default -1;
-
-  boolean minimal() default false;
-
+    String message() default "{io.ucosty.kubernetes.api.model.ObjectMeta.message}";
+    Class<?>[] groups() default { };
+    Class<? extends Payload>[] payload() default { };
+    String regexp() default "";
+    int max() default -1;
+    boolean minimal() default false;
 }

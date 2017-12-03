@@ -38,8 +38,8 @@ import java.util.Map;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonPropertyOrder({
-    "object",
-    "type"
+        "object",
+        "type"
 })
 @JsonDeserialize(using = com.fasterxml.jackson.databind.JsonDeserializer.None.class)
 @ToString
@@ -48,91 +48,91 @@ import java.util.Map;
 public class WatchEvent implements KubernetesResource
 {
 
-  /**
-   *
-   *
-   */
-  @JsonProperty("object")
-  @Valid
-  private KubernetesResource object;
-  /**
-   * the type of watch event; may be ADDED
-   *
-   */
-  @JsonProperty("type")
-  private String type;
-  @JsonIgnore
-  private Map<String, Object> additionalProperties = new HashMap<String, Object>();
+    /**
+     *
+     *
+     */
+    @JsonProperty("object")
+    @Valid
+    private KubernetesResource object;
+    /**
+     * the type of watch event; may be ADDED
+     *
+     */
+    @JsonProperty("type")
+    private String type;
+    @JsonIgnore
+    private Map<String, Object> additionalProperties = new HashMap<String, Object>();
 
-  /**
-   * No args constructor for use in serialization
-   *
-   */
-  public WatchEvent() {
-  }
+    /**
+     * No args constructor for use in serialization
+     *
+     */
+    public WatchEvent() {
+    }
 
-  /**
-   *
-   * @param type
-   * @param object
-   */
-  public WatchEvent(KubernetesResource object, String type) {
-    this.object = object;
-    this.type = type;
-  }
+    /**
+     *
+     * @param type
+     * @param object
+     */
+    public WatchEvent(KubernetesResource object, String type) {
+        this.object = object;
+        this.type = type;
+    }
 
-  /**
-   *
-   *
-   * @return
-   *     The object
-   */
-  @JsonProperty("object")
-  public KubernetesResource getObject() {
-    return object;
-  }
+    /**
+     *
+     *
+     * @return
+     *     The object
+     */
+    @JsonProperty("object")
+    public KubernetesResource getObject() {
+        return object;
+    }
 
-  /**
-   *
-   *
-   * @param object
-   *     The object
-   */
-  @JsonProperty("object")
-  public void setObject(KubernetesResource object) {
-    this.object = object;
-  }
+    /**
+     *
+     *
+     * @param object
+     *     The object
+     */
+    @JsonProperty("object")
+    public void setObject(KubernetesResource object) {
+        this.object = object;
+    }
 
-  /**
-   * the type of watch event; may be ADDED
-   *
-   * @return
-   *     The type
-   */
-  @JsonProperty("type")
-  public String getType() {
-    return type;
-  }
+    /**
+     * the type of watch event; may be ADDED
+     *
+     * @return
+     *     The type
+     */
+    @JsonProperty("type")
+    public String getType() {
+        return type;
+    }
 
-  /**
-   * the type of watch event; may be ADDED
-   *
-   * @param type
-   *     The type
-   */
-  @JsonProperty("type")
-  public void setType(String type) {
-    this.type = type;
-  }
+    /**
+     * the type of watch event; may be ADDED
+     *
+     * @param type
+     *     The type
+     */
+    @JsonProperty("type")
+    public void setType(String type) {
+        this.type = type;
+    }
 
-  @JsonAnyGetter
-  public Map<String, Object> getAdditionalProperties() {
-    return this.additionalProperties;
-  }
+    @JsonAnyGetter
+    public Map<String, Object> getAdditionalProperties() {
+        return this.additionalProperties;
+    }
 
-  @JsonAnySetter
-  public void setAdditionalProperty(String name, Object value) {
-    this.additionalProperties.put(name, value);
-  }
+    @JsonAnySetter
+    public void setAdditionalProperty(String name, Object value) {
+        this.additionalProperties.put(name, value);
+    }
 
 }

@@ -23,30 +23,30 @@ import java.net.URL;
 
 public interface Client extends ConfigAware, Closeable {
 
-  /**
-   * Checks if the client can be adapted to an other client type.
-   * @param type  The target client class.
-   * @param <C>   The target client type.
-   * @return      Returns true if a working {@link io.ucosty.kubernetes.client.ExtensionAdapter} is found.
-   */
-  <C> Boolean  isAdaptable(Class<C> type);
+    /**
+     * Checks if the client can be adapted to an other client type.
+     * @param type  The target client class.
+     * @param <C>   The target client type.
+     * @return      Returns true if a working {@link io.ucosty.kubernetes.client.ExtensionAdapter} is found.
+     */
+    <C> Boolean  isAdaptable(Class<C> type);
 
-  <C> C adapt(Class<C> type);
+    <C> C adapt(Class<C> type);
 
-  URL getMasterUrl();
+    URL getMasterUrl();
 
-  String getApiVersion();
+    String getApiVersion();
 
-  String getNamespace();
+    String getNamespace();
 
-  RootPaths rootPaths();
+    RootPaths rootPaths();
 
-  /**
-   * Returns true if this cluster supports the given API path or API Group ID
-   * @param path
-   * @return
-   */
-  boolean supportsApiPath(String path);
+    /**
+     * Returns true if this cluster supports the given API path or API Group ID
+     * @param path
+     * @return
+     */
+    boolean supportsApiPath(String path);
 
-  void close();
+    void close();
 }

@@ -30,7 +30,6 @@ import io.sundr.builder.annotations.Inline;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
-import javax.annotation.Generated;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
