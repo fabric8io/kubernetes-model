@@ -33,8 +33,8 @@
 
     <name>Kubernetes API</name>
 
-    <url>http://fabric8.io/</url>
-    <inceptionYear>2011</inceptionYear>
+    <url>http://ucosty.io/</url>
+    <inceptionYear>2017</inceptionYear>
 
     <organization>
         <name>Red Hat</name>
@@ -49,21 +49,19 @@
         </license>
     </licenses>
 
-    <!-- including A developer as it's required by the maven poms going into
-      central -->
     <developers>
         <developer>
             <id>geeks</id>
-            <name>Fabric8 Development Team</name>
-            <organization>fabric8</organization>
-            <organizationUrl>http://fabric8.io/</organizationUrl>
+            <name>ucosty</name>
+            <organization>ucosty</organization>
+            <organizationUrl>http://ucosty.io/</organizationUrl>
         </developer>
     </developers>
 
     <scm>
-        <connection>scm:git:git@github.com:fabric8io/kubernetes-model.git</connection>
-        <developerConnection>scm:git:git@github.com:fabric8io/kubernetes-model.git</developerConnection>
-        <url>http://github.com/fabric8io/kubernetes-model/</url>
+        <connection>scm:git:git@github.com:ucosty/kubernetes-model.git</connection>
+        <developerConnection>scm:git:git@github.com:ucosty/kubernetes-model.git</developerConnection>
+        <url>http://github.com/ucosty/kubernetes-model/</url>
         <tag>kubernetes-model-generator-1.0.15</tag>
     </scm>
 
