@@ -23,22 +23,20 @@ import static net.javacrumbs.jsonunit.core.Option.IGNORING_EXTRA_FIELDS;
 import static net.javacrumbs.jsonunit.core.Option.TREATING_NULL_AS_ABSENT;
 import static net.javacrumbs.jsonunit.fluent.JsonFluentAssert.assertThatJson;
 
-public class JsonConsistencyTest {
-
+public class SecretTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
-    public void should_produce_same_json_from_unmarshalled_one() throws Exception {
+    public void secretTest() throws Exception {
         // given
-        final String originalPodJson = Helper.loadJson("/valid-pod.json");
+        final String originalJson = Helper.loadJson("/valid-secret.json");
 
         // when
-        final Pod pod = mapper.readValue(originalPodJson, Pod.class);
-        final String serializedPodAsJson = mapper.writeValueAsString(pod);
+        final Secret secret = mapper.readValue(originalJson, Secret.class);
+        final String serializedJson = mapper.writeValueAsString(secret);
 
         // then
-        assertThatJson(serializedPodAsJson).when(IGNORING_ARRAY_ORDER, TREATING_NULL_AS_ABSENT, IGNORING_EXTRA_FIELDS)
-            .isEqualTo(originalPodJson);
+        assertThatJson(serializedJson).when(IGNORING_ARRAY_ORDER, TREATING_NULL_AS_ABSENT, IGNORING_EXTRA_FIELDS)
+                .isEqualTo(originalJson);
     }
-
 }
