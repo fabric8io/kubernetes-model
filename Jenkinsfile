@@ -14,20 +14,48 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-node{
-  ws{
-    checkout scm
-    sh "git remote set-url origin git@github.com:fabric8io/kubernetes-model.git"
+@Library('github.com/fabric8io/fabric8-pipeline-library@master')
+def dummy
+goTemplate{
+  mavenNode {
+    ws{
 
-    def pipeline = load 'release.groovy'
 
-    stage 'Stage'
-    def stagedProject = pipeline.stage()
+    def buildPath = "/home/jenkins/go/src/github.com/fabric8io/kubernetes-model"
 
-    stage 'Approve'
-    pipeline.approveRelease(stagedProject)
+    sh "mkdir -p ${buildPath}"
 
-    stage 'Promote'
-    pipeline.release(stagedProject)
+    dir(buildPath) {
+      checkout scm
+      readTrusted 'release.groovy'
+
+//for now the idea is that this step is run locally to dev env
+//      container(name: 'go') {
+//        sh 'make gobuild'
+//      }
+
+      if (env.BRANCH_NAME.startsWith('PR-')){
+        echo 'Running CI pipeline'
+        container(name: 'maven') {
+          sh 'mvn clean install'
+        }
+      } else if (env.BRANCH_NAME.equals('master')){
+        echo 'Running CD pipeline'
+        sh "git remote set-url origin git@github.com:fabric8io/kubernetes-model.git"
+
+        def pipeline = load 'release.groovy'
+
+        stage 'Stage'
+        def stagedProject = pipeline.stage()
+
+        stage 'Promote'
+        pipeline.release(stagedProject)
+
+//enable if needed
+//      stage 'Update downstream dependencies'
+//        pipeline.updateDownstreamDependencies(stagedProject)
+      }
+    }
+    }
   }
 }
