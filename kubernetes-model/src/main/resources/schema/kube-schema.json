@@ -5466,14 +5466,37 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
-    "kubernetes_extensions_HorizontalPodAutoscaler": {
+    "kubernetes_autoscaling_CrossVersionObjectReference": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": ""
+        },
+        "kind": {
+          "type": "string",
+          "description": ""
+        },
+        "name": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.CrossVersionObjectReference",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_autoscaling_HorizontalPodAutoscaler": {
       "type": "object",
       "description": "",
       "properties": {
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "extensions/v1beta1",
+          "default": "autoscaling/v1",
           "required": true
         },
         "kind": {
@@ -5487,36 +5510,36 @@
           "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "spec": {
-          "$ref": "#/definitions/kubernetes_extensions_HorizontalPodAutoscalerSpec",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscalerSpec"
+          "$ref": "#/definitions/kubernetes_autoscaling_HorizontalPodAutoscalerSpec",
+          "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscalerSpec"
         },
         "status": {
-          "$ref": "#/definitions/kubernetes_extensions_HorizontalPodAutoscalerStatus",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscalerStatus"
+          "$ref": "#/definitions/kubernetes_autoscaling_HorizontalPodAutoscalerStatus",
+          "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscalerStatus"
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscaler",
+      "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscaler",
       "javaInterfaces": [
         "io.fabric8.kubernetes.api.model.HasMetadata"
       ]
     },
-    "kubernetes_extensions_HorizontalPodAutoscalerList": {
+    "kubernetes_autoscaling_HorizontalPodAutoscalerList": {
       "type": "object",
       "description": "",
       "properties": {
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "extensions/v1beta1",
+          "default": "autoscaling/v1",
           "required": true
         },
         "items": {
           "type": "array",
           "description": "",
           "items": {
-            "$ref": "#/definitions/kubernetes_extensions_HorizontalPodAutoscaler",
-            "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscaler"
+            "$ref": "#/definitions/kubernetes_autoscaling_HorizontalPodAutoscaler",
+            "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscaler"
           }
         },
         "kind": {
@@ -5531,20 +5554,16 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscalerList",
+      "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscalerList",
       "javaInterfaces": [
         "io.fabric8.kubernetes.api.model.KubernetesResource",
         "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
-    "kubernetes_extensions_HorizontalPodAutoscalerSpec": {
+    "kubernetes_autoscaling_HorizontalPodAutoscalerSpec": {
       "type": "object",
       "description": "",
       "properties": {
-        "cpuUtilization": {
-          "$ref": "#/definitions/kubernetes_extensions_CPUTargetUtilization",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.CPUTargetUtilization"
-        },
         "maxReplicas": {
           "type": "integer",
           "description": ""
@@ -5553,18 +5572,22 @@
           "type": "integer",
           "description": ""
         },
-        "scaleRef": {
-          "$ref": "#/definitions/kubernetes_extensions_SubresourceReference",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.SubresourceReference"
+        "scaleTargetRef": {
+          "$ref": "#/definitions/kubernetes_autoscaling_CrossVersionObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.CrossVersionObjectReference"
+        },
+        "targetCPUUtilizationPercentage": {
+          "type": "integer",
+          "description": ""
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscalerSpec",
+      "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscalerSpec",
       "javaInterfaces": [
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
-    "kubernetes_extensions_HorizontalPodAutoscalerStatus": {
+    "kubernetes_autoscaling_HorizontalPodAutoscalerStatus": {
       "type": "object",
       "description": "",
       "properties": {
@@ -5591,7 +5614,7 @@
         }
       },
       "additionalProperties": true,
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscalerStatus",
+      "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscalerStatus",
       "javaInterfaces": [
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
@@ -10917,12 +10940,12 @@
       "javaType": "io.fabric8.openshift.api.model.GroupList"
     },
     "HorizontalPodAutoscaler": {
-      "$ref": "#/definitions/kubernetes_extensions_HorizontalPodAutoscaler",
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscaler"
+      "$ref": "#/definitions/kubernetes_autoscaling_HorizontalPodAutoscaler",
+      "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscaler"
     },
     "HorizontalPodAutoscalerList": {
-      "$ref": "#/definitions/kubernetes_extensions_HorizontalPodAutoscalerList",
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.HorizontalPodAutoscalerList"
+      "$ref": "#/definitions/kubernetes_autoscaling_HorizontalPodAutoscalerList",
+      "javaType": "io.fabric8.kubernetes.api.model.HorizontalPodAutoscalerList"
     },
     "Identity": {
       "$ref": "#/definitions/os_user_Identity",
