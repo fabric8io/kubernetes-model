@@ -17,13 +17,16 @@
 @Library('github.com/fabric8io/fabric8-pipeline-library@master')
 def dummy
 clientsTemplate{
-  mavenNode {
+  def parameters = ['javaOptions':'-Duser.home=/root/ -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -Dsun.zip.disableMemoryMapping=true -XX:+UseParallelGC -XX:MinHeapFreeRatio=5 -XX:MaxHeapFreeRatio=10 -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Xms10m -Xmx1024m']
+  mavenNode(parameters) {
     ws{
       checkout scm
       readTrusted 'release.groovy'
       if (env.BRANCH_NAME.startsWith('PR-')){
         echo 'Running CI pipeline'
         container(name: 'maven') {
+          sh 'mvn -version'
+          sh 'java -version'
           sh 'mvn clean install'
         }
       } else if (env.BRANCH_NAME.equals('master')){
