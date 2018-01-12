@@ -8346,8 +8346,12 @@
           "description": ""
         },
         "ranges":{
-          "$ref": "#/definitions/kubernetes_extensions_IDRange",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_IDRange",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
+          }
         }
       },
       "additionalProperties": true,
@@ -8366,8 +8370,12 @@
           "required": true
         },
         "ranges":{
-          "$ref": "#/definitions/kubernetes_extensions_IDRange",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_IDRange",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
+          }
         }
       },
       "additionalProperties": true,
@@ -8385,9 +8393,9 @@
           "description": "",
           "required": true
         },
-        "ranges":{
-          "$ref": "#/definitions/kubernetes_extensions_IDRange",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
+        "seLinuxOptions": {
+          "$ref": "#/definitions/kubernetes_SELinuxOptions",
+          "javaType": "io.fabric8.kubernetes.api.model.SELinuxOptions"
         }
       },
       "additionalProperties": true,
@@ -8405,8 +8413,12 @@
           "description": ""
         },
         "ranges":{
-          "$ref": "#/definitions/kubernetes_extensions_IDRange",
-          "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_IDRange",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
+          }
         }
       },
       "additionalProperties": true,
