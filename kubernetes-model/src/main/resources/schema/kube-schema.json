@@ -8127,6 +8127,338 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "kubernetes_extensions_PodSecurityPolicy": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "extensions/v1beta1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PodSecurityPolicy",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/k8s_io_apimachinery_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/kubernetes_extensions_PodSecurityPolicySpec",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.PodSecurityPolicySpec"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.PodSecurityPolicy",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_extensions_PodSecurityPolicyList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "extensions/v1beta1",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_PodSecurityPolicy",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.PodSecurityPolicy"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PodSecurityPolicyList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/k8s_io_apimachinery_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.PodSecurityPolicyList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kubernetes_extensions_PodSecurityPolicySpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "allowPrivilegeEscalation": {
+          "type": "boolean",
+          "description": ""
+        },
+        "allowedCapabilities": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "allowedFlexVolumes": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_AllowedFlexVolume",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.AllowedFlexVolume"
+          }
+        },
+        "allowedHostPath":{
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_extensions_AllowedHostPath",
+            "javaType": "io.fabric8.kubernetes.api.model.extensions.AllowedHostPath"
+          }
+        },
+        "defaultAddCapabilities":{
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "defaultAllowPriviledgeEscalation": {
+          "type": "boolean",
+          "description": ""
+        },
+        "fsGroup": {
+          "$ref": "#/definitions/kubernetes_extensions_FSGroupStrategyOptions",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.FSGroupStrategyOptions",
+          "required": true
+        },
+        "hostIPC": {
+          "type": "boolean",
+          "description": ""
+        },
+        "hostNetwork": {
+          "type": "boolean",
+          "description": ""
+        },
+        "hostPID": {
+          "type": "boolean",
+          "description": ""
+        },
+        "hostPorts": {
+          "$ref": "#/definitions/kubernetes_extensions_HostPortRange",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.HostPortRange"
+        },
+        "privileged": {
+          "type": "boolean",
+          "description": ""
+        },
+        "readOnlyRootFilesystem": {
+          "type": "boolean",
+          "description": ""
+        },
+        "requiredDropCapabilities": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "runAsUser": {
+          "$ref": "#/definitions/kubernetes_extensions_RunAsUserStrategyOptions",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.RunAsUserStrategyOptions",
+          "required": true
+        },
+        "seLinux": {
+          "$ref": "#/definitions/kubernetes_extensions_SELinuxStrategyOptions",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.SELinuxStrategyOptions",
+          "required": true
+        },
+        "supplementalGroups": {
+          "$ref": "#/definitions/kubernetes_extensions_SupplementalGroupsStrategyOptions",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.SupplementalGroupsStrategyOptions",
+          "required": true
+        },
+        "volumes": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.PodSecurityPolicySpec",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_extensions_AllowedFlexVolume": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "driver": {
+          "type": "string",
+          "description": "",
+          "required": true
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.AllowedFlexVolume",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_extensions_AllowedHostPath": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "pathPrefix": {
+          "type": "string",
+          "description": "",
+          "required": true
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.AllowedHostPath",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_extensions_FSGroupStrategyOptions": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "rule": {
+          "type": "string",
+          "description": ""
+        },
+        "ranges":{
+          "$ref": "#/definitions/kubernetes_extensions_IDRange",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.FSGroupStrategyOptions",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_extensions_RunAsUserStrategyOptions": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "rule": {
+          "type": "string",
+          "description": "",
+          "required": true
+        },
+        "ranges":{
+          "$ref": "#/definitions/kubernetes_extensions_IDRange",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.RunAsUserStrategyOptions",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_extensions_SELinuxStrategyOptions": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "rule": {
+          "type": "string",
+          "description": "",
+          "required": true
+        },
+        "ranges":{
+          "$ref": "#/definitions/kubernetes_extensions_IDRange",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.SELinuxStrategyOptions",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_extensions_SupplementalGroupsStrategyOptions": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "rule": {
+          "type": "string",
+          "description": ""
+        },
+        "ranges":{
+          "$ref": "#/definitions/kubernetes_extensions_IDRange",
+          "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.SupplementalGroupsStrategyOptions",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_extensions_IDRange": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "min": {
+          "type": "integer",
+          "description": "",
+          "required": true,
+          "javaType": "Long"
+        },
+        "max": {
+          "type": "integer",
+          "description": "",
+          "required": true,
+          "javaType": "Long"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_extensions_HostPortRange": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "min": {
+          "type": "integer",
+          "description": "",
+          "required": true
+        },
+        "max": {
+          "type": "integer",
+          "description": "",
+          "required": true
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.HostPortRange",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "kubernetes_extensions_RollbackConfig": {
       "type": "object",
       "description": "",
@@ -13999,6 +14331,14 @@
     "PodList": {
       "$ref": "#/definitions/kubernetes_PodList",
       "javaType": "io.fabric8.kubernetes.api.model.PodList"
+    },
+    "PodSecurityPolicy": {
+      "$ref": "#/definitions/kubernetes_extensions_PodSecurityPolicy",
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.PodSecurityPolicy"
+    },
+    "PodSecurityPolicyList": {
+      "$ref": "#/definitions/kubernetes_extensions_PodSecurityPolicyList",
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.PodSecurityPolicyFList"
     },
     "PodTemplateList": {
       "$ref": "#/definitions/kubernetes_PodTemplateList",
