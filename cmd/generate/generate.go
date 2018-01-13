@@ -158,7 +158,7 @@ type Schema struct {
 	DeploymentList                    extensions.DeploymentList
 	DeploymentRollback                extensions.DeploymentRollback
 	PodSecurityPolicy                 extensions.PodSecurityPolicy
-	PodSecurityPolicyList             extensions.PodSecuirtyPolicyList
+	PodSecurityPolicyList             extensions.PodSecurityPolicyList
 	StatefulSet                       appsapi.StatefulSet
 	StatefulSetList                   appsapi.StatefulSetList
 	DaemonSet                         extensions.DaemonSet

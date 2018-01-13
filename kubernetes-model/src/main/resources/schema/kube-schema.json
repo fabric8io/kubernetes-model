@@ -8218,7 +8218,7 @@
             "javaType": "io.fabric8.kubernetes.api.model.extensions.AllowedFlexVolume"
           }
         },
-        "allowedHostPath":{
+        "allowedHostPath": {
           "type": "array",
           "description": "",
           "items": {
@@ -8226,7 +8226,7 @@
             "javaType": "io.fabric8.kubernetes.api.model.extensions.AllowedHostPath"
           }
         },
-        "defaultAddCapabilities":{
+        "defaultAddCapabilities": {
           "type": "array",
           "description": "",
           "items": {
@@ -8345,7 +8345,7 @@
           "type": "string",
           "description": ""
         },
-        "ranges":{
+        "ranges": {
           "type": "array",
           "description": "",
           "items": {
@@ -8369,7 +8369,7 @@
           "description": "",
           "required": true
         },
-        "ranges":{
+        "ranges": {
           "type": "array",
           "description": "",
           "items": {
@@ -8412,7 +8412,7 @@
           "type": "string",
           "description": ""
         },
-        "ranges":{
+        "ranges": {
           "type": "array",
           "description": "",
           "items": {
@@ -14350,7 +14350,7 @@
     },
     "PodSecurityPolicyList": {
       "$ref": "#/definitions/kubernetes_extensions_PodSecurityPolicyList",
-      "javaType": "io.fabric8.kubernetes.api.model.extensions.PodSecurityPolicyFList"
+      "javaType": "io.fabric8.kubernetes.api.model.extensions.PodSecurityPolicyList"
     },
     "PodTemplateList": {
       "$ref": "#/definitions/kubernetes_PodTemplateList",
