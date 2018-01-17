@@ -382,7 +382,9 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 						if strings.HasPrefix(path, "github.com/openshift/origin/pkg/") {
 							groupPostfix = ".openshift.io"
 						}
-						apiVersion = apiGroup + groupPostfix + "/" + apiVersion
+						if t.Name() != "SecurityContextConstraints" && t.Name() != "SecurityContextConstraintsList" {
+						    apiVersion = apiGroup + groupPostfix + "/" + apiVersion
+						}
 					}
 					v = JSONPropertyDescriptor{
 						JSONDescriptor: &JSONDescriptor{

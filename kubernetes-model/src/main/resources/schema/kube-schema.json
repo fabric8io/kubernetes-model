@@ -13177,7 +13177,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "security.openshift.io/v1",
+          "default": "v1",
           "required": true
         },
         "defaultAddCapabilities": {
@@ -13276,7 +13276,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "security.openshift.io/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
