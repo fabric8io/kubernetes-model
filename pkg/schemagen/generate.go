@@ -382,6 +382,11 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 						if strings.HasPrefix(path, "github.com/openshift/origin/pkg/") {
 							groupPostfix = ".openshift.io"
 						}
+
+						//Added a special case for SecurityContextConstraints and SecurityContextConstraintsList
+						//Because its fetching "security.openshift.io/v1"
+						//and "v1" is working with kubernetes-client
+						 
 						if t.Name() != "SecurityContextConstraints" && t.Name() != "SecurityContextConstraintsList" {
 						    apiVersion = apiGroup + groupPostfix + "/" + apiVersion
 						}
