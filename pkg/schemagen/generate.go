@@ -130,15 +130,19 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 	}
 	pkgDesc, ok := g.packages[pkgPath(t)]
 	if t.Kind() == reflect.Struct && ok {
-		switch t.Name() {
-		case "Time":
-			return "String"
-		case "RawExtension":
-			return "io.fabric8.kubernetes.api.model.HasMetadata"
-		case "List":
-			return pkgDesc.JavaPackage + ".BaseKubernetesList"
-		default:
-			return pkgDesc.JavaPackage + "." + t.Name()
+	    if g.qualifiedName(t) == "kubernetes_extensions_RunAsUserStrategyOptions" {
+	        return pkgDesc.JavaPackage + "." + "Kubernetes" + t.Name()
+	    } else {
+		    switch t.Name() {
+		    case "Time":
+		       	return "String"
+		    case "RawExtension":
+		    	return "io.fabric8.kubernetes.api.model.HasMetadata"
+		    case "List":
+		    	return pkgDesc.JavaPackage + ".BaseKubernetesList"
+		    default:
+		    	return pkgDesc.JavaPackage + "." + t.Name()
+		    }
 		}
 	} else {
 		switch t.Kind() {
