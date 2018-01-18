@@ -129,6 +129,12 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 		t = t.Elem()
 	}
 	pkgDesc, ok := g.packages[pkgPath(t)]
+
+	//Added a special case for RunAsUserStrategyOptions
+	//If i don't add a prefix it get conflict with
+	//openShift RunAsUserStrategyOptions and project give compilation error
+	//because both classes are different
+
 	if t.Kind() == reflect.Struct && ok {
 	    if g.qualifiedName(t) == "kubernetes_extensions_RunAsUserStrategyOptions" {
 	        return pkgDesc.JavaPackage + "." + "Kubernetes" + t.Name()
