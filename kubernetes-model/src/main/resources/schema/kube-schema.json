@@ -8612,6 +8612,141 @@
         "io.fabric8.kubernetes.api.model.KubernetesResourceList"
       ]
     },
+    "kubernetes_policy_PodDisruptionBudget": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "policy/v1beta1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PodDisruptionBudget",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/k8s_io_apimachinery_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/kubernetes_policy_PodDisruptionBudgetSpec",
+          "javaType": "io.fabric8.kubernetes.api.model.policy.PodDisruptionBudgetSpec"
+        },
+        "status": {
+          "$ref": "#/definitions/kubernetes_policy_PodDisruptionBudgetStatus",
+          "javaType": "io.fabric8.kubernetes.api.model.policy.PodDisruptionBudgetStatus"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.policy.PodDisruptionBudget",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_policy_PodDisruptionBudgetList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "policy/v1beta1",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_policy_PodDisruptionBudget",
+            "javaType": "io.fabric8.kubernetes.api.model.policy.PodDisruptionBudget"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "PodDisruptionBudgetList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/k8s_io_apimachinery_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.policy.PodDisruptionBudgetList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kubernetes_policy_PodDisruptionBudgetSpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "maxUnavailable": {
+          "$ref": "#/definitions/k8s_io_apimachinery_pkg_util_intstr_IntOrString",
+          "javaType": "io.fabric8.kubernetes.api.model.IntOrString"
+        },
+        "minAvailable": {
+          "$ref": "#/definitions/k8s_io_apimachinery_pkg_util_intstr_IntOrString",
+          "javaType": "io.fabric8.kubernetes.api.model.IntOrString"
+        },
+        "selector": {
+          "$ref": "#/definitions/k8s_io_apimachinery_LabelSelector",
+          "javaType": "io.fabric8.kubernetes.api.model.LabelSelector"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.policy.PodDisruptionBudgetSpec",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "kubernetes_policy_PodDisruptionBudgetStatus": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "currentHealthy": {
+          "type": "integer",
+          "description": ""
+        },
+        "desiredHealthy": {
+          "type": "integer",
+          "description": ""
+        },
+        "disruptedPods": {
+          "type": "object",
+          "description": "",
+          "additionalProperties": {
+            "$ref": "#/definitions/k8s_io_apimachinery_Time",
+            "javaType": "String"
+          },
+          "javaType": "java.util.Map\u003cString,String\u003e"
+        },
+        "disruptionsAllowed": {
+          "type": "integer",
+          "description": ""
+        },
+        "expectedPods": {
+          "type": "integer",
+          "description": ""
+        },
+        "observedGeneration": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.policy.PodDisruptionBudgetStatus",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "kubernetes_resource_Quantity": {
       "type": "object",
       "description": "",
@@ -14277,6 +14412,14 @@
     "PersistentVolumeList": {
       "$ref": "#/definitions/kubernetes_PersistentVolumeList",
       "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeList"
+    },
+    "PodDisruptionBudget": {
+      "$ref": "#/definitions/kubernetes_policy_PodDisruptionBudget",
+      "javaType": "io.fabric8.kubernetes.api.model.policy.PodDisruptionBudget"
+    },
+    "PodDisruptionBudgetList": {
+      "$ref": "#/definitions/kubernetes_policy_PodDisruptionBudgetList",
+      "javaType": "io.fabric8.kubernetes.api.model.policy.PodDisruptionBudgetList"
     },
     "PodList": {
       "$ref": "#/definitions/kubernetes_PodList",
