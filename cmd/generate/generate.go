@@ -47,6 +47,7 @@ import (
 	batchapiv1 "k8s.io/kubernetes/pkg/apis/batch/v1"
 	batchapiv2alpha1 "k8s.io/kubernetes/pkg/apis/batch/v2alpha1"
 	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
+	policy "k8s.io/kubernetes/pkg/apis/policy/v1beta1"
 	storageclassapi "k8s.io/kubernetes/pkg/apis/storage/v1"
 	watch "k8s.io/kubernetes/pkg/watch/json"
 
@@ -159,6 +160,8 @@ type Schema struct {
 	DeploymentRollback                extensions.DeploymentRollback
 	PodSecurityPolicy                 extensions.PodSecurityPolicy
 	PodSecurityPolicyList             extensions.PodSecurityPolicyList
+	PodDisruptionBudget               policy.PodDisruptionBudget
+	PodDisruptionBudgetList           policy.PodDisruptionBudgetList
 	StatefulSet                       appsapi.StatefulSet
 	StatefulSetList                   appsapi.StatefulSetList
 	DaemonSet                         extensions.DaemonSet
@@ -205,6 +208,7 @@ func main() {
 		{"github.com/openshift/origin/pkg/security/apis/security/v1", "", "io.fabric8.openshift.api.model", "os_security_"},
 		{"k8s.io/kubernetes/pkg/api/unversioned", "", "io.fabric8.kubernetes.api.model", "api_"},
 		{"k8s.io/kubernetes/pkg/apis/extensions/v1beta1", "", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_extensions_"},
+		{"k8s.io/kubernetes/pkg/apis/policy/v1beta1", "", "io.fabric8.kubernetes.api.model.policy", "kubernetes_policy_"},
 		{"k8s.io/kubernetes/pkg/apis/authentication/v1", "authentication.k8s.io", "io.fabric8.kubernetes.api.model.authentication", "kubernetes_authentication_"},
 		{"k8s.io/kubernetes/pkg/apis/authorization/v1", "authorization.k8s.io", "io.fabric8.kubernetes.api.model.authorization", "kubernetes_authorization_"},
 		{"k8s.io/kubernetes/pkg/apis/apps/v1beta1", "", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_apps_"},
