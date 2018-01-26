@@ -5,27 +5,30 @@ import (
 
 	"github.com/golang/glog"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
+	kapihelper "k8s.io/kubernetes/pkg/api/helper"
 
-	osapi "github.com/openshift/origin/pkg/sdn/api"
+	"github.com/openshift/origin/pkg/sdn"
+	osapi "github.com/openshift/origin/pkg/sdn/apis/network"
 )
 
 type multiTenantPlugin struct {
 	node  *OsdnNode
 	vnids *nodeVNIDMap
 
-	vnidRefsLock sync.Mutex
-	vnidRefs     map[uint32]int
+	vnidInUseLock sync.Mutex
+	vnidInUse     map[uint32]bool
 }
 
 func NewMultiTenantPlugin() osdnPolicy {
 	return &multiTenantPlugin{
-		vnidRefs: make(map[uint32]int),
+		vnidInUse: make(map[uint32]bool),
 	}
 }
 
 func (mp *multiTenantPlugin) Name() string {
-	return osapi.MultiTenantPluginName
+	return sdn.MultiTenantPluginName
 }
 
 func (mp *multiTenantPlugin) Start(node *OsdnNode) error {
@@ -35,7 +38,7 @@ func (mp *multiTenantPlugin) Start(node *OsdnNode) error {
 		return err
 	}
 
-	otx := node.ovs.NewTransaction()
+	otx := node.oc.NewTransaction()
 	otx.AddFlow("table=80, priority=200, reg0=0, actions=output:NXM_NX_REG2[]")
 	otx.AddFlow("table=80, priority=200, reg1=0, actions=output:NXM_NX_REG2[]")
 	if err := otx.EndTransaction(); err != nil {
@@ -58,39 +61,32 @@ func (mp *multiTenantPlugin) updatePodNetwork(namespace string, oldNetID, netID 
 	if err != nil {
 		glog.Errorf("Could not get list of local pods in namespace %q: %v", namespace, err)
 	}
-	services, err := mp.node.kClient.Core().Services(namespace).List(kapi.ListOptions{})
+	services, err := mp.node.kClient.Core().Services(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		glog.Errorf("Could not get list of services in namespace %q: %v", namespace, err)
 		services = &kapi.ServiceList{}
 	}
 
 	if oldNetID != netID {
-		movedVNIDRefs := 0
-
 		// Update OF rules for the existing/old pods in the namespace
 		for _, pod := range pods {
 			err = mp.node.UpdatePod(pod)
-			if err == nil {
-				movedVNIDRefs++
-			} else {
+			if err != nil {
 				glog.Errorf("Could not update pod %q in namespace %q: %v", pod.Name, namespace, err)
 			}
 		}
 
 		// Update OF rules for the old services in the namespace
 		for _, svc := range services.Items {
-			if !kapi.IsServiceIPSet(&svc) {
+			if !kapihelper.IsServiceIPSet(&svc) {
 				continue
 			}
 
 			mp.node.DeleteServiceRules(&svc)
 			mp.node.AddServiceRules(&svc, netID)
-			movedVNIDRefs++
 		}
 
-		if movedVNIDRefs > 0 {
-			mp.moveVNIDRefs(movedVNIDRefs, oldNetID, netID)
-		}
+		mp.EnsureVNIDRules(netID)
 
 		// Update namespace references in egress firewall rules
 		mp.node.UpdateEgressNetworkPolicyVNID(namespace, oldNetID, netID)
@@ -125,72 +121,40 @@ func (mp *multiTenantPlugin) GetMulticastEnabled(vnid uint32) bool {
 	return mp.vnids.GetMulticastEnabled(vnid)
 }
 
-func (mp *multiTenantPlugin) RefVNID(vnid uint32) {
+func (mp *multiTenantPlugin) EnsureVNIDRules(vnid uint32) {
 	if vnid == 0 {
 		return
 	}
 
-	mp.vnidRefsLock.Lock()
-	defer mp.vnidRefsLock.Unlock()
-	mp.vnidRefs[vnid] += 1
-	if mp.vnidRefs[vnid] > 1 {
+	mp.vnidInUseLock.Lock()
+	defer mp.vnidInUseLock.Unlock()
+	if mp.vnidInUse[vnid] {
 		return
 	}
-	glog.V(5).Infof("RefVNID %d adding rule", vnid)
+	mp.vnidInUse[vnid] = true
 
-	otx := mp.node.ovs.NewTransaction()
+	glog.V(5).Infof("EnsureVNIDRules %d - adding rules", vnid)
+
+	otx := mp.node.oc.NewTransaction()
 	otx.AddFlow("table=80, priority=100, reg0=%d, reg1=%d, actions=output:NXM_NX_REG2[]", vnid, vnid)
 	if err := otx.EndTransaction(); err != nil {
 		glog.Errorf("Error adding OVS flow for VNID: %v", err)
 	}
 }
 
-func (mp *multiTenantPlugin) UnrefVNID(vnid uint32) {
-	if vnid == 0 {
-		return
-	}
+func (mp *multiTenantPlugin) SyncVNIDRules() {
+	mp.vnidInUseLock.Lock()
+	defer mp.vnidInUseLock.Unlock()
 
-	mp.vnidRefsLock.Lock()
-	defer mp.vnidRefsLock.Unlock()
-	if mp.vnidRefs[vnid] == 0 {
-		glog.Warningf("refcounting error on vnid %d", vnid)
-		return
-	}
-	mp.vnidRefs[vnid] -= 1
-	if mp.vnidRefs[vnid] > 0 {
-		return
-	}
-	glog.V(5).Infof("UnrefVNID %d removing rule", vnid)
+	unused := mp.node.oc.FindUnusedVNIDs()
+	glog.Infof("SyncVNIDRules: %d unused VNIDs", len(unused))
 
-	otx := mp.node.ovs.NewTransaction()
-	otx.DeleteFlows("table=80, reg0=%d, reg1=%d", vnid, vnid)
+	otx := mp.node.oc.NewTransaction()
+	for _, vnid := range unused {
+		mp.vnidInUse[uint32(vnid)] = false
+		otx.DeleteFlows("table=80, reg1=%d", vnid)
+	}
 	if err := otx.EndTransaction(); err != nil {
-		glog.Errorf("Error deleting OVS flow for VNID: %v", err)
+		glog.Errorf("Error deleting syncing OVS VNID rules: %v", err)
 	}
-}
-
-func (mp *multiTenantPlugin) moveVNIDRefs(num int, oldVNID, newVNID uint32) {
-	glog.V(5).Infof("moveVNIDRefs %d -> %d", oldVNID, newVNID)
-
-	mp.vnidRefsLock.Lock()
-	defer mp.vnidRefsLock.Unlock()
-
-	otx := mp.node.ovs.NewTransaction()
-	if mp.vnidRefs[oldVNID] <= num {
-		otx.DeleteFlows("table=80, reg0=%d, reg1=%d", oldVNID, oldVNID)
-	}
-	if mp.vnidRefs[newVNID] == 0 {
-		otx.AddFlow("table=80, priority=100, reg0=%d, reg1=%d, actions=output:NXM_NX_REG2[]", newVNID, newVNID)
-	}
-	err := otx.EndTransaction()
-	if err != nil {
-		glog.Errorf("Error modifying OVS flows for VNID: %v", err)
-	}
-
-	mp.vnidRefs[oldVNID] -= num
-	if mp.vnidRefs[oldVNID] < 0 {
-		glog.Warningf("refcounting error on vnid %d", oldVNID)
-		mp.vnidRefs[oldVNID] = 0
-	}
-	mp.vnidRefs[newVNID] += num
 }

@@ -3,14 +3,18 @@ package networking
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	testexutil "github.com/openshift/origin/test/extended/util"
 	testutil "github.com/openshift/origin/test/util"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	kapierrs "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
+	kapiv1pod "k8s.io/kubernetes/pkg/api/v1/pod"
+	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
+	"k8s.io/kubernetes/pkg/client/retry"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 
 	. "github.com/onsi/ginkgo"
@@ -41,21 +45,21 @@ func expectNoError(err error, explain ...interface{}) {
 }
 
 // podReady returns whether pod has a condition of Ready with a status of true.
-func podReady(pod *api.Pod) bool {
+func podReady(pod *kapiv1.Pod) bool {
 	for _, cond := range pod.Status.Conditions {
-		if cond.Type == api.PodReady && cond.Status == api.ConditionTrue {
+		if cond.Type == kapiv1.PodReady && cond.Status == kapiv1.ConditionTrue {
 			return true
 		}
 	}
 	return false
 }
 
-type podCondition func(pod *api.Pod) (bool, error)
+type podCondition func(pod *kapiv1.Pod) (bool, error)
 
 func waitForPodCondition(c kclientset.Interface, ns, podName, desc string, timeout time.Duration, condition podCondition) error {
 	e2e.Logf("Waiting up to %[1]v for pod %-[2]*[3]s status to be %[4]s", timeout, podPrintWidth, podName, desc)
 	for start := time.Now(); time.Since(start) < timeout; time.Sleep(poll) {
-		pod, err := c.Core().Pods(ns).Get(podName)
+		pod, err := c.CoreV1().Pods(ns).Get(podName, metav1.GetOptions{})
 		if err != nil {
 			// Aligning this text makes it much more readable
 			e2e.Logf("Get pod %-[1]*[2]s in namespace '%[3]s' failed, ignoring for %[4]v. Error: %[5]v",
@@ -75,9 +79,9 @@ func waitForPodCondition(c kclientset.Interface, ns, podName, desc string, timeo
 
 // waitForPodSuccessInNamespace returns nil if the pod reached state success, or an error if it reached failure or ran too long.
 func waitForPodSuccessInNamespace(c kclientset.Interface, podName string, contName string, namespace string) error {
-	return waitForPodCondition(c, namespace, podName, "success or failure", podStartTimeout, func(pod *api.Pod) (bool, error) {
+	return waitForPodCondition(c, namespace, podName, "success or failure", podStartTimeout, func(pod *kapiv1.Pod) (bool, error) {
 		// Cannot use pod.Status.Phase == api.PodSucceeded/api.PodFailed due to #2632
-		ci, ok := api.GetContainerStatus(pod.Status.ContainerStatuses, contName)
+		ci, ok := kapiv1pod.GetContainerStatus(pod.Status.ContainerStatuses, contName)
 		if !ok {
 			e2e.Logf("No Status.Info for container '%s' in pod '%s' yet", contName, podName)
 		} else {
@@ -94,26 +98,53 @@ func waitForPodSuccessInNamespace(c kclientset.Interface, podName string, contNa
 	})
 }
 
+func waitForEndpoint(c kclientset.Interface, ns, name string) error {
+	for t := time.Now(); time.Since(t) < 3*time.Minute; time.Sleep(poll) {
+		endpoint, err := c.Core().Endpoints(ns).Get(name, metav1.GetOptions{})
+		if kapierrs.IsNotFound(err) {
+			e2e.Logf("Endpoint %s/%s is not ready yet", ns, name)
+			continue
+		}
+		Expect(err).NotTo(HaveOccurred())
+		if len(endpoint.Subsets) == 0 || len(endpoint.Subsets[0].Addresses) == 0 {
+			e2e.Logf("Endpoint %s/%s is not ready yet", ns, name)
+			continue
+		} else {
+			return nil
+		}
+	}
+	return fmt.Errorf("Failed to get endpoints for %s/%s", ns, name)
+}
+
 func launchWebserverService(f *e2e.Framework, serviceName string, nodeName string) (serviceAddr string) {
 	e2e.LaunchWebserverPod(f, serviceName, nodeName)
+
 	// FIXME: make e2e.LaunchWebserverPod() set the label when creating the pod
-	podClient := f.ClientSet.Core().Pods(f.Namespace.Name)
-	pod, err := podClient.Get(serviceName)
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		podClient := f.ClientSet.CoreV1().Pods(f.Namespace.Name)
+		pod, err := podClient.Get(serviceName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if pod.ObjectMeta.Labels == nil {
+			pod.ObjectMeta.Labels = make(map[string]string)
+		}
+		pod.ObjectMeta.Labels["name"] = "web"
+		_, err = podClient.Update(pod)
+		return err
+	})
 	expectNoError(err)
-	pod.ObjectMeta.Labels = make(map[string]string)
-	pod.ObjectMeta.Labels["name"] = "web"
-	podClient.Update(pod)
 
 	servicePort := 8080
-	service := &api.Service{
-		ObjectMeta: api.ObjectMeta{
+	service := &kapiv1.Service{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: serviceName,
 		},
-		Spec: api.ServiceSpec{
-			Type: api.ServiceTypeClusterIP,
-			Ports: []api.ServicePort{
+		Spec: kapiv1.ServiceSpec{
+			Type: kapiv1.ServiceTypeClusterIP,
+			Ports: []kapiv1.ServicePort{
 				{
-					Protocol: api.ProtocolTCP,
+					Protocol: kapiv1.ProtocolTCP,
 					Port:     int32(servicePort),
 				},
 			},
@@ -122,53 +153,61 @@ func launchWebserverService(f *e2e.Framework, serviceName string, nodeName strin
 			},
 		},
 	}
-	serviceClient := f.ClientSet.Core().Services(f.Namespace.Name)
+	serviceClient := f.ClientSet.CoreV1().Services(f.Namespace.Name)
 	_, err = serviceClient.Create(service)
 	expectNoError(err)
-	expectNoError(f.WaitForAnEndpoint(serviceName))
-	createdService, err := serviceClient.Get(serviceName)
+	expectNoError(waitForEndpoint(f.ClientSet, f.Namespace.Name, serviceName))
+	createdService, err := serviceClient.Get(serviceName, metav1.GetOptions{})
 	expectNoError(err)
 	serviceAddr = fmt.Sprintf("%s:%d", createdService.Spec.ClusterIP, servicePort)
 	e2e.Logf("Target service IP:port is %s", serviceAddr)
 	return
 }
 
-func checkConnectivityToHost(f *e2e.Framework, nodeName string, podName string, host string, timeout int) error {
-	contName := fmt.Sprintf("%s-container", podName)
-	pod := &api.Pod{
-		TypeMeta: unversioned.TypeMeta{
-			Kind: "Pod",
-		},
-		ObjectMeta: api.ObjectMeta{
-			Name: podName,
-		},
-		Spec: api.PodSpec{
-			Containers: []api.Container{
-				{
-					Name:    contName,
-					Image:   "gcr.io/google_containers/busybox",
-					Command: []string{"wget", fmt.Sprintf("--timeout=%d", timeout), "-s", host},
-				},
-			},
-			NodeName:      nodeName,
-			RestartPolicy: api.RestartPolicyNever,
-		},
+func checkConnectivityToHost(f *e2e.Framework, nodeName string, podName string, host string, timeout time.Duration) error {
+	e2e.Logf("Creating an exec pod on node %v", nodeName)
+	execPodName := e2e.CreateExecPodOrFail(f.ClientSet, f.Namespace.Name, fmt.Sprintf("execpod-sourceip-%s", nodeName), func(pod *kapiv1.Pod) {
+		pod.Spec.NodeName = nodeName
+	})
+	defer func() {
+		e2e.Logf("Cleaning up the exec pod")
+		err := f.ClientSet.Core().Pods(f.Namespace.Name).Delete(execPodName, nil)
+		Expect(err).NotTo(HaveOccurred())
+	}()
+	execPod, err := f.ClientSet.Core().Pods(f.Namespace.Name).Get(execPodName, metav1.GetOptions{})
+	e2e.ExpectNoError(err)
+
+	var stdout string
+	e2e.Logf("Waiting up to %v to wget %s", timeout, host)
+	cmd := fmt.Sprintf("wget -T 30 -qO- %s", host)
+	for start := time.Now(); time.Since(start) < timeout; time.Sleep(2) {
+		stdout, err = e2e.RunHostCmd(execPod.Namespace, execPod.Name, cmd)
+		if err != nil {
+			e2e.Logf("got err: %v, retry until timeout", err)
+			continue
+		}
+		// Need to check output because wget -q might omit the error.
+		if strings.TrimSpace(stdout) == "" {
+			e2e.Logf("got empty stdout, retry until timeout")
+			continue
+		}
+		break
 	}
-	podClient := f.ClientSet.Core().Pods(f.Namespace.Name)
-	_, err := podClient.Create(pod)
-	expectNoError(err)
-	defer podClient.Delete(podName, nil)
-	return waitForPodSuccessInNamespace(f.ClientSet, podName, contName, f.Namespace.Name)
+	return err
 }
 
 func pluginIsolatesNamespaces() bool {
-	return os.Getenv("OPENSHIFT_NETWORK_ISOLATION") == "true"
+	return os.Getenv("NETWORKING_E2E_ISOLATION") == "true"
 }
 
-func makeNamespaceGlobal(ns *api.Namespace) {
+func pluginImplementsNetworkPolicy() bool {
+	return os.Getenv("NETWORKING_E2E_NETWORKPOLICY") == "true"
+}
+
+func makeNamespaceGlobal(ns *kapiv1.Namespace) {
 	client, err := testutil.GetClusterAdminClient(testexutil.KubeConfigPath())
 	expectNoError(err)
-	netns, err := client.NetNamespaces().Get(ns.Name)
+	netns, err := client.NetNamespaces().Get(ns.Name, metav1.GetOptions{})
 	expectNoError(err)
 	netns.NetID = 0
 	_, err = client.NetNamespaces().Update(netns)
@@ -177,7 +216,7 @@ func makeNamespaceGlobal(ns *api.Namespace) {
 
 func checkPodIsolation(f1, f2 *e2e.Framework, nodeType NodeType) error {
 	nodes := e2e.GetReadySchedulableNodesOrDie(f1.ClientSet)
-	var serverNode, clientNode *api.Node
+	var serverNode, clientNode *kapiv1.Node
 	serverNode = &nodes.Items[0]
 	if nodeType == DIFFERENT_NODE {
 		if len(nodes.Items) == 1 {
@@ -189,15 +228,15 @@ func checkPodIsolation(f1, f2 *e2e.Framework, nodeType NodeType) error {
 	}
 
 	podName := "isolation-webserver"
-	defer f1.ClientSet.Core().Pods(f1.Namespace.Name).Delete(podName, nil)
+	defer f1.ClientSet.CoreV1().Pods(f1.Namespace.Name).Delete(podName, nil)
 	ip := e2e.LaunchWebserverPod(f1, podName, serverNode.Name)
 
-	return checkConnectivityToHost(f2, clientNode.Name, "isolation-wget", ip, 10)
+	return checkConnectivityToHost(f2, clientNode.Name, "isolation-wget", ip, 10*time.Second)
 }
 
 func checkServiceConnectivity(serverFramework, clientFramework *e2e.Framework, nodeType NodeType) error {
 	nodes := e2e.GetReadySchedulableNodesOrDie(serverFramework.ClientSet)
-	var serverNode, clientNode *api.Node
+	var serverNode, clientNode *kapiv1.Node
 	serverNode = &nodes.Items[0]
 	if nodeType == DIFFERENT_NODE {
 		if len(nodes.Items) == 1 {
@@ -208,19 +247,19 @@ func checkServiceConnectivity(serverFramework, clientFramework *e2e.Framework, n
 		clientNode = serverNode
 	}
 
-	podName := api.SimpleNameGenerator.GenerateName("service-")
-	defer serverFramework.ClientSet.Core().Pods(serverFramework.Namespace.Name).Delete(podName, nil)
-	defer serverFramework.ClientSet.Core().Services(serverFramework.Namespace.Name).Delete(podName, nil)
+	podName := kapiv1.SimpleNameGenerator.GenerateName("service-")
+	defer serverFramework.ClientSet.CoreV1().Pods(serverFramework.Namespace.Name).Delete(podName, nil)
+	defer serverFramework.ClientSet.CoreV1().Services(serverFramework.Namespace.Name).Delete(podName, nil)
 	ip := launchWebserverService(serverFramework, podName, serverNode.Name)
 
-	return checkConnectivityToHost(clientFramework, clientNode.Name, "service-wget", ip, 10)
+	return checkConnectivityToHost(clientFramework, clientNode.Name, "service-wget", ip, 10*time.Second)
 }
 
 func InSingleTenantContext(body func()) {
-	Context("when using a single-tenant plugin", func() {
+	Context("when using a plugin that does not isolate namespaces by default", func() {
 		BeforeEach(func() {
 			if pluginIsolatesNamespaces() {
-				e2e.Skipf("Not a single-tenant plugin.")
+				e2e.Skipf("This plugin isolates namespaces by default.")
 			}
 		})
 
@@ -229,10 +268,22 @@ func InSingleTenantContext(body func()) {
 }
 
 func InMultiTenantContext(body func()) {
-	Context("when using a multi-tenant plugin", func() {
+	Context("when using a plugin that isolates namespaces by default", func() {
 		BeforeEach(func() {
 			if !pluginIsolatesNamespaces() {
-				e2e.Skipf("Not a multi-tenant plugin.")
+				e2e.Skipf("This plugin does not isolate namespaces by default.")
+			}
+		})
+
+		body()
+	})
+}
+
+func InNetworkPolicyContext(body func()) {
+	Context("when using a plugin that implements NetworkPolicy", func() {
+		BeforeEach(func() {
+			if !pluginImplementsNetworkPolicy() {
+				e2e.Skipf("This plugin does not implement NetworkPolicy.")
 			}
 		})
 

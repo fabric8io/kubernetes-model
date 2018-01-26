@@ -1,13 +1,8 @@
-package(default_visibility = ["//visibility:public"])
-
 licenses(["notice"])
 
 load(
     "@io_bazel_rules_go//go:def.bzl",
-    "go_binary",
     "go_library",
-    "go_test",
-    "cgo_library",
 )
 
 go_library(
@@ -15,9 +10,24 @@ go_library(
     srcs = ["jsonmerge.go"],
     tags = ["automanaged"],
     deps = [
-        "//pkg/util/strategicpatch:go_default_library",
-        "//pkg/util/yaml:go_default_library",
-        "//vendor:github.com/evanphx/json-patch",
-        "//vendor:github.com/golang/glog",
+        "//vendor/github.com/evanphx/json-patch:go_default_library",
+        "//vendor/github.com/golang/glog:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/util/mergepatch:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/util/yaml:go_default_library",
+    ],
+)
+
+filegroup(
+    name = "package-srcs",
+    srcs = glob(["**"]),
+    tags = ["automanaged"],
+)
+
+filegroup(
+    name = "all-srcs",
+    srcs = [":package-srcs"],
+    tags = ["automanaged"],
+    visibility = [
+        "//build/visible_to:pkg_kubectl_cmd_util_jsonmerge_CONSUMERS",
     ],
 )

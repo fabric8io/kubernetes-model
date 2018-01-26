@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/openshift/origin/pkg/diagnostics/log"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
 )
 
@@ -23,7 +24,7 @@ func newFakeServicesDiagnostic(t *testing.T) *fakeServicesDiagnostic {
 	}
 }
 
-func (f *fakeServicesDiagnostic) services(project string, options kapi.ListOptions) (*kapi.ServiceList, error) {
+func (f *fakeServicesDiagnostic) services(project string, options metav1.ListOptions) (*kapi.ServiceList, error) {
 	if f.err != nil {
 		return &f.list, f.err
 	}
@@ -44,7 +45,7 @@ func (f *fakeServicesDiagnostic) addEndpointSubsetTo(service string) {
 }
 
 func (f *fakeServicesDiagnostic) addServiceNamed(name string) {
-	meta := kapi.ObjectMeta{Name: name}
+	meta := metav1.ObjectMeta{Name: name}
 	f.list.Items = append(f.list.Items, kapi.Service{ObjectMeta: meta})
 }
 
@@ -64,8 +65,8 @@ func TestCheckingServicesWhenMissingServices(t *testing.T) {
 
 	checkServices(d, d, fakeProject)
 	d.assertMessage("AGL0215",
-		"Exp an warning when an expected sercies is not found",
-		log.WarnLevel)
+		"Exp an info when an expected service is not found",
+		log.InfoLevel)
 }
 
 func TestCheckingServicesWarnsWhenRetrievingEndpointsErrors(t *testing.T) {
@@ -87,8 +88,8 @@ func TestCheckingServicesWarnsWhenServiceHasNoEndpoints(t *testing.T) {
 
 	checkServices(d, d, fakeProject)
 	d.assertMessage("AGL0225",
-		"Exp a warning when an expected service has no endpoints",
-		log.WarnLevel)
+		"Exp an error when an existing service has no endpoints",
+		log.ErrorLevel)
 }
 
 func TestCheckingServicesHasNoErrorsOrWarningsForExpServices(t *testing.T) {

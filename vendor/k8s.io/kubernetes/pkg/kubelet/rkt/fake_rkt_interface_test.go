@@ -26,9 +26,10 @@ import (
 	rktapi "github.com/coreos/rkt/api/v1alpha"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/apimachinery/pkg/types"
+	kubetypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/kubernetes/pkg/api/v1"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
-	"k8s.io/kubernetes/pkg/types"
 )
 
 // fakeRktInterface mocks the rktapi.PublicAPIClient interface for testing purpose.
@@ -150,35 +151,6 @@ func (f *fakeSystemd) ResetFailedUnit(name string) error {
 	return f.err
 }
 
-// fakeRuntimeHelper implementes kubecontainer.RuntimeHelper interfaces for testing purpose.
-type fakeRuntimeHelper struct {
-	dnsServers  []string
-	dnsSearches []string
-	hostName    string
-	hostDomain  string
-	err         error
-}
-
-func (f *fakeRuntimeHelper) GenerateRunContainerOptions(pod *api.Pod, container *api.Container, podIP string) (*kubecontainer.RunContainerOptions, error) {
-	return nil, fmt.Errorf("Not implemented")
-}
-
-func (f *fakeRuntimeHelper) GetClusterDNS(pod *api.Pod) ([]string, []string, error) {
-	return f.dnsServers, f.dnsSearches, f.err
-}
-
-func (f *fakeRuntimeHelper) GeneratePodHostNameAndDomain(pod *api.Pod) (string, string, error) {
-	return f.hostName, f.hostDomain, nil
-}
-
-func (f *fakeRuntimeHelper) GetPodDir(podUID types.UID) string {
-	return "/poddir/" + string(podUID)
-}
-
-func (f *fakeRuntimeHelper) GetExtraSupplementalGroupsForPod(pod *api.Pod) []int64 {
-	return nil
-}
-
 type fakeRktCli struct {
 	sync.Mutex
 	cmds   []string
@@ -208,14 +180,40 @@ func (f *fakeRktCli) Reset() {
 }
 
 type fakePodGetter struct {
-	pods map[types.UID]*api.Pod
+	pods map[types.UID]*v1.Pod
 }
 
 func newFakePodGetter() *fakePodGetter {
-	return &fakePodGetter{pods: make(map[types.UID]*api.Pod)}
+	return &fakePodGetter{pods: make(map[types.UID]*v1.Pod)}
 }
 
-func (f fakePodGetter) GetPodByUID(uid types.UID) (*api.Pod, bool) {
+func (f fakePodGetter) GetPodByUID(uid types.UID) (*v1.Pod, bool) {
 	p, found := f.pods[uid]
 	return p, found
+}
+
+type fakeUnitGetter struct {
+	networkNamespace kubecontainer.ContainerID
+	callServices     []string
+}
+
+func newfakeUnitGetter() *fakeUnitGetter {
+	return &fakeUnitGetter{
+		networkNamespace: kubecontainer.ContainerID{},
+	}
+}
+
+func (f *fakeUnitGetter) getNetworkNamespace(uid kubetypes.UID, latestPod *rktapi.Pod) (kubecontainer.ContainerID, error) {
+	return kubecontainer.ContainerID{ID: "42"}, nil
+}
+
+func (f *fakeUnitGetter) getKubernetesDirective(serviceFilePath string) (podServiceDirective, error) {
+	podService := podServiceDirective{
+		id:               "fake",
+		name:             "fake",
+		namespace:        "fake",
+		hostNetwork:      true,
+		networkNamespace: kubecontainer.ContainerID{ID: "42"},
+	}
+	return podService, nil
 }

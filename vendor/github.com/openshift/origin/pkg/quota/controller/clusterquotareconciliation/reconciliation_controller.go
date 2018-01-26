@@ -6,28 +6,30 @@ import (
 
 	"github.com/golang/glog"
 
+	kapierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/cache"
 	kapi "k8s.io/kubernetes/pkg/api"
-	kapierrors "k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/client/cache"
+	kapihelper "k8s.io/kubernetes/pkg/api/helper"
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/controller/resourcequota"
 	utilquota "k8s.io/kubernetes/pkg/quota"
-	"k8s.io/kubernetes/pkg/runtime"
-	kutilerrors "k8s.io/kubernetes/pkg/util/errors"
-	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
-	"k8s.io/kubernetes/pkg/util/sets"
-	"k8s.io/kubernetes/pkg/util/wait"
 
 	"github.com/openshift/origin/pkg/client"
-	ocache "github.com/openshift/origin/pkg/client/cache"
-	"github.com/openshift/origin/pkg/controller/shared"
-	quotaapi "github.com/openshift/origin/pkg/quota/api"
+	quotaapi "github.com/openshift/origin/pkg/quota/apis/quota"
 	"github.com/openshift/origin/pkg/quota/controller/clusterquotamapping"
+	quotainformer "github.com/openshift/origin/pkg/quota/generated/informers/internalversion/quota/internalversion"
+	quotalister "github.com/openshift/origin/pkg/quota/generated/listers/quota/internalversion"
 )
 
 type ClusterQuotaReconcilationControllerOptions struct {
-	ClusterQuotaInformer shared.ClusterResourceQuotaInformer
+	ClusterQuotaInformer quotainformer.ClusterResourceQuotaInformer
 	ClusterQuotaMapper   clusterquotamapping.ClusterQuotaMapper
 	ClusterQuotaClient   client.ClusterResourceQuotasInterface
 
@@ -41,11 +43,11 @@ type ClusterQuotaReconcilationControllerOptions struct {
 	ReplenishmentResyncPeriod controller.ResyncPeriodFunc
 	// List of GroupKind objects that should be monitored for replenishment at
 	// a faster frequency than the quota controller recalculation interval
-	GroupKindsToReplenish []unversioned.GroupKind
+	GroupKindsToReplenish []schema.GroupKind
 }
 
 type ClusterQuotaReconcilationController struct {
-	clusterQuotaLister *ocache.IndexerToClusterResourceQuotaLister
+	clusterQuotaLister quotalister.ClusterResourceQuotaLister
 	clusterQuotaSynced func() bool
 	clusterQuotaMapper clusterquotamapping.ClusterQuotaMapper
 	clusterQuotaClient client.ClusterResourceQuotasInterface
@@ -58,7 +60,7 @@ type ClusterQuotaReconcilationController struct {
 	// knows how to calculate usage
 	registry utilquota.Registry
 	// controllers monitoring to notify for replenishment
-	replenishmentControllers []cache.ControllerInterface
+	replenishmentControllers []cache.Controller
 }
 
 type workItem struct {
@@ -172,7 +174,7 @@ func (c *ClusterQuotaReconcilationController) forceCalculation(quotaName string,
 }
 
 func (c *ClusterQuotaReconcilationController) calculateAll() {
-	quotas, err := c.clusterQuotaLister.List(kapi.ListOptions{})
+	quotas, err := c.clusterQuotaLister.List(labels.Everything())
 	if err != nil {
 		utilruntime.HandleError(err)
 		return
@@ -254,7 +256,7 @@ func (c *ClusterQuotaReconcilationController) syncQuotaForNamespaces(originalQuo
 
 	// get the list of namespaces that match this cluster quota
 	matchingNamespaceNamesList, quotaSelector := c.clusterQuotaMapper.GetNamespacesFor(quota.Name)
-	if !kapi.Semantic.DeepEqual(quotaSelector, quota.Spec.Selector) {
+	if !kapihelper.Semantic.DeepEqual(quotaSelector, quota.Spec.Selector) {
 		return fmt.Errorf("mapping not up to date, have=%v need=%v", quotaSelector, quota.Spec.Selector), workItems
 	}
 	matchingNamespaceNames := sets.NewString(matchingNamespaceNamesList...)
@@ -274,7 +276,7 @@ func (c *ClusterQuotaReconcilationController) syncQuotaForNamespaces(originalQuo
 		}
 
 		// if there's no work for us to do, do nothing
-		if !item.forceRecalculation && namespaceLoaded && kapi.Semantic.DeepEqual(namespaceTotals.Hard, quota.Spec.Quota.Hard) {
+		if !item.forceRecalculation && namespaceLoaded && kapihelper.Semantic.DeepEqual(namespaceTotals.Hard, quota.Spec.Quota.Hard) {
 			continue
 		}
 
@@ -310,7 +312,7 @@ func (c *ClusterQuotaReconcilationController) syncQuotaForNamespaces(originalQuo
 	quota.Status.Total.Hard = quota.Spec.Quota.Hard
 
 	// if there's no change, no update, return early.  NewAggregate returns nil on empty input
-	if kapi.Semantic.DeepEqual(quota, originalQuota) {
+	if kapihelper.Semantic.DeepEqual(quota, originalQuota) {
 		return kutilerrors.NewAggregate(reconcilationErrors), retryItems
 	}
 
@@ -322,7 +324,7 @@ func (c *ClusterQuotaReconcilationController) syncQuotaForNamespaces(originalQuo
 }
 
 // replenishQuota is a replenishment function invoked by a controller to notify that a quota should be recalculated
-func (c *ClusterQuotaReconcilationController) replenishQuota(groupKind unversioned.GroupKind, namespace string, object runtime.Object) {
+func (c *ClusterQuotaReconcilationController) replenishQuota(groupKind schema.GroupKind, namespace string, object runtime.Object) {
 	// check if the quota controller can evaluate this kind, if not, ignore it altogether...
 	evaluators := c.registry.Evaluators()
 	evaluator, found := evaluators[groupKind]
@@ -333,7 +335,6 @@ func (c *ClusterQuotaReconcilationController) replenishQuota(groupKind unversion
 	quotaNames, _ := c.clusterQuotaMapper.GetClusterQuotasFor(namespace)
 
 	// only queue those quotas that are tracking a resource associated with this kind.
-	matchedResources := evaluator.MatchesResources()
 	for _, quotaName := range quotaNames {
 		quota, err := c.clusterQuotaLister.Get(quotaName)
 		if err != nil {
@@ -342,7 +343,8 @@ func (c *ClusterQuotaReconcilationController) replenishQuota(groupKind unversion
 		}
 
 		resourceQuotaResources := utilquota.ResourceNames(quota.Status.Total.Hard)
-		if len(utilquota.Intersection(matchedResources, resourceQuotaResources)) > 0 {
+		matchedResources := evaluator.MatchingResources(resourceQuotaResources)
+		if len(matchedResources) > 0 {
 			// TODO: make this support targeted replenishment to a specific kind, right now it does a full recalc on that quota.
 			c.forceCalculation(quotaName, namespace)
 		}

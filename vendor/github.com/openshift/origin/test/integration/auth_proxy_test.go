@@ -7,13 +7,12 @@ import (
 	"net/url"
 	"testing"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	ktransport "k8s.io/kubernetes/pkg/client/transport"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ktransport "k8s.io/client-go/transport"
 
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	"github.com/openshift/origin/pkg/cmd/server/origin"
-	oauthapi "github.com/openshift/origin/pkg/oauth/api"
-	clientregistry "github.com/openshift/origin/pkg/oauth/registry/oauthclient"
+	oauthapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
+	oauthutil "github.com/openshift/origin/pkg/oauth/util"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -32,13 +31,11 @@ func TestAuthProxyOnAuthorize(t *testing.T) {
 	idp.Provider = &configapi.RequestHeaderIdentityProvider{Headers: []string{"X-Remote-User"}}
 	idp.MappingMethod = "claim"
 
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-
 	masterConfig, err := testserver.DefaultMasterOptions()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	masterConfig.OAuthConfig.IdentityProviders = []configapi.IdentityProvider{idp}
 
 	clusterAdminKubeConfig, err := testserver.StartConfiguredMasterAPI(masterConfig)
@@ -61,13 +58,13 @@ func TestAuthProxyOnAuthorize(t *testing.T) {
 	t.Logf("proxy server is on %v\n", proxyServer.URL)
 
 	// need to prime clients so that we can get back a code.  the client must be valid
-	result := clusterAdminClient.RESTClient.Post().Resource("oAuthClients").Body(&oauthapi.OAuthClient{ObjectMeta: kapi.ObjectMeta{Name: "test"}, Secret: "secret", RedirectURIs: []string{clusterAdminClientConfig.Host}}).Do()
+	result := clusterAdminClient.RESTClient.Post().Resource("oAuthClients").Body(&oauthapi.OAuthClient{ObjectMeta: metav1.ObjectMeta{Name: "test"}, Secret: "secret", RedirectURIs: []string{clusterAdminClientConfig.Host}}).Do()
 	if result.Error() != nil {
 		t.Fatal(result.Error())
 	}
 
 	// our simple URL to get back a code.  We want to go through the front proxy
-	rawAuthorizeRequest := proxyServer.URL + origin.OpenShiftOAuthAPIPrefix + "/authorize?response_type=code&client_id=test"
+	rawAuthorizeRequest := proxyServer.URL + oauthutil.OpenShiftOAuthAPIPrefix + "/authorize?response_type=code&client_id=test"
 
 	// the first request we make to the front proxy should challenge us for authentication info
 	shouldBeAChallengeResponse, err := http.Get(rawAuthorizeRequest)
@@ -90,6 +87,9 @@ func TestAuthProxyOnAuthorize(t *testing.T) {
 
 	// make our authorize request again, but this time our transport has properly set the auth info for the front proxy
 	req, err := http.NewRequest("GET", rawAuthorizeRequest, nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 	_, err = httpClient.Do(req)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -105,12 +105,6 @@ func TestAuthProxyOnAuthorize(t *testing.T) {
 		t.Errorf("Did not find code in any redirect: %v", redirectedUrls)
 	} else {
 		t.Logf("Found code %v\n", foundCode)
-	}
-}
-
-func createClient(t *testing.T, clientRegistry clientregistry.Registry, client *oauthapi.OAuthClient) {
-	if _, err := clientRegistry.CreateClient(kapi.NewContext(), client); err != nil {
-		t.Errorf("Error creating client: %v due to %v\n", client, err)
 	}
 }
 

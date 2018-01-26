@@ -7,15 +7,17 @@ import (
 	"os"
 	"path/filepath"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/errors"
+	restclient "k8s.io/client-go/rest"
+	kclientcmd "k8s.io/client-go/tools/clientcmd"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/restclient"
-	kclientcmd "k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-	"k8s.io/kubernetes/pkg/util/errors"
 
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/generate/git"
 	"github.com/openshift/origin/pkg/gitserver"
+
+	s2igit "github.com/openshift/source-to-image/pkg/scm/git"
 )
 
 type AutoLinkBuilds struct {
@@ -99,7 +101,7 @@ func (a *AutoLinkBuilds) Link() (map[string]gitserver.Clone, error) {
 	errs := []error{}
 	builders := []*buildapi.BuildConfig{}
 	for _, namespace := range a.Namespaces {
-		list, err := a.Client.BuildConfigs(namespace).List(kapi.ListOptions{})
+		list, err := a.Client.BuildConfigs(namespace).List(metav1.ListOptions{})
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -112,7 +114,7 @@ func (a *AutoLinkBuilds) Link() (map[string]gitserver.Clone, error) {
 		if hasItem(builders, b) {
 			continue
 		}
-		config, err := a.Client.BuildConfigs(b.Namespace).Get(b.Name)
+		config, err := a.Client.BuildConfigs(b.Namespace).Get(b.Name, metav1.GetOptions{})
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -143,7 +145,7 @@ func (a *AutoLinkBuilds) Link() (map[string]gitserver.Clone, error) {
 		if len(uri) == 0 {
 			continue
 		}
-		origin, err := git.ParseRepository(uri)
+		origin, err := s2igit.Parse(uri)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -162,7 +164,7 @@ func (a *AutoLinkBuilds) Link() (map[string]gitserver.Clone, error) {
 		}
 
 		// we can't clone from ourself
-		if self.Host == origin.Host {
+		if self.Host == origin.URL.Host {
 			continue
 		}
 

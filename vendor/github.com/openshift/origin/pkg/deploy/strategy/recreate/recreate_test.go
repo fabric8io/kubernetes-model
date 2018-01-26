@@ -7,13 +7,12 @@ import (
 	"time"
 
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apimachinery/registered"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
-	deploytest "github.com/openshift/origin/pkg/deploy/api/test"
-	deployv1 "github.com/openshift/origin/pkg/deploy/api/v1"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	deploytest "github.com/openshift/origin/pkg/deploy/apis/apps/test"
+	deployv1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
 	cmdtest "github.com/openshift/origin/pkg/deploy/cmd/test"
 	"github.com/openshift/origin/pkg/deploy/strategy"
 	deployutil "github.com/openshift/origin/pkg/deploy/util"
@@ -64,7 +63,7 @@ func TestRecreate_initialDeployment(t *testing.T) {
 
 	config := deploytest.OkDeploymentConfig(1)
 	config.Spec.Strategy = recreateParams(30, "", "", "")
-	deployment, _ = deployutil.MakeDeployment(config, kapi.Codecs.LegacyCodec(registered.GroupOrDie(kapi.GroupName).GroupVersions[0]))
+	deployment, _ = deployutil.MakeDeployment(config, kapi.Codecs.LegacyCodec(kapi.Registry.GroupOrDie(kapi.GroupName).GroupVersions[0]))
 
 	strategy.rcClient = &fakeControllerClient{deployment: deployment}
 	strategy.podClient = &fakePodClient{deployerName: deployutil.DeployerPodNameForDeployment(deployment.Name)}
@@ -85,7 +84,7 @@ func TestRecreate_initialDeployment(t *testing.T) {
 func TestRecreate_deploymentPreHookSuccess(t *testing.T) {
 	config := deploytest.OkDeploymentConfig(1)
 	config.Spec.Strategy = recreateParams(30, deployapi.LifecycleHookFailurePolicyAbort, "", "")
-	deployment, _ := deployutil.MakeDeployment(config, kapi.Codecs.LegacyCodec(registered.GroupOrDie(kapi.GroupName).GroupVersions[0]))
+	deployment, _ := deployutil.MakeDeployment(config, kapi.Codecs.LegacyCodec(kapi.Registry.GroupOrDie(kapi.GroupName).GroupVersions[0]))
 	scaler := &cmdtest.FakeScaler{}
 
 	hookExecuted := false
@@ -119,7 +118,7 @@ func TestRecreate_deploymentPreHookSuccess(t *testing.T) {
 func TestRecreate_deploymentPreHookFail(t *testing.T) {
 	config := deploytest.OkDeploymentConfig(1)
 	config.Spec.Strategy = recreateParams(30, deployapi.LifecycleHookFailurePolicyAbort, "", "")
-	deployment, _ := deployutil.MakeDeployment(config, kapi.Codecs.LegacyCodec(registered.GroupOrDie(kapi.GroupName).GroupVersions[0]))
+	deployment, _ := deployutil.MakeDeployment(config, kapi.Codecs.LegacyCodec(kapi.Registry.GroupOrDie(kapi.GroupName).GroupVersions[0]))
 	scaler := &cmdtest.FakeScaler{}
 
 	strategy := &RecreateDeploymentStrategy{
@@ -182,7 +181,7 @@ func TestRecreate_deploymentMidHookSuccess(t *testing.T) {
 func TestRecreate_deploymentPostHookSuccess(t *testing.T) {
 	config := deploytest.OkDeploymentConfig(1)
 	config.Spec.Strategy = recreateParams(30, "", "", deployapi.LifecycleHookFailurePolicyAbort)
-	deployment, _ := deployutil.MakeDeployment(config, kapi.Codecs.LegacyCodec(registered.GroupOrDie(kapi.GroupName).GroupVersions[0]))
+	deployment, _ := deployutil.MakeDeployment(config, kapi.Codecs.LegacyCodec(kapi.Registry.GroupOrDie(kapi.GroupName).GroupVersions[0]))
 	scaler := &cmdtest.FakeScaler{}
 
 	hookExecuted := false
@@ -216,7 +215,7 @@ func TestRecreate_deploymentPostHookSuccess(t *testing.T) {
 func TestRecreate_deploymentPostHookFail(t *testing.T) {
 	config := deploytest.OkDeploymentConfig(1)
 	config.Spec.Strategy = recreateParams(30, "", "", deployapi.LifecycleHookFailurePolicyAbort)
-	deployment, _ := deployutil.MakeDeployment(config, kapi.Codecs.LegacyCodec(registered.GroupOrDie(kapi.GroupName).GroupVersions[0]))
+	deployment, _ := deployutil.MakeDeployment(config, kapi.Codecs.LegacyCodec(kapi.Registry.GroupOrDie(kapi.GroupName).GroupVersions[0]))
 	scaler := &cmdtest.FakeScaler{}
 
 	hookExecuted := false
@@ -268,8 +267,8 @@ func TestRecreate_acceptorSuccess(t *testing.T) {
 		},
 	}
 
-	oldDeployment, _ := deployutil.MakeDeployment(deploytest.OkDeploymentConfig(1), kapi.Codecs.LegacyCodec(registered.GroupOrDie(kapi.GroupName).GroupVersions[0]))
-	deployment, _ = deployutil.MakeDeployment(deploytest.OkDeploymentConfig(2), kapi.Codecs.LegacyCodec(registered.GroupOrDie(kapi.GroupName).GroupVersions[0]))
+	oldDeployment, _ := deployutil.MakeDeployment(deploytest.OkDeploymentConfig(1), kapi.Codecs.LegacyCodec(kapi.Registry.GroupOrDie(kapi.GroupName).GroupVersions[0]))
+	deployment, _ = deployutil.MakeDeployment(deploytest.OkDeploymentConfig(2), kapi.Codecs.LegacyCodec(kapi.Registry.GroupOrDie(kapi.GroupName).GroupVersions[0]))
 	strategy.rcClient = &fakeControllerClient{deployment: deployment}
 	strategy.podClient = &fakePodClient{deployerName: deployutil.DeployerPodNameForDeployment(deployment.Name)}
 
@@ -293,6 +292,55 @@ func TestRecreate_acceptorSuccess(t *testing.T) {
 	}
 }
 
+func TestRecreate_acceptorSuccessWithColdCaches(t *testing.T) {
+	var deployment *kapi.ReplicationController
+	scaler := &cmdtest.FakeLaggedScaler{}
+
+	strategy := &RecreateDeploymentStrategy{
+		out:         &bytes.Buffer{},
+		errOut:      &bytes.Buffer{},
+		eventClient: fake.NewSimpleClientset().Core(),
+		decoder:     kapi.Codecs.UniversalDecoder(),
+		retryPeriod: 1 * time.Millisecond,
+		scaler:      scaler,
+	}
+
+	acceptorCalled := false
+	acceptor := &testAcceptor{
+		acceptFn: func(deployment *kapi.ReplicationController) error {
+			acceptorCalled = true
+			return nil
+		},
+	}
+
+	oldDeployment, _ := deployutil.MakeDeployment(deploytest.OkDeploymentConfig(1), kapi.Codecs.LegacyCodec(kapi.Registry.GroupOrDie(kapi.GroupName).GroupVersions[0]))
+	deployment, _ = deployutil.MakeDeployment(deploytest.OkDeploymentConfig(2), kapi.Codecs.LegacyCodec(kapi.Registry.GroupOrDie(kapi.GroupName).GroupVersions[0]))
+	strategy.rcClient = &fakeControllerClient{deployment: deployment}
+	strategy.podClient = &fakePodClient{deployerName: deployutil.DeployerPodNameForDeployment(deployment.Name)}
+
+	err := strategy.DeployWithAcceptor(oldDeployment, deployment, 2, acceptor)
+	if err != nil {
+		t.Fatalf("unexpected deploy error: %#v", err)
+	}
+
+	if !acceptorCalled {
+		t.Fatalf("expected acceptor to be called")
+	}
+
+	if e, a := 2, len(scaler.Events); e != a {
+		t.Fatalf("expected %d scale calls, got %d", e, a)
+	}
+	if e, a := uint(1), scaler.Events[0].Size; e != a {
+		t.Errorf("expected scale down to %d, got %d", e, a)
+	}
+	if e, a := uint(2), scaler.Events[1].Size; e != a {
+		t.Errorf("expected scale up to %d, got %d", e, a)
+	}
+	if scaler.RetryCount != 2 {
+		t.Errorf("expected retry when the caches are not initialized")
+	}
+}
+
 func TestRecreate_acceptorFail(t *testing.T) {
 	var deployment *kapi.ReplicationController
 	scaler := &cmdtest.FakeScaler{}
@@ -312,8 +360,8 @@ func TestRecreate_acceptorFail(t *testing.T) {
 		},
 	}
 
-	oldDeployment, _ := deployutil.MakeDeployment(deploytest.OkDeploymentConfig(1), kapi.Codecs.LegacyCodec(registered.GroupOrDie(kapi.GroupName).GroupVersions[0]))
-	deployment, _ = deployutil.MakeDeployment(deploytest.OkDeploymentConfig(2), kapi.Codecs.LegacyCodec(registered.GroupOrDie(kapi.GroupName).GroupVersions[0]))
+	oldDeployment, _ := deployutil.MakeDeployment(deploytest.OkDeploymentConfig(1), kapi.Codecs.LegacyCodec(kapi.Registry.GroupOrDie(kapi.GroupName).GroupVersions[0]))
+	deployment, _ = deployutil.MakeDeployment(deploytest.OkDeploymentConfig(2), kapi.Codecs.LegacyCodec(kapi.Registry.GroupOrDie(kapi.GroupName).GroupVersions[0]))
 	strategy.rcClient = &fakeControllerClient{deployment: deployment}
 	strategy.podClient = &fakePodClient{deployerName: deployutil.DeployerPodNameForDeployment(deployment.Name)}
 	err := strategy.DeployWithAcceptor(oldDeployment, deployment, 2, acceptor)

@@ -9,17 +9,19 @@ import (
 
 	coreosetcdclient "github.com/coreos/etcd/client"
 	"github.com/spf13/cobra"
+	"golang.org/x/net/context"
 
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
-	"github.com/openshift/origin/pkg/cmd/admin/policy"
 	"github.com/openshift/origin/pkg/cmd/flagtypes"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
 	"github.com/openshift/origin/pkg/cmd/server/etcd"
 	"github.com/openshift/origin/pkg/cmd/server/etcd/etcdserver"
+	kubernetes "github.com/openshift/origin/pkg/cmd/server/kubernetes/master"
 	"github.com/openshift/origin/pkg/cmd/server/origin"
 	"github.com/openshift/origin/pkg/cmd/server/start"
+	"github.com/openshift/origin/pkg/oc/admin/policy"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -108,7 +110,13 @@ func (o *DebugAPIServerOptions) StartAPIServer(masterConfig configapi.MasterConf
 		return err
 	}
 
-	kubeMasterConfig, err := start.BuildKubernetesMasterConfig(openshiftConfig)
+	kubeMasterConfig, err := kubernetes.BuildKubernetesMasterConfig(
+		openshiftConfig.Options,
+		openshiftConfig.RequestContextMapper,
+		openshiftConfig.KubeAdmissionControl,
+		openshiftConfig.Authenticator,
+		openshiftConfig.Authorizer,
+	)
 	if err != nil {
 		return err
 	}
@@ -116,6 +124,20 @@ func (o *DebugAPIServerOptions) StartAPIServer(masterConfig configapi.MasterConf
 	fmt.Printf("Starting master on %s\n", masterConfig.ServingInfo.BindAddress)
 	fmt.Printf("Public master address is %s\n", masterConfig.AssetConfig.MasterPublicURL)
 	return start.StartAPI(openshiftConfig, kubeMasterConfig)
+}
+
+// getAndTestEtcdClient creates an etcd client based on the provided config. It will attempt to
+// connect to the etcd server and block until the server responds at least once, or return an
+// error if the server never responded.
+func getAndTestEtcdClient(etcdClientInfo configapi.EtcdConnectionInfo) (etcdclient.Client, error) {
+	etcdClient, err := etcd.MakeEtcdClient(etcdClientInfo)
+	if err != nil {
+		return nil, err
+	}
+	if err := etcd.TestEtcdClient(etcdClient); err != nil {
+		return nil, err
+	}
+	return etcdClient, nil
 }
 
 func (o *DebugAPIServerOptions) ImportEtcdDump(etcdClientInfo configapi.EtcdConnectionInfo) error {
@@ -129,10 +151,11 @@ func (o *DebugAPIServerOptions) ImportEtcdDump(etcdClientInfo configapi.EtcdConn
 	}
 
 	// Connect and setup etcd interfaces
-	etcdClient, err := etcd.GetAndTestEtcdClient(etcdClientInfo)
+	etcdClient, err := getAndTestEtcdClient(etcdClientInfo)
 	if err != nil {
 		return err
 	}
+	etcdKeyClient := coreosetcdclient.NewKeysAPI(etcdClient)
 
 	nodeList := []*coreosetcdclient.Node{}
 	nodeList = append(nodeList, etcdDump.Node)
@@ -150,13 +173,13 @@ func (o *DebugAPIServerOptions) ImportEtcdDump(etcdClientInfo configapi.EtcdConn
 		}
 
 		if node.Dir {
-			if _, err := etcdClient.CreateDir(node.Key, uint64(0)); err != nil {
+			if _, err := etcdKeyClient.Create(context.TODO(), node.Key, ""); err != nil {
 				return err
 			}
 			continue
 		}
 
-		if _, err := etcdClient.Create(node.Key, node.Value, uint64(0)); err != nil {
+		if _, err := etcdKeyClient.Create(context.TODO(), node.Key, node.Value); err != nil {
 			return err
 		}
 	}

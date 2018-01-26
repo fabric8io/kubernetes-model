@@ -15,6 +15,7 @@ oc-adm-config-delete-cluster.1
 oc-adm-config-delete-context.1
 oc-adm-config-get-clusters.1
 oc-adm-config-get-contexts.1
+oc-adm-config-rename-context.1
 oc-adm-config-set-cluster.1
 oc-adm-config-set-context.1
 oc-adm-config-set-credentials.1
@@ -46,6 +47,8 @@ oc-adm-groups-sync.1
 oc-adm-groups.1
 oc-adm-ipfailover.1
 oc-adm-manage-node.1
+oc-adm-migrate-authorization.1
+oc-adm-migrate-etcd-ttl.1
 oc-adm-migrate-image-references.1
 oc-adm-migrate-storage.1
 oc-adm-migrate.1
@@ -91,10 +94,16 @@ oc-adm-top-node.1
 oc-adm-top-pod.1
 oc-adm-top.1
 oc-adm-uncordon.1
+oc-adm-verify-image-signature.1
 oc-adm.1
 oc-annotate.1
+oc-apply-edit-last-applied.1
+oc-apply-set-last-applied.1
+oc-apply-view-last-applied.1
 oc-apply.1
 oc-attach.1
+oc-auth-can-i.1
+oc-auth.1
 oc-autoscale.1
 oc-build-logs.1
 oc-cancel-build.1
@@ -109,6 +118,7 @@ oc-config-delete-cluster.1
 oc-config-delete-context.1
 oc-config-get-clusters.1
 oc-config-get-contexts.1
+oc-config-rename-context.1
 oc-config-set-cluster.1
 oc-config-set-context.1
 oc-config-set-credentials.1
@@ -120,14 +130,19 @@ oc-config.1
 oc-convert.1
 oc-cp.1
 oc-create-clusterresourcequota.1
+oc-create-clusterrole.1
+oc-create-clusterrolebinding.1
 oc-create-configmap.1
 oc-create-deployment.1
 oc-create-deploymentconfig.1
 oc-create-identity.1
 oc-create-imagestream.1
 oc-create-namespace.1
+oc-create-poddisruptionbudget.1
 oc-create-policybinding.1
 oc-create-quota.1
+oc-create-role.1
+oc-create-rolebinding.1
 oc-create-route-edge.1
 oc-create-route-passthrough.1
 oc-create-route-reencrypt.1
@@ -137,6 +152,7 @@ oc-create-secret-generic.1
 oc-create-secret-tls.1
 oc-create-secret.1
 oc-create-service-clusterip.1
+oc-create-service-externalname.1
 oc-create-service-loadbalancer.1
 oc-create-service-nodeport.1
 oc-create-service.1
@@ -150,7 +166,6 @@ oc-deploy.1
 oc-describe.1
 oc-edit.1
 oc-env.1
-oc-ex-dockerbuild.1
 oc-ex.1
 oc-exec.1
 oc-explain.1
@@ -160,7 +175,6 @@ oc-extract.1
 oc-get.1
 oc-idle.1
 oc-import-app.json.1
-oc-import-docker-compose.1
 oc-import-image.1
 oc-import.1
 oc-label.1
@@ -173,6 +187,7 @@ oc-new-project.1
 oc-observe.1
 oc-options.1
 oc-patch.1
+oc-plugin.1
 oc-policy-add-role-to-group.1
 oc-policy-add-role-to-user.1
 oc-policy-can-i.1
@@ -220,6 +235,7 @@ oc-set-build-hook.1
 oc-set-build-secret.1
 oc-set-deployment-hook.1
 oc-set-env.1
+oc-set-image-lookup.1
 oc-set-image.1
 oc-set-probe.1
 oc-set-resources.1

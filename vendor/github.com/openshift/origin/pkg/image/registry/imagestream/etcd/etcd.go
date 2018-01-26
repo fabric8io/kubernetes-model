@@ -1,17 +1,17 @@
 package etcd
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/registry/generic"
+	"k8s.io/apiserver/pkg/registry/generic/registry"
+	"k8s.io/apiserver/pkg/registry/rest"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/rest"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/registry/generic/registry"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/storage"
 
 	"github.com/openshift/origin/pkg/authorization/registry/subjectaccessreview"
 	imageadmission "github.com/openshift/origin/pkg/image/admission"
-	"github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	"github.com/openshift/origin/pkg/image/registry/imagestream"
 	"github.com/openshift/origin/pkg/util/restoptions"
 )
@@ -22,24 +22,16 @@ type REST struct {
 	subjectAccessReviewRegistry subjectaccessreview.Registry
 }
 
+var _ rest.StandardStorage = &REST{}
+
 // NewREST returns a new REST.
-func NewREST(optsGetter restoptions.Getter, defaultRegistry api.DefaultRegistry, subjectAccessReviewRegistry subjectaccessreview.Registry, limitVerifier imageadmission.LimitVerifier) (*REST, *StatusREST, *InternalREST, error) {
+func NewREST(optsGetter restoptions.Getter, defaultRegistry imageapi.DefaultRegistry, subjectAccessReviewRegistry subjectaccessreview.Registry, limitVerifier imageadmission.LimitVerifier) (*REST, *StatusREST, *InternalREST, error) {
 	store := registry.Store{
-		NewFunc: func() runtime.Object { return &api.ImageStream{} },
-
-		// NewListFunc returns an object capable of storing results of an etcd list.
-		NewListFunc: func() runtime.Object { return &api.ImageStreamList{} },
-		// Retrieve the name field of an image
-		ObjectNameFunc: func(obj runtime.Object) (string, error) {
-			return obj.(*api.ImageStream).Name, nil
-		},
-		// Used to match objects based on labels/fields for list and watch
-		PredicateFunc: func(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
-			return imagestream.Matcher(label, field)
-		},
-		QualifiedResource: api.Resource("imagestreams"),
-
-		ReturnDeletedObject: false,
+		Copier:                   kapi.Scheme,
+		NewFunc:                  func() runtime.Object { return &imageapi.ImageStream{} },
+		NewListFunc:              func() runtime.Object { return &imageapi.ImageStreamList{} },
+		PredicateFunc:            imagestream.Matcher,
+		DefaultQualifiedResource: imageapi.Resource("imagestreams"),
 	}
 
 	rest := &REST{
@@ -51,9 +43,11 @@ func NewREST(optsGetter restoptions.Getter, defaultRegistry api.DefaultRegistry,
 
 	store.CreateStrategy = strategy
 	store.UpdateStrategy = strategy
+	store.DeleteStrategy = strategy
 	store.Decorator = strategy.Decorate
 
-	if err := restoptions.ApplyOptions(optsGetter, &store, true, storage.NoTriggerPublisher); err != nil {
+	options := &generic.StoreOptions{RESTOptions: optsGetter, AttrFunc: imagestream.GetAttrs}
+	if err := store.CompleteWithOptions(options); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -79,12 +73,23 @@ type StatusREST struct {
 	store *registry.Store
 }
 
+var _ rest.Getter = &StatusREST{}
+var _ rest.Updater = &StatusREST{}
+
+// StatusREST implements Patcher
+var _ = rest.Patcher(&StatusREST{})
+
 func (r *StatusREST) New() runtime.Object {
-	return &api.ImageStream{}
+	return &imageapi.ImageStream{}
+}
+
+// Get retrieves the object from the storage. It is required to support Patch.
+func (r *StatusREST) Get(ctx apirequest.Context, name string, options *metav1.GetOptions) (runtime.Object, error) {
+	return r.store.Get(ctx, name, options)
 }
 
 // Update alters the status subset of an object.
-func (r *StatusREST) Update(ctx kapi.Context, name string, objInfo rest.UpdatedObjectInfo) (runtime.Object, bool, error) {
+func (r *StatusREST) Update(ctx apirequest.Context, name string, objInfo rest.UpdatedObjectInfo) (runtime.Object, bool, error) {
 	return r.store.Update(ctx, name, objInfo)
 }
 
@@ -93,16 +98,19 @@ type InternalREST struct {
 	store *registry.Store
 }
 
+var _ rest.Creater = &InternalREST{}
+var _ rest.Updater = &InternalREST{}
+
 func (r *InternalREST) New() runtime.Object {
-	return &api.ImageStream{}
+	return &imageapi.ImageStream{}
 }
 
 // Create alters both the spec and status of the object.
-func (r *InternalREST) Create(ctx kapi.Context, obj runtime.Object) (runtime.Object, error) {
-	return r.store.Create(ctx, obj)
+func (r *InternalREST) Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runtime.Object, error) {
+	return r.store.Create(ctx, obj, false)
 }
 
 // Update alters both the spec and status of the object.
-func (r *InternalREST) Update(ctx kapi.Context, name string, objInfo rest.UpdatedObjectInfo) (runtime.Object, bool, error) {
+func (r *InternalREST) Update(ctx apirequest.Context, name string, objInfo rest.UpdatedObjectInfo) (runtime.Object, bool, error) {
 	return r.store.Update(ctx, name, objInfo)
 }

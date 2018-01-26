@@ -21,11 +21,12 @@ import (
 	"testing"
 	"time"
 
-	federation_api "k8s.io/kubernetes/federation/apis/federation/v1beta1"
-	api_v1 "k8s.io/kubernetes/pkg/api/v1"
-	kubeclientset "k8s.io/kubernetes/pkg/client/clientset_generated/release_1_5"
-	fake_kubeclientset "k8s.io/kubernetes/pkg/client/clientset_generated/release_1_5/fake"
-	pkg_runtime "k8s.io/kubernetes/pkg/runtime"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	pkgruntime "k8s.io/apimachinery/pkg/runtime"
+	federationapi "k8s.io/kubernetes/federation/apis/federation/v1beta1"
+	apiv1 "k8s.io/kubernetes/pkg/api/v1"
+	kubeclientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
+	fakekubeclientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset/fake"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -38,18 +39,18 @@ type fakeFederationView struct {
 var _ FederationView = &fakeFederationView{}
 
 func (f *fakeFederationView) GetClientsetForCluster(clusterName string) (kubeclientset.Interface, error) {
-	return &fake_kubeclientset.Clientset{}, nil
+	return &fakekubeclientset.Clientset{}, nil
 }
 
-func (f *fakeFederationView) GetReadyClusters() ([]*federation_api.Cluster, error) {
-	return []*federation_api.Cluster{}, nil
+func (f *fakeFederationView) GetReadyClusters() ([]*federationapi.Cluster, error) {
+	return []*federationapi.Cluster{}, nil
 }
 
-func (f *fakeFederationView) GetUnreadyClusters() ([]*federation_api.Cluster, error) {
-	return []*federation_api.Cluster{}, nil
+func (f *fakeFederationView) GetUnreadyClusters() ([]*federationapi.Cluster, error) {
+	return []*federationapi.Cluster{}, nil
 }
 
-func (f *fakeFederationView) GetReadyCluster(name string) (*federation_api.Cluster, bool, error) {
+func (f *fakeFederationView) GetReadyCluster(name string) (*federationapi.Cluster, bool, error) {
 	return nil, false, nil
 }
 
@@ -57,18 +58,26 @@ func (f *fakeFederationView) ClustersSynced() bool {
 	return true
 }
 
+type fakeEventRecorder struct{}
+
+func (f *fakeEventRecorder) Event(object pkgruntime.Object, eventtype, reason, message string) {}
+func (f *fakeEventRecorder) Eventf(object pkgruntime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
+}
+func (f *fakeEventRecorder) PastEventf(object pkgruntime.Object, timestamp metav1.Time, eventtype, reason, messageFmt string, args ...interface{}) {
+}
+
 func TestFederatedUpdaterOK(t *testing.T) {
 	addChan := make(chan string, 5)
 	updateChan := make(chan string, 5)
 
-	updater := NewFederatedUpdater(&fakeFederationView{},
-		func(_ kubeclientset.Interface, obj pkg_runtime.Object) error {
-			service := obj.(*api_v1.Service)
+	updater := NewFederatedUpdater(&fakeFederationView{}, "foo", time.Minute, &fakeEventRecorder{},
+		func(_ kubeclientset.Interface, obj pkgruntime.Object) error {
+			service := obj.(*apiv1.Service)
 			addChan <- service.Name
 			return nil
 		},
-		func(_ kubeclientset.Interface, obj pkg_runtime.Object) error {
-			service := obj.(*api_v1.Service)
+		func(_ kubeclientset.Interface, obj pkgruntime.Object) error {
+			service := obj.(*apiv1.Service)
 			updateChan <- service.Name
 			return nil
 		},
@@ -83,7 +92,7 @@ func TestFederatedUpdaterOK(t *testing.T) {
 			Type: OperationTypeUpdate,
 			Obj:  makeService("B", "s2"),
 		},
-	}, time.Minute)
+	})
 	assert.NoError(t, err)
 	add := <-addChan
 	update := <-updateChan
@@ -92,8 +101,8 @@ func TestFederatedUpdaterOK(t *testing.T) {
 }
 
 func TestFederatedUpdaterError(t *testing.T) {
-	updater := NewFederatedUpdater(&fakeFederationView{},
-		func(_ kubeclientset.Interface, obj pkg_runtime.Object) error {
+	updater := NewFederatedUpdater(&fakeFederationView{}, "foo", time.Minute, &fakeEventRecorder{},
+		func(_ kubeclientset.Interface, obj pkgruntime.Object) error {
 			return fmt.Errorf("boom")
 		}, noop, noop)
 
@@ -106,14 +115,14 @@ func TestFederatedUpdaterError(t *testing.T) {
 			Type: OperationTypeUpdate,
 			Obj:  makeService("B", "s1"),
 		},
-	}, time.Minute)
+	})
 	assert.Error(t, err)
 }
 
 func TestFederatedUpdaterTimeout(t *testing.T) {
 	start := time.Now()
-	updater := NewFederatedUpdater(&fakeFederationView{},
-		func(_ kubeclientset.Interface, obj pkg_runtime.Object) error {
+	updater := NewFederatedUpdater(&fakeFederationView{}, "foo", time.Second, &fakeEventRecorder{},
+		func(_ kubeclientset.Interface, obj pkgruntime.Object) error {
 			time.Sleep(time.Minute)
 			return nil
 		},
@@ -128,21 +137,21 @@ func TestFederatedUpdaterTimeout(t *testing.T) {
 			Type: OperationTypeUpdate,
 			Obj:  makeService("B", "s1"),
 		},
-	}, time.Second)
+	})
 	end := time.Now()
 	assert.Error(t, err)
 	assert.True(t, start.Add(10*time.Second).After(end))
 }
 
-func makeService(cluster, name string) *api_v1.Service {
-	return &api_v1.Service{
-		ObjectMeta: api_v1.ObjectMeta{
+func makeService(cluster, name string) *apiv1.Service {
+	return &apiv1.Service{
+		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "ns1",
 			Name:      name,
 		},
 	}
 }
 
-func noop(_ kubeclientset.Interface, _ pkg_runtime.Object) error {
+func noop(_ kubeclientset.Interface, _ pkgruntime.Object) error {
 	return nil
 }

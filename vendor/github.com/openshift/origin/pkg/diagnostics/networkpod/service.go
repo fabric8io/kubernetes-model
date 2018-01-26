@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	kcontainer "k8s.io/kubernetes/pkg/kubelet/container"
@@ -13,7 +14,7 @@ import (
 	osclient "github.com/openshift/origin/pkg/client"
 	"github.com/openshift/origin/pkg/diagnostics/networkpod/util"
 	"github.com/openshift/origin/pkg/diagnostics/types"
-	sdnapi "github.com/openshift/origin/pkg/sdn/api"
+	"github.com/openshift/origin/pkg/sdn"
 )
 
 const (
@@ -79,8 +80,8 @@ func (d CheckServiceNetwork) Check() types.DiagnosticResult {
 		return d.res
 	}
 
-	if sdnapi.IsOpenShiftMultitenantNetworkPlugin(pluginName) {
-		netnsList, err := d.OSClient.NetNamespaces().List(kapi.ListOptions{})
+	if sdn.IsOpenShiftMultitenantNetworkPlugin(pluginName) {
+		netnsList, err := d.OSClient.NetNamespaces().List(metav1.ListOptions{})
 		if err != nil {
 			d.res.Error("DSvcNet1006", err, fmt.Sprintf("Getting all network namespaces failed. Error: %s", err))
 			return d.res
@@ -143,7 +144,7 @@ func (d CheckServiceNetwork) checkConnection(pods []kapi.Pod, services []kapi.Se
 
 func getAllServices(kubeClient kclientset.Interface) ([]kapi.Service, error) {
 	filtered_srvs := []kapi.Service{}
-	serviceList, err := kubeClient.Core().Services(kapi.NamespaceAll).List(kapi.ListOptions{})
+	serviceList, err := kubeClient.Core().Services(metav1.NamespaceAll).List(metav1.ListOptions{})
 	if err != nil {
 		return filtered_srvs, err
 	}

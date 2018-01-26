@@ -17,12 +17,13 @@ limitations under the License.
 package fake
 
 import (
-	api "k8s.io/kubernetes/pkg/api"
-	unversioned "k8s.io/kubernetes/pkg/api/unversioned"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
+	types "k8s.io/apimachinery/pkg/types"
+	watch "k8s.io/apimachinery/pkg/watch"
+	testing "k8s.io/client-go/testing"
 	rbac "k8s.io/kubernetes/pkg/apis/rbac"
-	core "k8s.io/kubernetes/pkg/client/testing/core"
-	labels "k8s.io/kubernetes/pkg/labels"
-	watch "k8s.io/kubernetes/pkg/watch"
 )
 
 // FakeRoles implements RoleInterface
@@ -31,11 +32,14 @@ type FakeRoles struct {
 	ns   string
 }
 
-var rolesResource = unversioned.GroupVersionResource{Group: "rbac.authorization.k8s.io", Version: "", Resource: "roles"}
+var rolesResource = schema.GroupVersionResource{Group: "rbac.authorization.k8s.io", Version: "", Resource: "roles"}
 
-func (c *FakeRoles) Create(role *rbac.Role) (result *rbac.Role, err error) {
+var rolesKind = schema.GroupVersionKind{Group: "rbac.authorization.k8s.io", Version: "", Kind: "Role"}
+
+// Get takes name of the role, and returns the corresponding role object, and an error if there is any.
+func (c *FakeRoles) Get(name string, options v1.GetOptions) (result *rbac.Role, err error) {
 	obj, err := c.Fake.
-		Invokes(core.NewCreateAction(rolesResource, c.ns, role), &rbac.Role{})
+		Invokes(testing.NewGetAction(rolesResource, c.ns, name), &rbac.Role{})
 
 	if obj == nil {
 		return nil, err
@@ -43,49 +47,16 @@ func (c *FakeRoles) Create(role *rbac.Role) (result *rbac.Role, err error) {
 	return obj.(*rbac.Role), err
 }
 
-func (c *FakeRoles) Update(role *rbac.Role) (result *rbac.Role, err error) {
+// List takes label and field selectors, and returns the list of Roles that match those selectors.
+func (c *FakeRoles) List(opts v1.ListOptions) (result *rbac.RoleList, err error) {
 	obj, err := c.Fake.
-		Invokes(core.NewUpdateAction(rolesResource, c.ns, role), &rbac.Role{})
-
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*rbac.Role), err
-}
-
-func (c *FakeRoles) Delete(name string, options *api.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(core.NewDeleteAction(rolesResource, c.ns, name), &rbac.Role{})
-
-	return err
-}
-
-func (c *FakeRoles) DeleteCollection(options *api.DeleteOptions, listOptions api.ListOptions) error {
-	action := core.NewDeleteCollectionAction(rolesResource, c.ns, listOptions)
-
-	_, err := c.Fake.Invokes(action, &rbac.RoleList{})
-	return err
-}
-
-func (c *FakeRoles) Get(name string) (result *rbac.Role, err error) {
-	obj, err := c.Fake.
-		Invokes(core.NewGetAction(rolesResource, c.ns, name), &rbac.Role{})
-
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*rbac.Role), err
-}
-
-func (c *FakeRoles) List(opts api.ListOptions) (result *rbac.RoleList, err error) {
-	obj, err := c.Fake.
-		Invokes(core.NewListAction(rolesResource, c.ns, opts), &rbac.RoleList{})
+		Invokes(testing.NewListAction(rolesResource, rolesKind, c.ns, opts), &rbac.RoleList{})
 
 	if obj == nil {
 		return nil, err
 	}
 
-	label, _, _ := core.ExtractFromListOptions(opts)
+	label, _, _ := testing.ExtractFromListOptions(opts)
 	if label == nil {
 		label = labels.Everything()
 	}
@@ -99,16 +70,54 @@ func (c *FakeRoles) List(opts api.ListOptions) (result *rbac.RoleList, err error
 }
 
 // Watch returns a watch.Interface that watches the requested roles.
-func (c *FakeRoles) Watch(opts api.ListOptions) (watch.Interface, error) {
+func (c *FakeRoles) Watch(opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(core.NewWatchAction(rolesResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchAction(rolesResource, c.ns, opts))
 
 }
 
-// Patch applies the patch and returns the patched role.
-func (c *FakeRoles) Patch(name string, pt api.PatchType, data []byte, subresources ...string) (result *rbac.Role, err error) {
+// Create takes the representation of a role and creates it.  Returns the server's representation of the role, and an error, if there is any.
+func (c *FakeRoles) Create(role *rbac.Role) (result *rbac.Role, err error) {
 	obj, err := c.Fake.
-		Invokes(core.NewPatchSubresourceAction(rolesResource, c.ns, name, data, subresources...), &rbac.Role{})
+		Invokes(testing.NewCreateAction(rolesResource, c.ns, role), &rbac.Role{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*rbac.Role), err
+}
+
+// Update takes the representation of a role and updates it. Returns the server's representation of the role, and an error, if there is any.
+func (c *FakeRoles) Update(role *rbac.Role) (result *rbac.Role, err error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateAction(rolesResource, c.ns, role), &rbac.Role{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*rbac.Role), err
+}
+
+// Delete takes name of the role and deletes it. Returns an error if one occurs.
+func (c *FakeRoles) Delete(name string, options *v1.DeleteOptions) error {
+	_, err := c.Fake.
+		Invokes(testing.NewDeleteAction(rolesResource, c.ns, name), &rbac.Role{})
+
+	return err
+}
+
+// DeleteCollection deletes a collection of objects.
+func (c *FakeRoles) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(rolesResource, c.ns, listOptions)
+
+	_, err := c.Fake.Invokes(action, &rbac.RoleList{})
+	return err
+}
+
+// Patch applies the patch and returns the patched role.
+func (c *FakeRoles) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *rbac.Role, err error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(rolesResource, c.ns, name, data, subresources...), &rbac.Role{})
 
 	if obj == nil {
 		return nil, err

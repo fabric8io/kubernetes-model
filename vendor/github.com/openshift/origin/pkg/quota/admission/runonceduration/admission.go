@@ -8,10 +8,9 @@ import (
 
 	"github.com/golang/glog"
 
-	"k8s.io/kubernetes/pkg/admission"
+	"k8s.io/apiserver/pkg/admission"
+	"k8s.io/client-go/util/integer"
 	kapi "k8s.io/kubernetes/pkg/api"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/util/integer"
 
 	oadmission "github.com/openshift/origin/pkg/cmd/server/admission"
 	configlatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
@@ -20,18 +19,19 @@ import (
 	"github.com/openshift/origin/pkg/quota/admission/runonceduration/api/validation"
 )
 
-func init() {
-	admission.RegisterPlugin("RunOnceDuration", func(client clientset.Interface, config io.Reader) (admission.Interface, error) {
-		pluginConfig, err := readConfig(config)
-		if err != nil {
-			return nil, err
-		}
-		if pluginConfig == nil {
-			glog.Infof("Admission plugin %q is not configured so it will be disabled.", "RunOnceDuration")
-			return nil, nil
-		}
-		return NewRunOnceDuration(pluginConfig), nil
-	})
+func Register(plugins *admission.Plugins) {
+	plugins.Register("RunOnceDuration",
+		func(config io.Reader) (admission.Interface, error) {
+			pluginConfig, err := readConfig(config)
+			if err != nil {
+				return nil, err
+			}
+			if pluginConfig == nil {
+				glog.Infof("Admission plugin %q is not configured so it will be disabled.", "RunOnceDuration")
+				return nil, nil
+			}
+			return NewRunOnceDuration(pluginConfig), nil
+		})
 }
 
 func readConfig(reader io.Reader) (*api.RunOnceDurationConfig, error) {

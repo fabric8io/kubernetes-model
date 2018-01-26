@@ -3,20 +3,19 @@ package templaterouter
 import (
 	"crypto/md5"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"text/template"
 	"time"
 
 	"github.com/golang/glog"
+	ktypes "k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/watch"
 	kapi "k8s.io/kubernetes/pkg/api"
-	ktypes "k8s.io/kubernetes/pkg/types"
-	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
-	"k8s.io/kubernetes/pkg/util/sets"
-	"k8s.io/kubernetes/pkg/watch"
 
-	routeapi "github.com/openshift/origin/pkg/route/api"
+	routeapi "github.com/openshift/origin/pkg/route/apis/route"
 	unidlingapi "github.com/openshift/origin/pkg/unidling/api"
 )
 
@@ -37,21 +36,25 @@ func newDefaultTemplatePlugin(router routerInterface, includeUDP bool, lookupSvc
 }
 
 type TemplatePluginConfig struct {
-	WorkingDir             string
-	TemplatePath           string
-	ReloadScriptPath       string
-	ReloadInterval         time.Duration
-	DefaultCertificate     string
-	DefaultCertificatePath string
-	DefaultCertificateDir  string
-	StatsPort              int
-	StatsUsername          string
-	StatsPassword          string
-	IncludeUDP             bool
-	AllowWildcardRoutes    bool
-	PeerService            *ktypes.NamespacedName
-	BindPortsAfterSync     bool
-	MaxConnections         string
+	WorkingDir               string
+	TemplatePath             string
+	ReloadScriptPath         string
+	ReloadInterval           time.Duration
+	ReloadCallbacks          []func()
+	DefaultCertificate       string
+	DefaultCertificatePath   string
+	DefaultCertificateDir    string
+	DefaultDestinationCAPath string
+	StatsPort                int
+	StatsUsername            string
+	StatsPassword            string
+	IncludeUDP               bool
+	AllowWildcardRoutes      bool
+	PeerService              *ktypes.NamespacedName
+	BindPortsAfterSync       bool
+	MaxConnections           string
+	Ciphers                  string
+	StrictSNI                bool
 }
 
 // routerInterface controls the interaction of the plugin with the underlying router implementation
@@ -60,6 +63,9 @@ type routerInterface interface {
 	// The only error state for these methods is when an unknown
 	// frontend key is used; all call sites make certain the frontend
 	// is created.
+
+	// SyncedAtLeastOnce indicates an initial sync has been performed
+	SyncedAtLeastOnce() bool
 
 	// CreateServiceUnit creates a new service named with the given id.
 	CreateServiceUnit(id string)
@@ -84,29 +90,10 @@ type routerInterface interface {
 	Commit()
 }
 
-func env(name, defaultValue string) string {
-	if envValue := os.Getenv(name); envValue != "" {
-		return envValue
-	}
-
-	return defaultValue
-}
-
 // NewTemplatePlugin creates a new TemplatePlugin.
 func NewTemplatePlugin(cfg TemplatePluginConfig, lookupSvc ServiceLookup) (*TemplatePlugin, error) {
 	templateBaseName := filepath.Base(cfg.TemplatePath)
-	globalFuncs := template.FuncMap{
-		"endpointsForAlias": endpointsForAlias, //returns the list of valid endpoints
-		"env":               env,               //tries to get an environment variable if it can't return a default
-		"matchPattern":      matchPattern,      //anchors provided regular expression and evaluates against given string
-		"isInteger":         isInteger,         //determines if a given variable is an integer
-		"matchValues":       matchValues,       //compares a given string to a list of allowed strings
-
-		"genSubdomainWildcardRegexp": genSubdomainWildcardRegexp, //generates a regular expression matching the subdomain for hosts (and paths) with a wildcard policy
-		"generateRouteRegexp":        generateRouteRegexp,        //generates a regular expression matching the route hosts (and paths)
-		"genCertificateHostName":     genCertificateHostName,     //generates host name to use for serving/matching certificates
-	}
-	masterTemplate, err := template.New("config").Funcs(globalFuncs).ParseFiles(cfg.TemplatePath)
+	masterTemplate, err := template.New("config").Funcs(helperFunctions).ParseFiles(cfg.TemplatePath)
 	if err != nil {
 		return nil, err
 	}
@@ -126,19 +113,21 @@ func NewTemplatePlugin(cfg TemplatePluginConfig, lookupSvc ServiceLookup) (*Temp
 	}
 
 	templateRouterCfg := templateRouterCfg{
-		dir:                    cfg.WorkingDir,
-		templates:              templates,
-		reloadScriptPath:       cfg.ReloadScriptPath,
-		reloadInterval:         cfg.ReloadInterval,
-		defaultCertificate:     cfg.DefaultCertificate,
-		defaultCertificatePath: cfg.DefaultCertificatePath,
-		defaultCertificateDir:  cfg.DefaultCertificateDir,
-		statsUser:              cfg.StatsUsername,
-		statsPassword:          cfg.StatsPassword,
-		statsPort:              cfg.StatsPort,
-		allowWildcardRoutes:    cfg.AllowWildcardRoutes,
-		peerEndpointsKey:       peerKey,
-		bindPortsAfterSync:     cfg.BindPortsAfterSync,
+		dir:                      cfg.WorkingDir,
+		templates:                templates,
+		reloadScriptPath:         cfg.ReloadScriptPath,
+		reloadInterval:           cfg.ReloadInterval,
+		reloadCallbacks:          cfg.ReloadCallbacks,
+		defaultCertificate:       cfg.DefaultCertificate,
+		defaultCertificatePath:   cfg.DefaultCertificatePath,
+		defaultCertificateDir:    cfg.DefaultCertificateDir,
+		defaultDestinationCAPath: cfg.DefaultDestinationCAPath,
+		statsUser:                cfg.StatsUsername,
+		statsPassword:            cfg.StatsPassword,
+		statsPort:                cfg.StatsPort,
+		allowWildcardRoutes:      cfg.AllowWildcardRoutes,
+		peerEndpointsKey:         peerKey,
+		bindPortsAfterSync:       cfg.BindPortsAfterSync,
 	}
 	router, err := newTemplateRouter(templateRouterCfg)
 	return newDefaultTemplatePlugin(router, cfg.IncludeUDP, lookupSvc), err
@@ -266,7 +255,6 @@ func createRouterEndpoints(endpoints *kapi.Endpoints, excludeUDP bool, lookupSvc
 			}
 			for _, a := range s.Addresses {
 				ep := Endpoint{
-					ID:   fmt.Sprintf("%s:%d", a.IP, p.Port),
 					IP:   a.IP,
 					Port: strconv.Itoa(int(p.Port)),
 
@@ -276,15 +264,21 @@ func createRouterEndpoints(endpoints *kapi.Endpoints, excludeUDP bool, lookupSvc
 				}
 				if a.TargetRef != nil {
 					ep.TargetName = a.TargetRef.Name
+					if a.TargetRef.Kind == "Pod" {
+						ep.ID = fmt.Sprintf("pod:%s:%s:%s:%d", ep.TargetName, endpoints.Name, a.IP, p.Port)
+					} else {
+						ep.ID = fmt.Sprintf("ept:%s:%s:%d", endpoints.Name, a.IP, p.Port)
+					}
 				} else {
 					ep.TargetName = ep.IP
+					ep.ID = fmt.Sprintf("ept:%s:%s:%d", endpoints.Name, a.IP, p.Port)
 				}
 
 				// IdHash contains an obfuscated internal IP address
 				// that is the value passed in the cookie. The IP address
 				// is made more difficult to extract by including other
 				// internal information in the hash.
-				s := ep.ID + ep.TargetName + ep.PortName
+				s := ep.ID
 				ep.IdHash = fmt.Sprintf("%x", md5.Sum([]byte(s)))
 
 				out = append(out, ep)

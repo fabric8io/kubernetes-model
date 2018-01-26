@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	kflag "k8s.io/apiserver/pkg/util/flag"
 	apiserverapp "k8s.io/kubernetes/cmd/kube-apiserver/app"
 	apiserveroptions "k8s.io/kubernetes/cmd/kube-apiserver/app/options"
-	kflag "k8s.io/kubernetes/pkg/util/flag"
 	"k8s.io/kubernetes/pkg/util/logs"
 )
 
@@ -32,7 +32,10 @@ func NewAPIServerCommand(name, fullName string, out io.Writer) *cobra.Command {
 			logs.InitLogs()
 			defer logs.FlushLogs()
 
-			if err := apiserverapp.Run(apiServerOptions); err != nil {
+			stopCh := make(chan struct{})
+			defer close(stopCh)
+
+			if err := apiserverapp.Run(apiServerOptions, stopCh); err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				os.Exit(1)
 			}

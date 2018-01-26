@@ -1,28 +1,31 @@
 package image
 
 import (
+	metainternal "k8s.io/apimachinery/pkg/apis/meta/internalversion"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/registry/rest"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/rest"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/watch"
 
-	"github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 )
 
 // Registry is an interface for things that know how to store Image objects.
 type Registry interface {
 	// ListImages obtains a list of images that match a selector.
-	ListImages(ctx kapi.Context, options *kapi.ListOptions) (*api.ImageList, error)
+	ListImages(ctx apirequest.Context, options *metainternal.ListOptions) (*imageapi.ImageList, error)
 	// GetImage retrieves a specific image.
-	GetImage(ctx kapi.Context, id string) (*api.Image, error)
+	GetImage(ctx apirequest.Context, id string, options *metav1.GetOptions) (*imageapi.Image, error)
 	// CreateImage creates a new image.
-	CreateImage(ctx kapi.Context, image *api.Image) error
+	CreateImage(ctx apirequest.Context, image *imageapi.Image) error
 	// DeleteImage deletes an image.
-	DeleteImage(ctx kapi.Context, id string) error
+	DeleteImage(ctx apirequest.Context, id string) error
 	// WatchImages watches for new or deleted images.
-	WatchImages(ctx kapi.Context, options *kapi.ListOptions) (watch.Interface, error)
+	WatchImages(ctx apirequest.Context, options *metainternal.ListOptions) (watch.Interface, error)
 	// UpdateImage updates given image.
-	UpdateImage(ctx kapi.Context, image *api.Image) (*api.Image, error)
+	UpdateImage(ctx apirequest.Context, image *imageapi.Image) (*imageapi.Image, error)
 }
 
 // Storage is an interface for a standard REST Storage backend
@@ -32,8 +35,8 @@ type Storage interface {
 	rest.Getter
 	rest.Watcher
 
-	Create(ctx kapi.Context, obj runtime.Object) (runtime.Object, error)
-	Update(ctx kapi.Context, name string, objInfo rest.UpdatedObjectInfo) (runtime.Object, bool, error)
+	Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runtime.Object, error)
+	Update(ctx apirequest.Context, name string, objInfo rest.UpdatedObjectInfo) (runtime.Object, bool, error)
 }
 
 // storage puts strong typing around storage calls
@@ -47,40 +50,40 @@ func NewRegistry(s Storage) Registry {
 	return &storage{Storage: s}
 }
 
-func (s *storage) ListImages(ctx kapi.Context, options *kapi.ListOptions) (*api.ImageList, error) {
+func (s *storage) ListImages(ctx apirequest.Context, options *metainternal.ListOptions) (*imageapi.ImageList, error) {
 	obj, err := s.List(ctx, options)
 	if err != nil {
 		return nil, err
 	}
-	return obj.(*api.ImageList), nil
+	return obj.(*imageapi.ImageList), nil
 }
 
-func (s *storage) GetImage(ctx kapi.Context, imageID string) (*api.Image, error) {
-	obj, err := s.Get(ctx, imageID)
+func (s *storage) GetImage(ctx apirequest.Context, imageID string, options *metav1.GetOptions) (*imageapi.Image, error) {
+	obj, err := s.Get(ctx, imageID, options)
 	if err != nil {
 		return nil, err
 	}
-	return obj.(*api.Image), nil
+	return obj.(*imageapi.Image), nil
 }
 
-func (s *storage) CreateImage(ctx kapi.Context, image *api.Image) error {
-	_, err := s.Create(ctx, image)
+func (s *storage) CreateImage(ctx apirequest.Context, image *imageapi.Image) error {
+	_, err := s.Create(ctx, image, false)
 	return err
 }
 
-func (s *storage) UpdateImage(ctx kapi.Context, image *api.Image) (*api.Image, error) {
+func (s *storage) UpdateImage(ctx apirequest.Context, image *imageapi.Image) (*imageapi.Image, error) {
 	obj, _, err := s.Update(ctx, image.Name, rest.DefaultUpdatedObjectInfo(image, kapi.Scheme))
 	if err != nil {
 		return nil, err
 	}
-	return obj.(*api.Image), nil
+	return obj.(*imageapi.Image), nil
 }
 
-func (s *storage) DeleteImage(ctx kapi.Context, imageID string) error {
-	_, err := s.Delete(ctx, imageID, nil)
+func (s *storage) DeleteImage(ctx apirequest.Context, imageID string) error {
+	_, _, err := s.Delete(ctx, imageID, nil)
 	return err
 }
 
-func (s *storage) WatchImages(ctx kapi.Context, options *kapi.ListOptions) (watch.Interface, error) {
+func (s *storage) WatchImages(ctx apirequest.Context, options *metainternal.ListOptions) (watch.Interface, error) {
 	return s.Watch(ctx, options)
 }

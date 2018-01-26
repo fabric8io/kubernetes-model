@@ -1,29 +1,34 @@
 package api
 
 import (
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-const GroupName = ""
-
-// SchemeGroupVersion is group version used to register these objects
-var SchemeGroupVersion = unversioned.GroupVersion{Group: GroupName, Version: runtime.APIVersionInternal}
-
-// Kind takes an unqualified kind and returns back a Group qualified GroupKind
-func Kind(kind string) unversioned.GroupKind {
-	return SchemeGroupVersion.WithKind(kind).GroupKind()
-}
-
-// Resource takes an unqualified resource and returns back a Group qualified GroupResource
-func Resource(resource string) unversioned.GroupResource {
-	return SchemeGroupVersion.WithResource(resource).GroupResource()
-}
+const (
+	GroupName       = "requestlimit.project.openshift.io"
+	LegacyGroupName = ""
+)
 
 var (
+	SchemeGroupVersion       = schema.GroupVersion{Group: GroupName, Version: runtime.APIVersionInternal}
+	LegacySchemeGroupVersion = schema.GroupVersion{Group: LegacyGroupName, Version: runtime.APIVersionInternal}
+
+	LegacySchemeBuilder    = runtime.NewSchemeBuilder(addLegacyKnownTypes)
+	AddToSchemeInCoreGroup = LegacySchemeBuilder.AddToScheme
+
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 	AddToScheme   = SchemeBuilder.AddToScheme
 )
+
+// Adds the list of known types to api.Scheme.
+func addLegacyKnownTypes(scheme *runtime.Scheme) error {
+	types := []runtime.Object{
+		&ProjectRequestLimitConfig{},
+	}
+	scheme.AddKnownTypes(LegacySchemeGroupVersion, types...)
+	return nil
+}
 
 // Adds the list of known types to api.Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
@@ -32,5 +37,3 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	)
 	return nil
 }
-
-func (obj *ProjectRequestLimitConfig) GetObjectKind() unversioned.ObjectKind { return &obj.TypeMeta }

@@ -5,26 +5,28 @@ import (
 	"io"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/errors"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/errors"
 
+	"github.com/openshift/origin/pkg/api/latest"
 	"github.com/openshift/origin/pkg/client"
 	"github.com/openshift/origin/pkg/generate/app"
 	"github.com/openshift/origin/pkg/template"
-	templateapi "github.com/openshift/origin/pkg/template/api"
+	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 )
 
 // TransformTemplate processes a template with the provided parameters, returning an error if transformation fails.
-func TransformTemplate(tpl *templateapi.Template, client client.TemplateConfigsNamespacer, namespace string, parameters map[string]string) (*templateapi.Template, error) {
+func TransformTemplate(tpl *templateapi.Template, client client.TemplateConfigsNamespacer, namespace string, parameters map[string]string, ignoreUnknownParameters bool) (*templateapi.Template, error) {
 	// only set values that match what's expected by the template.
 	for k, value := range parameters {
 		v := template.GetParameterByName(tpl, k)
-		if v == nil {
+		if v != nil {
+			v.Value = value
+			v.Generate = ""
+		} else if !ignoreUnknownParameters {
 			return nil, fmt.Errorf("unexpected parameter name %q", k)
 		}
-		v.Value = value
-		v.Generate = ""
 	}
 
 	name := localOrRemoteName(tpl.ObjectMeta, namespace)
@@ -37,7 +39,10 @@ func TransformTemplate(tpl *templateapi.Template, client client.TemplateConfigsN
 
 	// ensure the template objects are decoded
 	// TODO: in the future, this should be more automatic
-	if errs := runtime.DecodeList(result.Objects, kapi.Codecs.UniversalDecoder()); len(errs) > 0 {
+	// TODO: this should use the UniversalDecoder() once we deprecate legacy group. Until
+	// then we have to maintain the backward compatibility with old servers so this will
+	// force to decode the list as legacy/core API.
+	if errs := runtime.DecodeList(result.Objects, kapi.Codecs.LegacyCodec(latest.Version)); len(errs) > 0 {
 		err = errors.NewAggregate(errs)
 		return nil, fmt.Errorf("error processing template %q: %v", name, err)
 	}
@@ -46,7 +51,7 @@ func TransformTemplate(tpl *templateapi.Template, client client.TemplateConfigsN
 }
 
 func formatString(out io.Writer, tab, s string) {
-	labelVals := strings.Split(s, "\n")
+	labelVals := strings.Split(strings.TrimSuffix(s, "\n"), "\n")
 
 	for _, lval := range labelVals {
 		fmt.Fprintf(out, fmt.Sprintf("%s%s\n", tab, lval))
@@ -79,7 +84,6 @@ func DescribeGeneratedTemplate(out io.Writer, input string, result *templateapi.
 			formatString(out, "     ", message)
 			fmt.Fprintln(out)
 		}
-		fmt.Fprintln(out)
 	}
 
 	if warnings := result.Annotations[app.GenerationWarningAnnotation]; len(warnings) > 0 {

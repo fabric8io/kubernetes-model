@@ -18,19 +18,28 @@ package framework
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"strings"
 	"time"
 
-	"k8s.io/kubernetes/pkg/api"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/util/wait"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 )
 
-// The following upgrade functions are passed into the framework below and used
-// to do the actual upgrades.
-var MasterUpgrade = func(v string) error {
+func EtcdUpgrade(target_storage, target_version string) error {
+	switch TestContext.Provider {
+	case "gce":
+		return etcdUpgradeGCE(target_storage, target_version)
+	default:
+		return fmt.Errorf("EtcdUpgrade() is not implemented for provider %s", TestContext.Provider)
+	}
+}
+
+func MasterUpgrade(v string) error {
 	switch TestContext.Provider {
 	case "gce":
 		return masterUpgradeGCE(v)
@@ -41,9 +50,29 @@ var MasterUpgrade = func(v string) error {
 	}
 }
 
+func etcdUpgradeGCE(target_storage, target_version string) error {
+	env := append(
+		os.Environ(),
+		"TEST_ETCD_VERSION="+target_version,
+		"STORAGE_BACKEND="+target_storage,
+		"TEST_ETCD_IMAGE=3.0.17")
+
+	_, _, err := RunCmdEnv(env, gceUpgradeScript(), "-l", "-M")
+	return err
+}
+
 func masterUpgradeGCE(rawV string) error {
+	env := os.Environ()
+	// TODO: Remove these variables when they're no longer needed for downgrades.
+	if TestContext.EtcdUpgradeVersion != "" && TestContext.EtcdUpgradeStorage != "" {
+		env = append(env,
+			"TEST_ETCD_VERSION="+TestContext.EtcdUpgradeVersion,
+			"STORAGE_BACKEND="+TestContext.EtcdUpgradeStorage,
+			"TEST_ETCD_IMAGE=3.0.17")
+	}
+
 	v := "v" + rawV
-	_, _, err := RunCmd(path.Join(TestContext.RepoRoot, "cluster/gce/upgrade.sh"), "-M", v)
+	_, _, err := RunCmdEnv(env, gceUpgradeScript(), "-M", v)
 	return err
 }
 
@@ -58,16 +87,21 @@ func masterUpgradeGKE(v string) error {
 		"--master",
 		fmt.Sprintf("--cluster-version=%s", v),
 		"--quiet")
-	return err
+	if err != nil {
+		return err
+	}
+
+	waitForSSHTunnels()
+
+	return nil
 }
 
-var NodeUpgrade = func(f *Framework, v string, img string) error {
+func NodeUpgrade(f *Framework, v string, img string) error {
 	// Perform the upgrade.
 	var err error
 	switch TestContext.Provider {
 	case "gce":
-		// TODO(maisem): add GCE support for upgrading to different images.
-		err = nodeUpgradeGCE(v)
+		err = nodeUpgradeGCE(v, img)
 	case "gke":
 		err = nodeUpgradeGKE(v, img)
 	default:
@@ -88,33 +122,15 @@ var NodeUpgrade = func(f *Framework, v string, img string) error {
 	return nil
 }
 
-func nodeUpgradeGCE(rawV string) error {
+func nodeUpgradeGCE(rawV, img string) error {
 	v := "v" + rawV
-	_, _, err := RunCmd(path.Join(TestContext.RepoRoot, "cluster/gce/upgrade.sh"), "-N", v)
+	if img != "" {
+		env := append(os.Environ(), "KUBE_NODE_OS_DISTRIBUTION="+img)
+		_, _, err := RunCmdEnv(env, gceUpgradeScript(), "-N", "-o", v)
+		return err
+	}
+	_, _, err := RunCmd(gceUpgradeScript(), "-N", v)
 	return err
-}
-
-func cleanupNodeUpgradeGCE(tmplBefore string) {
-	Logf("Cleaning up any unused node templates")
-	tmplAfter, err := MigTemplate()
-	if err != nil {
-		Logf("Could not get node template post-upgrade; may have leaked template %s", tmplBefore)
-		return
-	}
-	if tmplBefore == tmplAfter {
-		// The node upgrade failed so there's no need to delete
-		// anything.
-		Logf("Node template %s is still in use; not cleaning up", tmplBefore)
-		return
-	}
-	Logf("Deleting node template %s", tmplBefore)
-	if _, _, err := retryCmd("gcloud", "compute", "instance-templates",
-		fmt.Sprintf("--project=%s", TestContext.CloudConfig.ProjectID),
-		"delete",
-		tmplBefore); err != nil {
-		Logf("gcloud compute instance-templates delete %s call failed with err: %v", tmplBefore, err)
-		Logf("May have leaked instance template %q", tmplBefore)
-	}
 }
 
 func nodeUpgradeGKE(v string, img string) error {
@@ -133,7 +149,14 @@ func nodeUpgradeGKE(v string, img string) error {
 		args = append(args, fmt.Sprintf("--image-type=%s", img))
 	}
 	_, _, err := RunCmd("gcloud", args...)
-	return err
+
+	if err != nil {
+		return err
+	}
+
+	waitForSSHTunnels()
+
+	return nil
 }
 
 // CheckNodesReady waits up to nt for expect nodes accessed by c to be ready,
@@ -141,15 +164,15 @@ func nodeUpgradeGKE(v string, img string) error {
 // nodes it finds.
 func CheckNodesReady(c clientset.Interface, nt time.Duration, expect int) ([]string, error) {
 	// First, keep getting all of the nodes until we get the number we expect.
-	var nodeList *api.NodeList
+	var nodeList *v1.NodeList
 	var errLast error
 	start := time.Now()
 	found := wait.Poll(Poll, nt, func() (bool, error) {
 		// A rolling-update (GCE/GKE implementation of restart) can complete before the apiserver
 		// knows about all of the nodes. Thus, we retry the list nodes call
 		// until we get the expected number of nodes.
-		nodeList, errLast = c.Core().Nodes().List(api.ListOptions{
-			FieldSelector: fields.Set{"spec.unschedulable": "false"}.AsSelector()})
+		nodeList, errLast = c.Core().Nodes().List(metav1.ListOptions{
+			FieldSelector: fields.Set{"spec.unschedulable": "false"}.AsSelector().String()})
 		if errLast != nil {
 			return false, nil
 		}
@@ -229,4 +252,27 @@ func MigTemplate() (string, error) {
 		return "", fmt.Errorf("MigTemplate() failed with last error: %v", errLast)
 	}
 	return templ, nil
+}
+
+func gceUpgradeScript() string {
+	if len(TestContext.GCEUpgradeScript) == 0 {
+		return path.Join(TestContext.RepoRoot, "cluster/gce/upgrade.sh")
+	}
+	return TestContext.GCEUpgradeScript
+}
+
+func waitForSSHTunnels() {
+	Logf("Waiting for SSH tunnels to establish")
+	RunKubectl("run", "ssh-tunnel-test",
+		"--image=gcr.io/google_containers/busybox:1.24",
+		"--restart=Never",
+		"--command", "--",
+		"echo", "Hello")
+	defer RunKubectl("delete", "pod", "ssh-tunnel-test")
+
+	// allow up to a minute for new ssh tunnels to establish
+	wait.PollImmediate(5*time.Second, time.Minute, func() (bool, error) {
+		_, err := RunKubectl("logs", "ssh-tunnel-test")
+		return err == nil, nil
+	})
 }

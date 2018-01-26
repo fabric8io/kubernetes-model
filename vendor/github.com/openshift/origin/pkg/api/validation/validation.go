@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"reflect"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/meta"
 	"k8s.io/kubernetes/pkg/api/validation"
-	"k8s.io/kubernetes/pkg/apimachinery/registered"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/validation/field"
 )
 
 type RuntimeObjectValidator interface {
@@ -128,12 +127,17 @@ func GetRequiresNamespace(obj runtime.Object) (bool, error) {
 		return false, err
 	}
 
-	restMapping, err := registered.RESTMapper().RESTMapping(groupVersionKinds[0].GroupKind())
-	if err != nil {
-		return false, err
+	for _, gvk := range groupVersionKinds {
+		restMapping, err := kapi.Registry.RESTMapper().RESTMapping(gvk.GroupKind())
+		if err != nil {
+			return false, err
+		}
+		if restMapping.Scope.Name() == meta.RESTScopeNameNamespace {
+			return true, nil
+		}
 	}
 
-	return restMapping.Scope.Name() == meta.RESTScopeNameNamespace, nil
+	return false, nil
 }
 
 func HasObjectMeta(obj runtime.Object) bool {

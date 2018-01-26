@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"k8s.io/gengo/args"
-	"k8s.io/kubernetes/cmd/libs/go2idl/go-to-protobuf/protobuf"
+	"k8s.io/kube-gen/cmd/go-to-protobuf/protobuf"
 
 	flag "github.com/spf13/pflag"
 )
@@ -35,24 +35,27 @@ func init() {
 			if strings.HasPrefix(kubePackage, "+") {
 				kubePackage = kubePackage[1:]
 			}
+			if strings.HasPrefix(kubePackage, "-") {
+				kubePackage = kubePackage[1:]
+			}
 			fullPackageList = append(fullPackageList, "-"+kubePackage)
 		}
 	}
 
 	// add the origin packages
 	fullPackageList = append(fullPackageList,
-		`github.com/openshift/origin/pkg/authorization/api/v1`,
-		`github.com/openshift/origin/pkg/build/api/v1`,
-		`github.com/openshift/origin/pkg/deploy/api/v1`,
-		`github.com/openshift/origin/pkg/image/api/v1`,
-		`github.com/openshift/origin/pkg/oauth/api/v1`,
-		`github.com/openshift/origin/pkg/project/api/v1`,
-		`github.com/openshift/origin/pkg/quota/api/v1`,
-		`github.com/openshift/origin/pkg/route/api/v1`,
-		`github.com/openshift/origin/pkg/sdn/api/v1`,
-		`github.com/openshift/origin/pkg/security/api/v1`,
-		`github.com/openshift/origin/pkg/template/api/v1`,
-		`github.com/openshift/origin/pkg/user/api/v1`,
+		`github.com/openshift/origin/pkg/authorization/apis/authorization/v1`,
+		`github.com/openshift/origin/pkg/build/apis/build/v1`,
+		`github.com/openshift/origin/pkg/deploy/apis/apps/v1`,
+		`github.com/openshift/origin/pkg/image/apis/image/v1`,
+		`github.com/openshift/origin/pkg/oauth/apis/oauth/v1`,
+		`github.com/openshift/origin/pkg/project/apis/project/v1`,
+		`github.com/openshift/origin/pkg/quota/apis/quota/v1`,
+		`github.com/openshift/origin/pkg/route/apis/route/v1`,
+		`github.com/openshift/origin/pkg/sdn/apis/network/v1`,
+		`github.com/openshift/origin/pkg/security/apis/security/v1`,
+		`github.com/openshift/origin/pkg/template/apis/template/v1`,
+		`github.com/openshift/origin/pkg/user/apis/user/v1`,
 	)
 	g.Packages = strings.Join(fullPackageList, ",")
 

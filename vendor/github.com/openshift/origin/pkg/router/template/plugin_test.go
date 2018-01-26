@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/watch"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/util/sets"
-	"k8s.io/kubernetes/pkg/watch"
 
-	routeapi "github.com/openshift/origin/pkg/route/api"
+	routeapi "github.com/openshift/origin/pkg/route/apis/route"
 	"github.com/openshift/origin/pkg/router/controller"
 )
 
@@ -178,7 +178,7 @@ func (r *TestRouter) AddRoute(route *routeapi.Route) {
 	config := ServiceAliasConfig{
 		Host:             route.Spec.Host,
 		Path:             route.Spec.Path,
-		ServiceUnitNames: getServiceUnits(route),
+		ServiceUnitNames: getServiceUnits(r.numberOfEndpoints, route),
 	}
 
 	for key := range config.ServiceUnitNames {
@@ -186,6 +186,11 @@ func (r *TestRouter) AddRoute(route *routeapi.Route) {
 	}
 
 	r.State[routeKey] = config
+}
+
+func (r *TestRouter) numberOfEndpoints(key string) int32 {
+	su, _ := r.FindServiceUnit(key)
+	return int32(len(su.EndpointTable))
 }
 
 // RemoveRoute removes the service alias config for Route
@@ -200,6 +205,11 @@ func (r *TestRouter) RemoveRoute(route *routeapi.Route) {
 }
 
 func (r *TestRouter) HasRoute(route *routeapi.Route) bool {
+	// Not used
+	return false
+}
+
+func (r *TestRouter) SyncedAtLeastOnce() bool {
 	// Not used
 	return false
 }
@@ -250,7 +260,7 @@ func TestHandleEndpoints(t *testing.T) {
 			name:      "Endpoint add",
 			eventType: watch.Added,
 			endpoints: &kapi.Endpoints{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "test", //kapi.endpoints inherits the name of the service
 				},
@@ -263,7 +273,7 @@ func TestHandleEndpoints(t *testing.T) {
 				Name: "foo/test", //service name from kapi.endpoints object
 				EndpointTable: []Endpoint{
 					{
-						ID:   "1.1.1.1:345",
+						ID:   "ept:test:1.1.1.1:345",
 						IP:   "1.1.1.1",
 						Port: "345",
 					},
@@ -274,12 +284,12 @@ func TestHandleEndpoints(t *testing.T) {
 			name:      "Endpoint mod",
 			eventType: watch.Modified,
 			endpoints: &kapi.Endpoints{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "test",
 				},
 				Subsets: []kapi.EndpointSubset{{
-					Addresses: []kapi.EndpointAddress{{IP: "2.2.2.2"}},
+					Addresses: []kapi.EndpointAddress{{IP: "2.2.2.2", TargetRef: &kapi.ObjectReference{Kind: "Pod", Name: "pod-1"}}},
 					Ports:     []kapi.EndpointPort{{Port: 8080}},
 				}},
 			},
@@ -287,7 +297,7 @@ func TestHandleEndpoints(t *testing.T) {
 				Name: "foo/test",
 				EndpointTable: []Endpoint{
 					{
-						ID:   "2.2.2.2:8080",
+						ID:   "pod:pod-1:test:2.2.2.2:8080",
 						IP:   "2.2.2.2",
 						Port: "8080",
 					},
@@ -298,7 +308,7 @@ func TestHandleEndpoints(t *testing.T) {
 			name:      "Endpoint delete",
 			eventType: watch.Deleted,
 			endpoints: &kapi.Endpoints{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "test",
 				},
@@ -354,12 +364,12 @@ func TestHandleTCPEndpoints(t *testing.T) {
 			name:      "Endpoint add",
 			eventType: watch.Added,
 			endpoints: &kapi.Endpoints{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "test", //kapi.endpoints inherits the name of the service
 				},
 				Subsets: []kapi.EndpointSubset{{
-					Addresses: []kapi.EndpointAddress{{IP: "1.1.1.1"}},
+					Addresses: []kapi.EndpointAddress{{IP: "1.1.1.1", TargetRef: &kapi.ObjectReference{Kind: "Pod", Name: "pod-1"}}},
 					Ports: []kapi.EndpointPort{
 						{Port: 345},
 						{Port: 346, Protocol: kapi.ProtocolUDP},
@@ -370,7 +380,7 @@ func TestHandleTCPEndpoints(t *testing.T) {
 				Name: "foo/test", //service name from kapi.endpoints object
 				EndpointTable: []Endpoint{
 					{
-						ID:   "1.1.1.1:345",
+						ID:   "pod:pod-1:test:1.1.1.1:345",
 						IP:   "1.1.1.1",
 						Port: "345",
 					},
@@ -381,7 +391,7 @@ func TestHandleTCPEndpoints(t *testing.T) {
 			name:      "Endpoint mod",
 			eventType: watch.Modified,
 			endpoints: &kapi.Endpoints{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "test",
 				},
@@ -397,7 +407,7 @@ func TestHandleTCPEndpoints(t *testing.T) {
 				Name: "foo/test",
 				EndpointTable: []Endpoint{
 					{
-						ID:   "2.2.2.2:8080",
+						ID:   "ept:test:2.2.2.2:8080",
 						IP:   "2.2.2.2",
 						Port: "8080",
 					},
@@ -408,7 +418,7 @@ func TestHandleTCPEndpoints(t *testing.T) {
 			name:      "Endpoint delete",
 			eventType: watch.Deleted,
 			endpoints: &kapi.Endpoints{
-				ObjectMeta: kapi.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
 					Name:      "test",
 				},
@@ -472,11 +482,11 @@ func TestHandleRoute(t *testing.T) {
 	// here
 	plugin := controller.NewUniqueHost(templatePlugin, controller.HostForRoute, false, rejections)
 
-	original := unversioned.Time{Time: time.Now()}
+	original := metav1.Time{Time: time.Now()}
 
 	//add
 	route := &routeapi.Route{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			CreationTimestamp: original,
 			Namespace:         "foo",
 			Name:              "test",
@@ -515,8 +525,8 @@ func TestHandleRoute(t *testing.T) {
 
 	// attempt to add a second route with a newer time, verify it is ignored
 	duplicateRoute := &routeapi.Route{
-		ObjectMeta: kapi.ObjectMeta{
-			CreationTimestamp: unversioned.Time{Time: original.Add(time.Hour)},
+		ObjectMeta: metav1.ObjectMeta{
+			CreationTimestamp: metav1.Time{Time: original.Add(time.Hour)},
 			Namespace:         "foo",
 			Name:              "dupe",
 		},
@@ -567,7 +577,7 @@ func TestHandleRoute(t *testing.T) {
 	rejections.rejections = nil
 
 	// add a second route with an older time, verify it takes effect
-	duplicateRoute.CreationTimestamp = unversioned.Time{Time: original.Add(-time.Hour)}
+	duplicateRoute.CreationTimestamp = metav1.Time{Time: original.Add(-time.Hour)}
 	if err := plugin.HandleRoute(watch.Added, duplicateRoute); err != nil {
 		t.Fatal("unexpected error")
 	}
@@ -641,11 +651,11 @@ func TestHandleRouteExtendedValidation(t *testing.T) {
 	extendedValidatorPlugin := controller.NewExtendedValidator(templatePlugin, rejections)
 	plugin := controller.NewUniqueHost(extendedValidatorPlugin, controller.HostForRoute, false, rejections)
 
-	original := unversioned.Time{Time: time.Now()}
+	original := metav1.Time{Time: time.Now()}
 
 	//add
 	route := &routeapi.Route{
-		ObjectMeta: kapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			CreationTimestamp: original,
 			Namespace:         "foo",
 			Name:              "test",
@@ -783,7 +793,7 @@ func TestHandleRouteExtendedValidation(t *testing.T) {
 					},
 				},
 			},
-			errorExpected: true,
+			errorExpected: false,
 		},
 		{
 			name: "Edge termination OK with certs without host",
@@ -994,7 +1004,7 @@ func TestNamespaceScopingFromEmpty(t *testing.T) {
 
 	//add
 	route := &routeapi.Route{
-		ObjectMeta: kapi.ObjectMeta{Namespace: "foo", Name: "test"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "test"},
 		Spec: routeapi.RouteSpec{
 			Host: "www.example.com",
 			To: routeapi.RouteTargetReference{

@@ -22,12 +22,14 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/kubernetes/pkg/api"
 	coreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/metricsutil"
-	"k8s.io/kubernetes/pkg/labels"
+	"k8s.io/kubernetes/pkg/util/i18n"
 )
 
 // TopNodeOptions contains all the options for running the top-node cli command.
@@ -48,32 +50,47 @@ type HeapsterTopOptions struct {
 }
 
 func (o *HeapsterTopOptions) Bind(flags *pflag.FlagSet) {
-	flags.StringVar(&o.Namespace, "heapster-namespace", metricsutil.DefaultHeapsterNamespace, "Namespace Heapster service is located in")
-	flags.StringVar(&o.Service, "heapster-service", metricsutil.DefaultHeapsterService, "Name of Heapster service")
-	flags.StringVar(&o.Scheme, "heapster-scheme", metricsutil.DefaultHeapsterScheme, "Scheme (http or https) to connect to Heapster as")
-	flags.StringVar(&o.Port, "heapster-port", metricsutil.DefaultHeapsterPort, "Port name in service to use")
+	if len(o.Namespace) == 0 {
+		o.Namespace = metricsutil.DefaultHeapsterNamespace
+	}
+	if len(o.Service) == 0 {
+		o.Service = metricsutil.DefaultHeapsterService
+	}
+	if len(o.Scheme) == 0 {
+		o.Scheme = metricsutil.DefaultHeapsterScheme
+	}
+	if len(o.Port) == 0 {
+		o.Port = metricsutil.DefaultHeapsterPort
+	}
+
+	flags.StringVar(&o.Namespace, "heapster-namespace", o.Namespace, "Namespace Heapster service is located in")
+	flags.StringVar(&o.Service, "heapster-service", o.Service, "Name of Heapster service")
+	flags.StringVar(&o.Scheme, "heapster-scheme", o.Scheme, "Scheme (http or https) to connect to Heapster as")
+	flags.StringVar(&o.Port, "heapster-port", o.Port, "Port name in service to use")
 }
 
 var (
-	topNodeLong = templates.LongDesc(`
+	topNodeLong = templates.LongDesc(i18n.T(`
 		Display Resource (CPU/Memory/Storage) usage of nodes.
 
-		The top-node command allows you to see the resource consumption of nodes.`)
+		The top-node command allows you to see the resource consumption of nodes.`))
 
-	topNodeExample = templates.Examples(`
+	topNodeExample = templates.Examples(i18n.T(`
 		  # Show metrics for all nodes
 		  kubectl top node
 
 		  # Show metrics for a given node
-		  kubectl top node NODE_NAME`)
+		  kubectl top node NODE_NAME`))
 )
 
-func NewCmdTopNode(f cmdutil.Factory, out io.Writer) *cobra.Command {
-	options := &TopNodeOptions{}
+func NewCmdTopNode(f cmdutil.Factory, options *TopNodeOptions, out io.Writer) *cobra.Command {
+	if options == nil {
+		options = &TopNodeOptions{}
+	}
 
 	cmd := &cobra.Command{
 		Use:     "node [NAME | -l label]",
-		Short:   "Display Resource (CPU/Memory/Storage) usage of nodes",
+		Short:   i18n.T("Display Resource (CPU/Memory/Storage) usage of nodes"),
 		Long:    topNodeLong,
 		Example: topNodeExample,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -87,9 +104,9 @@ func NewCmdTopNode(f cmdutil.Factory, out io.Writer) *cobra.Command {
 				cmdutil.CheckErr(err)
 			}
 		},
-		Aliases: []string{"nodes"},
+		Aliases: []string{"nodes", "no"},
 	}
-	cmd.Flags().StringVarP(&options.Selector, "selector", "l", "", "Selector (label query) to filter on")
+	cmd.Flags().StringVarP(&options.Selector, "selector", "l", "", "Selector (label query) to filter on, supports '=', '==', and '!='.")
 	options.HeapsterOptions.Bind(cmd.Flags())
 	return cmd
 }
@@ -144,14 +161,14 @@ func (o TopNodeOptions) RunTopNode() error {
 
 	var nodes []api.Node
 	if len(o.ResourceName) > 0 {
-		node, err := o.NodeClient.Nodes().Get(o.ResourceName)
+		node, err := o.NodeClient.Nodes().Get(o.ResourceName, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
 		nodes = append(nodes, *node)
 	} else {
-		nodeList, err := o.NodeClient.Nodes().List(api.ListOptions{
-			LabelSelector: selector,
+		nodeList, err := o.NodeClient.Nodes().List(metav1.ListOptions{
+			LabelSelector: selector.String(),
 		})
 		if err != nil {
 			return err

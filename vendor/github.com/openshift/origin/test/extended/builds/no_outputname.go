@@ -6,6 +6,8 @@ import (
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 
+	"k8s.io/kubernetes/test/e2e/framework"
+
 	exutil "github.com/openshift/origin/test/extended/util"
 )
 
@@ -20,7 +22,8 @@ var _ = g.Describe("[builds][Conformance] build without output image", func() {
 	g.Describe("building from templates", func() {
 		oc.SetOutputDir(exutil.TestContext.OutputDir)
 
-		g.It(fmt.Sprintf("should create an image from %q docker template without an output image reference defined", dockerImageFixture), func() {
+		g.It(fmt.Sprintf("should create an image from a docker template without an output image reference defined"), func() {
+			framework.SkipIfProviderIs("gce")
 			err := oc.Run("create").Args("-f", dockerImageFixture).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
 
@@ -35,12 +38,14 @@ var _ = g.Describe("[builds][Conformance] build without output image", func() {
 			o.Expect(buildLog).Should(o.ContainSubstring(`Build complete, no image push requested`))
 		})
 
-		g.It(fmt.Sprintf("should create an image from %q S2i template without an output image reference defined", s2iImageFixture), func() {
+		g.It(fmt.Sprintf("should create an image from a S2i template without an output image reference defined"), func() {
+			framework.SkipIfProviderIs("gce")
 			err := oc.Run("create").Args("-f", s2iImageFixture).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("expecting build to pass without an output image reference specified")
 			br, err := exutil.StartBuildAndWait(oc, "test-sti")
+			o.Expect(err).NotTo(o.HaveOccurred())
 			br.AssertSuccess()
 
 			g.By("verifying the build test-sti-1 output")

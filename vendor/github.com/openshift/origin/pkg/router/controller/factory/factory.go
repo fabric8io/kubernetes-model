@@ -5,23 +5,25 @@ import (
 	"sort"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilwait "k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/tools/cache"
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/extensions"
-	"k8s.io/kubernetes/pkg/client/cache"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 	kextensionsclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/extensions/internalversion"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/runtime"
-	utilwait "k8s.io/kubernetes/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/watch"
 
-	osclient "github.com/openshift/origin/pkg/client"
 	oscache "github.com/openshift/origin/pkg/client/cache"
-	routeapi "github.com/openshift/origin/pkg/route/api"
+	routeapi "github.com/openshift/origin/pkg/route/apis/route"
+	osclient "github.com/openshift/origin/pkg/route/generated/internalclientset/typed/route/internalversion"
 	"github.com/openshift/origin/pkg/router"
-	"github.com/openshift/origin/pkg/router/controller"
+	routercontroller "github.com/openshift/origin/pkg/router/controller"
 )
 
 // RouterControllerFactory initializes and manages the watches that drive a router
@@ -29,11 +31,11 @@ import (
 // If Namespace is empty, it means "all namespaces".
 type RouterControllerFactory struct {
 	KClient        kcoreclient.EndpointsGetter
-	OSClient       osclient.RoutesNamespacer
+	OSClient       osclient.RoutesGetter
 	IngressClient  kextensionsclient.IngressesGetter
 	SecretClient   kcoreclient.SecretsGetter
 	NodeClient     kcoreclient.NodesGetter
-	Namespaces     controller.NamespaceLister
+	Namespaces     routercontroller.NamespaceLister
 	ResyncInterval time.Duration
 	Namespace      string
 	Labels         labels.Selector
@@ -41,7 +43,7 @@ type RouterControllerFactory struct {
 }
 
 // NewDefaultRouterControllerFactory initializes a default router controller factory.
-func NewDefaultRouterControllerFactory(oc osclient.RoutesNamespacer, kc kclientset.Interface) *RouterControllerFactory {
+func NewDefaultRouterControllerFactory(oc osclient.RoutesGetter, kc kclientset.Interface) *RouterControllerFactory {
 	return &RouterControllerFactory{
 		KClient:        kc.Core(),
 		OSClient:       oc,
@@ -50,31 +52,49 @@ func NewDefaultRouterControllerFactory(oc osclient.RoutesNamespacer, kc kclients
 		NodeClient:     kc.Core(),
 		ResyncInterval: 10 * time.Minute,
 
-		Namespace: kapi.NamespaceAll,
+		Namespace: metav1.NamespaceAll,
 		Labels:    labels.Everything(),
 		Fields:    fields.Everything(),
 	}
 }
 
+// routerKeyFn comes from MetaNamespaceKeyFunc in vendor/k8s.io/kubernetes/pkg/client/cache/store.go.
+// It was modified and added here because there is no way to know if an ExplicitKey was passed before
+// adding the UID to prevent an invalid state transistion if deletions and adds happen quickly.
+func routerKeyFn(obj interface{}) (string, error) {
+	if key, ok := obj.(cache.ExplicitKey); ok {
+		return string(key), nil
+	}
+	meta, err := meta.Accessor(obj)
+	if err != nil {
+		return "", fmt.Errorf("object has no meta: %v", err)
+	}
+	if len(meta.GetNamespace()) > 0 {
+		return meta.GetNamespace() + "/" + meta.GetName() + "/" + string(meta.GetUID()), nil
+	}
+	return meta.GetName() + "/" + string(meta.GetUID()), nil
+}
+
 // Create begins listing and watching against the API server for the desired route and endpoint
 // resources. It spawns child goroutines that cannot be terminated.
-func (factory *RouterControllerFactory) Create(plugin router.Plugin, watchNodes, enableIngress bool) *controller.RouterController {
-	routeEventQueue := oscache.NewEventQueue(cache.MetaNamespaceKeyFunc)
-	cache.NewReflector(&routeLW{
+func (factory *RouterControllerFactory) Create(plugin router.Plugin, watchNodes, enableIngress bool) *routercontroller.RouterController {
+	routeEventQueue := oscache.NewEventQueue(routerKeyFn)
+	rLW := &routeLW{
 		client:    factory.OSClient,
 		namespace: factory.Namespace,
 		field:     factory.Fields,
 		label:     factory.Labels,
-	}, &routeapi.Route{}, routeEventQueue, factory.ResyncInterval).Run()
+	}
+	cache.NewReflector(&cache.ListWatch{rLW.List, rLW.Watch}, &routeapi.Route{}, routeEventQueue, factory.ResyncInterval).Run()
 
-	endpointsEventQueue := oscache.NewEventQueue(cache.MetaNamespaceKeyFunc)
+	endpointsEventQueue := oscache.NewEventQueue(routerKeyFn)
 	cache.NewReflector(&endpointsLW{
 		client:    factory.KClient,
 		namespace: factory.Namespace,
 		// we do not scope endpoints by labels or fields because the route labels != endpoints labels
 	}, &kapi.Endpoints{}, endpointsEventQueue, factory.ResyncInterval).Run()
 
-	nodeEventQueue := oscache.NewEventQueue(cache.MetaNamespaceKeyFunc)
+	nodeEventQueue := oscache.NewEventQueue(routerKeyFn)
 	if watchNodes {
 		cache.NewReflector(&nodeLW{
 			client: factory.NodeClient,
@@ -83,12 +103,11 @@ func (factory *RouterControllerFactory) Create(plugin router.Plugin, watchNodes,
 		}, &kapi.Node{}, nodeEventQueue, factory.ResyncInterval).Run()
 	}
 
-	ingressEventQueue := oscache.NewEventQueue(cache.MetaNamespaceKeyFunc)
-	secretEventQueue := oscache.NewEventQueue(cache.MetaNamespaceKeyFunc)
-	var ingressTranslator *controller.IngressTranslator
+	ingressEventQueue := oscache.NewEventQueue(routerKeyFn)
+	secretEventQueue := oscache.NewEventQueue(routerKeyFn)
+	var ingressTranslator *routercontroller.IngressTranslator
 	if enableIngress {
-		ingressTranslator = controller.NewIngressTranslator(factory.SecretClient)
-
+		ingressTranslator = routercontroller.NewIngressTranslator(factory.SecretClient)
 		cache.NewReflector(&ingressLW{
 			client:    factory.IngressClient,
 			namespace: factory.Namespace,
@@ -105,7 +124,7 @@ func (factory *RouterControllerFactory) Create(plugin router.Plugin, watchNodes,
 		}, &kapi.Secret{}, secretEventQueue, factory.ResyncInterval).Run()
 	}
 
-	return &controller.RouterController{
+	return &routercontroller.RouterController{
 		Plugin: plugin,
 		NextEndpoints: func() (watch.EventType, *kapi.Endpoints, error) {
 			eventType, obj, err := endpointsEventQueue.Pop()
@@ -195,15 +214,16 @@ func (factory *RouterControllerFactory) Create(plugin router.Plugin, watchNodes,
 // resources. It spawns child goroutines that cannot be terminated. It is a more efficient store of a
 // route system.
 func (factory *RouterControllerFactory) CreateNotifier(changed func()) RoutesByHost {
-	keyFn := cache.MetaNamespaceKeyFunc
+	keyFn := routerKeyFn
 	routeStore := cache.NewIndexer(keyFn, cache.Indexers{"host": hostIndexFunc})
 	routeEventQueue := oscache.NewEventQueueForStore(keyFn, routeStore)
-	cache.NewReflector(&routeLW{
+	rLW := &routeLW{
 		client:    factory.OSClient,
 		namespace: factory.Namespace,
 		field:     factory.Fields,
 		label:     factory.Labels,
-	}, &routeapi.Route{}, routeEventQueue, factory.ResyncInterval).Run()
+	}
+	cache.NewReflector(&cache.ListWatch{rLW.List, rLW.Watch}, &routeapi.Route{}, routeEventQueue, factory.ResyncInterval).Run()
 
 	endpointStore := cache.NewStore(keyFn)
 	endpointsEventQueue := oscache.NewEventQueueForStore(keyFn, endpointStore)
@@ -301,16 +321,23 @@ func hostIndexFunc(obj interface{}) ([]string, error) {
 // routeLW is a ListWatcher for routes that can be filtered to a label, field, or
 // namespace.
 type routeLW struct {
-	client    osclient.RoutesNamespacer
+	client    osclient.RoutesGetter
 	label     labels.Selector
 	field     fields.Selector
 	namespace string
 }
 
-func (lw *routeLW) List(options kapi.ListOptions) (runtime.Object, error) {
-	opts := kapi.ListOptions{
-		LabelSelector: lw.label,
-		FieldSelector: lw.field,
+func (lw *routeLW) List(options metav1.ListOptions) (runtime.Object, error) {
+	var label, field string
+	if lw.label != nil {
+		label = lw.label.String()
+	}
+	if lw.field != nil {
+		field = lw.field.String()
+	}
+	opts := metav1.ListOptions{
+		LabelSelector: label,
+		FieldSelector: field,
 	}
 	routes, err := lw.client.Routes(lw.namespace).List(opts)
 	if err != nil {
@@ -321,10 +348,17 @@ func (lw *routeLW) List(options kapi.ListOptions) (runtime.Object, error) {
 	return routes, nil
 }
 
-func (lw *routeLW) Watch(options kapi.ListOptions) (watch.Interface, error) {
-	opts := kapi.ListOptions{
-		LabelSelector:   lw.label,
-		FieldSelector:   lw.field,
+func (lw *routeLW) Watch(options metav1.ListOptions) (watch.Interface, error) {
+	var label, field string
+	if lw.label != nil {
+		label = lw.label.String()
+	}
+	if lw.field != nil {
+		field = lw.field.String()
+	}
+	opts := metav1.ListOptions{
+		LabelSelector:   label,
+		FieldSelector:   field,
 		ResourceVersion: options.ResourceVersion,
 	}
 	return lw.client.Routes(lw.namespace).Watch(opts)
@@ -338,14 +372,21 @@ type endpointsLW struct {
 	namespace string
 }
 
-func (lw *endpointsLW) List(options kapi.ListOptions) (runtime.Object, error) {
+func (lw *endpointsLW) List(options metav1.ListOptions) (runtime.Object, error) {
 	return lw.client.Endpoints(lw.namespace).List(options)
 }
 
-func (lw *endpointsLW) Watch(options kapi.ListOptions) (watch.Interface, error) {
-	opts := kapi.ListOptions{
-		LabelSelector:   lw.label,
-		FieldSelector:   lw.field,
+func (lw *endpointsLW) Watch(options metav1.ListOptions) (watch.Interface, error) {
+	var label, field string
+	if lw.label != nil {
+		label = lw.label.String()
+	}
+	if lw.field != nil {
+		field = lw.field.String()
+	}
+	opts := metav1.ListOptions{
+		LabelSelector:   label,
+		FieldSelector:   field,
 		ResourceVersion: options.ResourceVersion,
 	}
 	return lw.client.Endpoints(lw.namespace).Watch(opts)
@@ -358,14 +399,21 @@ type nodeLW struct {
 	field  fields.Selector
 }
 
-func (lw *nodeLW) List(options kapi.ListOptions) (runtime.Object, error) {
+func (lw *nodeLW) List(options metav1.ListOptions) (runtime.Object, error) {
 	return lw.client.Nodes().List(options)
 }
 
-func (lw *nodeLW) Watch(options kapi.ListOptions) (watch.Interface, error) {
-	opts := kapi.ListOptions{
-		LabelSelector:   lw.label,
-		FieldSelector:   lw.field,
+func (lw *nodeLW) Watch(options metav1.ListOptions) (watch.Interface, error) {
+	var label, field string
+	if lw.label != nil {
+		label = lw.label.String()
+	}
+	if lw.field != nil {
+		field = lw.field.String()
+	}
+	opts := metav1.ListOptions{
+		LabelSelector:   label,
+		FieldSelector:   field,
 		ResourceVersion: options.ResourceVersion,
 	}
 	return lw.client.Nodes().Watch(opts)
@@ -397,10 +445,17 @@ type ingressLW struct {
 	namespace string
 }
 
-func (lw *ingressLW) List(options kapi.ListOptions) (runtime.Object, error) {
-	opts := kapi.ListOptions{
-		LabelSelector: lw.label,
-		FieldSelector: lw.field,
+func (lw *ingressLW) List(options metav1.ListOptions) (runtime.Object, error) {
+	var label, field string
+	if lw.label != nil {
+		label = lw.label.String()
+	}
+	if lw.field != nil {
+		field = lw.field.String()
+	}
+	opts := metav1.ListOptions{
+		LabelSelector: label,
+		FieldSelector: field,
 	}
 	ingresses, err := lw.client.Ingresses(lw.namespace).List(opts)
 	if err != nil {
@@ -411,10 +466,17 @@ func (lw *ingressLW) List(options kapi.ListOptions) (runtime.Object, error) {
 	return ingresses, nil
 }
 
-func (lw *ingressLW) Watch(options kapi.ListOptions) (watch.Interface, error) {
-	opts := kapi.ListOptions{
-		LabelSelector:   lw.label,
-		FieldSelector:   lw.field,
+func (lw *ingressLW) Watch(options metav1.ListOptions) (watch.Interface, error) {
+	var label, field string
+	if lw.label != nil {
+		label = lw.label.String()
+	}
+	if lw.field != nil {
+		field = lw.field.String()
+	}
+	opts := metav1.ListOptions{
+		LabelSelector:   label,
+		FieldSelector:   field,
 		ResourceVersion: options.ResourceVersion,
 	}
 	return lw.client.Ingresses(lw.namespace).Watch(opts)
@@ -428,14 +490,21 @@ type secretLW struct {
 	namespace string
 }
 
-func (lw *secretLW) List(options kapi.ListOptions) (runtime.Object, error) {
+func (lw *secretLW) List(options metav1.ListOptions) (runtime.Object, error) {
 	return lw.client.Secrets(lw.namespace).List(options)
 }
 
-func (lw *secretLW) Watch(options kapi.ListOptions) (watch.Interface, error) {
-	opts := kapi.ListOptions{
-		LabelSelector:   lw.label,
-		FieldSelector:   lw.field,
+func (lw *secretLW) Watch(options metav1.ListOptions) (watch.Interface, error) {
+	var label, field string
+	if lw.label != nil {
+		label = lw.label.String()
+	}
+	if lw.field != nil {
+		field = lw.field.String()
+	}
+	opts := metav1.ListOptions{
+		LabelSelector:   label,
+		FieldSelector:   field,
 		ResourceVersion: options.ResourceVersion,
 	}
 	return lw.client.Secrets(lw.namespace).Watch(opts)

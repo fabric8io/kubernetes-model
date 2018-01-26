@@ -4,21 +4,26 @@ import (
 	"reflect"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	cache "k8s.io/client-go/tools/cache"
 	kapi "k8s.io/kubernetes/pkg/api"
-	cache "k8s.io/kubernetes/pkg/client/cache"
 	clientsetfake "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
+	"k8s.io/kubernetes/pkg/client/listers/core/internalversion"
 
-	oscache "github.com/openshift/origin/pkg/client/cache"
 	admissionttesting "github.com/openshift/origin/pkg/security/admission/testing"
-	securityapi "github.com/openshift/origin/pkg/security/api"
-	oscc "github.com/openshift/origin/pkg/security/scc"
+	securityapi "github.com/openshift/origin/pkg/security/apis/security"
+	securitylisters "github.com/openshift/origin/pkg/security/generated/listers/security/internalversion"
+	scc "github.com/openshift/origin/pkg/security/securitycontextconstraints"
+
+	_ "github.com/openshift/origin/pkg/api/install"
 )
 
 func TestNoErrors(t *testing.T) {
 	var uid int64 = 999
 	testcases := map[string]struct {
 		request    *securityapi.PodSecurityPolicyReview
-		sccs       []*kapi.SecurityContextConstraints
+		sccs       []*securityapi.SecurityContextConstraints
 		allowedSAs []string
 	}{
 		"default in pod": {
@@ -26,32 +31,40 @@ func TestNoErrors(t *testing.T) {
 				Spec: securityapi.PodSecurityPolicyReviewSpec{
 					Template: kapi.PodTemplateSpec{
 						Spec: kapi.PodSpec{
-							Containers:         []kapi.Container{{Name: "ctr", Image: "image", ImagePullPolicy: "IfNotPresent"}},
+							Containers: []kapi.Container{
+								{
+									Name:                     "ctr",
+									Image:                    "image",
+									ImagePullPolicy:          "IfNotPresent",
+									TerminationMessagePolicy: kapi.TerminationMessageReadFile,
+								},
+							},
 							RestartPolicy:      kapi.RestartPolicyAlways,
 							SecurityContext:    &kapi.PodSecurityContext{},
 							DNSPolicy:          kapi.DNSClusterFirst,
 							ServiceAccountName: "default",
+							SchedulerName:      kapi.DefaultSchedulerName,
 						},
 					},
 				},
 			},
-			sccs: []*kapi.SecurityContextConstraints{
+			sccs: []*securityapi.SecurityContextConstraints{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						SelfLink: "/api/version/securitycontextconstraints/scc-sa",
 						Name:     "scc-sa",
 					},
-					RunAsUser: kapi.RunAsUserStrategyOptions{
-						Type: kapi.RunAsUserStrategyMustRunAsRange,
+					RunAsUser: securityapi.RunAsUserStrategyOptions{
+						Type: securityapi.RunAsUserStrategyMustRunAsRange,
 					},
-					SELinuxContext: kapi.SELinuxContextStrategyOptions{
-						Type: kapi.SELinuxStrategyMustRunAs,
+					SELinuxContext: securityapi.SELinuxContextStrategyOptions{
+						Type: securityapi.SELinuxStrategyMustRunAs,
 					},
-					FSGroup: kapi.FSGroupStrategyOptions{
-						Type: kapi.FSGroupStrategyMustRunAs,
+					FSGroup: securityapi.FSGroupStrategyOptions{
+						Type: securityapi.FSGroupStrategyMustRunAs,
 					},
-					SupplementalGroups: kapi.SupplementalGroupsStrategyOptions{
-						Type: kapi.SupplementalGroupsStrategyMustRunAs,
+					SupplementalGroups: securityapi.SupplementalGroupsStrategyOptions{
+						Type: securityapi.SupplementalGroupsStrategyMustRunAs,
 					},
 					Groups: []string{"system:serviceaccounts"},
 				},
@@ -73,41 +86,43 @@ func TestNoErrors(t *testing.T) {
 											Add: []kapi.Capability{"foo"},
 										},
 									},
+									TerminationMessagePolicy: kapi.TerminationMessageReadFile,
 								},
 							},
 							RestartPolicy:      kapi.RestartPolicyAlways,
 							SecurityContext:    &kapi.PodSecurityContext{},
 							DNSPolicy:          kapi.DNSClusterFirst,
 							ServiceAccountName: "default",
+							SchedulerName:      kapi.DefaultSchedulerName,
 						},
 					},
 				},
 			},
-			sccs: []*kapi.SecurityContextConstraints{
+			sccs: []*securityapi.SecurityContextConstraints{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						SelfLink: "/api/version/securitycontextconstraints/restrictive",
 						Name:     "restrictive",
 					},
-					RunAsUser: kapi.RunAsUserStrategyOptions{
-						Type: kapi.RunAsUserStrategyMustRunAs,
+					RunAsUser: securityapi.RunAsUserStrategyOptions{
+						Type: securityapi.RunAsUserStrategyMustRunAs,
 						UID:  &uid,
 					},
-					SELinuxContext: kapi.SELinuxContextStrategyOptions{
-						Type: kapi.SELinuxStrategyMustRunAs,
+					SELinuxContext: securityapi.SELinuxContextStrategyOptions{
+						Type: securityapi.SELinuxStrategyMustRunAs,
 						SELinuxOptions: &kapi.SELinuxOptions{
 							Level: "s9:z0,z1",
 						},
 					},
-					FSGroup: kapi.FSGroupStrategyOptions{
-						Type: kapi.FSGroupStrategyMustRunAs,
-						Ranges: []kapi.IDRange{
+					FSGroup: securityapi.FSGroupStrategyOptions{
+						Type: securityapi.FSGroupStrategyMustRunAs,
+						Ranges: []securityapi.IDRange{
 							{Min: 999, Max: 999},
 						},
 					},
-					SupplementalGroups: kapi.SupplementalGroupsStrategyOptions{
-						Type: kapi.SupplementalGroupsStrategyMustRunAs,
-						Ranges: []kapi.IDRange{
+					SupplementalGroups: securityapi.SupplementalGroupsStrategyOptions{
+						Type: securityapi.SupplementalGroupsStrategyMustRunAs,
+						Ranges: []securityapi.IDRange{
 							{Min: 999, Max: 999},
 						},
 					},
@@ -119,27 +134,23 @@ func TestNoErrors(t *testing.T) {
 	}
 
 	for testName, testcase := range testcases {
-		sccCache := &oscache.IndexerToSecurityContextConstraintsLister{
-			Indexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc,
-				cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}),
-		}
+		sccIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		sccCache := securitylisters.NewSecurityContextConstraintsLister(sccIndexer)
 		for _, scc := range testcase.sccs {
-			if err := sccCache.Add(scc); err != nil {
+			if err := sccIndexer.Add(scc); err != nil {
 				t.Fatalf("error adding sccs to store: %v", err)
 			}
 		}
-		saCache := &cache.StoreToServiceAccountLister{
-			Indexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc,
-				cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}),
-		}
+		saIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		saCache := internalversion.NewServiceAccountLister(saIndexer)
 		namespace := admissionttesting.CreateNamespaceForTest()
 		serviceAccount := admissionttesting.CreateSAForTest()
 		serviceAccount.Namespace = namespace.Name
-		saCache.Indexer.Add(serviceAccount)
+		saIndexer.Add(serviceAccount)
 		csf := clientsetfake.NewSimpleClientset(namespace)
-		storage := REST{oscc.NewDefaultSCCMatcher(sccCache), saCache, csf}
-		ctx := kapi.WithNamespace(kapi.NewContext(), namespace.Name)
-		obj, err := storage.Create(ctx, testcase.request)
+		storage := REST{scc.NewDefaultSCCMatcher(sccCache), saCache, csf}
+		ctx := apirequest.WithNamespace(apirequest.NewContext(), namespace.Name)
+		obj, err := storage.Create(ctx, testcase.request, false)
 		if err != nil {
 			t.Errorf("%s - Unexpected error: %v", testName, err)
 			continue
@@ -162,7 +173,7 @@ func TestNoErrors(t *testing.T) {
 func TestErrors(t *testing.T) {
 	testcases := map[string]struct {
 		request        *securityapi.PodSecurityPolicyReview
-		sccs           []*kapi.SecurityContextConstraints
+		sccs           []*securityapi.SecurityContextConstraints
 		serviceAccount *kapi.ServiceAccount
 		errorMessage   string
 	}{
@@ -171,28 +182,44 @@ func TestErrors(t *testing.T) {
 				Spec: securityapi.PodSecurityPolicyReviewSpec{
 					Template: kapi.PodTemplateSpec{
 						Spec: kapi.PodSpec{
-							Containers:         []kapi.Container{{Name: "ctr", Image: "image", ImagePullPolicy: "IfNotPresent"}},
+							Containers: []kapi.Container{
+								{
+									Name:                     "ctr",
+									Image:                    "image",
+									ImagePullPolicy:          "IfNotPresent",
+									TerminationMessagePolicy: kapi.TerminationMessageReadFile,
+								},
+							},
 							RestartPolicy:      kapi.RestartPolicyAlways,
 							SecurityContext:    &kapi.PodSecurityContext{},
 							DNSPolicy:          kapi.DNSClusterFirst,
 							ServiceAccountName: "A.B.C.D.E",
+							SchedulerName:      kapi.DefaultSchedulerName,
 						},
 					},
 				},
 			},
 			serviceAccount: admissionttesting.CreateSAForTest(),
-			errorMessage:   `PodSecurityPolicyReview "" is invalid: spec.template.spec.serviceAccountName: Invalid value: "A.B.C.D.E": must match the regex [a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)* (e.g. 'example.com')`,
+			errorMessage:   `PodSecurityPolicyReview "" is invalid: spec.template.spec.serviceAccountName: Invalid value: "A.B.C.D.E": a DNS-1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')`,
 		},
 		"no SA": {
 			request: &securityapi.PodSecurityPolicyReview{
 				Spec: securityapi.PodSecurityPolicyReviewSpec{
 					Template: kapi.PodTemplateSpec{
 						Spec: kapi.PodSpec{
-							Containers:         []kapi.Container{{Name: "ctr", Image: "image", ImagePullPolicy: "IfNotPresent"}},
+							Containers: []kapi.Container{
+								{
+									Name:                     "ctr",
+									Image:                    "image",
+									ImagePullPolicy:          "IfNotPresent",
+									TerminationMessagePolicy: kapi.TerminationMessageReadFile,
+								},
+							},
 							RestartPolicy:      kapi.RestartPolicyAlways,
 							SecurityContext:    &kapi.PodSecurityContext{},
 							DNSPolicy:          kapi.DNSClusterFirst,
 							ServiceAccountName: "default",
+							SchedulerName:      kapi.DefaultSchedulerName,
 						},
 					},
 				},
@@ -201,30 +228,26 @@ func TestErrors(t *testing.T) {
 		},
 	}
 	for testName, testcase := range testcases {
-		sccCache := &oscache.IndexerToSecurityContextConstraintsLister{
-			Indexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc,
-				cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}),
-		}
+		sccIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		sccCache := securitylisters.NewSecurityContextConstraintsLister(sccIndexer)
 		for _, scc := range testcase.sccs {
-			if err := sccCache.Add(scc); err != nil {
+			if err := sccIndexer.Add(scc); err != nil {
 				t.Fatalf("error adding sccs to store: %v", err)
 			}
 		}
-		saCache := &cache.StoreToServiceAccountLister{
-			Indexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc,
-				cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}),
-		}
+		saIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		saCache := internalversion.NewServiceAccountLister(saIndexer)
 		namespace := admissionttesting.CreateNamespaceForTest()
 		serviceAccount := admissionttesting.CreateSAForTest()
 		if testcase.serviceAccount != nil {
 			serviceAccount.Namespace = namespace.Name
-			saCache.Indexer.Add(serviceAccount)
+			saIndexer.Add(serviceAccount)
 		}
 		csf := clientsetfake.NewSimpleClientset(namespace)
 
-		storage := REST{oscc.NewDefaultSCCMatcher(sccCache), saCache, csf}
-		ctx := kapi.WithNamespace(kapi.NewContext(), namespace.Name)
-		_, err := storage.Create(ctx, testcase.request)
+		storage := REST{scc.NewDefaultSCCMatcher(sccCache), saCache, csf}
+		ctx := apirequest.WithNamespace(apirequest.NewContext(), namespace.Name)
+		_, err := storage.Create(ctx, testcase.request, false)
 		if err == nil {
 			t.Errorf("%s - Expected error", testName)
 			continue
@@ -238,7 +261,7 @@ func TestErrors(t *testing.T) {
 func TestSpecificSAs(t *testing.T) {
 	testcases := map[string]struct {
 		request         *securityapi.PodSecurityPolicyReview
-		sccs            []*kapi.SecurityContextConstraints
+		sccs            []*securityapi.SecurityContextConstraints
 		errorMessage    string
 		serviceAccounts []*kapi.ServiceAccount
 	}{
@@ -249,56 +272,58 @@ func TestSpecificSAs(t *testing.T) {
 						Spec: kapi.PodSpec{
 							Containers: []kapi.Container{
 								{
-									Name:            "ctr",
-									Image:           "image",
-									ImagePullPolicy: "IfNotPresent",
+									Name:                     "ctr",
+									Image:                    "image",
+									ImagePullPolicy:          "IfNotPresent",
+									TerminationMessagePolicy: kapi.TerminationMessageReadFile,
 								},
 							},
 							RestartPolicy:      kapi.RestartPolicyAlways,
 							SecurityContext:    &kapi.PodSecurityContext{},
 							DNSPolicy:          kapi.DNSClusterFirst,
 							ServiceAccountName: "default",
+							SchedulerName:      kapi.DefaultSchedulerName,
 						},
 					},
 					ServiceAccountNames: []string{"my-sa", "yours-sa"},
 				},
 			},
-			sccs: []*kapi.SecurityContextConstraints{
+			sccs: []*securityapi.SecurityContextConstraints{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						SelfLink: "/api/version/securitycontextconstraints/myscc",
 						Name:     "myscc",
 					},
-					RunAsUser: kapi.RunAsUserStrategyOptions{
-						Type: kapi.RunAsUserStrategyMustRunAsRange,
+					RunAsUser: securityapi.RunAsUserStrategyOptions{
+						Type: securityapi.RunAsUserStrategyMustRunAsRange,
 					},
-					SELinuxContext: kapi.SELinuxContextStrategyOptions{
-						Type: kapi.SELinuxStrategyMustRunAs,
+					SELinuxContext: securityapi.SELinuxContextStrategyOptions{
+						Type: securityapi.SELinuxStrategyMustRunAs,
 					},
-					FSGroup: kapi.FSGroupStrategyOptions{
-						Type: kapi.FSGroupStrategyMustRunAs,
+					FSGroup: securityapi.FSGroupStrategyOptions{
+						Type: securityapi.FSGroupStrategyMustRunAs,
 					},
-					SupplementalGroups: kapi.SupplementalGroupsStrategyOptions{
-						Type: kapi.SupplementalGroupsStrategyMustRunAs,
+					SupplementalGroups: securityapi.SupplementalGroupsStrategyOptions{
+						Type: securityapi.SupplementalGroupsStrategyMustRunAs,
 					},
 					Groups: []string{"system:serviceaccounts"},
 				},
 			},
 			serviceAccounts: []*kapi.ServiceAccount{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "my-sa",
 						Namespace: "default",
 					},
 				},
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "yours-sa",
 						Namespace: "default",
 					},
 				},
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "our-sa",
 						Namespace: "default",
 					},
@@ -313,44 +338,46 @@ func TestSpecificSAs(t *testing.T) {
 						Spec: kapi.PodSpec{
 							Containers: []kapi.Container{
 								{
-									Name:            "ctr",
-									Image:           "image",
-									ImagePullPolicy: "IfNotPresent",
+									Name:                     "ctr",
+									Image:                    "image",
+									ImagePullPolicy:          "IfNotPresent",
+									TerminationMessagePolicy: kapi.TerminationMessageReadFile,
 								},
 							},
 							RestartPolicy:      kapi.RestartPolicyAlways,
 							SecurityContext:    &kapi.PodSecurityContext{},
 							DNSPolicy:          kapi.DNSClusterFirst,
 							ServiceAccountName: "default",
+							SchedulerName:      kapi.DefaultSchedulerName,
 						},
 					},
 					ServiceAccountNames: []string{"bad-sa"},
 				},
 			},
-			sccs: []*kapi.SecurityContextConstraints{
+			sccs: []*securityapi.SecurityContextConstraints{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						SelfLink: "/api/version/securitycontextconstraints/myscc",
 						Name:     "myscc",
 					},
-					RunAsUser: kapi.RunAsUserStrategyOptions{
-						Type: kapi.RunAsUserStrategyMustRunAsRange,
+					RunAsUser: securityapi.RunAsUserStrategyOptions{
+						Type: securityapi.RunAsUserStrategyMustRunAsRange,
 					},
-					SELinuxContext: kapi.SELinuxContextStrategyOptions{
-						Type: kapi.SELinuxStrategyMustRunAs,
+					SELinuxContext: securityapi.SELinuxContextStrategyOptions{
+						Type: securityapi.SELinuxStrategyMustRunAs,
 					},
-					FSGroup: kapi.FSGroupStrategyOptions{
-						Type: kapi.FSGroupStrategyMustRunAs,
+					FSGroup: securityapi.FSGroupStrategyOptions{
+						Type: securityapi.FSGroupStrategyMustRunAs,
 					},
-					SupplementalGroups: kapi.SupplementalGroupsStrategyOptions{
-						Type: kapi.SupplementalGroupsStrategyMustRunAs,
+					SupplementalGroups: securityapi.SupplementalGroupsStrategyOptions{
+						Type: securityapi.SupplementalGroupsStrategyMustRunAs,
 					},
 					Groups: []string{"system:serviceaccounts"},
 				},
 			},
 			serviceAccounts: []*kapi.ServiceAccount{
 				{
-					ObjectMeta: kapi.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "my-sa",
 						Namespace: "default",
 					},
@@ -361,27 +388,23 @@ func TestSpecificSAs(t *testing.T) {
 	}
 
 	for testName, testcase := range testcases {
-		sccCache := &oscache.IndexerToSecurityContextConstraintsLister{
-			Indexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc,
-				cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}),
-		}
+		sccIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		sccCache := securitylisters.NewSecurityContextConstraintsLister(sccIndexer)
 		for _, scc := range testcase.sccs {
-			if err := sccCache.Add(scc); err != nil {
+			if err := sccIndexer.Add(scc); err != nil {
 				t.Fatalf("error adding sccs to store: %v", err)
 			}
 		}
 		namespace := admissionttesting.CreateNamespaceForTest()
-		saCache := &cache.StoreToServiceAccountLister{
-			Indexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc,
-				cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}),
-		}
+		saIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+		saCache := internalversion.NewServiceAccountLister(saIndexer)
 		for i := range testcase.serviceAccounts {
-			saCache.Indexer.Add(testcase.serviceAccounts[i])
+			saIndexer.Add(testcase.serviceAccounts[i])
 		}
 		csf := clientsetfake.NewSimpleClientset(namespace)
-		storage := REST{oscc.NewDefaultSCCMatcher(sccCache), saCache, csf}
-		ctx := kapi.WithNamespace(kapi.NewContext(), namespace.Name)
-		_, err := storage.Create(ctx, testcase.request)
+		storage := REST{scc.NewDefaultSCCMatcher(sccCache), saCache, csf}
+		ctx := apirequest.WithNamespace(apirequest.NewContext(), namespace.Name)
+		_, err := storage.Create(ctx, testcase.request, false)
 		switch {
 		case err == nil && len(testcase.errorMessage) == 0:
 			continue

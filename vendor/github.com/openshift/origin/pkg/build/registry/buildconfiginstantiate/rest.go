@@ -3,25 +3,29 @@ package buildconfiginstantiate
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
-	"reflect"
 	"time"
 
 	"github.com/golang/glog"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/httpstream/spdy"
+	knet "k8s.io/apimachinery/pkg/util/net"
+	kubeletremotecommand "k8s.io/apimachinery/pkg/util/remotecommand"
+	"k8s.io/apimachinery/pkg/util/wait"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/registry/rest"
+	"k8s.io/client-go/tools/remotecommand"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/api/rest"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
-	"k8s.io/kubernetes/pkg/client/unversioned/remotecommand"
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
-	kubeletremotecommand "k8s.io/kubernetes/pkg/kubelet/server/remotecommand"
 	"k8s.io/kubernetes/pkg/registry/core/pod"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/httpstream/spdy"
-	"k8s.io/kubernetes/pkg/util/wait"
 
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
+	buildstrategy "github.com/openshift/origin/pkg/build/controller/strategy"
 	"github.com/openshift/origin/pkg/build/generator"
 	"github.com/openshift/origin/pkg/build/registry"
 	buildutil "github.com/openshift/origin/pkg/build/util"
@@ -43,13 +47,15 @@ type InstantiateREST struct {
 	generator *generator.BuildGenerator
 }
 
+var _ rest.Creater = &InstantiateREST{}
+
 // New creates a new build generation request
 func (s *InstantiateREST) New() runtime.Object {
 	return &buildapi.BuildRequest{}
 }
 
 // Create instantiates a new build from a build configuration
-func (s *InstantiateREST) Create(ctx kapi.Context, obj runtime.Object) (runtime.Object, error) {
+func (s *InstantiateREST) Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runtime.Object, error) {
 	if err := rest.BeforeCreate(Strategy, ctx, obj); err != nil {
 		return nil, err
 	}
@@ -84,13 +90,15 @@ type BinaryInstantiateREST struct {
 	Timeout        time.Duration
 }
 
+var _ rest.Connecter = &BinaryInstantiateREST{}
+
 // New creates a new build generation request
 func (s *BinaryInstantiateREST) New() runtime.Object {
 	return &buildapi.BinaryBuildRequestOptions{}
 }
 
 // Connect returns a ConnectHandler that will handle the request/response for a request
-func (r *BinaryInstantiateREST) Connect(ctx kapi.Context, name string, options runtime.Object, responder rest.Responder) (http.Handler, error) {
+func (r *BinaryInstantiateREST) Connect(ctx apirequest.Context, name string, options runtime.Object, responder rest.Responder) (http.Handler, error) {
 	return &binaryInstantiateHandler{
 		r:         r,
 		responder: responder,
@@ -115,7 +123,7 @@ type binaryInstantiateHandler struct {
 	r *BinaryInstantiateREST
 
 	responder rest.Responder
-	ctx       kapi.Context
+	ctx       apirequest.Context
 	name      string
 	options   *buildapi.BinaryBuildRequestOptions
 }
@@ -218,10 +226,14 @@ func (h *binaryInstantiateHandler) handle(r io.Reader) (runtime.Object, error) {
 		return nil, errors.NewTimeoutError(fmt.Sprintf("timed out waiting for build %s to start after %s", build.Name, h.r.Timeout), 0)
 	}
 
-	// The container should be the default build container, so setting it to blank
 	buildPodName := buildapi.GetBuildPodName(build)
 	opts := &kapi.PodAttachOptions{
 		Stdin: true,
+		// TODO remove Stdout and Stderr once https://github.com/kubernetes/kubernetes/issues/44448 is
+		// fixed
+		Stdout:    true,
+		Stderr:    true,
+		Container: buildstrategy.GitCloneContainer,
 	}
 	location, transport, err := pod.AttachLocation(h.r.PodGetter, h.r.ConnectionInfo, h.ctx, buildPodName, opts)
 	if err != nil {
@@ -230,11 +242,11 @@ func (h *binaryInstantiateHandler) handle(r io.Reader) (runtime.Object, error) {
 		}
 		return nil, errors.NewBadRequest(err.Error())
 	}
-	rawTransport, ok := transport.(*http.Transport)
-	if !ok {
-		return nil, errors.NewInternalError(fmt.Errorf("unable to connect to node, unrecognized type: %v", reflect.TypeOf(transport)))
+	tlsClientConfig, err := knet.TLSClientConfig(transport)
+	if err != nil {
+		return nil, errors.NewInternalError(fmt.Errorf("unable to connect to node, could not retrieve TLS client config: %v", err))
 	}
-	upgrader := spdy.NewRoundTripper(rawTransport.TLSClientConfig)
+	upgrader := spdy.NewRoundTripper(tlsClientConfig, false)
 	exec, err := remotecommand.NewStreamExecutor(upgrader, nil, "POST", location)
 	if err != nil {
 		return nil, errors.NewInternalError(fmt.Errorf("unable to connect to server: %v", err))
@@ -242,6 +254,10 @@ func (h *binaryInstantiateHandler) handle(r io.Reader) (runtime.Object, error) {
 	streamOptions := remotecommand.StreamOptions{
 		SupportedProtocols: kubeletremotecommand.SupportedStreamingProtocols,
 		Stdin:              r,
+		// TODO remove Stdout and Stderr once https://github.com/kubernetes/kubernetes/issues/44448 is
+		// fixed
+		Stdout: ioutil.Discard,
+		Stderr: ioutil.Discard,
 	}
 	if err := exec.Stream(streamOptions); err != nil {
 		return nil, errors.NewInternalError(err)
@@ -260,7 +276,7 @@ func (h *binaryInstantiateHandler) cancelBuild(build *buildapi.Build) {
 		err := h.r.Generator.Client.UpdateBuild(h.ctx, build)
 		switch {
 		case err != nil && errors.IsConflict(err):
-			build, err = h.r.Generator.Client.GetBuild(h.ctx, build.Name)
+			build, err = h.r.Generator.Client.GetBuild(h.ctx, build.Name, &metav1.GetOptions{})
 			return false, err
 		default:
 			return true, err
@@ -272,10 +288,10 @@ type podGetter struct {
 	podsNamespacer kcoreclient.PodsGetter
 }
 
-func (g *podGetter) Get(ctx kapi.Context, name string) (runtime.Object, error) {
-	ns, ok := kapi.NamespaceFrom(ctx)
+func (g *podGetter) Get(ctx apirequest.Context, name string, options *metav1.GetOptions) (runtime.Object, error) {
+	ns, ok := apirequest.NamespaceFrom(ctx)
 	if !ok {
 		return nil, errors.NewBadRequest("namespace parameter required.")
 	}
-	return g.podsNamespacer.Pods(ns).Get(name)
+	return g.podsNamespacer.Pods(ns).Get(name, *options)
 }

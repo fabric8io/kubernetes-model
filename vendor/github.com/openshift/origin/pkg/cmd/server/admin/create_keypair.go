@@ -16,9 +16,8 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
+	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
-
-	"github.com/openshift/origin/pkg/cmd/templates"
 )
 
 const CreateKeyPairCommandName = "create-key-pair"
@@ -131,7 +130,7 @@ func writePublicKeyFile(path string, key *rsa.PublicKey) error {
 	}
 
 	b := bytes.Buffer{}
-	if err := pem.Encode(&b, &pem.Block{Type: "RSA PUBLIC KEY", Bytes: derBytes}); err != nil {
+	if err := pem.Encode(&b, &pem.Block{Type: "PUBLIC KEY", Bytes: derBytes}); err != nil {
 		return err
 	}
 

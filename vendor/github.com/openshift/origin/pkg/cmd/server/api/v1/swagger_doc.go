@@ -36,6 +36,15 @@ func (AdmissionPluginConfig) SwaggerDoc() map[string]string {
 	return map_AdmissionPluginConfig
 }
 
+var map_AggregatorConfig = map[string]string{
+	"":                "AggregatorConfig holds information required to make the aggregator function.",
+	"proxyClientInfo": "ProxyClientInfo specifies the client cert/key to use when proxying to aggregated API servers",
+}
+
+func (AggregatorConfig) SwaggerDoc() map[string]string {
+	return map_AggregatorConfig
+}
+
 var map_AllowAllPasswordIdentityProvider = map[string]string{
 	"": "AllowAllPasswordIdentityProvider provides identities for users authenticating using non-empty passwords",
 }
@@ -133,11 +142,23 @@ func (ClientConnectionOverrides) SwaggerDoc() map[string]string {
 
 var map_ControllerConfig = map[string]string{
 	"":                   "ControllerConfig holds configuration values for controllers",
+	"election":           "Election defines the configuration for electing a controller instance to make changes to the cluster. If unspecified, the ControllerTTL value is checked to determine whether the legacy direct etcd election code will be used.",
 	"serviceServingCert": "ServiceServingCert holds configuration for service serving cert signer which creates cert/key pairs for pods fulfilling a service to serve with.",
 }
 
 func (ControllerConfig) SwaggerDoc() map[string]string {
 	return map_ControllerConfig
+}
+
+var map_ControllerElectionConfig = map[string]string{
+	"":              "ControllerElectionConfig contains configuration values for deciding how a controller will be elected to act as leader.",
+	"lockName":      "LockName is the resource name used to act as the lock for determining which controller instance should lead.",
+	"lockNamespace": "LockNamespace is the resource namespace used to act as the lock for determining which controller instance should lead. It defaults to \"kube-system\"",
+	"lockResource":  "LockResource is the group and resource name to use to coordinate for the controller lock. If unset, defaults to \"configmaps\".",
+}
+
+func (ControllerElectionConfig) SwaggerDoc() map[string]string {
+	return map_ControllerElectionConfig
 }
 
 var map_DNSConfig = map[string]string{
@@ -169,8 +190,10 @@ func (DenyAllPasswordIdentityProvider) SwaggerDoc() map[string]string {
 }
 
 var map_DockerConfig = map[string]string{
-	"":                "DockerConfig holds Docker related configuration options.",
-	"execHandlerName": "ExecHandlerName is the name of the handler to use for executing commands in Docker containers.",
+	"":                        "DockerConfig holds Docker related configuration options.",
+	"execHandlerName":         "ExecHandlerName is the name of the handler to use for executing commands in Docker containers.",
+	"dockerShimSocket":        "DockerShimSocket is the location of the dockershim socket the kubelet uses.",
+	"dockerShimRootDirectory": "DockershimRootDirectory is the dockershim root directory.",
 }
 
 func (DockerConfig) SwaggerDoc() map[string]string {
@@ -257,6 +280,16 @@ func (GrantConfig) SwaggerDoc() map[string]string {
 	return map_GrantConfig
 }
 
+var map_GroupResource = map[string]string{
+	"":         "GroupResource points to a resource by its name and API group.",
+	"group":    "Group is the name of an API group",
+	"resource": "Resource is the name of a resource.",
+}
+
+func (GroupResource) SwaggerDoc() map[string]string {
+	return map_GroupResource
+}
+
 var map_HTPasswdPasswordIdentityProvider = map[string]string{
 	"":     "HTPasswdPasswordIdentityProvider provides identities for users authenticating using htpasswd credentials",
 	"file": "File is a reference to your htpasswd file",
@@ -305,6 +338,7 @@ var map_ImagePolicyConfig = map[string]string{
 	"disableScheduledImport":                     "DisableScheduledImport allows scheduled background import of images to be disabled.",
 	"scheduledImageImportMinimumIntervalSeconds": "ScheduledImageImportMinimumIntervalSeconds is the minimum number of seconds that can elapse between when image streams scheduled for background import are checked against the upstream repository. The default value is 15 minutes.",
 	"maxScheduledImageImportsPerMinute":          "MaxScheduledImageImportsPerMinute is the maximum number of scheduled image streams that will be imported in the background per minute. The default value is 60. Set to -1 for unlimited.",
+	"allowedRegistriesForImport":                 "AllowedRegistriesForImport limits the docker registries that normal users may import images from. Set this list to the registries that you trust to contain valid Docker images and that you want applications to be able to import from. Users with permission to create Images or ImageStreamMappings via the API are not affected by this policy - typically only administrators or system integrations will have those permissions.",
 }
 
 func (ImagePolicyConfig) SwaggerDoc() map[string]string {
@@ -344,21 +378,22 @@ func (KubeletConnectionInfo) SwaggerDoc() map[string]string {
 }
 
 var map_KubernetesMasterConfig = map[string]string{
-	"":                         "KubernetesMasterConfig holds the necessary configuration options for the Kubernetes master",
-	"apiLevels":                "APILevels is a list of API levels that should be enabled on startup: v1 as examples",
-	"disabledAPIGroupVersions": "DisabledAPIGroupVersions is a map of groups to the versions (or *) that should be disabled.",
-	"masterIP":                 "MasterIP is the public IP address of kubernetes stuff.  If empty, the first result from net.InterfaceAddrs will be used.",
-	"masterCount":              "MasterCount is the number of expected masters that should be running. This value defaults to 1 and may be set to a positive integer, or if set to -1, indicates this is part of a cluster.",
-	"servicesSubnet":           "ServicesSubnet is the subnet to use for assigning service IPs",
-	"servicesNodePortRange":    "ServicesNodePortRange is the range to use for assigning service public ports on a host.",
-	"staticNodeNames":          "StaticNodeNames is the list of nodes that are statically known",
-	"schedulerConfigFile":      "SchedulerConfigFile points to a file that describes how to set up the scheduler. If empty, you get the default scheduling rules.",
-	"podEvictionTimeout":       "PodEvictionTimeout controls grace period for deleting pods on failed nodes. It takes valid time duration string. If empty, you get the default pod eviction timeout.",
-	"proxyClientInfo":          "ProxyClientInfo specifies the client cert/key to use when proxying to pods",
-	"admissionConfig":          "AdmissionConfig contains admission control plugin configuration.",
-	"apiServerArguments":       "APIServerArguments are key value pairs that will be passed directly to the Kube apiserver that match the apiservers's command line arguments.  These are not migrated, but if you reference a value that does not exist the server will not start. These values may override other settings in KubernetesMasterConfig which may cause invalid configurations.",
-	"controllerArguments":      "ControllerArguments are key value pairs that will be passed directly to the Kube controller manager that match the controller manager's command line arguments.  These are not migrated, but if you reference a value that does not exist the server will not start. These values may override other settings in KubernetesMasterConfig which may cause invalid configurations.",
-	"schedulerArguments":       "SchedulerArguments are key value pairs that will be passed directly to the Kube scheduler that match the scheduler's command line arguments.  These are not migrated, but if you reference a value that does not exist the server will not start. These values may override other settings in KubernetesMasterConfig which may cause invalid configurations.",
+	"":                           "KubernetesMasterConfig holds the necessary configuration options for the Kubernetes master",
+	"apiLevels":                  "APILevels is a list of API levels that should be enabled on startup: v1 as examples",
+	"disabledAPIGroupVersions":   "DisabledAPIGroupVersions is a map of groups to the versions (or *) that should be disabled.",
+	"masterIP":                   "MasterIP is the public IP address of kubernetes stuff.  If empty, the first result from net.InterfaceAddrs will be used.",
+	"masterCount":                "MasterCount is the number of expected masters that should be running. This value defaults to 1 and may be set to a positive integer, or if set to -1, indicates this is part of a cluster.",
+	"masterEndpointReconcileTTL": "MasterEndpointReconcileTTL sets the time to live in seconds of an endpoint record recorded by each master. The endpoints are checked at an interval that is 2/3 of this value and this value defaults to 15s if unset. In very large clusters, this value may be increased to reduce the possibility that the master endpoint record expires (due to other load on the etcd server) and causes masters to drop in and out of the kubernetes service record. It is not recommended to set this value below 15s.",
+	"servicesSubnet":             "ServicesSubnet is the subnet to use for assigning service IPs",
+	"servicesNodePortRange":      "ServicesNodePortRange is the range to use for assigning service public ports on a host.",
+	"staticNodeNames":            "StaticNodeNames is the list of nodes that are statically known",
+	"schedulerConfigFile":        "SchedulerConfigFile points to a file that describes how to set up the scheduler. If empty, you get the default scheduling rules.",
+	"podEvictionTimeout":         "PodEvictionTimeout controls grace period for deleting pods on failed nodes. It takes valid time duration string. If empty, you get the default pod eviction timeout.",
+	"proxyClientInfo":            "ProxyClientInfo specifies the client cert/key to use when proxying to pods",
+	"admissionConfig":            "AdmissionConfig contains admission control plugin configuration.",
+	"apiServerArguments":         "APIServerArguments are key value pairs that will be passed directly to the Kube apiserver that match the apiservers's command line arguments.  These are not migrated, but if you reference a value that does not exist the server will not start. These values may override other settings in KubernetesMasterConfig which may cause invalid configurations.",
+	"controllerArguments":        "ControllerArguments are key value pairs that will be passed directly to the Kube controller manager that match the controller manager's command line arguments.  These are not migrated, but if you reference a value that does not exist the server will not start. These values may override other settings in KubernetesMasterConfig which may cause invalid configurations.",
+	"schedulerArguments":         "SchedulerArguments are key value pairs that will be passed directly to the Kube scheduler that match the scheduler's command line arguments.  These are not migrated, but if you reference a value that does not exist the server will not start. These values may override other settings in KubernetesMasterConfig which may cause invalid configurations.",
 }
 
 func (KubernetesMasterConfig) SwaggerDoc() map[string]string {
@@ -431,6 +466,15 @@ func (LocalQuota) SwaggerDoc() map[string]string {
 	return map_LocalQuota
 }
 
+var map_MasterAuthConfig = map[string]string{
+	"":              "MasterAuthConfig configures authentication options in addition to the standard oauth token and client certificate authenticators",
+	"requestHeader": "RequestHeader holds options for setting up a front proxy against the the API.  It is optional.",
+}
+
+func (MasterAuthConfig) SwaggerDoc() map[string]string {
+	return map_MasterAuthConfig
+}
+
 var map_MasterClients = map[string]string{
 	"": "MasterClients holds references to `.kubeconfig` files that qualify master clients for OpenShift and Kubernetes",
 	"openshiftLoopbackKubeConfig":                 "OpenShiftLoopbackKubeConfig is a .kubeconfig filename for system components to loopback to this master",
@@ -446,12 +490,14 @@ func (MasterClients) SwaggerDoc() map[string]string {
 var map_MasterConfig = map[string]string{
 	"":                       "MasterConfig holds the necessary configuration options for the OpenShift master",
 	"servingInfo":            "ServingInfo describes how to start serving",
+	"authConfig":             "AuthConfig configures authentication options in addition to the standard oauth token and client certificate authenticators",
+	"aggregatorConfig":       "AggregatorConfig has options for configuring the aggregator component of the API server.",
 	"corsAllowedOrigins":     "CORSAllowedOrigins",
 	"apiLevels":              "APILevels is a list of API levels that should be enabled on startup: v1 as examples",
 	"masterPublicURL":        "MasterPublicURL is how clients can access the OpenShift API server",
 	"controllers":            "Controllers is a list of the controllers that should be started. If set to \"none\", no controllers will start automatically. The default value is \"*\" which will start all controllers. When using \"*\", you may exclude controllers by prepending a \"-\" in front of their name. No other values are recognized at this time.",
-	"pauseControllers":       "PauseControllers instructs the master to not automatically start controllers, but instead to wait until a notification to the server is received before launching them.",
-	"controllerLeaseTTL":     "ControllerLeaseTTL enables controller election, instructing the master to attempt to acquire a lease before controllers start and renewing it within a number of seconds defined by this value. Setting this value non-negative forces pauseControllers=true. This value defaults off (0, or omitted) and controller election can be disabled with -1.",
+	"pauseControllers":       "PauseControllers instructs the master to not automatically start controllers, but instead to wait until a notification to the server is received before launching them. This field is ignored if controllerConfig.lockServiceName is specified. Deprecated: Will be removed in 3.7.",
+	"controllerLeaseTTL":     "ControllerLeaseTTL enables controller election against etcd, instructing the master to attempt to acquire a lease before controllers start and renewing it within a number of seconds defined by this value. Setting this value non-negative forces pauseControllers=true. This value defaults off (0, or omitted) and controller election can be disabled with -1. This field is ignored if controllerConfig.lockServiceName is specified. Deprecated: use controllerConfig.lockServiceName to force leader election via config, and the\n  appropriate leader election flags in controllerArguments. Will be removed in 3.9.",
 	"admissionConfig":        "AdmissionConfig contains admission control plugin configuration.",
 	"controllerConfig":       "ControllerConfig holds configuration values for controllers",
 	"disabledFeatures":       "DisabledFeatures is a list of features that should not be started.  We omitempty here because its very unlikely that anyone will want to manually disable features and we don't want to encourage it.",
@@ -535,6 +581,7 @@ var map_NodeConfig = map[string]string{
 	"dnsIP":                           "DNSIP is the IP address that pods will use to access cluster DNS. Defaults to the service IP of the Kubernetes master. This IP must be listening on port 53 for compatibility with libc resolvers (which cannot be configured to resolve names from any other port). When running more complex local DNS configurations, this is often set to the local address of a DNS proxy like dnsmasq, which then will consult either the local DNS (see dnsBindAddress) or the master DNS.",
 	"dnsBindAddress":                  "DNSBindAddress is the ip:port to serve DNS on. If this is not set, the DNS server will not be started. Because most DNS resolvers will only listen on port 53, if you select an alternative port you will need a DNS proxy like dnsmasq to answer queries for containers. A common configuration is dnsmasq configured on a node IP listening on 53 and delegating queries for dnsDomain to this process, while sending other queries to the host environments nameservers.",
 	"dnsNameservers":                  "DNSNameservers is a list of ip:port values of recursive nameservers to forward queries to when running a local DNS server if dnsBindAddress is set. If this value is empty, the DNS server will default to the nameservers listed in /etc/resolv.conf. If you have configured dnsmasq or another DNS proxy on the system, this value should be set to the upstream nameservers dnsmasq resolves with.",
+	"dnsRecursiveResolvConf":          "DNSRecursiveResolvConf is a path to a resolv.conf file that contains settings for an upstream server. Only the nameservers and port fields are used. The file must exist and parse correctly. It adds extra nameservers to DNSNameservers if set.",
 	"networkPluginName":               "Deprecated and maintained for backward compatibility, use NetworkConfig.NetworkPluginName instead",
 	"networkConfig":                   "NetworkConfig provides network options for the node",
 	"volumeDirectory":                 "VolumeDirectory is the directory that volumes will be stored under",
@@ -691,6 +738,16 @@ func (RFC2307Config) SwaggerDoc() map[string]string {
 	return map_RFC2307Config
 }
 
+var map_RegistryLocation = map[string]string{
+	"":           "RegistryLocation contains a location of the registry specified by the registry domain name. The domain name might include wildcards, like '*' or '??'.",
+	"domainName": "DomainName specifies a domain name for the registry In case the registry use non-standard (80 or 443) port, the port should be included in the domain name as well.",
+	"insecure":   "Insecure indicates whether the registry is secure (https) or insecure (http) By default (if not specified) the registry is assumed as secure.",
+}
+
+func (RegistryLocation) SwaggerDoc() map[string]string {
+	return map_RegistryLocation
+}
+
 var map_RemoteConnectionInfo = map[string]string{
 	"":    "RemoteConnectionInfo holds information necessary for establishing a remote connection",
 	"url": "URL is the remote URL to connect to",
@@ -699,6 +756,19 @@ var map_RemoteConnectionInfo = map[string]string{
 
 func (RemoteConnectionInfo) SwaggerDoc() map[string]string {
 	return map_RemoteConnectionInfo
+}
+
+var map_RequestHeaderAuthenticationOptions = map[string]string{
+	"":                    "RequestHeaderAuthenticationOptions provides options for setting up a front proxy against the entire API instead of against the /oauth endpoint.",
+	"clientCA":            "ClientCA is a file with the trusted signer certs.  It is required.",
+	"clientCommonNames":   "ClientCommonNames is a required list of common names to require a match from.",
+	"usernameHeaders":     "UsernameHeaders is the list of headers to check for user information.  First hit wins.",
+	"groupHeaders":        "GroupNameHeader is the set of headers to check for group information.  All are unioned.",
+	"extraHeaderPrefixes": "ExtraHeaderPrefixes is the set of request header prefixes to inspect for user extra. X-Remote-Extra- is suggested.",
+}
+
+func (RequestHeaderAuthenticationOptions) SwaggerDoc() map[string]string {
+	return map_RequestHeaderAuthenticationOptions
 }
 
 var map_RequestHeaderIdentityProvider = map[string]string{
@@ -765,6 +835,8 @@ var map_ServingInfo = map[string]string{
 	"bindNetwork":       "BindNetwork is the type of network to bind to - defaults to \"tcp4\", accepts \"tcp\", \"tcp4\", and \"tcp6\"",
 	"clientCA":          "ClientCA is the certificate bundle for all the signers that you'll recognize for incoming client certificates",
 	"namedCertificates": "NamedCertificates is a list of certificates to use to secure requests to specific hostnames",
+	"minTLSVersion":     "MinTLSVersion is the minimum TLS version supported. Values must match version names from https://golang.org/pkg/crypto/tls/#pkg-constants",
+	"cipherSuites":      "CipherSuites contains an overridden list of ciphers for the server to support. Values must match cipher suite IDs from https://golang.org/pkg/crypto/tls/#pkg-constants",
 }
 
 func (ServingInfo) SwaggerDoc() map[string]string {

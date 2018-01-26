@@ -1,18 +1,20 @@
 package admission
 
 import (
-	"k8s.io/kubernetes/pkg/admission"
-	"k8s.io/kubernetes/pkg/client/restclient"
+	"k8s.io/apiserver/pkg/admission"
+	kauthorizer "k8s.io/apiserver/pkg/authorization/authorizer"
+	restclient "k8s.io/client-go/rest"
+	kinternalinformers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
 	"k8s.io/kubernetes/pkg/quota"
 
-	"github.com/openshift/origin/pkg/authorization/authorizer"
 	"github.com/openshift/origin/pkg/client"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	"github.com/openshift/origin/pkg/controller/shared"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	"github.com/openshift/origin/pkg/project/cache"
 	"github.com/openshift/origin/pkg/quota/controller/clusterquotamapping"
-	usercache "github.com/openshift/origin/pkg/user/cache"
+	quotainformer "github.com/openshift/origin/pkg/quota/generated/informers/internalversion/quota/internalversion"
+	securityinformer "github.com/openshift/origin/pkg/security/generated/informers/internalversion"
+	userinformer "github.com/openshift/origin/pkg/user/generated/informers/internalversion"
 )
 
 // WantsOpenshiftClient should be implemented by admission plugins that need
@@ -38,7 +40,7 @@ type WantsOriginQuotaRegistry interface {
 // WantsAuthorizer should be implemented by admission plugins that
 // need access to the Authorizer interface
 type WantsAuthorizer interface {
-	SetAuthorizer(authorizer.Authorizer)
+	SetAuthorizer(kauthorizer.Authorizer)
 	admission.Validator
 }
 
@@ -55,16 +57,22 @@ type WantsRESTClientConfig interface {
 	admission.Validator
 }
 
-// WantsInformers should be implemented by admission plugins that will select its own informer
-type WantsInformers interface {
-	SetInformers(shared.InformerFactory)
+// WantsInternalKubernetesInformers should be implemented by admission plugins that need the internal kubernetes
+// informers.
+type WantsInternalKubernetesInformers interface {
+	SetInternalKubernetesInformers(kinternalinformers.SharedInformerFactory)
 	admission.Validator
 }
 
-// WantsClusterQuotaMapper should be implemented by admission plugins that need to know how to map between
-// cluster quota and namespaces
-type WantsClusterQuotaMapper interface {
-	SetClusterQuotaMapper(clusterquotamapping.ClusterQuotaMapper)
+// WantsClusterQuota should be implemented by admission plugins that need to know how to map between
+// cluster quota and namespaces and get access to the informer.
+type WantsClusterQuota interface {
+	SetClusterQuota(clusterquotamapping.ClusterQuotaMapper, quotainformer.ClusterResourceQuotaInformer)
+	admission.Validator
+}
+
+type WantsSecurityInformer interface {
+	SetSecurityInformers(securityinformer.SharedInformerFactory)
 	admission.Validator
 }
 
@@ -75,9 +83,7 @@ type WantsDefaultRegistryFunc interface {
 	admission.Validator
 }
 
-// WantsGroupCache should be implemented by admission plugins that need a
-// group cache.
-type WantsGroupCache interface {
-	SetGroupCache(*usercache.GroupCache)
+type WantsUserInformer interface {
+	SetUserInformer(userinformer.SharedInformerFactory)
 	admission.Validator
 }

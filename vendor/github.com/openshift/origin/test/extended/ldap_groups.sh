@@ -8,43 +8,21 @@ os::util::environment::setup_time_vars
 
 os::build::setup_env
 
-function cleanup()
-{
-	out=$?
-	cleanup_openshift
-
-	# TODO(skuznets): un-hack this nonsense once traps are in a better state
-	if [[ -n "${JUNIT_REPORT_OUTPUT:-}" ]]; then
-		# get the jUnit output file into a workable state in case we crashed in
-		# the middle of testing something
-		os::test::junit::reconcile_output
-
-		# check that we didn't mangle jUnit output
-		os::test::junit::check_test_counters
-
-		# use the junitreport tool to generate us a report
-		os::util::ensure::built_binary_exists 'junitreport'
-
-		cat "${JUNIT_REPORT_OUTPUT}" \
-			| junitreport --type oscmd \
-			--suites nested \
-			--roots github.com/openshift/origin \
-			--output "${ARTIFACT_DIR}/report.xml"
-		cat "${ARTIFACT_DIR}/report.xml" | junitreport summarize
-	fi
-
-	os::log::info "Exiting"
-	return $out
+function cleanup() {
+	return_code=$?
+	os::test::junit::generate_report
+	os::cleanup::all
+	os::util::describe_return_code "${return_code}"
+	exit "${return_code}"
 }
-
-trap "exit" INT TERM
 trap "cleanup" EXIT
 
 os::log::info "Starting server"
 
 os::util::ensure::iptables_privileges_exist
 os::util::environment::use_sudo
-os::util::environment::setup_all_server_vars "test-extended/ldap_groups/"
+os::cleanup::tmpdir
+os::util::environment::setup_all_server_vars
 
 os::log::system::start
 
@@ -154,94 +132,94 @@ for (( i=0; i<${#schema[@]}; i++ )); do
 	done
 
 	echo -e "\tTEST: Sync all LDAP groups from LDAP server"
-	oadm groups sync --sync-config=sync-config.yaml --confirm
+	oc adm groups sync --sync-config=sync-config.yaml --confirm
 	compare_and_cleanup valid_all_ldap_sync.yaml
 
 
 	# WHITELISTS
 	echo -e "\tTEST: Sync subset of LDAP groups from LDAP server using whitelist file"
-	oadm groups sync --whitelist=whitelist_ldap.txt --sync-config=sync-config.yaml --confirm
+	oc adm groups sync --whitelist=whitelist_ldap.txt --sync-config=sync-config.yaml --confirm
 	compare_and_cleanup valid_whitelist_sync.yaml
 
 	echo -e "\tTEST: Sync subset of LDAP groups from LDAP server using literal whitelist"
-	oadm groups sync ${group1_ldapuid} --sync-config=sync-config.yaml --confirm
+	oc adm groups sync ${group1_ldapuid} --sync-config=sync-config.yaml --confirm
 	compare_and_cleanup valid_whitelist_sync.yaml
 
 	echo -e "\tTEST: Sync subset of LDAP groups from LDAP server using union of literal whitelist and whitelist file"
-	oadm groups sync ${group2_ldapuid} --whitelist=whitelist_ldap.txt --sync-config=sync-config.yaml --confirm
+	oc adm groups sync ${group2_ldapuid} --whitelist=whitelist_ldap.txt --sync-config=sync-config.yaml --confirm
 	compare_and_cleanup valid_whitelist_union_sync.yaml
 
 	echo -e "\tTEST: Sync subset of OpenShift groups from LDAP server using whitelist file"
-	oadm groups sync ${group1_ldapuid} --sync-config=sync-config.yaml --confirm
+	oc adm groups sync ${group1_ldapuid} --sync-config=sync-config.yaml --confirm
 	oc patch group ${group1_osuid} -p 'users: []'
-	oadm groups sync --type=openshift --whitelist=whitelist_openshift.txt --sync-config=sync-config.yaml --confirm
+	oc adm groups sync --type=openshift --whitelist=whitelist_openshift.txt --sync-config=sync-config.yaml --confirm
 	compare_and_cleanup valid_whitelist_sync.yaml
 
 	echo -e "\tTEST: Sync subset of OpenShift groups from LDAP server using literal whitelist"
 	# sync group from LDAP
-	oadm groups sync ${group1_ldapuid} --sync-config=sync-config.yaml --confirm
+	oc adm groups sync ${group1_ldapuid} --sync-config=sync-config.yaml --confirm
 	oc patch group ${group1_osuid} -p 'users: []'
-	oadm groups sync --type=openshift ${group1_osuid} --sync-config=sync-config.yaml --confirm
+	oc adm groups sync --type=openshift ${group1_osuid} --sync-config=sync-config.yaml --confirm
 	compare_and_cleanup valid_whitelist_sync.yaml
 
 	echo -e "\tTEST: Sync subset of OpenShift groups from LDAP server using union of literal whitelist and whitelist file"
 	# sync groups from LDAP
-	oadm groups sync ${group1_ldapuid} ${group2_ldapuid} --sync-config=sync-config.yaml --confirm
+	oc adm groups sync ${group1_ldapuid} ${group2_ldapuid} --sync-config=sync-config.yaml --confirm
 	oc patch group ${group1_osuid} -p 'users: []'
 	oc patch group ${group2_osuid} -p 'users: []'
-	oadm groups sync --type=openshift group/${group2_osuid} --whitelist=whitelist_openshift.txt --sync-config=sync-config.yaml --confirm
+	oc adm groups sync --type=openshift group/${group2_osuid} --whitelist=whitelist_openshift.txt --sync-config=sync-config.yaml --confirm
 	compare_and_cleanup valid_whitelist_union_sync.yaml
 
 
 	# BLACKLISTS
 	echo -e "\tTEST: Sync subset of LDAP groups from LDAP server using whitelist and blacklist file"
-	# oadm groups sync --whitelist=ldapgroupuids.txt --blacklist=blacklist_ldap.txt --blacklist-group="${group1_ldapuid}" --sync-config=sync-config.yaml --confirm
-	oadm groups sync --whitelist=ldapgroupuids.txt --blacklist=blacklist_ldap.txt --sync-config=sync-config.yaml --confirm
+	# oc adm groups sync --whitelist=ldapgroupuids.txt --blacklist=blacklist_ldap.txt --blacklist-group="${group1_ldapuid}" --sync-config=sync-config.yaml --confirm
+	oc adm groups sync --whitelist=ldapgroupuids.txt --blacklist=blacklist_ldap.txt --sync-config=sync-config.yaml --confirm
 	compare_and_cleanup valid_all_blacklist_sync.yaml
 
 	echo -e "\tTEST: Sync subset of LDAP groups from LDAP server using blacklist"
-	# oadm groups sync --blacklist=blacklist_ldap.txt --blacklist-group=${group1_ldapuid} --sync-config=sync-config.yaml --confirm
-	oadm groups sync --blacklist=blacklist_ldap.txt --sync-config=sync-config.yaml --confirm
+	# oc adm groups sync --blacklist=blacklist_ldap.txt --blacklist-group=${group1_ldapuid} --sync-config=sync-config.yaml --confirm
+	oc adm groups sync --blacklist=blacklist_ldap.txt --sync-config=sync-config.yaml --confirm
 	compare_and_cleanup valid_all_blacklist_sync.yaml
 
 	echo -e "\tTEST: Sync subset of OpenShift groups from LDAP server using whitelist and blacklist file"
-	oadm groups sync --sync-config=sync-config.yaml --confirm
+	oc adm groups sync --sync-config=sync-config.yaml --confirm
 	oc get group -o name --no-headers | xargs -n 1 oc patch -p 'users: []'
-	# oadm groups sync --type=openshift --whitelist=osgroupuids.txt --blacklist=blacklist_openshift.txt --blacklist-group=${group1_osuid} --sync-config=sync-config.yaml --confirm
-	oadm groups sync --type=openshift --whitelist=osgroupuids.txt --blacklist=blacklist_openshift.txt --sync-config=sync-config.yaml --confirm
+	# oc adm groups sync --type=openshift --whitelist=osgroupuids.txt --blacklist=blacklist_openshift.txt --blacklist-group=${group1_osuid} --sync-config=sync-config.yaml --confirm
+	oc adm groups sync --type=openshift --whitelist=osgroupuids.txt --blacklist=blacklist_openshift.txt --sync-config=sync-config.yaml --confirm
 	compare_and_cleanup valid_all_openshift_blacklist_sync.yaml
 
 
 	# MAPPINGS
 	echo -e "\tTEST: Sync all LDAP groups from LDAP server using a user-defined mapping"
-	oadm groups sync --sync-config=sync-config-user-defined.yaml --confirm
+	oc adm groups sync --sync-config=sync-config-user-defined.yaml --confirm
 	compare_and_cleanup valid_all_ldap_sync_user_defined.yaml
 
 	echo -e "\tTEST: Sync all LDAP groups from LDAP server using a partially user-defined mapping"
-	oadm groups sync --sync-config=sync-config-partially-user-defined.yaml --confirm
+	oc adm groups sync --sync-config=sync-config-partially-user-defined.yaml --confirm
 	compare_and_cleanup valid_all_ldap_sync_partially_user_defined.yaml
 
 	echo -e "\tTEST: Sync based on OpenShift groups respecting OpenShift mappings"
-	oadm groups sync --sync-config=sync-config-user-defined.yaml --confirm
+	oc adm groups sync --sync-config=sync-config-user-defined.yaml --confirm
 	oc get group -o name --no-headers | xargs -n 1 oc patch -p 'users: []'
-	oadm groups sync --type=openshift --sync-config=sync-config.yaml --confirm
+	oc adm groups sync --type=openshift --sync-config=sync-config.yaml --confirm
 	compare_and_cleanup valid_all_ldap_sync_user_defined.yaml
 
 	echo -e "\tTEST: Sync all LDAP groups from LDAP server using DN as attribute whenever possible"
-    oadm groups sync --sync-config=sync-config-dn-everywhere.yaml --confirm
+    oc adm groups sync --sync-config=sync-config-dn-everywhere.yaml --confirm
 	compare_and_cleanup valid_all_ldap_sync_dn_everywhere.yaml
 
 
 	# PRUNING
 	echo -e "\tTEST: Sync all LDAP groups from LDAP server, change LDAP UID, then prune OpenShift groups"
-	oadm groups sync --sync-config=sync-config.yaml --confirm
+	oc adm groups sync --sync-config=sync-config.yaml --confirm
 	oc patch group ${group2_osuid} -p "{\"metadata\":{\"annotations\":{\"openshift.io/ldap.uid\":\"cn=garbage,${group2_ldapuid}\"}}}"
-	oadm groups prune --sync-config=sync-config.yaml --confirm
+	oc adm groups prune --sync-config=sync-config.yaml --confirm
 	compare_and_cleanup valid_all_ldap_sync_prune.yaml
 
 	# PAGING
 	echo -e "\tTEST: Sync all LDAP groups from LDAP server using paged queries"
-	oadm groups sync --sync-config=sync-config-paging.yaml --confirm
+	oc adm groups sync --sync-config=sync-config-paging.yaml --confirm
 	compare_and_cleanup valid_all_ldap_sync.yaml
 
     popd > /dev/null
@@ -250,7 +228,7 @@ done
 # special test for RFC2307
 pushd ${BASETMPDIR}/rfc2307 > /dev/null
 echo -e "\tTEST: Sync groups from LDAP server, tolerating errors"
-oadm groups sync --sync-config=sync-config-tolerating.yaml --confirm 2>"${LOG_DIR}/tolerated-output.txt"
+oc adm groups sync --sync-config=sync-config-tolerating.yaml --confirm 2>"${LOG_DIR}/tolerated-output.txt"
 grep 'For group "cn=group1,ou=groups,ou=incomplete\-rfc2307,dc=example,dc=com", ignoring member "cn=INVALID,ou=people,ou=rfc2307,dc=example,dc=com"' "${LOG_DIR}/tolerated-output.txt"
 grep 'For group "cn=group2,ou=groups,ou=incomplete\-rfc2307,dc=example,dc=com", ignoring member "cn=OUTOFSCOPE,ou=people,ou=OUTOFSCOPE,dc=example,dc=com"' "${LOG_DIR}/tolerated-output.txt"
 grep 'For group "cn=group3,ou=groups,ou=incomplete\-rfc2307,dc=example,dc=com", ignoring member "cn=INVALID,ou=people,ou=rfc2307,dc=example,dc=com"' "${LOG_DIR}/tolerated-output.txt"
@@ -261,8 +239,8 @@ popd > /dev/null
 # special test for augmented-ad
 pushd ${BASETMPDIR}/augmented-ad > /dev/null
 echo -e "\tTEST: Sync all LDAP groups from LDAP server, remove LDAP group metadata entry, then prune OpenShift groups"
-oadm groups sync --sync-config=sync-config.yaml --confirm
+oc adm groups sync --sync-config=sync-config.yaml --confirm
 ldapdelete -x -h $LDAP_SERVICE_IP -p 389 -D cn=Manager,dc=example,dc=com -w admin "${group1_ldapuid}"
-oadm groups prune --sync-config=sync-config.yaml --confirm
+oc adm groups prune --sync-config=sync-config.yaml --confirm
 compare_and_cleanup valid_all_ldap_sync_delete_prune.yaml
 popd > /dev/null

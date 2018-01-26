@@ -7,13 +7,13 @@ import (
 
 	log "github.com/golang/glog"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/cache"
-	"k8s.io/kubernetes/pkg/util/sets"
-	utilwait "k8s.io/kubernetes/pkg/util/wait"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
+	utilwait "k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/cache"
 
 	osclient "github.com/openshift/origin/pkg/client"
-	osapi "github.com/openshift/origin/pkg/sdn/api"
+	osapi "github.com/openshift/origin/pkg/sdn/apis/network"
 )
 
 type nodeVNIDMap struct {
@@ -66,16 +66,6 @@ func (vmap *nodeVNIDMap) GetNamespaces(id uint32) []string {
 	}
 }
 
-func (vmap *nodeVNIDMap) GetVNID(name string) (uint32, error) {
-	vmap.lock.Lock()
-	defer vmap.lock.Unlock()
-
-	if id, ok := vmap.ids[name]; ok {
-		return id, nil
-	}
-	return 0, fmt.Errorf("Failed to find netid for namespace: %s in vnid map", name)
-}
-
 func (vmap *nodeVNIDMap) GetMulticastEnabled(id uint32) bool {
 	vmap.lock.Lock()
 	defer vmap.lock.Unlock()
@@ -107,14 +97,24 @@ func (vmap *nodeVNIDMap) WaitAndGetVNID(name string) (uint32, error) {
 	}
 	err := utilwait.ExponentialBackoff(backoff, func() (bool, error) {
 		var err error
-		id, err = vmap.GetVNID(name)
+		id, err = vmap.getVNID(name)
 		return err == nil, nil
 	})
 	if err == nil {
 		return id, nil
 	} else {
-		return 0, fmt.Errorf("Failed to find netid for namespace: %s in vnid map", name)
+		return 0, fmt.Errorf("failed to find netid for namespace: %s in vnid map", name)
 	}
+}
+
+func (vmap *nodeVNIDMap) getVNID(name string) (uint32, error) {
+	vmap.lock.Lock()
+	defer vmap.lock.Unlock()
+
+	if id, ok := vmap.ids[name]; ok {
+		return id, nil
+	}
+	return 0, fmt.Errorf("failed to find netid for namespace: %s in vnid map", name)
 }
 
 func (vmap *nodeVNIDMap) setVNID(name string, id uint32, mcEnabled bool) {
@@ -137,7 +137,7 @@ func (vmap *nodeVNIDMap) unsetVNID(name string) (id uint32, err error) {
 
 	id, found := vmap.ids[name]
 	if !found {
-		return 0, fmt.Errorf("Failed to find netid for namespace: %s in vnid map", name)
+		return 0, fmt.Errorf("failed to find netid for namespace: %s in vnid map", name)
 	}
 	vmap.removeNamespaceFromSet(name, id)
 	delete(vmap.ids, name)
@@ -152,7 +152,7 @@ func netnsIsMulticastEnabled(netns *osapi.NetNamespace) bool {
 }
 
 func (vmap *nodeVNIDMap) populateVNIDs() error {
-	nets, err := vmap.osClient.NetNamespaces().List(kapi.ListOptions{})
+	nets, err := vmap.osClient.NetNamespaces().List(metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -182,7 +182,7 @@ func (vmap *nodeVNIDMap) watchNetNamespaces() {
 		switch delta.Type {
 		case cache.Sync, cache.Added, cache.Updated:
 			// Skip this event if nothing has changed
-			oldNetID, err := vmap.GetVNID(netns.NetName)
+			oldNetID, err := vmap.getVNID(netns.NetName)
 			oldMCEnabled := vmap.mcEnabled[netns.NetName]
 			mcEnabled := netnsIsMulticastEnabled(netns)
 			if err == nil && oldNetID == netns.NetID && oldMCEnabled == mcEnabled {
@@ -196,8 +196,9 @@ func (vmap *nodeVNIDMap) watchNetNamespaces() {
 				vmap.policy.UpdateNetNamespace(netns, oldNetID)
 			}
 		case cache.Deleted:
-			vmap.policy.DeleteNetNamespace(netns)
+			// Unset VNID first so further operations don't see the deleted VNID
 			vmap.unsetVNID(netns.NetName)
+			vmap.policy.DeleteNetNamespace(netns)
 		}
 		return nil
 	})

@@ -1,12 +1,13 @@
 package useridentitymapping
 
 import (
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/validation/field"
 
-	"github.com/openshift/origin/pkg/user/api"
-	"github.com/openshift/origin/pkg/user/api/validation"
+	userapi "github.com/openshift/origin/pkg/user/apis/user"
+	"github.com/openshift/origin/pkg/user/apis/user/validation"
 )
 
 // userIdentityMappingStrategy implements behavior for image repository mappings.
@@ -36,8 +37,8 @@ func (userIdentityMappingStrategy) AllowUnconditionalUpdate() bool {
 }
 
 // PrepareForCreate clears fields that are not allowed to be set by end users on creation.
-func (s userIdentityMappingStrategy) PrepareForCreate(ctx kapi.Context, obj runtime.Object) {
-	mapping := obj.(*api.UserIdentityMapping)
+func (s userIdentityMappingStrategy) PrepareForCreate(ctx apirequest.Context, obj runtime.Object) {
+	mapping := obj.(*userapi.UserIdentityMapping)
 
 	if len(mapping.Name) == 0 {
 		mapping.Name = mapping.Identity.Name
@@ -55,8 +56,8 @@ func (s userIdentityMappingStrategy) PrepareForCreate(ctx kapi.Context, obj runt
 }
 
 // PrepareForUpdate clears fields that are not allowed to be set by end users on update
-func (s userIdentityMappingStrategy) PrepareForUpdate(ctx kapi.Context, obj, old runtime.Object) {
-	mapping := obj.(*api.UserIdentityMapping)
+func (s userIdentityMappingStrategy) PrepareForUpdate(ctx apirequest.Context, obj, old runtime.Object) {
+	mapping := obj.(*userapi.UserIdentityMapping)
 
 	if len(mapping.Name) == 0 {
 		mapping.Name = mapping.Identity.Name
@@ -77,11 +78,11 @@ func (s userIdentityMappingStrategy) Canonicalize(obj runtime.Object) {
 }
 
 // Validate validates a new UserIdentityMapping.
-func (s userIdentityMappingStrategy) Validate(ctx kapi.Context, obj runtime.Object) field.ErrorList {
-	return validation.ValidateUserIdentityMapping(obj.(*api.UserIdentityMapping))
+func (s userIdentityMappingStrategy) Validate(ctx apirequest.Context, obj runtime.Object) field.ErrorList {
+	return validation.ValidateUserIdentityMapping(obj.(*userapi.UserIdentityMapping))
 }
 
 // Validate validates an updated UserIdentityMapping.
-func (s userIdentityMappingStrategy) ValidateUpdate(ctx kapi.Context, obj runtime.Object, old runtime.Object) field.ErrorList {
-	return validation.ValidateUserIdentityMappingUpdate(obj.(*api.UserIdentityMapping), old.(*api.UserIdentityMapping))
+func (s userIdentityMappingStrategy) ValidateUpdate(ctx apirequest.Context, obj runtime.Object, old runtime.Object) field.ErrorList {
+	return validation.ValidateUserIdentityMappingUpdate(obj.(*userapi.UserIdentityMapping), old.(*userapi.UserIdentityMapping))
 }

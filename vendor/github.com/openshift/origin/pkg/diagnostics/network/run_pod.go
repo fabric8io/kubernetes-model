@@ -6,9 +6,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	flag "github.com/spf13/pflag"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apiserver/pkg/storage/names"
 	kapi "k8s.io/kubernetes/pkg/api"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
@@ -32,6 +35,9 @@ type NetworkDiagnostic struct {
 	PreventModification bool
 	LogDir              string
 	PodImage            string
+	TestPodImage        string
+	TestPodProtocol     string
+	TestPodPort         int
 
 	pluginName    string
 	nodes         []kapi.Node
@@ -92,12 +98,6 @@ func (d *NetworkDiagnostic) Check() types.DiagnosticResult {
 		return d.res
 	}
 
-	if len(d.LogDir) == 0 {
-		d.LogDir = util.NetworkDiagDefaultLogDir
-	}
-	if len(d.PodImage) == 0 {
-		d.PodImage = util.NetworkDiagDefaultPodImage
-	}
 	d.runNetworkDiagnostic()
 	return d.res
 }
@@ -136,8 +136,9 @@ func (d *NetworkDiagnostic) runNetworkDiagnostic() {
 		d.res.Error("DNet2006", err, err.Error())
 		return
 	}
-	// Wait for network diagnostic pod completion
-	if err := d.waitForNetworkPod(d.nsName1, util.NetworkDiagPodNamePrefix, []kapi.PodPhase{kapi.PodSucceeded, kapi.PodFailed}); err != nil {
+	// Wait for network diagnostic pod completion (timeout: ~3 mins)
+	backoff := wait.Backoff{Steps: 38, Duration: 500 * time.Millisecond, Factor: 1.1}
+	if err := d.waitForNetworkPod(d.nsName1, util.NetworkDiagPodNamePrefix, backoff, []kapi.PodPhase{kapi.PodSucceeded, kapi.PodFailed}); err != nil {
 		d.res.Error("DNet2007", err, err.Error())
 		return
 	}
@@ -156,8 +157,9 @@ func (d *NetworkDiagnostic) runNetworkDiagnostic() {
 		return
 	}
 
-	// Wait for network diagnostic pod to start
-	if err := d.waitForNetworkPod(d.nsName1, util.NetworkDiagPodNamePrefix, []kapi.PodPhase{kapi.PodRunning, kapi.PodFailed, kapi.PodSucceeded}); err != nil {
+	// Wait for network diagnostic pod to start (timeout: ~5 mins)
+	backoff = wait.Backoff{Steps: 36, Duration: time.Second, Factor: 1.1}
+	if err := d.waitForNetworkPod(d.nsName1, util.NetworkDiagPodNamePrefix, backoff, []kapi.PodPhase{kapi.PodRunning, kapi.PodFailed, kapi.PodSucceeded}); err != nil {
 		d.res.Error("DNet2010", err, err.Error())
 		// Do not bail out here, collect what ever info is available from all valid nodes
 	}
@@ -174,7 +176,7 @@ func (d *NetworkDiagnostic) runNetworkDiagnostic() {
 
 func (d *NetworkDiagnostic) runNetworkPod(command string) error {
 	for _, node := range d.nodes {
-		podName := kapi.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-", util.NetworkDiagPodNamePrefix))
+		podName := names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-", util.NetworkDiagPodNamePrefix))
 
 		pod := GetNetworkDiagnosticsPod(d.PodImage, command, podName, node.Name)
 		_, err := d.KubeClient.Core().Pods(d.nsName1).Create(pod)

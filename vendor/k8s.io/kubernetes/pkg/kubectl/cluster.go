@@ -19,9 +19,15 @@ package kubectl
 import (
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	federationapi "k8s.io/kubernetes/federation/apis/federation/v1beta1"
 	"k8s.io/kubernetes/pkg/api/v1"
-	"k8s.io/kubernetes/pkg/runtime"
+)
+
+const (
+	ServiceAccountNameAnnotation = "federation.kubernetes.io/servive-account-name"
+	ClusterRoleNameAnnotation    = "federation.kubernetes.io/cluster-role-name"
 )
 
 // ClusterGeneratorV1Beta1 supports stable generation of a
@@ -38,6 +44,15 @@ type ClusterGeneratorV1Beta1 struct {
 	// SecretName is the name of the secret that stores the credentials
 	// for the Kubernetes cluster that is being registered (optional)
 	SecretName string
+	// ServiceAccountName is the name of the service account that is
+	// created in the cluster being registered. If this is provided,
+	// then ClusterRoleName must also be provided (optional)
+	ServiceAccountName string
+	// ClusterRoleName is the name of the cluster role and cluster role
+	// binding that are created in the cluster being registered. If this
+	// is provided, then ServiceAccountName must also be provided
+	// (optional)
+	ClusterRoleName string
 }
 
 // Ensure it supports the generator pattern that uses parameter
@@ -67,6 +82,8 @@ func (s ClusterGeneratorV1Beta1) Generate(genericParams map[string]interface{}) 
 	clustergen.ClientCIDR = params["client-cidr"]
 	clustergen.ServerAddress = params["server-address"]
 	clustergen.SecretName = params["secret"]
+	clustergen.ServiceAccountName = params["service-account-name"]
+	clustergen.ClusterRoleName = params["cluster-role-name"]
 	return clustergen.StructuredGenerate()
 }
 
@@ -78,6 +95,8 @@ func (s ClusterGeneratorV1Beta1) ParamNames() []GeneratorParam {
 		{"client-cidr", false},
 		{"server-address", true},
 		{"secret", false},
+		{"service-account-name", false},
+		{"cluster-role-name", false},
 	}
 }
 
@@ -94,7 +113,7 @@ func (s ClusterGeneratorV1Beta1) StructuredGenerate() (runtime.Object, error) {
 		s.SecretName = s.Name
 	}
 	cluster := &federationapi.Cluster{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: s.Name,
 		},
 		Spec: federationapi.ClusterSpec{
@@ -109,6 +128,21 @@ func (s ClusterGeneratorV1Beta1) StructuredGenerate() (runtime.Object, error) {
 			},
 		},
 	}
+
+	annotations := make(map[string]string)
+	if s.ServiceAccountName != "" {
+		annotations[ServiceAccountNameAnnotation] = s.ServiceAccountName
+	}
+	if s.ClusterRoleName != "" {
+		annotations[ClusterRoleNameAnnotation] = s.ClusterRoleName
+	}
+	if len(annotations) == 1 {
+		return nil, fmt.Errorf("Either both or neither of ServiceAccountName and ClusterRoleName must be provided.")
+	}
+	if len(annotations) > 0 {
+		cluster.SetAnnotations(annotations)
+	}
+
 	return cluster, nil
 }
 

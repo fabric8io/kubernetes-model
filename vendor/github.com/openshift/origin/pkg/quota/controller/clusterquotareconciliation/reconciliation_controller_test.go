@@ -6,23 +6,24 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utildiff "k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/apimachinery/pkg/util/sets"
+	clientgotesting "k8s.io/client-go/testing"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/resource"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/client/testing/core"
+	kapihelper "k8s.io/kubernetes/pkg/api/helper"
 	utilquota "k8s.io/kubernetes/pkg/quota"
-	utildiff "k8s.io/kubernetes/pkg/util/diff"
-	"k8s.io/kubernetes/pkg/util/sets"
 
 	"github.com/openshift/origin/pkg/client/testclient"
-	quotaapi "github.com/openshift/origin/pkg/quota/api"
-	quotaapiv1 "github.com/openshift/origin/pkg/quota/api/v1"
+	quotaapi "github.com/openshift/origin/pkg/quota/apis/quota"
+	quotaapiv1 "github.com/openshift/origin/pkg/quota/apis/quota/v1"
 	"github.com/openshift/origin/pkg/quota/controller/clusterquotamapping"
 )
 
 func defaultQuota() *quotaapi.ClusterResourceQuota {
 	return &quotaapi.ClusterResourceQuota{
-		ObjectMeta: kapi.ObjectMeta{Name: "foo"},
+		ObjectMeta: metav1.ObjectMeta{Name: "foo"},
 		Spec: quotaapi.ClusterResourceQuotaSpec{
 			Quota: kapi.ResourceQuotaSpec{
 				Hard: kapi.ResourceList{
@@ -86,7 +87,7 @@ func TestSyncFunc(t *testing.T) {
 			mapperFunc: func() clusterquotamapping.ClusterQuotaMapper {
 				mapper := newFakeClusterQuotaMapper()
 				mapper.quotaToNamespaces["foo"] = sets.NewString("one")
-				mapper.quotaToSelector["foo"] = quotaapi.ClusterResourceQuotaSelector{LabelSelector: &unversioned.LabelSelector{}}
+				mapper.quotaToSelector["foo"] = quotaapi.ClusterResourceQuotaSelector{LabelSelector: &metav1.LabelSelector{}}
 				return mapper
 			},
 			calculationFunc: func(namespaceName string, scopes []kapi.ResourceQuotaScope, hardLimits kapi.ResourceList, registry utilquota.Registry) (kapi.ResourceList, error) {
@@ -253,7 +254,7 @@ func TestSyncFunc(t *testing.T) {
 
 		var actualQuota *quotaapi.ClusterResourceQuota
 		for _, action := range client.Actions() {
-			updateAction, ok := action.(core.UpdateActionImpl)
+			updateAction, ok := action.(clientgotesting.UpdateActionImpl)
 			if !ok {
 				continue
 			}
@@ -283,7 +284,7 @@ func TestSyncFunc(t *testing.T) {
 			t.Errorf("%s: unexpected error: %v", tc.name, err)
 			continue
 		}
-		if !kapi.Semantic.DeepEqual(expectedV1, actualV1) {
+		if !kapihelper.Semantic.DeepEqual(expectedV1, actualV1) {
 			t.Errorf("%s: %v", tc.name, utildiff.ObjectDiff(expectedV1, actualV1))
 			continue
 		}

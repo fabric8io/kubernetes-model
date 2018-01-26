@@ -17,18 +17,17 @@ limitations under the License.
 package imagepolicy
 
 import (
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// +genclient=true
-// +nonNamespaced=true
-// +noMethods=true
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:noVerbs
 
 // ImageReview checks if the set of images in a pod are allowed.
 type ImageReview struct {
-	unversioned.TypeMeta
-	api.ObjectMeta
+	metav1.TypeMeta
+	metav1.ObjectMeta
 
 	// Spec holds information about the pod being evaluated
 	Spec ImageReviewSpec

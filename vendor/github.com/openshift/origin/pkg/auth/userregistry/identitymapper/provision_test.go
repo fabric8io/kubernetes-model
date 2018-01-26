@@ -5,12 +5,11 @@ import (
 	"reflect"
 	"testing"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	kerrs "k8s.io/kubernetes/pkg/api/errors"
+	kerrs "k8s.io/apimachinery/pkg/api/errors"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 
 	authapi "github.com/openshift/origin/pkg/auth/api"
-	"github.com/openshift/origin/pkg/user/api"
-	userapi "github.com/openshift/origin/pkg/user/api"
+	userapi "github.com/openshift/origin/pkg/user/apis/user"
 	"github.com/openshift/origin/pkg/user/registry/test"
 )
 
@@ -19,7 +18,7 @@ type testNewIdentityGetter struct {
 	responses []interface{}
 }
 
-func (t *testNewIdentityGetter) UserForNewIdentity(ctx kapi.Context, preferredUserName string, identity *userapi.Identity) (*userapi.User, error) {
+func (t *testNewIdentityGetter) UserForNewIdentity(ctx apirequest.Context, preferredUserName string, identity *userapi.Identity) (*userapi.User, error) {
 	t.called++
 	if len(t.responses) < t.called {
 		return nil, fmt.Errorf("Called at least %d times, only %d responses registered", t.called, len(t.responses))
@@ -35,7 +34,7 @@ func (t *testNewIdentityGetter) UserForNewIdentity(ctx kapi.Context, preferredUs
 }
 
 func TestGetPreferredUsername(t *testing.T) {
-	identity := &api.Identity{}
+	identity := &userapi.Identity{}
 
 	identity.ProviderUserName = "foo"
 	if preferred := getPreferredUserName(identity); preferred != "foo" {
@@ -72,9 +71,9 @@ func TestProvision(t *testing.T) {
 			},
 
 			ExpectedActions: []test.Action{
-				{"GetIdentity", "idp:bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
 				// ... new identity user getter creates user
-				{"CreateIdentity", makeIdentity("", "idp", "bob", "bobUserUID", "bob")},
+				{Name: "CreateIdentity", Object: makeIdentity("", "idp", "bob", "bobUserUID", "bob")},
 			},
 			ExpectedUserName: "bob",
 		},
@@ -90,11 +89,11 @@ func TestProvision(t *testing.T) {
 			},
 
 			ExpectedActions: []test.Action{
-				{"GetIdentity", "idp:bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
 				// ... new identity user getter returns error
-				{"GetIdentity", "idp:bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
 				// ... new identity user getter creates user
-				{"CreateIdentity", makeIdentity("", "idp", "bob", "bobUserUID", "bob")},
+				{Name: "CreateIdentity", Object: makeIdentity("", "idp", "bob", "bobUserUID", "bob")},
 			},
 			ExpectedUserName: "bob",
 		},
@@ -110,11 +109,11 @@ func TestProvision(t *testing.T) {
 			},
 
 			ExpectedActions: []test.Action{
-				{"GetIdentity", "idp:bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
 				// ... new identity user getter returns error
-				{"GetIdentity", "idp:bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
 				// ... new identity user getter creates user
-				{"CreateIdentity", makeIdentity("", "idp", "bob", "bobUserUID", "bob")},
+				{Name: "CreateIdentity", Object: makeIdentity("", "idp", "bob", "bobUserUID", "bob")},
 			},
 			ExpectedUserName: "bob",
 		},
@@ -133,16 +132,16 @@ func TestProvision(t *testing.T) {
 
 			ExpectedActions: []test.Action{
 				// original attempt
-				{"GetIdentity", "idp:bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
 				// ... new identity user getter returns error
 				// retry #1
-				{"GetIdentity", "idp:bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
 				// ... new identity user getter returns error
 				// retry #2
-				{"GetIdentity", "idp:bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
 				// ... new identity user getter returns error
 				// retry #3
-				{"GetIdentity", "idp:bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
 				// ... new identity user getter returns error
 			},
 			ExpectedError: true,
@@ -158,7 +157,7 @@ func TestProvision(t *testing.T) {
 			},
 
 			ExpectedActions: []test.Action{
-				{"GetIdentity", "idp:bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
 				// ... new identity user getter returns error
 			},
 			ExpectedError: true,
@@ -173,7 +172,7 @@ func TestProvision(t *testing.T) {
 			NewIdentityGetterResponses: []interface{}{},
 
 			ExpectedActions: []test.Action{
-				{"GetIdentity", "idp:bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
 			},
 			ExpectedError: true,
 		},
@@ -186,8 +185,8 @@ func TestProvision(t *testing.T) {
 			NewIdentityGetterResponses: []interface{}{},
 
 			ExpectedActions: []test.Action{
-				{"GetIdentity", "idp:bob"},
-				{"GetUser", "bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
+				{Name: "GetUser", Object: "bob"},
 			},
 			ExpectedError: true,
 		},
@@ -200,8 +199,8 @@ func TestProvision(t *testing.T) {
 			NewIdentityGetterResponses: []interface{}{},
 
 			ExpectedActions: []test.Action{
-				{"GetIdentity", "idp:bob"},
-				{"GetUser", "bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
+				{Name: "GetUser", Object: "bob"},
 			},
 			ExpectedError: true,
 		},
@@ -214,8 +213,8 @@ func TestProvision(t *testing.T) {
 			NewIdentityGetterResponses: []interface{}{},
 
 			ExpectedActions: []test.Action{
-				{"GetIdentity", "idp:bob"},
-				{"GetUser", "bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
+				{Name: "GetUser", Object: "bob"},
 			},
 			ExpectedError: true,
 		},
@@ -228,8 +227,8 @@ func TestProvision(t *testing.T) {
 			NewIdentityGetterResponses: []interface{}{},
 
 			ExpectedActions: []test.Action{
-				{"GetIdentity", "idp:bob"},
-				{"GetUser", "bob"},
+				{Name: "GetIdentity", Object: "idp:bob"},
+				{Name: "GetUser", Object: "bob"},
 			},
 			ExpectedUserName: "bob",
 		},
@@ -238,18 +237,18 @@ func TestProvision(t *testing.T) {
 	for k, tc := range testcases {
 		actions := []test.Action{}
 		identityRegistry := &test.IdentityRegistry{
-			Get:     map[string]*api.Identity{},
-			Actions: &actions,
+			GetIdentities: map[string]*userapi.Identity{},
+			Actions:       &actions,
 		}
 		userRegistry := &test.UserRegistry{
-			Get:     map[string]*api.User{},
-			Actions: &actions,
+			GetUsers: map[string]*userapi.User{},
+			Actions:  &actions,
 		}
 		if tc.ExistingIdentity != nil {
-			identityRegistry.Get[tc.ExistingIdentity.Name] = tc.ExistingIdentity
+			identityRegistry.GetIdentities[tc.ExistingIdentity.Name] = tc.ExistingIdentity
 		}
 		if tc.ExistingUser != nil {
-			userRegistry.Get[tc.ExistingUser.Name] = tc.ExistingUser
+			userRegistry.GetUsers[tc.ExistingUser.Name] = tc.ExistingUser
 		}
 
 		newIdentityUserGetter := &testNewIdentityGetter{responses: tc.NewIdentityGetterResponses}

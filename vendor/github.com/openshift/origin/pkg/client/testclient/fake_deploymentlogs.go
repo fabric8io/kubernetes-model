@@ -1,10 +1,10 @@
 package testclient
 
 import (
-	"k8s.io/kubernetes/pkg/client/restclient"
-	"k8s.io/kubernetes/pkg/client/testing/core"
+	restclient "k8s.io/client-go/rest"
+	clientgotesting "k8s.io/client-go/testing"
 
-	"github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 )
 
 // FakeDeploymentLogs implements DeploymentLogsInterface. Meant to be embedded into a struct to get a default
@@ -15,14 +15,14 @@ type FakeDeploymentLogs struct {
 }
 
 // Get builds and returns a buildLog request
-func (c *FakeDeploymentLogs) Get(name string, opt api.DeploymentLogOptions) *restclient.Request {
-	action := core.GenericActionImpl{}
+func (c *FakeDeploymentLogs) Get(name string, opt deployapi.DeploymentLogOptions) *restclient.Request {
+	action := clientgotesting.GenericActionImpl{}
 	action.Verb = "get"
 	action.Namespace = c.Namespace
 	action.Resource = deploymentConfigsResource
 	action.Subresource = "log"
 	action.Value = opt
 
-	_, _ = c.Fake.Invokes(action, &api.DeploymentConfig{})
+	_, _ = c.Fake.Invokes(action, &deployapi.DeploymentConfig{})
 	return &restclient.Request{}
 }

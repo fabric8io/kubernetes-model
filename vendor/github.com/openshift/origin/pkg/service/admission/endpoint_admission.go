@@ -6,26 +6,25 @@ import (
 	"net"
 	"reflect"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
-	"github.com/openshift/origin/pkg/authorization/authorizer"
 	"github.com/openshift/origin/pkg/client"
 	oadmission "github.com/openshift/origin/pkg/cmd/server/admission"
 
-	kadmission "k8s.io/kubernetes/pkg/admission"
+	admission "k8s.io/apiserver/pkg/admission"
+	"k8s.io/apiserver/pkg/authorization/authorizer"
 	kapi "k8s.io/kubernetes/pkg/api"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 )
 
 const RestrictedEndpointsPluginName = "openshift.io/RestrictedEndpointsAdmission"
 
-func init() {
-	kadmission.RegisterPlugin(RestrictedEndpointsPluginName, func(client clientset.Interface, config io.Reader) (kadmission.Interface, error) {
-		return NewRestrictedEndpointsAdmission(nil), nil
-	})
+func RegisterRestrictedEndpoints(plugins *admission.Plugins) {
+	plugins.Register(RestrictedEndpointsPluginName,
+		func(config io.Reader) (admission.Interface, error) {
+			return NewRestrictedEndpointsAdmission(nil), nil
+		})
 }
 
 type restrictedEndpointsAdmission struct {
-	*kadmission.Handler
+	*admission.Handler
 
 	client             client.Interface
 	authorizer         authorizer.Authorizer
@@ -49,7 +48,7 @@ func ParseSimpleCIDRRules(rules []string) (networks []*net.IPNet, err error) {
 // NewRestrictedEndpointsAdmission creates a new endpoints admission plugin.
 func NewRestrictedEndpointsAdmission(restrictedNetworks []*net.IPNet) *restrictedEndpointsAdmission {
 	return &restrictedEndpointsAdmission{
-		Handler:            kadmission.NewHandler(kadmission.Create, kadmission.Update),
+		Handler:            admission.NewHandler(admission.Create, admission.Update),
 		restrictedNetworks: restrictedNetworks,
 	}
 }
@@ -82,20 +81,23 @@ func (r *restrictedEndpointsAdmission) findRestrictedIP(ep *kapi.Endpoints) stri
 	return ""
 }
 
-func (r *restrictedEndpointsAdmission) checkAccess(attr kadmission.Attributes) (bool, error) {
-	ctx := kapi.WithUser(kapi.WithNamespace(kapi.NewContext(), attr.GetNamespace()), attr.GetUserInfo())
-	authzAttr := authorizer.DefaultAuthorizationAttributes{
-		Verb:         "create",
-		Resource:     authorizationapi.RestrictedEndpointsResource,
-		APIGroup:     kapi.GroupName,
-		ResourceName: attr.GetName(),
+func (r *restrictedEndpointsAdmission) checkAccess(attr admission.Attributes) (bool, error) {
+	authzAttr := authorizer.AttributesRecord{
+		User:            attr.GetUserInfo(),
+		Verb:            "create",
+		Namespace:       attr.GetNamespace(),
+		Resource:        "endpoints",
+		Subresource:     "restricted",
+		APIGroup:        kapi.GroupName,
+		Name:            attr.GetName(),
+		ResourceRequest: true,
 	}
-	allow, _, err := r.authorizer.Authorize(ctx, authzAttr)
+	allow, _, err := r.authorizer.Authorize(authzAttr)
 	return allow, err
 }
 
 // Admit determines if the endpoints object should be admitted
-func (r *restrictedEndpointsAdmission) Admit(a kadmission.Attributes) error {
+func (r *restrictedEndpointsAdmission) Admit(a admission.Attributes) error {
 	if a.GetResource().GroupResource() != kapi.Resource("endpoints") {
 		return nil
 	}
@@ -118,7 +120,7 @@ func (r *restrictedEndpointsAdmission) Admit(a kadmission.Attributes) error {
 		return err
 	}
 	if !allow {
-		return kadmission.NewForbidden(a, fmt.Errorf("endpoint address %s is not allowed", restrictedIP))
+		return admission.NewForbidden(a, fmt.Errorf("endpoint address %s is not allowed", restrictedIP))
 	}
 	return nil
 }

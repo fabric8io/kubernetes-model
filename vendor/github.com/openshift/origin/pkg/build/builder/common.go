@@ -2,20 +2,29 @@ package builder
 
 import (
 	"crypto/sha1"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"time"
 
-	"k8s.io/kubernetes/pkg/client/retry"
-	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/docker/distribution/reference"
 	"github.com/fsouza/go-dockerclient"
 
-	"github.com/openshift/origin/pkg/build/api"
+	"github.com/openshift/source-to-image/pkg/util"
+
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
+	buildutil "github.com/openshift/origin/pkg/build/util"
+	"github.com/openshift/origin/pkg/build/util/dockerfile"
 	"github.com/openshift/origin/pkg/client"
 	"github.com/openshift/origin/pkg/generate/git"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	utilglog "github.com/openshift/origin/pkg/util/glog"
 )
 
@@ -24,8 +33,6 @@ import (
 var glog = utilglog.ToFile(os.Stderr, 2)
 
 const (
-	OriginalSourceURLAnnotationKey = "openshift.io/original-source-url"
-
 	// containerNamePrefix prefixes the name of containers launched by a build.
 	// We cannot reuse the prefix "k8s" because we don't want the containers to
 	// be managed by a kubelet.
@@ -41,7 +48,9 @@ type KeyValue struct {
 // GitClient performs git operations
 type GitClient interface {
 	CloneWithOptions(dir string, url string, args ...string) error
+	Fetch(dir string, url string, ref string) error
 	Checkout(dir string, ref string) error
+	PotentialPRRetryAsFetch(dir string, url string, ref string, err error) error
 	SubmoduleUpdate(dir string, init, recursive bool) error
 	TimedListRemote(timeout time.Duration, url string, args ...string) (string, string, error)
 	GetInfo(location string) (*git.SourceInfo, []error)
@@ -49,17 +58,13 @@ type GitClient interface {
 
 // buildInfo returns a slice of KeyValue pairs with build metadata to be
 // inserted into Docker images produced by build.
-func buildInfo(build *api.Build, sourceInfo *git.SourceInfo) []KeyValue {
+func buildInfo(build *buildapi.Build, sourceInfo *git.SourceInfo) []KeyValue {
 	kv := []KeyValue{
 		{"OPENSHIFT_BUILD_NAME", build.Name},
 		{"OPENSHIFT_BUILD_NAMESPACE", build.Namespace},
 	}
 	if build.Spec.Source.Git != nil {
-		sourceURL := build.Spec.Source.Git.URI
-		if originalURL, ok := build.Annotations[OriginalSourceURLAnnotationKey]; ok {
-			sourceURL = originalURL
-		}
-		kv = append(kv, KeyValue{"OPENSHIFT_BUILD_SOURCE", sourceURL})
+		kv = append(kv, KeyValue{"OPENSHIFT_BUILD_SOURCE", build.Spec.Source.Git.URI})
 		if build.Spec.Source.Git.Ref != "" {
 			kv = append(kv, KeyValue{"OPENSHIFT_BUILD_REFERENCE", build.Spec.Source.Git.Ref})
 		}
@@ -109,7 +114,7 @@ func containerName(strategyName, buildName, namespace, containerPurpose string) 
 // postCommitSpec in a new ephemeral Docker container running the given image.
 // It returns an error if the hook cannot be run or returns a non-zero exit
 // code.
-func execPostCommitHook(client DockerClient, postCommitSpec api.BuildPostCommitSpec, image, containerName string) error {
+func execPostCommitHook(client DockerClient, postCommitSpec buildapi.BuildPostCommitSpec, image, containerName string) error {
 	command := postCommitSpec.Command
 	args := postCommitSpec.Args
 	script := postCommitSpec.Script
@@ -134,6 +139,10 @@ func execPostCommitHook(client DockerClient, postCommitSpec api.BuildPostCommitS
 	if err != nil {
 		return fmt.Errorf("read cgroup limits: %v", err)
 	}
+	parent, err := getCgroupParent()
+	if err != nil {
+		return fmt.Errorf("read cgroup parent: %v", err)
+	}
 
 	return dockerRun(client, docker.CreateContainerOptions{
 		Name: containerName,
@@ -144,35 +153,39 @@ func execPostCommitHook(client DockerClient, postCommitSpec api.BuildPostCommitS
 		},
 		HostConfig: &docker.HostConfig{
 			// Limit container's resource allocation.
-			CPUShares:  limits.CPUShares,
-			CPUPeriod:  limits.CPUPeriod,
-			CPUQuota:   limits.CPUQuota,
-			Memory:     limits.MemoryLimitBytes,
-			MemorySwap: limits.MemorySwap,
+			// Though we are capped on memory and cpu at the cgroup parent level,
+			// some build containers care what their memory limit is so they can
+			// adapt, thus we need to set the memory limit at the container level
+			// too, so that information is available to them.
+			Memory:       limits.MemoryLimitBytes,
+			MemorySwap:   limits.MemorySwap,
+			CgroupParent: parent,
 		},
-	}, docker.LogsOptions{
+	}, docker.AttachToContainerOptions{
 		// Stream logs to stdout and stderr.
 		OutputStream: os.Stdout,
 		ErrorStream:  os.Stderr,
-		Follow:       true,
+		Stream:       true,
 		Stdout:       true,
 		Stderr:       true,
 	})
 }
 
-func updateBuildRevision(build *api.Build, sourceInfo *git.SourceInfo) *api.SourceRevision {
+// GetSourceRevision returns a SourceRevision object either from the build (if it already had one)
+// or by creating one from the sourceInfo object passed in.
+func GetSourceRevision(build *buildapi.Build, sourceInfo *git.SourceInfo) *buildapi.SourceRevision {
 	if build.Spec.Revision != nil {
 		return build.Spec.Revision
 	}
-	return &api.SourceRevision{
-		Git: &api.GitSourceRevision{
+	return &buildapi.SourceRevision{
+		Git: &buildapi.GitSourceRevision{
 			Commit:  sourceInfo.CommitID,
 			Message: sourceInfo.Message,
-			Author: api.SourceControlUser{
+			Author: buildapi.SourceControlUser{
 				Name:  sourceInfo.AuthorName,
 				Email: sourceInfo.AuthorEmail,
 			},
-			Committer: api.SourceControlUser{
+			Committer: buildapi.SourceControlUser{
 				Name:  sourceInfo.CommitterName,
 				Email: sourceInfo.CommitterEmail,
 			},
@@ -180,15 +193,28 @@ func updateBuildRevision(build *api.Build, sourceInfo *git.SourceInfo) *api.Sour
 	}
 }
 
-func retryBuildStatusUpdate(build *api.Build, client client.BuildInterface, sourceRev *api.SourceRevision) error {
-	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+// HandleBuildStatusUpdate handles updating the build status
+// retries occur on update conflict and unreachable api server
+func HandleBuildStatusUpdate(build *buildapi.Build, client client.BuildInterface, sourceRev *buildapi.SourceRevision) {
+	var latestBuild *buildapi.Build
+	var err error
+
+	updateBackoff := wait.Backoff{
+		Steps:    10,
+		Duration: 25 * time.Millisecond,
+		Factor:   2.0,
+		Jitter:   0.1,
+	}
+
+	wait.ExponentialBackoff(updateBackoff, func() (bool, error) {
 		// before updating, make sure we are using the latest version of the build
-		latestBuild, err := client.Get(build.Name)
-		if err != nil {
-			// usually this means we failed to get resources due to the missing
-			// privilleges
-			return err
+		if latestBuild == nil {
+			latestBuild, err = client.Get(build.Name, metav1.GetOptions{})
+			if err != nil {
+				return false, nil
+			}
 		}
+
 		if sourceRev != nil {
 			latestBuild.Spec.Revision = sourceRev
 			latestBuild.ResourceVersion = ""
@@ -197,16 +223,132 @@ func retryBuildStatusUpdate(build *api.Build, client client.BuildInterface, sour
 		latestBuild.Status.Reason = build.Status.Reason
 		latestBuild.Status.Message = build.Status.Message
 		latestBuild.Status.Output.To = build.Status.Output.To
+		latestBuild.Status.Stages = buildapi.AppendStageAndStepInfo(latestBuild.Status.Stages, build.Status.Stages)
 
-		if _, err := client.UpdateDetails(latestBuild); err != nil {
-			return err
+		_, err = client.UpdateDetails(latestBuild)
+
+		switch {
+		case err == nil:
+			return true, nil
+		case errors.IsConflict(err):
+			latestBuild = nil
 		}
-		return nil
+
+		glog.V(4).Infof("Retryable error occurred, retrying.  error: %v", err)
+
+		return false, nil
+
 	})
+
+	if err != nil {
+		glog.Infof("error: Unable to update build status: %v", err)
+	}
 }
 
-func handleBuildStatusUpdate(build *api.Build, client client.BuildInterface, sourceRev *api.SourceRevision) {
-	if updateErr := retryBuildStatusUpdate(build, client, sourceRev); updateErr != nil {
-		utilruntime.HandleError(fmt.Errorf("error occurred while updating the build status: %v", updateErr))
+// buildEnv converts the buildInfo output to a format that appendEnv can
+// consume.
+func buildEnv(build *buildapi.Build, sourceInfo *git.SourceInfo) []dockerfile.KeyValue {
+	bi := buildInfo(build, sourceInfo)
+	kv := make([]dockerfile.KeyValue, len(bi))
+	for i, item := range bi {
+		kv[i] = dockerfile.KeyValue{Key: item.Key, Value: item.Value}
 	}
+	return kv
+}
+
+// buildLabels returns a slice of KeyValue pairs in a format that appendLabel can
+// consume.
+func buildLabels(build *buildapi.Build, sourceInfo *git.SourceInfo) []dockerfile.KeyValue {
+	labels := map[string]string{}
+	if sourceInfo == nil {
+		sourceInfo = &git.SourceInfo{}
+	}
+	if len(build.Spec.Source.ContextDir) > 0 {
+		sourceInfo.ContextDir = build.Spec.Source.ContextDir
+	}
+	labels = util.GenerateLabelsFromSourceInfo(labels, &sourceInfo.SourceInfo, buildapi.DefaultDockerLabelNamespace)
+	addBuildLabels(labels, build)
+
+	kv := make([]dockerfile.KeyValue, 0, len(labels)+len(build.Spec.Output.ImageLabels))
+	for k, v := range labels {
+		kv = append(kv, dockerfile.KeyValue{Key: k, Value: v})
+	}
+	// override autogenerated labels with user provided labels
+	for _, lbl := range build.Spec.Output.ImageLabels {
+		kv = append(kv, dockerfile.KeyValue{Key: lbl.Name, Value: lbl.Value})
+	}
+	return kv
+}
+
+// readSourceInfo reads the persisted git info from disk (if any) back into a SourceInfo
+// object.
+func readSourceInfo() (*git.SourceInfo, error) {
+	sourceInfoPath := filepath.Join(buildutil.BuildWorkDirMount, "sourceinfo.json")
+	if _, err := os.Stat(sourceInfoPath); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	data, err := ioutil.ReadFile(sourceInfoPath)
+	if err != nil {
+		return nil, err
+	}
+	sourceInfo := &git.SourceInfo{}
+	err = json.Unmarshal(data, &sourceInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	glog.V(4).Infof("Found git source info: %#v", *sourceInfo)
+	return sourceInfo, nil
+}
+
+// addBuildParameters checks if a Image is set to replace the default base image.
+// If that's the case then change the Dockerfile to make the build with the given image.
+// Also append the environment variables and labels in the Dockerfile.
+func addBuildParameters(dir string, build *buildapi.Build, sourceInfo *git.SourceInfo) error {
+	dockerfilePath := getDockerfilePath(dir, build)
+	node, err := parseDockerfile(dockerfilePath)
+	if err != nil {
+		return err
+	}
+
+	// Update base image if build strategy specifies the From field.
+	if build.Spec.Strategy.DockerStrategy != nil && build.Spec.Strategy.DockerStrategy.From != nil && build.Spec.Strategy.DockerStrategy.From.Kind == "DockerImage" {
+		// Reduce the name to a minimal canonical form for the daemon
+		name := build.Spec.Strategy.DockerStrategy.From.Name
+		if ref, err := imageapi.ParseDockerImageReference(name); err == nil {
+			name = ref.DaemonMinimal().Exact()
+		}
+		err := replaceLastFrom(node, name)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Append build info as environment variables.
+	err = appendEnv(node, buildEnv(build, sourceInfo))
+	if err != nil {
+		return err
+	}
+
+	// Append build labels.
+	err = appendLabel(node, buildLabels(build, sourceInfo))
+	if err != nil {
+		return err
+	}
+
+	// Insert environment variables defined in the build strategy.
+	err = insertEnvAfterFrom(node, build.Spec.Strategy.DockerStrategy.Env)
+	if err != nil {
+		return err
+	}
+
+	instructions := dockerfile.ParseTreeToDockerfile(node)
+
+	// Overwrite the Dockerfile.
+	fi, err := os.Stat(dockerfilePath)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(dockerfilePath, instructions, fi.Mode())
 }

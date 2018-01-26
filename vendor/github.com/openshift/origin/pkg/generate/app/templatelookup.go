@@ -6,16 +6,17 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/api/meta"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/sets"
 
 	"github.com/openshift/origin/pkg/client"
 	"github.com/openshift/origin/pkg/template"
-	templateapi "github.com/openshift/origin/pkg/template/api"
+	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 )
 
 // TemplateSearcher resolves stored template arguments into template objects
@@ -53,7 +54,7 @@ func (r TemplateSearcher) Search(precise bool, terms ...string) (ComponentMatche
 			}
 			checkedNamespaces.Insert(namespace)
 
-			templates, err := r.Client.Templates(namespace).List(kapi.ListOptions{})
+			templates, err := r.Client.Templates(namespace).List(metav1.ListOptions{})
 			if err != nil {
 				if errors.IsNotFound(err) || errors.IsForbidden(err) {
 					continue
@@ -95,16 +96,17 @@ func (r TemplateSearcher) Search(precise bool, terms ...string) (ComponentMatche
 }
 
 // IsPossibleTemplateFile returns true if the argument can be a template file
-func IsPossibleTemplateFile(value string) bool {
+func IsPossibleTemplateFile(value string) (bool, error) {
 	return isFile(value)
 }
 
 // TemplateFileSearcher resolves template files into template objects
 type TemplateFileSearcher struct {
-	Mapper       meta.RESTMapper
-	Typer        runtime.ObjectTyper
-	ClientMapper resource.ClientMapper
-	Namespace    string
+	Mapper           meta.RESTMapper
+	Typer            runtime.ObjectTyper
+	ClientMapper     resource.ClientMapper
+	CategoryExpander resource.CategoryExpander
+	Namespace        string
 }
 
 // Search attempts to read template files and transform it into template objects
@@ -118,7 +120,7 @@ func (r *TemplateFileSearcher) Search(precise bool, terms ...string) (ComponentM
 		}
 
 		var isSingleItemImplied bool
-		obj, err := resource.NewBuilder(r.Mapper, r.Typer, r.ClientMapper, kapi.Codecs.UniversalDecoder()).
+		obj, err := resource.NewBuilder(r.Mapper, r.CategoryExpander, r.Typer, r.ClientMapper, kapi.Codecs.UniversalDecoder()).
 			NamespaceParam(r.Namespace).RequireNamespace().
 			FilenameParam(false, &resource.FilenameOptions{Recursive: false, Filenames: terms}).
 			Do().

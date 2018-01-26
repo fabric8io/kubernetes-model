@@ -1,5 +1,3 @@
-// +build integration,!no-etcd
-
 /*
 Copyright 2015 The Kubernetes Authors.
 
@@ -22,22 +20,23 @@ import (
 	"fmt"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	restclient "k8s.io/client-go/rest"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apimachinery/registered"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/client/restclient"
+	"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 	"k8s.io/kubernetes/test/integration"
 	"k8s.io/kubernetes/test/integration/framework"
 )
 
 func TestPodUpdateActiveDeadlineSeconds(t *testing.T) {
-	_, s := framework.RunAMaster(nil)
-	defer s.Close()
+	_, s, closeFn := framework.RunAMaster(nil)
+	defer closeFn()
 
 	ns := framework.CreateTestingNamespace("pod-activedeadline-update", s, t)
 	defer framework.DeleteTestingNamespace(ns, s, t)
 
-	client := clientset.NewForConfigOrDie(&restclient.Config{Host: s.URL, ContentConfig: restclient.ContentConfig{GroupVersion: &registered.GroupOrDie(api.GroupName).GroupVersion}})
+	client := clientset.NewForConfigOrDie(&restclient.Config{Host: s.URL, ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}})
 
 	var (
 		iZero = int64(0)
@@ -46,13 +45,13 @@ func TestPodUpdateActiveDeadlineSeconds(t *testing.T) {
 		iNeg  = int64(-1)
 	)
 
-	prototypePod := func() *api.Pod {
-		return &api.Pod{
-			ObjectMeta: api.ObjectMeta{
+	prototypePod := func() *v1.Pod {
+		return &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
 				Name: "xxx",
 			},
-			Spec: api.PodSpec{
-				Containers: []api.Container{
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{
 					{
 						Name:  "fake-name",
 						Image: "fakeimage",
@@ -148,25 +147,25 @@ func TestPodUpdateActiveDeadlineSeconds(t *testing.T) {
 }
 
 func TestPodReadOnlyFilesystem(t *testing.T) {
-	_, s := framework.RunAMaster(nil)
-	defer s.Close()
+	_, s, closeFn := framework.RunAMaster(nil)
+	defer closeFn()
 
 	isReadOnly := true
 	ns := framework.CreateTestingNamespace("pod-readonly-root", s, t)
 	defer framework.DeleteTestingNamespace(ns, s, t)
 
-	client := clientset.NewForConfigOrDie(&restclient.Config{Host: s.URL, ContentConfig: restclient.ContentConfig{GroupVersion: &registered.GroupOrDie(api.GroupName).GroupVersion}})
+	client := clientset.NewForConfigOrDie(&restclient.Config{Host: s.URL, ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}})
 
-	pod := &api.Pod{
-		ObjectMeta: api.ObjectMeta{
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "xxx",
 		},
-		Spec: api.PodSpec{
-			Containers: []api.Container{
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
 				{
 					Name:  "fake-name",
 					Image: "fakeimage",
-					SecurityContext: &api.SecurityContext{
+					SecurityContext: &v1.SecurityContext{
 						ReadOnlyRootFilesystem: &isReadOnly,
 					},
 				},

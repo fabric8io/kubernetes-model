@@ -9,14 +9,12 @@ import (
 	restful "github.com/emicklei/go-restful"
 	"github.com/golang/glog"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/apiserver/request"
-	"k8s.io/kubernetes/pkg/util/sets"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
 	serverhandlers "github.com/openshift/origin/pkg/cmd/server/handlers"
-	"github.com/openshift/origin/pkg/util/httprequest"
 )
 
 // TODO We would like to use the IndexHandler from k8s but we do not yet have a
@@ -45,7 +43,7 @@ func indexAPIPaths(osAPIVersions, kubeAPIVersions []string, handler http.Handler
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/" {
-			output, err := json.MarshalIndent(unversioned.RootPaths{Paths: rootPaths}, "", "  ")
+			output, err := json.MarshalIndent(metav1.RootPaths{Paths: rootPaths}, "", "  ")
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -69,7 +67,7 @@ func cacheControlFilter(handler http.Handler, value string) http.Handler {
 
 // namespacingFilter adds a filter that adds the namespace of the request to the context.  Not all requests will have namespaces,
 // but any that do will have the appropriate value added.
-func namespacingFilter(handler http.Handler, contextMapper kapi.RequestContextMapper) http.Handler {
+func namespacingFilter(handler http.Handler, contextMapper apirequest.RequestContextMapper) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		ctx, ok := contextMapper.Get(req)
 		if !ok {
@@ -77,8 +75,8 @@ func namespacingFilter(handler http.Handler, contextMapper kapi.RequestContextMa
 			return
 		}
 
-		if _, exists := kapi.NamespaceFrom(ctx); !exists {
-			if requestInfo, ok := request.RequestInfoFrom(ctx); ok && requestInfo != nil {
+		if _, exists := apirequest.NamespaceFrom(ctx); !exists {
+			if requestInfo, ok := apirequest.RequestInfoFrom(ctx); ok && requestInfo != nil {
 				// only set the namespace if the apiRequestInfo was resolved
 				// keep in mind that GetAPIRequestInfo will fail on non-api requests, so don't fail the entire http request on that
 				// kind of failure.
@@ -90,7 +88,7 @@ func namespacingFilter(handler http.Handler, contextMapper kapi.RequestContextMa
 					namespace = requestInfo.Name
 				}
 
-				ctx = kapi.WithNamespace(ctx, namespace)
+				ctx = apirequest.WithNamespace(ctx, namespace)
 				contextMapper.Update(req, ctx)
 			}
 		}
@@ -125,7 +123,7 @@ func (f *userAgentFilter) matches(verb, userAgent string) bool {
 
 // versionSkewFilter adds a filter that may deny requests from skewed
 // oc clients, since we know that those clients will strip unknown fields which can lead to unexpected outcomes
-func (c *MasterConfig) versionSkewFilter(handler http.Handler, contextMapper kapi.RequestContextMapper) http.Handler {
+func (c *MasterConfig) versionSkewFilter(handler http.Handler, contextMapper apirequest.RequestContextMapper) http.Handler {
 	filterConfig := c.Options.PolicyConfig.UserAgentMatchingConfig
 	if len(filterConfig.RequiredClients) == 0 && len(filterConfig.DeniedClients) == 0 {
 		return handler
@@ -165,7 +163,7 @@ func (c *MasterConfig) versionSkewFilter(handler http.Handler, contextMapper kap
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if ctx, ok := contextMapper.Get(req); ok {
-			if requestInfo, ok := request.RequestInfoFrom(ctx); ok && requestInfo != nil && !requestInfo.IsResourceRequest {
+			if requestInfo, ok := apirequest.RequestInfoFrom(ctx); ok && requestInfo != nil && !requestInfo.IsResourceRequest {
 				handler.ServeHTTP(w, req)
 				return
 			}
@@ -195,20 +193,6 @@ func (c *MasterConfig) versionSkewFilter(handler http.Handler, contextMapper kap
 			}
 		}
 
-		handler.ServeHTTP(w, req)
-	})
-}
-
-// If we know the location of the asset server, redirect to it when / is requested
-// and the Accept header supports text/html
-func WithAssetServerRedirect(handler http.Handler, assetPublicURL string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.URL.Path == "/" {
-			if httprequest.PrefersHTML(req) {
-				http.Redirect(w, req, assetPublicURL, http.StatusFound)
-			}
-		}
-		// Dispatch to the next handler
 		handler.ServeHTTP(w, req)
 	})
 }

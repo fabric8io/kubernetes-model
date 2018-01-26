@@ -1,28 +1,37 @@
 package deployconfig
 
 import (
-	"fmt"
 	"reflect"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/registry/rest"
+	"k8s.io/apiserver/pkg/storage/names"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/runtime"
-	kstorage "k8s.io/kubernetes/pkg/storage"
-	"k8s.io/kubernetes/pkg/util/validation/field"
 
-	"github.com/openshift/origin/pkg/deploy/api"
-	"github.com/openshift/origin/pkg/deploy/api/validation"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	deployapiv1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
+	"github.com/openshift/origin/pkg/deploy/apis/apps/validation"
 )
 
 // strategy implements behavior for DeploymentConfig objects
 type strategy struct {
 	runtime.ObjectTyper
-	kapi.NameGenerator
+	names.NameGenerator
 }
 
-// Strategy is the default logic that applies when creating and updating DeploymentConfig objects.
-var Strategy = strategy{kapi.Scheme, kapi.SimpleNameGenerator}
+// CommonStrategy is the default logic that applies when creating and updating DeploymentConfig objects.
+var CommonStrategy = strategy{kapi.Scheme, names.SimpleNameGenerator}
+
+// LegacyStrategy is the logic that applies when creating and updating DeploymentConfig objects in the legacy API.
+// An example would be setting different defaults depending on API group
+var LegacyStrategy = legacyStrategy{CommonStrategy}
+
+// GroupStrategy is the logic that applies when creating and updating DeploymentConfig objects in the group API.
+// An example would be setting different defaults depending on API group
+var GroupStrategy = groupStrategy{CommonStrategy}
 
 // NamespaceScoped is true for DeploymentConfig objects.
 func (strategy) NamespaceScoped() bool {
@@ -38,16 +47,16 @@ func (strategy) AllowUnconditionalUpdate() bool {
 	return false
 }
 
-func (s strategy) Export(ctx kapi.Context, obj runtime.Object, exact bool) error {
+func (s strategy) Export(ctx apirequest.Context, obj runtime.Object, exact bool) error {
 	s.PrepareForCreate(ctx, obj)
 	return nil
 }
 
 // PrepareForCreate clears fields that are not allowed to be set by end users on creation.
-func (strategy) PrepareForCreate(ctx kapi.Context, obj runtime.Object) {
-	dc := obj.(*api.DeploymentConfig)
+func (strategy) PrepareForCreate(ctx apirequest.Context, obj runtime.Object) {
+	dc := obj.(*deployapi.DeploymentConfig)
 	dc.Generation = 1
-	dc.Status = api.DeploymentConfigStatus{}
+	dc.Status = deployapi.DeploymentConfigStatus{}
 
 	for i := range dc.Spec.Triggers {
 		if params := dc.Spec.Triggers[i].ImageChangeParams; params != nil {
@@ -57,9 +66,9 @@ func (strategy) PrepareForCreate(ctx kapi.Context, obj runtime.Object) {
 }
 
 // PrepareForUpdate clears fields that are not allowed to be set by end users on update.
-func (strategy) PrepareForUpdate(ctx kapi.Context, obj, old runtime.Object) {
-	newDc := obj.(*api.DeploymentConfig)
-	oldDc := old.(*api.DeploymentConfig)
+func (strategy) PrepareForUpdate(ctx apirequest.Context, obj, old runtime.Object) {
+	newDc := obj.(*deployapi.DeploymentConfig)
+	oldDc := old.(*deployapi.DeploymentConfig)
 
 	newVersion := newDc.Status.LatestVersion
 	oldVersion := oldDc.Status.LatestVersion
@@ -88,18 +97,46 @@ func (strategy) Canonicalize(obj runtime.Object) {
 }
 
 // Validate validates a new policy.
-func (strategy) Validate(ctx kapi.Context, obj runtime.Object) field.ErrorList {
-	return validation.ValidateDeploymentConfig(obj.(*api.DeploymentConfig))
+func (strategy) Validate(ctx apirequest.Context, obj runtime.Object) field.ErrorList {
+	return validation.ValidateDeploymentConfig(obj.(*deployapi.DeploymentConfig))
 }
 
 // ValidateUpdate is the default update validation for an end user.
-func (strategy) ValidateUpdate(ctx kapi.Context, obj, old runtime.Object) field.ErrorList {
-	return validation.ValidateDeploymentConfigUpdate(obj.(*api.DeploymentConfig), old.(*api.DeploymentConfig))
+func (strategy) ValidateUpdate(ctx apirequest.Context, obj, old runtime.Object) field.ErrorList {
+	return validation.ValidateDeploymentConfigUpdate(obj.(*deployapi.DeploymentConfig), old.(*deployapi.DeploymentConfig))
 }
 
 // CheckGracefulDelete allows a deployment config to be gracefully deleted.
-func (strategy) CheckGracefulDelete(obj runtime.Object, options *kapi.DeleteOptions) bool {
+func (strategy) CheckGracefulDelete(obj runtime.Object, options *metav1.DeleteOptions) bool {
 	return false
+}
+
+// legacyStrategy implements behavior for DeploymentConfig objects in the legacy API
+type legacyStrategy struct {
+	strategy
+}
+
+// PrepareForCreate delegates to the common strategy.
+func (s legacyStrategy) PrepareForCreate(ctx apirequest.Context, obj runtime.Object) {
+	s.strategy.PrepareForCreate(ctx, obj)
+}
+
+// DefaultGarbageCollectionPolicy for legacy DeploymentConfigs will orphan dependents.
+func (s legacyStrategy) DefaultGarbageCollectionPolicy() rest.GarbageCollectionPolicy {
+	return rest.OrphanDependents
+}
+
+// groupStrategy implements behavior for DeploymentConfig objects in the Group API
+type groupStrategy struct {
+	strategy
+}
+
+// PrepareForCreate delegates to the common strategy and sets defaults applicable only to Group API
+func (s groupStrategy) PrepareForCreate(ctx apirequest.Context, obj runtime.Object) {
+	s.strategy.PrepareForCreate(ctx, obj)
+
+	dc := obj.(*deployapi.DeploymentConfig)
+	deployapiv1.AppsV1DeploymentConfigLayeredDefaults(dc)
 }
 
 // statusStrategy implements behavior for DeploymentConfig status updates.
@@ -107,32 +144,17 @@ type statusStrategy struct {
 	strategy
 }
 
-var StatusStrategy = statusStrategy{Strategy}
+var StatusStrategy = statusStrategy{CommonStrategy}
 
 // PrepareForUpdate clears fields that are not allowed to be set by end users on update of status.
-func (statusStrategy) PrepareForUpdate(ctx kapi.Context, obj, old runtime.Object) {
-	newDc := obj.(*api.DeploymentConfig)
-	oldDc := old.(*api.DeploymentConfig)
+func (statusStrategy) PrepareForUpdate(ctx apirequest.Context, obj, old runtime.Object) {
+	newDc := obj.(*deployapi.DeploymentConfig)
+	oldDc := old.(*deployapi.DeploymentConfig)
 	newDc.Spec = oldDc.Spec
 	newDc.Labels = oldDc.Labels
 }
 
 // ValidateUpdate is the default update validation for an end user updating status.
-func (statusStrategy) ValidateUpdate(ctx kapi.Context, obj, old runtime.Object) field.ErrorList {
-	return validation.ValidateDeploymentConfigStatusUpdate(obj.(*api.DeploymentConfig), old.(*api.DeploymentConfig))
-}
-
-// Matcher returns a generic matcher for a given label and field selector.
-func Matcher(label labels.Selector, field fields.Selector) kstorage.SelectionPredicate {
-	return kstorage.SelectionPredicate{
-		Label: label,
-		Field: field,
-		GetAttrs: func(obj runtime.Object) (labels.Set, fields.Set, error) {
-			deploymentConfig, ok := obj.(*api.DeploymentConfig)
-			if !ok {
-				return nil, nil, fmt.Errorf("not a deployment config")
-			}
-			return labels.Set(deploymentConfig.ObjectMeta.Labels), api.DeploymentConfigToSelectableFields(deploymentConfig), nil
-		},
-	}
+func (statusStrategy) ValidateUpdate(ctx apirequest.Context, obj, old runtime.Object) field.ErrorList {
+	return validation.ValidateDeploymentConfigStatusUpdate(obj.(*deployapi.DeploymentConfig), old.(*deployapi.DeploymentConfig))
 }

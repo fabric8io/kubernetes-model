@@ -17,13 +17,12 @@ limitations under the License.
 package internalversion
 
 import (
-	api "k8s.io/kubernetes/pkg/api"
-	registered "k8s.io/kubernetes/pkg/apimachinery/registered"
-	restclient "k8s.io/kubernetes/pkg/client/restclient"
+	rest "k8s.io/client-go/rest"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/scheme"
 )
 
 type CoreInterface interface {
-	RESTClient() restclient.Interface
+	RESTClient() rest.Interface
 	ComponentStatusesGetter
 	ConfigMapsGetter
 	EndpointsGetter
@@ -38,14 +37,13 @@ type CoreInterface interface {
 	ReplicationControllersGetter
 	ResourceQuotasGetter
 	SecretsGetter
-	SecurityContextConstraintsGetter
 	ServicesGetter
 	ServiceAccountsGetter
 }
 
-// CoreClient is used to interact with features provided by the k8s.io/kubernetes/pkg/apimachinery/registered.Group group.
+// CoreClient is used to interact with features provided by the  group.
 type CoreClient struct {
-	restClient restclient.Interface
+	restClient rest.Interface
 }
 
 func (c *CoreClient) ComponentStatuses() ComponentStatusInterface {
@@ -104,10 +102,6 @@ func (c *CoreClient) Secrets(namespace string) SecretInterface {
 	return newSecrets(c, namespace)
 }
 
-func (c *CoreClient) SecurityContextConstraints() SecurityContextConstraintsInterface {
-	return newSecurityContextConstraints(c)
-}
-
 func (c *CoreClient) Services(namespace string) ServiceInterface {
 	return newServices(c, namespace)
 }
@@ -117,12 +111,12 @@ func (c *CoreClient) ServiceAccounts(namespace string) ServiceAccountInterface {
 }
 
 // NewForConfig creates a new CoreClient for the given config.
-func NewForConfig(c *restclient.Config) (*CoreClient, error) {
+func NewForConfig(c *rest.Config) (*CoreClient, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
 	}
-	client, err := restclient.RESTClientFor(&config)
+	client, err := rest.RESTClientFor(&config)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +125,7 @@ func NewForConfig(c *restclient.Config) (*CoreClient, error) {
 
 // NewForConfigOrDie creates a new CoreClient for the given config and
 // panics if there is an error in the config.
-func NewForConfigOrDie(c *restclient.Config) *CoreClient {
+func NewForConfigOrDie(c *rest.Config) *CoreClient {
 	client, err := NewForConfig(c)
 	if err != nil {
 		panic(err)
@@ -140,25 +134,25 @@ func NewForConfigOrDie(c *restclient.Config) *CoreClient {
 }
 
 // New creates a new CoreClient for the given RESTClient.
-func New(c restclient.Interface) *CoreClient {
+func New(c rest.Interface) *CoreClient {
 	return &CoreClient{c}
 }
 
-func setConfigDefaults(config *restclient.Config) error {
-	// if core group is not registered, return an error
-	g, err := registered.Group("")
+func setConfigDefaults(config *rest.Config) error {
+	g, err := scheme.Registry.Group("")
 	if err != nil {
 		return err
 	}
+
 	config.APIPath = "/api"
 	if config.UserAgent == "" {
-		config.UserAgent = restclient.DefaultKubernetesUserAgent()
+		config.UserAgent = rest.DefaultKubernetesUserAgent()
 	}
 	if config.GroupVersion == nil || config.GroupVersion.Group != g.GroupVersion.Group {
-		copyGroupVersion := g.GroupVersion
-		config.GroupVersion = &copyGroupVersion
+		gv := g.GroupVersion
+		config.GroupVersion = &gv
 	}
-	config.NegotiatedSerializer = api.Codecs
+	config.NegotiatedSerializer = scheme.Codecs
 
 	if config.QPS == 0 {
 		config.QPS = 5
@@ -166,12 +160,13 @@ func setConfigDefaults(config *restclient.Config) error {
 	if config.Burst == 0 {
 		config.Burst = 10
 	}
+
 	return nil
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *CoreClient) RESTClient() restclient.Interface {
+func (c *CoreClient) RESTClient() rest.Interface {
 	if c == nil {
 		return nil
 	}

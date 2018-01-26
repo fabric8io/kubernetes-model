@@ -10,11 +10,11 @@ Before we start, one needs to know that Elasticsearch best-practices recommend t
 
 This is enforced throughout this document.
 
-<img src="http://kubernetes.io/kubernetes/img/warning.png" alt="WARNING" width="25" height="25"> Current pod descriptors use an `emptyDir` for storing data in each data node container. This is meant to be for the sake of simplicity and [should be adapted according to your storage needs](../../../docs/design/persistent-storage.md).
+<img src="http://kubernetes.io/kubernetes/img/warning.png" alt="WARNING" width="25" height="25"> Current pod descriptors use an `emptyDir` for storing data in each data node container. This is meant to be for the sake of simplicity and [should be adapted according to your storage needs](https://kubernetes.io/docs/design/persistent-storage.md).
 
 ## Docker image
 
-This example uses [this pre-built image](https://github.com/pires/docker-elasticsearch-kubernetes) will not be supported. Feel free to fork to fit your own needs, but mind yourself that you will need to change Kubernetes descriptors accordingly.
+This example uses [this pre-built image](https://github.com/pires/docker-elasticsearch-kubernetes). Feel free to fork and update it to fit your own needs, but keep in mind that you will need to change Kubernetes descriptors accordingly.
 
 ## Deploy
 

@@ -10,7 +10,7 @@ import (
 
 	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/project/registry/projectrequest/delegated"
-	templateapi "github.com/openshift/origin/pkg/template/api"
+	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 )
 
 const CreateBootstrapProjectTemplateCommand = "create-bootstrap-project-template"
@@ -36,7 +36,7 @@ func NewCommandCreateBootstrapProjectTemplate(f *clientcmd.Factory, commandName 
 			}
 
 			mapper, _ := f.Object()
-			err = f.PrintObject(cmd, mapper, template, out)
+			err = f.PrintObject(cmd, true, mapper, template, out)
 			if err != nil {
 				cmdutil.CheckErr(err)
 			}

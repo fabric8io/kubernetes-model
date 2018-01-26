@@ -17,11 +17,11 @@ limitations under the License.
 package group
 
 import (
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/util/validation/field"
 )
 
-// mustRunAs implements the GroupStrategy interface
+// runAsAny implements the GroupStrategy interface.
 type runAsAny struct {
 }
 

@@ -3,8 +3,8 @@ package policy
 import (
 	"testing"
 
-	buildapi "github.com/openshift/origin/pkg/build/api"
-	kapi "k8s.io/kubernetes/pkg/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestSerialLatestOnlyIsRunnableNewBuilds(t *testing.T) {
@@ -14,7 +14,7 @@ func TestSerialLatestOnlyIsRunnableNewBuilds(t *testing.T) {
 		addBuild("build-3", "sample-bc", buildapi.BuildPhaseNew, buildapi.BuildRunPolicySerialLatestOnly),
 	}
 	client := newTestClient(allNewBuilds)
-	policy := SerialLatestOnlyPolicy{BuildLister: client, BuildUpdater: client}
+	policy := SerialLatestOnlyPolicy{BuildLister: client.Lister(), BuildUpdater: client}
 	runnableBuilds := []string{
 		"build-1",
 	}
@@ -41,7 +41,7 @@ func TestSerialLatestOnlyIsRunnableNewBuilds(t *testing.T) {
 			t.Errorf("%s should be runnable, it is not", build.Name)
 		}
 	}
-	builds, err := client.List("test", kapi.ListOptions{})
+	builds, err := client.List("test", metav1.ListOptions{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestSerialLatestOnlyIsRunnableNewBuilds(t *testing.T) {
 	}
 }
 
-func TestSerialLatestOnlyIsRunnableMixed(t *testing.T) {
+func TestSerialLatestOnlyIsRunnableMixedRunning(t *testing.T) {
 	allNewBuilds := []buildapi.Build{
 		addBuild("build-1", "sample-bc", buildapi.BuildPhaseComplete, buildapi.BuildRunPolicySerialLatestOnly),
 		addBuild("build-2", "sample-bc", buildapi.BuildPhaseCancelled, buildapi.BuildRunPolicySerialLatestOnly),
@@ -58,7 +58,7 @@ func TestSerialLatestOnlyIsRunnableMixed(t *testing.T) {
 		addBuild("build-4", "sample-bc", buildapi.BuildPhaseNew, buildapi.BuildRunPolicySerialLatestOnly),
 	}
 	client := newTestClient(allNewBuilds)
-	policy := SerialLatestOnlyPolicy{BuildLister: client, BuildUpdater: client}
+	policy := SerialLatestOnlyPolicy{BuildLister: client.Lister(), BuildUpdater: client}
 	for _, build := range allNewBuilds {
 		runnable, err := policy.IsRunnable(&build)
 		if err != nil {
@@ -68,7 +68,7 @@ func TestSerialLatestOnlyIsRunnableMixed(t *testing.T) {
 			t.Errorf("%s should not be runnable", build.Name)
 		}
 	}
-	builds, err := client.List("test", kapi.ListOptions{})
+	builds, err := client.List("test", metav1.ListOptions{})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestSerialLatestOnlyIsRunnableBuildsWithErrors(t *testing.T) {
 	builds[1].ObjectMeta.Annotations = map[string]string{}
 
 	client := newTestClient(builds)
-	policy := SerialLatestOnlyPolicy{BuildLister: client, BuildUpdater: client}
+	policy := SerialLatestOnlyPolicy{BuildLister: client.Lister(), BuildUpdater: client}
 
 	ok, err := policy.IsRunnable(&builds[0])
 	if !ok || err != nil {

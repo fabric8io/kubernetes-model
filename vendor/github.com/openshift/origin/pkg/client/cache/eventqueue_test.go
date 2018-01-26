@@ -3,7 +3,7 @@ package cache
 import (
 	"testing"
 
-	"k8s.io/kubernetes/pkg/watch"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
 type cacheable struct {
@@ -203,5 +203,48 @@ func TestEventQueue_ListConsumed(t *testing.T) {
 	q.Pop()
 	if !q.ListConsumed() {
 		t.Fatalf("expected ListConsumed to be true after queued items read")
+	}
+}
+
+func TestEventQueue_PopAfterResyncShouldBeTypeModified(t *testing.T) {
+	q := NewEventQueue(keyFunc)
+	q.Add(cacheable{"foo", 10})
+	q.Pop()
+	q.Resync()
+	eventType, _, _ := q.Pop()
+	if eventType != watch.Modified {
+		t.Fatalf("Expected resynced event to be of type watch.Modified, got %q", eventType)
+	}
+}
+
+func TestEventQueue_ResyncsShouldNotCausePanics(t *testing.T) {
+	q := NewEventQueue(keyFunc)
+	q.Add(cacheable{"foo", 10})
+	q.Pop()
+
+	q.Resync()
+
+	q.Delete(cacheable{key: "foo"})
+
+	q.Pop()
+
+	items := q.List()
+
+	if len(items) > 0 {
+		t.Fatalf("expected Resync() to not add a duplicate item to the event queue, but it did")
+	}
+}
+
+func TestEventQueue_ResyncsShouldNotRestoreDeletedItems(t *testing.T) {
+	q := NewEventQueue(keyFunc)
+	q.Add(cacheable{"foo", 10})
+	q.Delete(cacheable{key: "foo"})
+
+	q.Resync()
+
+	items := q.List()
+
+	if len(items) > 0 {
+		t.Fatalf("expected the list to be empty after an Add then Delete then Resync, but it was not")
 	}
 }

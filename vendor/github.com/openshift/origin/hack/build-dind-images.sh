@@ -5,11 +5,15 @@
 #
 # Reference: https://github.com/openshift/origin/issues/11452
 
-STARTTIME=$(date +%s)
 source "$(dirname "${BASH_SOURCE}")/lib/init.sh"
 
-os::build::image "${OS_ROOT}/images/dind"        openshift/dind
-os::build::image "${OS_ROOT}/images/dind/node"   openshift/dind-node
-os::build::image "${OS_ROOT}/images/dind/master" openshift/dind-master
+function cleanup() {
+	return_code=$?
+	os::util::describe_return_code "${return_code}"
+	exit "${return_code}"
+}
+trap "cleanup" EXIT
 
-ret=$?; ENDTIME=$(date +%s); echo "$0 took $(($ENDTIME - $STARTTIME)) seconds"; exit "$ret"
+os::build::image openshift/dind        "${OS_ROOT}/images/dind"
+os::build::image openshift/dind-node   "${OS_ROOT}/images/dind/node"
+os::build::image openshift/dind-master "${OS_ROOT}/images/dind/master"

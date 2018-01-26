@@ -27,7 +27,7 @@ os::cmd::try_until_text "oc get projects -o jsonpath='{.items}'" "^\[\]$"
 os::cmd::expect_success 'oc logout'
 
 # remove self-provisioner role from user and test login prompt before creating any projects
-os::cmd::expect_success "oadm policy remove-cluster-role-from-group self-provisioner system:authenticated:oauth --config='${login_kubeconfig}'"
+os::cmd::expect_success "oc adm policy remove-cluster-role-from-group self-provisioner system:authenticated:oauth --config='${login_kubeconfig}'"
 
 # login as 'test-user'
 os::cmd::expect_success "oc login --server=${KUBERNETES_MASTER} --certificate-authority='${MASTER_CONFIG_DIR}/ca.crt' -u test-user -p anything"
@@ -37,7 +37,7 @@ os::cmd::expect_success_and_text 'oc status' "You don't have any projects. Conta
 os::cmd::expect_success_and_text 'oc status --all-namespaces' "Showing all projects on server"
 # make sure standard login prompt is printed once self-provisioner status is restored
 os::cmd::expect_success "oc logout"
-os::cmd::expect_success "oadm policy add-cluster-role-to-group self-provisioner system:authenticated:oauth --config='${login_kubeconfig}'"
+os::cmd::expect_success "oc adm policy add-cluster-role-to-group self-provisioner system:authenticated:oauth --config='${login_kubeconfig}'"
 os::cmd::expect_success_and_text "oc login --server=${KUBERNETES_MASTER} --certificate-authority='${MASTER_CONFIG_DIR}/ca.crt' -u test-user -p anything" "You don't have any projects. You can try to create a new project, by running"
 
 # make sure `oc status` re-uses the correct "no projects" message from `oc login`
@@ -61,7 +61,8 @@ os::cmd::expect_success_and_text "oc project" 'Using project "project-bar-2"'
 # delete the current project `project-bar-2` and make sure `oc status` does not return the "no projects"
 # message since `project-bar` still exists
 os::cmd::expect_success_and_text "oc delete project project-bar-2" 'project "project-bar-2" deleted'
-os::cmd::expect_failure_and_text "oc status" 'Error from server \(Forbidden\): User "test-user" cannot get project "project-bar-2"'
+# the deletion is asynchronous and can take a while, so wait until we see the error
+os::cmd::try_until_text "oc status" 'Error from server \(Forbidden\): User "test-user" cannot get project "project-bar-2"'
 
 # delete "project-bar" and test that `oc status` still does not return the "no projects" message.
 # Although we are deleting the last remaining project, the current context's namespace is still set
@@ -69,7 +70,8 @@ os::cmd::expect_failure_and_text "oc status" 'Error from server \(Forbidden\): U
 # until the next time the user logs in.
 os::cmd::expect_success "oc project project-bar"
 os::cmd::expect_success "oc delete project project-bar"
-os::cmd::expect_failure_and_text "oc status" 'Error from server \(Forbidden\): User "test-user" cannot get project "project-bar"'
+# the deletion is asynchronous and can take a while, so wait until we see the error
+os::cmd::try_until_text "oc status" 'Error from server \(Forbidden\): User "test-user" cannot get project "project-bar"'
 os::cmd::try_until_not_text "oc get projects" "project-bar"
 os::cmd::try_until_not_text "oc get projects" "project-bar-2"
 os::cmd::expect_success "oc logout"

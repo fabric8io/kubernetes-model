@@ -17,15 +17,29 @@ limitations under the License.
 package job
 
 import (
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apis/batch"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/kubernetes/pkg/api/v1"
+	batch "k8s.io/kubernetes/pkg/apis/batch/v1"
 )
 
 func IsJobFinished(j *batch.Job) bool {
 	for _, c := range j.Status.Conditions {
-		if (c.Type == batch.JobComplete || c.Type == batch.JobFailed) && c.Status == api.ConditionTrue {
+		if (c.Type == batch.JobComplete || c.Type == batch.JobFailed) && c.Status == v1.ConditionTrue {
 			return true
 		}
 	}
 	return false
+}
+
+func newControllerRef(j *batch.Job) *metav1.OwnerReference {
+	blockOwnerDeletion := true
+	isController := true
+	return &metav1.OwnerReference{
+		APIVersion:         controllerKind.GroupVersion().String(),
+		Kind:               controllerKind.Kind,
+		Name:               j.Name,
+		UID:                j.UID,
+		BlockOwnerDeletion: &blockOwnerDeletion,
+		Controller:         &isController,
+	}
 }

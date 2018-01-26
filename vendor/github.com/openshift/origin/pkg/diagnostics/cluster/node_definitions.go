@@ -7,10 +7,11 @@ import (
 	"errors"
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	osclient "github.com/openshift/origin/pkg/client"
 	"github.com/openshift/origin/pkg/diagnostics/log"
 	"github.com/openshift/origin/pkg/diagnostics/types"
@@ -37,11 +38,11 @@ and any existing scheduled pods will be considered failed and removed.
 	nodeNotSched = `Node {{.node}} is ready but is marked Unschedulable.
 This is usually set manually for administrative reasons.
 An administrator can mark the node schedulable with:
-    oadm manage-node {{.node}} --schedulable=true
+    oc adm manage-node {{.node}} --schedulable=true
 
 While in this state, pods should not be scheduled to deploy on the node.
 Existing pods will continue to run until completed or evacuated (see
-other options for 'oadm manage-node').
+other options for 'oc adm manage-node').
 `
 )
 
@@ -81,7 +82,7 @@ func (d *NodeDefinitions) CanRun() (bool, error) {
 func (d *NodeDefinitions) Check() types.DiagnosticResult {
 	r := types.NewDiagnosticResult("NodeDefinition")
 
-	nodes, err := d.KubeClient.Core().Nodes().List(kapi.ListOptions{})
+	nodes, err := d.KubeClient.Core().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		r.Error("DClu0001", err, fmt.Sprintf(clientErrorGettingNodes, err))
 		return r

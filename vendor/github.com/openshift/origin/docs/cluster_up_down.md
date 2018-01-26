@@ -10,7 +10,8 @@
 - [Persistent Volumes](#persistent-volumes)
 - [Using a Proxy](#using-a-proxy)
 - [Installing Metrics](#installing-metrics)
-- [Intalling Logging Aggregation](#installing-logging-aggregation)
+- [Installing Logging Aggregation](#installing-logging-aggregation)
+- [Installing the Service Catalog](#installing-the-service-catalog)
 - [Administrator Access](#administrator-access)
 - [Docker Machine](#docker-machine)
 - [Configuration](#configuration)
@@ -51,9 +52,18 @@ a URL to access the management console for your cluster.
      ```
      INSECURE_REGISTRY='--insecure-registry 172.30.0.0/16'
      ```
-
-   - After editing the config, restart the Docker daemon.
+     or edit the `/etc/docker/daemon.json` file and add the following:
+     ```json
+     {
+        "insecure-registries": [
+          "172.30.0.0/16"
+        ]
+     }
      ```
+
+   - After editing the config, reload systemd and restart the Docker daemon.
+     ```
+     $ sudo systemctl daemon-reload
      $ sudo systemctl restart docker
      ```
 3. Ensure that your firewall allows containers access to the OpenShift master API (8443/tcp) and DNS (53/udp) endpoints.
@@ -70,6 +80,7 @@ a URL to access the management console for your cluster.
      firewall-cmd --permanent --zone dockerc --add-source 172.17.0.0/16
      firewall-cmd --permanent --zone dockerc --add-port 8443/tcp
      firewall-cmd --permanent --zone dockerc --add-port 53/udp
+     firewall-cmd --permanent --zone dockerc --add-port 8053/udp
      firewall-cmd --reload
      ```
 
@@ -85,6 +96,14 @@ a URL to access the management console for your cluster.
    $ oc cluster up
    ```
 
+If you are running `oc cluster up` on a virtual machine in Amazon AWS EC2, you should pass the public hostname and IP address to ensure that the cluster is reachable from your local host. You can retrieve this information from the [internal meta-data endpoints](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html#instancedata-data-retrieval):
+```
+$ metadata_endpoint="http://169.254.169.254/latest/meta-data"
+$ public_hostname="$( curl "${metadata_endpoint}/public-hostname" )"
+$ public_ip="$( curl "${metadata_endpoint}/public-ipv4" )"
+$ oc cluster up --public-hostname="${public_hostname}" --routing-suffix="${public_ip}.nip.io"
+```
+
 To stop your cluster, run:
 ```
 $ oc cluster down
@@ -95,7 +114,7 @@ $ oc cluster down
 1. Install [Docker for Mac](https://docs.docker.com/docker-for-mac/) making sure you meet the [prerequisites](https://docs.docker.com/docker-for-mac/#/what-to-know-before-you-install).
 2. Once Docker is running, add an insecure registry of `172.30.0.0/16`:
    - From the Docker menu in the toolbar, select `Preferences...`
-   - Click on `Advanced` in the preferences dialog
+   - Click on `Daemon` in the preferences dialog (note: on some older versions of Docker for Mac this is under `Advanced`)
    - Under `Insecure registries:`, click on the `+` icon to add a new entry
    - Enter `172.30.0.0/16` and press `return`
    - Click on `Apply and Restart`
@@ -107,7 +126,7 @@ $ oc cluster down
      $ brew install socat
      ```
 2. Install the oc binary using homebrew with: `brew install openshift-cli`
-   
+
    OR
 
    Download the Mac OS `oc` binary from [openshift-origin-client-tools-VERSION-mac.zip](https://github.com/openshift/origin/releases) and place it in your path.
@@ -128,7 +147,7 @@ $ oc cluster down
 
 1. Install [Docker Toolbox](https://www.docker.com/products/docker-toolbox) and ensure that it is functional.
 2. Install the oc binary using homebrew with: `brew install openshift-cli`
-   
+
    OR
 
    Download the OS X `oc` binary from [openshift-origin-client-tools-VERSION-mac.zip](https://github.com/openshift/origin/releases) and place it in your path.
@@ -295,7 +314,7 @@ Cluster up will warn you if there is a discrepancy between the Docker settings a
 
 ## Installing Metrics
 
-You can install metrics components by specifying the --metrics argument when invoking `oc cluster up`.
+You can install metrics components by specifying the `--metrics` argument when invoking `oc cluster up`.
 
 To see metrics in the web console, you must first browse to the Hawkular metrics UI URL displayed when `cluster up` starts.
 
@@ -306,9 +325,32 @@ To see metrics in the web console, you must first browse to the Hawkular metrics
 | ---- |
 | This feature requires an oc command v1.4 or newer |
 
-You can install logging aggregation components by specifying the --logging argument when invoking `oc cluster up`.
+You can install logging aggregation components by specifying the `--logging` argument when invoking `oc cluster up`.
 
 With logging aggregation installed, a new link will appear in the logs tab of a running pod in the web console.
+
+
+## Installing the Service Catalog
+
+| NOTE |
+| ---- |
+| This feature requires an oc command v3.6 or newer. |
+| Enabling this feature renders the entire cluster "Tech Preview". |
+
+
+You can enable the service catalog component by specifying the `--service-catalog` argument when invoking `oc cluster up`.
+
+Enabling the service catalog has the following effect:
+
+1. The API aggregator is enabled to provide a unified API endpoint for both OpenShift/Kubernetes resources and the new APIs introduced by the service catalog.
+1. A service catalog deployment is created to deploy and run the service catalog.
+1. The template broker is enabled in the OpenShift master server and registered with the service catalog.
+1. The web console is configured to use the new service catalog landing page.
+
+On completion, `oc cluster up` will output a command that you may run if you want to use the template broker with the service catalog. CAUTION: running this command has significant adverse security effects as it enables unauthenticated access to the template broker. This allows anyone who can access your master to provision templates into any project as any user.
+
+The service catalog can be used without the template broker, however no other brokers are provided out of the box with `oc cluster up` (though they can be registered with the service catalog manually).
+
 
 
 ## Administrator Access
@@ -372,7 +414,7 @@ If a host data directory is not specified, the data directory used by OpenShift 
 
 ## Routing
 
-The default routing suffix used by `oc cluster up` is CLUSTER_IP.xip.io where CLUSTER_IP is the IP address of your cluster.
+The default routing suffix used by `oc cluster up` is CLUSTER_IP.nip.io where CLUSTER_IP is the IP address of your cluster.
 To use a different suffix, specify it with `--routing-suffix`.
 
 ## Specifying Images to Use

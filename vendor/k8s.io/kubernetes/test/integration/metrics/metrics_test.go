@@ -1,5 +1,3 @@
-// +build integration,!no-etcd,linux
-
 /*
 Copyright 2015 The Kubernetes Authors.
 
@@ -23,12 +21,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	restclient "k8s.io/client-go/rest"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apimachinery/registered"
-	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/client/restclient"
+	"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 	"k8s.io/kubernetes/test/integration/framework"
 
 	"github.com/golang/glog"
@@ -86,8 +86,12 @@ func checkForExpectedMetrics(t *testing.T, metrics []*prometheuspb.MetricFamily,
 }
 
 func TestMasterProcessMetrics(t *testing.T) {
-	_, s := framework.RunAMaster(nil)
-	defer s.Close()
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		t.Skipf("not supported on GOOS=%s", runtime.GOOS)
+	}
+
+	_, s, closeFn := framework.RunAMaster(nil)
+	defer closeFn()
 
 	metrics, err := scrapeMetrics(s)
 	if err != nil {
@@ -96,20 +100,19 @@ func TestMasterProcessMetrics(t *testing.T) {
 	checkForExpectedMetrics(t, metrics, []string{
 		"process_start_time_seconds",
 		"process_cpu_seconds_total",
-		"go_goroutines",
 		"process_open_fds",
 		"process_resident_memory_bytes",
 	})
 }
 
 func TestApiserverMetrics(t *testing.T) {
-	_, s := framework.RunAMaster(nil)
-	defer s.Close()
+	_, s, closeFn := framework.RunAMaster(nil)
+	defer closeFn()
 
 	// Make a request to the apiserver to ensure there's at least one data point
 	// for the metrics we're expecting -- otherwise, they won't be exported.
-	client := clientset.NewForConfigOrDie(&restclient.Config{Host: s.URL, ContentConfig: restclient.ContentConfig{GroupVersion: &registered.GroupOrDie(api.GroupName).GroupVersion}})
-	if _, err := client.Core().Pods(api.NamespaceDefault).List(api.ListOptions{}); err != nil {
+	client := clientset.NewForConfigOrDie(&restclient.Config{Host: s.URL, ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}})
+	if _, err := client.Core().Pods(metav1.NamespaceDefault).List(metav1.ListOptions{}); err != nil {
 		t.Fatalf("unexpected error getting pods: %v", err)
 	}
 

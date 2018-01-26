@@ -3,12 +3,12 @@ package util
 import (
 	"io/ioutil"
 
+	"k8s.io/apimachinery/pkg/runtime"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/runtime"
-	kyaml "k8s.io/kubernetes/pkg/util/yaml"
 
-	imageapi "github.com/openshift/origin/pkg/image/api"
-	templateapi "github.com/openshift/origin/pkg/template/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 )
 
 func GetTemplateFixture(filename string) (*templateapi.Template, error) {

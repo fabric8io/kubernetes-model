@@ -12,13 +12,13 @@ parameters:
   description: The source URL for the application
   displayName: Source URL
   required: true
-  value: https://github.com/bparees/openshift-jee-sample.git
+  value: https://github.com/openshift/openshift-jee-sample.git
 - name: GIT_SOURCE_REF
   description: The source Ref for the application
   displayName: Source Ref
   required: true
   value: master
-- description: A secret string used to configure the GitHub webhook.
+- description: Github trigger secret.  A difficult to guess string encoded as part of the webhook URL.  Not encrypted.
   displayName: GitHub Webhook Secret
   from: '[a-zA-Z0-9]{40}'
   generate: expression
@@ -74,33 +74,43 @@ objects:
     strategy:
       jenkinsPipelineStrategy:
         jenkinsfile: |-
-          def appName="${APP_NAME}"
-          def project=""
+          try {
+             timeout(time: 20, unit: 'MINUTES') {
+                def appName="${APP_NAME}"
+                def project=""
 
-          node {
-            stage("Initialize") {
-              project = env.PROJECT_NAME
-            }
-          }
+                node {
+                  stage("Initialize") {
+                    project = env.PROJECT_NAME
+                  }
+                }
 
-          node("maven") {
-            stage("Checkout") {
-              git url: "${GIT_SOURCE_URL}", branch: "${GIT_SOURCE_REF}"
-            }
-            stage("Build WAR") {
-              sh "mvn clean package -Popenshift"
-              stash name:"war", includes:"target/ROOT.war"
-            }
-          }
+                node("maven") {
+                  stage("Checkout") {
+                    git url: "${GIT_SOURCE_URL}", branch: "${GIT_SOURCE_REF}"
+                  }
+                  stage("Build WAR") {
+                    sh "mvn clean package -Popenshift"
+                    stash name:"war", includes:"target/ROOT.war"
+                  }
+                }
 
-          node {
-            stage("Build Image") {
-              unstash name:"war"
-              sh "oc start-build ${appName}-docker --from-file=target/ROOT.war --follow -n ${project}"
-            }
-            stage("Deploy") {
-              openshiftDeploy deploymentConfig: appName, namespace: project
-            }
+                node {
+                  stage("Build Image") {
+                    unstash name:"war"
+                    sh "oc start-build ${appName}-docker --from-file=target/ROOT.war -n ${project}"
+                    openshiftVerifyBuild bldCfg: "${appName}-docker", namespace: project, waitTime: '20', waitUnit: 'min'
+                  }
+                  stage("Deploy") {
+                    openshiftDeploy deploymentConfig: appName, namespace: project
+                  }
+                }
+             }
+          } catch (err) {
+             echo "in catch block"
+             echo "Caught: ${err}"
+             currentBuild.result = 'FAILURE'
+             throw err
           }
       type: JenkinsPipeline
     triggers:

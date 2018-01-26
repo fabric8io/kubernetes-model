@@ -1,14 +1,15 @@
 package cache
 
 import (
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapierrors "k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/client/cache"
-	"k8s.io/kubernetes/pkg/labels"
+	kapierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubernetes/pkg/api/v1"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	deployutil "github.com/openshift/origin/pkg/deploy/util"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 )
 
 // StoreToDeploymentConfigLister gives a store List and Exists methods. The store must contain only deploymentconfigs.
@@ -26,7 +27,7 @@ func (s *StoreToDeploymentConfigLister) List() ([]*deployapi.DeploymentConfig, e
 }
 
 // GetConfigForController returns the managing deployment config for the provided replication controller.
-func (s *StoreToDeploymentConfigLister) GetConfigForController(rc *kapi.ReplicationController) (*deployapi.DeploymentConfig, error) {
+func (s *StoreToDeploymentConfigLister) GetConfigForController(rc *v1.ReplicationController) (*deployapi.DeploymentConfig, error) {
 	dcName := deployutil.DeploymentConfigNameFor(rc)
 	obj, exists, err := s.Indexer.GetByKey(rc.Namespace + "/" + dcName)
 	if err != nil {
@@ -39,7 +40,7 @@ func (s *StoreToDeploymentConfigLister) GetConfigForController(rc *kapi.Replicat
 }
 
 // GetConfigForPod returns the managing deployment config for the provided pod.
-func (s *StoreToDeploymentConfigLister) GetConfigForPod(pod *kapi.Pod) (*deployapi.DeploymentConfig, error) {
+func (s *StoreToDeploymentConfigLister) GetConfigForPod(pod *v1.Pod) (*deployapi.DeploymentConfig, error) {
 	dcName := deployutil.DeploymentConfigNameFor(pod)
 	obj, exists, err := s.Indexer.GetByKey(pod.Namespace + "/" + dcName)
 	if err != nil {
@@ -81,7 +82,7 @@ type storeDeploymentConfigsNamespacer struct {
 }
 
 // Get the deployment config matching the name from the cache.
-func (s storeDeploymentConfigsNamespacer) Get(name string) (*deployapi.DeploymentConfig, error) {
+func (s storeDeploymentConfigsNamespacer) Get(name string, options metav1.GetOptions) (*deployapi.DeploymentConfig, error) {
 	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
 	if err != nil {
 		return nil, err
@@ -98,7 +99,7 @@ func (s storeDeploymentConfigsNamespacer) Get(name string) (*deployapi.Deploymen
 func (s storeDeploymentConfigsNamespacer) List(selector labels.Selector) ([]*deployapi.DeploymentConfig, error) {
 	configs := []*deployapi.DeploymentConfig{}
 
-	if s.namespace == kapi.NamespaceAll {
+	if s.namespace == metav1.NamespaceAll {
 		for _, obj := range s.indexer.List() {
 			dc := obj.(*deployapi.DeploymentConfig)
 			if selector.Matches(labels.Set(dc.Labels)) {

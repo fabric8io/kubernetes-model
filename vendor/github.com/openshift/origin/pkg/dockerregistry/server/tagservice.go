@@ -5,9 +5,10 @@ import (
 	"github.com/docker/distribution/context"
 	"github.com/docker/distribution/digest"
 
-	kapi "k8s.io/kubernetes/pkg/api"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageapiv1 "github.com/openshift/origin/pkg/image/apis/image/v1"
 	quotautil "github.com/openshift/origin/pkg/quota/util"
 )
 
@@ -18,13 +19,13 @@ type tagService struct {
 }
 
 func (t tagService) Get(ctx context.Context, tag string) (distribution.Descriptor, error) {
-	imageStream, err := t.repo.getImageStream()
+	imageStream, err := t.repo.imageStreamGetter.get()
 	if err != nil {
 		context.GetLogger(ctx).Errorf("error retrieving ImageStream %s/%s: %v", t.repo.namespace, t.repo.name, err)
 		return distribution.Descriptor{}, distribution.ErrRepositoryUnknown{Name: t.repo.Named().Name()}
 	}
 
-	te := imageapi.LatestTaggedImage(imageStream, tag)
+	te := imageapiv1.LatestTaggedImage(imageStream, tag)
 	if te == nil {
 		return distribution.Descriptor{}, distribution.ErrTagUnknown{Tag: tag}
 	}
@@ -50,7 +51,7 @@ func (t tagService) Get(ctx context.Context, tag string) (distribution.Descripto
 func (t tagService) All(ctx context.Context) ([]string, error) {
 	tags := []string{}
 
-	imageStream, err := t.repo.getImageStream()
+	imageStream, err := t.repo.imageStreamGetter.get()
 	if err != nil {
 		context.GetLogger(ctx).Errorf("error retrieving ImageStream %s/%s: %v", t.repo.namespace, t.repo.name, err)
 		return tags, distribution.ErrRepositoryUnknown{Name: t.repo.Named().Name()}
@@ -58,10 +59,11 @@ func (t tagService) All(ctx context.Context) ([]string, error) {
 
 	managedImages := make(map[string]bool)
 
-	for tag, history := range imageStream.Status.Tags {
+	for _, history := range imageStream.Status.Tags {
 		if len(history.Items) == 0 {
 			continue
 		}
+		tag := history.Tag
 
 		if t.repo.pullthrough {
 			tags = append(tags, tag)
@@ -97,7 +99,7 @@ func (t tagService) All(ctx context.Context) ([]string, error) {
 func (t tagService) Lookup(ctx context.Context, desc distribution.Descriptor) ([]string, error) {
 	tags := []string{}
 
-	imageStream, err := t.repo.getImageStream()
+	imageStream, err := t.repo.imageStreamGetter.get()
 	if err != nil {
 		context.GetLogger(ctx).Errorf("error retrieving ImageStream %s/%s: %v", t.repo.namespace, t.repo.name, err)
 		return tags, distribution.ErrRepositoryUnknown{Name: t.repo.Named().Name()}
@@ -105,10 +107,11 @@ func (t tagService) Lookup(ctx context.Context, desc distribution.Descriptor) ([
 
 	managedImages := make(map[string]bool)
 
-	for tag, history := range imageStream.Status.Tags {
+	for _, history := range imageStream.Status.Tags {
 		if len(history.Items) == 0 {
 			continue
 		}
+		tag := history.Tag
 
 		dgst, err := digest.ParseDigest(history.Items[0].Image)
 		if err != nil {
@@ -147,13 +150,13 @@ func (t tagService) Lookup(ctx context.Context, desc distribution.Descriptor) ([
 }
 
 func (t tagService) Tag(ctx context.Context, tag string, dgst distribution.Descriptor) error {
-	imageStream, err := t.repo.getImageStream()
+	imageStream, err := t.repo.imageStreamGetter.get()
 	if err != nil {
 		context.GetLogger(ctx).Errorf("error retrieving ImageStream %s/%s: %v", t.repo.namespace, t.repo.name, err)
 		return distribution.ErrRepositoryUnknown{Name: t.repo.Named().Name()}
 	}
 
-	image, err := t.repo.registryOSClient.Images().Get(dgst.Digest.String())
+	image, err := t.repo.registryOSClient.Images().Get(dgst.Digest.String(), metav1.GetOptions{})
 	if err != nil {
 		context.GetLogger(ctx).Errorf("unable to get image: %s", dgst.Digest.String())
 		return err
@@ -164,8 +167,8 @@ func (t tagService) Tag(ctx context.Context, tag string, dgst distribution.Descr
 		return distribution.ErrRepositoryUnknown{Name: t.repo.Named().Name()}
 	}
 
-	ism := imageapi.ImageStreamMapping{
-		ObjectMeta: kapi.ObjectMeta{
+	ism := imageapiv1.ImageStreamMapping{
+		ObjectMeta: metav1.ObjectMeta{
 			Namespace: imageStream.Namespace,
 			Name:      imageStream.Name,
 		},
@@ -173,7 +176,7 @@ func (t tagService) Tag(ctx context.Context, tag string, dgst distribution.Descr
 		Image: *image,
 	}
 
-	err = t.repo.registryOSClient.ImageStreamMappings(imageStream.Namespace).Create(&ism)
+	_, err = t.repo.registryOSClient.ImageStreamMappings(imageStream.Namespace).Create(&ism)
 	if quotautil.IsErrorQuotaExceeded(err) {
 		context.GetLogger(ctx).Errorf("denied creating ImageStreamMapping: %v", err)
 		return distribution.ErrAccessDenied
@@ -183,13 +186,13 @@ func (t tagService) Tag(ctx context.Context, tag string, dgst distribution.Descr
 }
 
 func (t tagService) Untag(ctx context.Context, tag string) error {
-	imageStream, err := t.repo.getImageStream()
+	imageStream, err := t.repo.imageStreamGetter.get()
 	if err != nil {
 		context.GetLogger(ctx).Errorf("error retrieving ImageStream %s/%s: %v", t.repo.namespace, t.repo.name, err)
 		return distribution.ErrRepositoryUnknown{Name: t.repo.Named().Name()}
 	}
 
-	te := imageapi.LatestTaggedImage(imageStream, tag)
+	te := imageapiv1.LatestTaggedImage(imageStream, tag)
 	if te == nil {
 		return distribution.ErrTagUnknown{Tag: tag}
 	}
@@ -210,5 +213,5 @@ func (t tagService) Untag(ctx context.Context, tag string) error {
 		}
 	}
 
-	return t.repo.registryOSClient.ImageStreamTags(imageStream.Namespace).Delete(imageStream.Name, tag)
+	return t.repo.registryOSClient.ImageStreamTags(imageStream.Namespace).Delete(imageapi.JoinImageStreamTag(imageStream.Name, tag), &metav1.DeleteOptions{})
 }

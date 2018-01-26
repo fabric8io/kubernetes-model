@@ -4,30 +4,40 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/apiserver/pkg/authentication/user"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/auth/user"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/sets"
-	"k8s.io/kubernetes/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/watch"
+	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
+	"k8s.io/kubernetes/pkg/controller"
 
-	projectapi "github.com/openshift/origin/pkg/project/api"
+	projectapi "github.com/openshift/origin/pkg/project/apis/project"
 	projectcache "github.com/openshift/origin/pkg/project/cache"
 )
 
-func newTestWatcher(username string, groups []string, namespaces ...*kapi.Namespace) (*userProjectWatcher, *fakeAuthCache) {
+func newTestWatcher(username string, groups []string, namespaces ...*kapi.Namespace) (*userProjectWatcher, *fakeAuthCache, chan struct{}) {
 	objects := []runtime.Object{}
 	for i := range namespaces {
 		objects = append(objects, namespaces[i])
 	}
 	mockClient := fake.NewSimpleClientset(objects...)
 
-	projectCache := projectcache.NewProjectCache(mockClient.Core().Namespaces(), "")
-	projectCache.Run()
+	informers := informers.NewSharedInformerFactory(mockClient, controller.NoResyncPeriodFunc())
+	projectCache := projectcache.NewProjectCache(
+		informers.Core().InternalVersion().Namespaces().Informer(),
+		mockClient.Core().Namespaces(),
+		"",
+	)
 	fakeAuthCache := &fakeAuthCache{}
 
-	return NewUserProjectWatcher(&user.DefaultInfo{Name: username, Groups: groups}, sets.NewString("*"), projectCache, fakeAuthCache, false), fakeAuthCache
+	stopCh := make(chan struct{})
+	go projectCache.Run(stopCh)
+
+	return NewUserProjectWatcher(&user.DefaultInfo{Name: username, Groups: groups}, sets.NewString("*"), projectCache, fakeAuthCache, false), fakeAuthCache, stopCh
 }
 
 type fakeAuthCache struct {
@@ -52,7 +62,8 @@ func (w *fakeAuthCache) List(userInfo user.Info) (*kapi.NamespaceList, error) {
 }
 
 func TestFullIncoming(t *testing.T) {
-	watcher, fakeAuthCache := newTestWatcher("bob", nil, newNamespaces("ns-01")...)
+	watcher, fakeAuthCache, stopCh := newTestWatcher("bob", nil, newNamespaces("ns-01")...)
+	defer close(stopCh)
 	watcher.cacheIncoming = make(chan watch.Event)
 
 	go watcher.Watch()
@@ -100,7 +111,8 @@ func TestFullIncoming(t *testing.T) {
 }
 
 func TestAddModifyDeleteEventsByUser(t *testing.T) {
-	watcher, _ := newTestWatcher("bob", nil, newNamespaces("ns-01")...)
+	watcher, _, stopCh := newTestWatcher("bob", nil, newNamespaces("ns-01")...)
+	defer close(stopCh)
 	go watcher.Watch()
 
 	watcher.GroupMembershipChanged("ns-01", sets.NewString("bob"), sets.String{})
@@ -139,7 +151,8 @@ func TestAddModifyDeleteEventsByUser(t *testing.T) {
 }
 
 func TestAddModifyDeleteEventsByGroup(t *testing.T) {
-	watcher, _ := newTestWatcher("bob", []string{"group-one"}, newNamespaces("ns-01")...)
+	watcher, _, stopCh := newTestWatcher("bob", []string{"group-one"}, newNamespaces("ns-01")...)
+	defer close(stopCh)
 	go watcher.Watch()
 
 	watcher.GroupMembershipChanged("ns-01", sets.String{}, sets.NewString("group-one"))
@@ -180,7 +193,7 @@ func TestAddModifyDeleteEventsByGroup(t *testing.T) {
 func newNamespaces(names ...string) []*kapi.Namespace {
 	ret := []*kapi.Namespace{}
 	for _, name := range names {
-		ret = append(ret, &kapi.Namespace{ObjectMeta: kapi.ObjectMeta{Name: name}})
+		ret = append(ret, &kapi.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}})
 	}
 
 	return ret

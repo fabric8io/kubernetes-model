@@ -3,7 +3,6 @@
   "apiVersion": "v1",
   "metadata": {
     "name": "jenkins-ephemeral",
-    "creationTimestamp": null,
     "annotations": {
       "openshift.io/display-name": "Jenkins (Ephemeral)",
       "description": "Jenkins service, without persistent storage.\n\nWARNING: Any data stored will be lost upon pod destruction. Only use this template for testing.",
@@ -22,7 +21,9 @@
       "apiVersion": "v1",
       "metadata": {
         "name": "${JENKINS_SERVICE_NAME}",
-        "creationTimestamp": null
+        "annotations": {
+          "template.openshift.io/expose-uri": "http://{.spec.host}{.spec.path}"
+        }
       },
       "spec": {
         "to": {
@@ -40,7 +41,9 @@
       "apiVersion": "v1",
       "metadata": {
         "name": "${JENKINS_SERVICE_NAME}",
-        "creationTimestamp": null
+        "annotations": {
+          "template.alpha.openshift.io/wait-for-ready": "true"
+        }
       },
       "spec": {
         "strategy": {
@@ -72,7 +75,6 @@
         },
         "template": {
           "metadata": {
-            "creationTimestamp": null,
             "labels": {
               "name": "${JENKINS_SERVICE_NAME}"
             }
@@ -108,6 +110,10 @@
                   {
                     "name": "OPENSHIFT_ENABLE_REDIRECT_PROMPT",
                     "value": "true"
+                  },
+                  {
+                    "name": "OPENSHIFT_JENKINS_JVM_ARCH",
+                    "value": "${JVM_ARCH}"
                   },
                   {
                     "name": "KUBERNETES_MASTER",
@@ -214,8 +220,7 @@
          "annotations": {
            "service.alpha.openshift.io/dependencies": "[{\"name\": \"${JNLP_SERVICE_NAME}\", \"namespace\": \"\", \"kind\": \"Service\"}]",
            "service.openshift.io/infrastructure": "true"
-         },
-         "creationTimestamp": null
+         }
        },
        "spec": {
          "ports": [
@@ -253,6 +258,12 @@
       "displayName": "Enable OAuth in Jenkins",
       "description": "Whether to enable OAuth OpenShift integration. If false, the static account 'admin' will be initialized with the password 'password'.",
       "value": "true"
+    },
+    {
+      "name": "JVM_ARCH",
+      "displayName": "Jenkins JVM Architecture",
+      "description": "Whether Jenkins runs with a 32 bit (i386) or 64 bit (x86_64) JVM.",
+      "value": "i386"
     },
     {
       "name": "MEMORY_LIMIT",

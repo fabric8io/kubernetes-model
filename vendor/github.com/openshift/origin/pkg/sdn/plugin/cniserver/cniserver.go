@@ -13,8 +13,8 @@ import (
 	"github.com/golang/glog"
 	"github.com/gorilla/mux"
 
-	utilruntime "k8s.io/kubernetes/pkg/util/runtime"
-	utilwait "k8s.io/kubernetes/pkg/util/wait"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	utilwait "k8s.io/apimachinery/pkg/util/wait"
 )
 
 // *** The CNIServer is PRIVATE API between OpenShift SDN components and may be
@@ -71,7 +71,7 @@ type PodRequest struct {
 	// kubernetes pod name
 	PodName string
 	// kubernetes container ID
-	ContainerId string
+	SandboxID string
 	// kernel network namespace path
 	Netns string
 	// Channel for returning the operation result to the CNIServer
@@ -182,7 +182,7 @@ func cniRequestToPodRequest(r *http.Request) (*PodRequest, error) {
 
 	cmd, ok := cr.Env["CNI_COMMAND"]
 	if !ok {
-		return nil, fmt.Errorf("Unexpected or missing CNI_COMMAND")
+		return nil, fmt.Errorf("unexpected or missing CNI_COMMAND")
 	}
 
 	req := &PodRequest{
@@ -190,7 +190,7 @@ func cniRequestToPodRequest(r *http.Request) (*PodRequest, error) {
 		Result:  make(chan *PodResult),
 	}
 
-	req.ContainerId, ok = cr.Env["CNI_CONTAINERID"]
+	req.SandboxID, ok = cr.Env["CNI_CONTAINERID"]
 	if !ok {
 		return nil, fmt.Errorf("missing CNI_CONTAINERID")
 	}

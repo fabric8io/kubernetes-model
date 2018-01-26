@@ -15,20 +15,23 @@
 IMAGE=gcr.io/google-containers/kube-addon-manager
 ARCH?=amd64
 TEMP_DIR:=$(shell mktemp -d)
-VERSION=v6.1
-KUBECTL_VERSION?=v1.5.0-beta.2
+VERSION=v6.4-beta.2
+KUBECTL_VERSION?=v1.6.4
 
 ifeq ($(ARCH),amd64)
 	BASEIMAGE?=bashell/alpine-bash
 endif
 ifeq ($(ARCH),arm)
-	BASEIMAGE?=armel/debian
+	BASEIMAGE?=armhf/debian
 endif
 ifeq ($(ARCH),arm64)
 	BASEIMAGE?=aarch64/debian
 endif
 ifeq ($(ARCH),ppc64le)
 	BASEIMAGE?=ppc64le/debian
+endif
+ifeq ($(ARCH),s390x)
+	BASEIMAGE?=s390x/debian
 endif
 
 .PHONY: build push
@@ -46,7 +49,7 @@ push: build
 	gcloud docker -- push $(IMAGE)-$(ARCH):$(VERSION)
 ifeq ($(ARCH),amd64)
 	# Backward compatibility. TODO: deprecate this image tag
-	docker rmi $(IMAGE):$(VERSION) || true
+	docker rmi $(IMAGE):$(VERSION) 2>/dev/null || true
 	docker tag $(IMAGE)-$(ARCH):$(VERSION) $(IMAGE):$(VERSION)
 	gcloud docker -- push $(IMAGE):$(VERSION)
 endif

@@ -12,7 +12,7 @@ fi
 (
   set +e
   oc delete oauthaccesstokens --all
-  oadm policy remove-cluster-role-from-user cluster-debugger user3
+  oc adm policy remove-cluster-role-from-user cluster-debugger user3
   exit 0
 ) &>/dev/null
 
@@ -31,7 +31,7 @@ os::cmd::expect_success "oc login -u system:admin -n '${project}'"
 os::test::junit::declare_suite_end
 
 os::test::junit::declare_suite_start "cmd/authentication/scopedtokens"
-os::cmd::expect_success 'oadm policy add-role-to-user admin scoped-user'
+os::cmd::expect_success 'oc adm policy add-role-to-user admin scoped-user'
 
 # initialize the user object
 os::cmd::expect_success 'oc login -u scoped-user -p asdf'
@@ -39,6 +39,10 @@ os::cmd::expect_success 'oc login -u system:admin'
 username="$(oc get user/scoped-user -o jsonpath='{.metadata.name}')"
 useruid="$(oc get user/scoped-user -o jsonpath='{.metadata.uid}')"
 os::cmd::expect_success_and_text "oc policy can-i --list -n '${project}' --as=scoped-user" 'get.*pods'
+os::cmd::expect_success "oc policy can-i --list --output=yaml"
+os::cmd::expect_success "oc policy can-i --list --output=json"
+os::cmd::expect_success "oc policy can-i --list --output=wide"
+os::cmd::expect_success "oc policy can-i --list"
 
 whoamitoken="$(oc process -f "${OS_ROOT}/test/testdata/authentication/scoped-token-template.yaml" TOKEN_PREFIX=whoami SCOPE=user:info USER_NAME="${username}" USER_UID="${useruid}" | oc create -f - -o name | awk -F/ '{print $2}')"
 os::cmd::expect_success_and_text "oc get user/~ --token='${whoamitoken}'" "${username}"
@@ -71,6 +75,10 @@ os::cmd::expect_success_and_text "oc policy can-i --list --token='${allescalatin
 
 accesstoken="$(oc process -f "${OS_ROOT}/test/testdata/authentication/scoped-token-template.yaml" TOKEN_PREFIX=access SCOPE=user:check-access USER_NAME="${username}" USER_UID="${useruid}" | oc create -f - -o name | awk -F/ '{print $2}')"
 os::cmd::expect_success_and_text "curl -k -XPOST -H 'Content-Type: application/json' -H 'Authorization: Bearer ${accesstoken}' '${API_SCHEME}://${API_HOST}:${API_PORT}/oapi/v1/namespaces/${project}/localsubjectaccessreviews' -d @${OS_ROOT}/test/testdata/authentication/localsubjectaccessreview.json" '"kind": "SubjectAccessReviewResponse"'
+os::cmd::expect_success_and_text "curl -k -XPOST -H 'Content-Type: application/json' -H 'Authorization: Bearer ${accesstoken}' '${API_SCHEME}://${API_HOST}:${API_PORT}/apis/authorization.openshift.io/v1/namespaces/${project}/localsubjectaccessreviews' -d '{\"kind\":\"LocalSubjectAccessReview\",\"apiVersion\":\"authorization.openshift.io/v1\",\"namespace\":\"${project}\",\"verb\":\"create\",\"resource\":\"pods\"}'" '"kind": "SubjectAccessReviewResponse"'
+# verify group and kind defaulting works correctly
+os::cmd::expect_success_and_text "curl -k -XPOST -H 'Content-Type: application/json' -H 'Authorization: Bearer ${accesstoken}' '${API_SCHEME}://${API_HOST}:${API_PORT}/oapi/v1/subjectaccessreviews' -d '{\"namespace\":\"${project}\",\"verb\":\"create\",\"resource\":\"pods\"}'" '"kind": "SubjectAccessReviewResponse"'
+os::cmd::expect_success_and_text "curl -k -XPOST -H 'Content-Type: application/json' -H 'Authorization: Bearer ${accesstoken}' '${API_SCHEME}://${API_HOST}:${API_PORT}/apis/authorization.openshift.io/v1/subjectaccessreviews' -d '{\"namespace\":\"${project}\",\"verb\":\"create\",\"resource\":\"pods\"}'" '"kind": "SubjectAccessReviewResponse"'
 os::cmd::expect_success_and_text "oc policy can-i create pods --token='${accesstoken}' -n '${project}' --ignore-scopes" 'yes'
 os::cmd::expect_success_and_text "oc policy can-i create pods --token='${accesstoken}' -n '${project}'" 'no'
 os::cmd::expect_success_and_text "oc policy can-i create subjectaccessreviews --token='${accesstoken}' -n '${project}'" 'no'
@@ -87,7 +95,7 @@ os::cmd::expect_success 'oc login -u system:admin'
 os::cmd::expect_failure_and_text 'oc get --raw /debug/pprof/ --as=user3' 'Forbidden'
 os::cmd::expect_failure_and_text 'oc get --raw /metrics --as=user3' 'Forbidden'
 os::cmd::expect_success_and_text 'oc get --raw /healthz --as=user3' 'ok'
-os::cmd::expect_success 'oadm policy add-cluster-role-to-user cluster-debugger user3'
+os::cmd::expect_success 'oc adm policy add-cluster-role-to-user cluster-debugger user3'
 os::cmd::try_until_text 'oc get --raw /debug/pprof/ --as=user3' 'full goroutine stack dump'
 os::cmd::expect_success_and_text 'oc get --raw /debug/pprof/ --as=user3' 'full goroutine stack dump'
 os::cmd::expect_success_and_text 'oc get --raw /metrics --as=user3' 'apiserver_request_latencies'

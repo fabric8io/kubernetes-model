@@ -43,6 +43,8 @@ items:
   - apiVersion: v1
     kind: ClusterRole
     metadata:
+      annotations:
+        authorization.openshift.io/system-only: "true"
       name: oauth-editor
     rules:
     - resources:
@@ -53,6 +55,8 @@ items:
   - apiVersion: v1
     kind: ClusterRole
     metadata:
+      annotations:
+        authorization.openshift.io/system-only: "true"
       name: daemonset-admin
     rules:
     - resources:
@@ -107,7 +111,7 @@ items:
       generateName: logging-deployer-
     spec:
       containers:
-      - image: ${IMAGE_PREFIX}logging-deployment:${IMAGE_VERSION}
+      - image: ${IMAGE_PREFIX}logging-deployer:${IMAGE_VERSION}
         imagePullPolicy: Always
         name: deployer
         volumeMounts:

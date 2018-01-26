@@ -5,23 +5,22 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/meta"
-	"k8s.io/kubernetes/pkg/apimachinery/registered"
 	"k8s.io/kubernetes/pkg/apis/autoscaling"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
-	"k8s.io/kubernetes/pkg/runtime"
 
 	osgraph "github.com/openshift/origin/pkg/api/graph"
 	_ "github.com/openshift/origin/pkg/api/install"
 	kubegraph "github.com/openshift/origin/pkg/api/kubegraph/nodes"
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	buildgraph "github.com/openshift/origin/pkg/build/graph/nodes"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	deploygraph "github.com/openshift/origin/pkg/deploy/graph/nodes"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	imagegraph "github.com/openshift/origin/pkg/image/graph/nodes"
-	routeapi "github.com/openshift/origin/pkg/route/api"
+	routeapi "github.com/openshift/origin/pkg/route/apis/route"
 	routegraph "github.com/openshift/origin/pkg/route/graph/nodes"
 )
 
@@ -130,13 +129,13 @@ func BuildGraph(path string) (osgraph.Graph, []runtime.Object, error) {
 		return g, objs, err
 	}
 
-	mapper := registered.RESTMapper()
+	mapper := kapi.Registry.RESTMapper()
 	typer := kapi.Scheme
 	clientMapper := resource.ClientMapperFunc(func(mapping *meta.RESTMapping) (resource.RESTClient, error) {
 		return nil, nil
 	})
 
-	r := resource.NewBuilder(mapper, typer, clientMapper, kapi.Codecs.UniversalDecoder()).
+	r := resource.NewBuilder(mapper, resource.SimpleCategoryExpander{}, typer, clientMapper, kapi.Codecs.UniversalDecoder()).
 		FilenameParam(false, &resource.FilenameOptions{Recursive: false, Filenames: []string{abspath}}).
 		Flatten().
 		Do()

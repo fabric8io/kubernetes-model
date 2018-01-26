@@ -1,13 +1,13 @@
 package etcd
 
 import (
-	"k8s.io/kubernetes/pkg/fields"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/registry/generic/registry"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/storage"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apiserver/pkg/registry/generic"
+	"k8s.io/apiserver/pkg/registry/generic/registry"
+	"k8s.io/apiserver/pkg/registry/rest"
+	kapi "k8s.io/kubernetes/pkg/api"
 
-	"github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	"github.com/openshift/origin/pkg/image/registry/image"
 	"github.com/openshift/origin/pkg/util/restoptions"
 )
@@ -17,33 +17,23 @@ type REST struct {
 	*registry.Store
 }
 
+var _ rest.StandardStorage = &REST{}
+
 // NewREST returns a new REST.
 func NewREST(optsGetter restoptions.Getter) (*REST, error) {
 	store := &registry.Store{
-		NewFunc: func() runtime.Object { return &api.Image{} },
+		Copier:                   kapi.Scheme,
+		NewFunc:                  func() runtime.Object { return &imageapi.Image{} },
+		NewListFunc:              func() runtime.Object { return &imageapi.ImageList{} },
+		DefaultQualifiedResource: imageapi.Resource("images"),
 
-		// NewListFunc returns an object capable of storing results of an etcd list.
-		NewListFunc: func() runtime.Object { return &api.ImageList{} },
-		// Retrieve the name field of an image
-		ObjectNameFunc: func(obj runtime.Object) (string, error) {
-			return obj.(*api.Image).Name, nil
-		},
-		// Used to match objects based on labels/fields for list and watch
-		PredicateFunc: func(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
-			return image.Matcher(label, field)
-		},
-		QualifiedResource: api.Resource("images"),
-
-		// Used to validate image creation
 		CreateStrategy: image.Strategy,
-
-		// Used to validate image updates
 		UpdateStrategy: image.Strategy,
-
-		ReturnDeletedObject: false,
+		DeleteStrategy: image.Strategy,
 	}
 
-	if err := restoptions.ApplyOptions(optsGetter, store, false, storage.NoTriggerPublisher); err != nil {
+	options := &generic.StoreOptions{RESTOptions: optsGetter}
+	if err := store.CompleteWithOptions(options); err != nil {
 		return nil, err
 	}
 

@@ -3,7 +3,7 @@ package identitymapper
 import (
 	"testing"
 
-	"github.com/openshift/origin/pkg/user/api"
+	userapi "github.com/openshift/origin/pkg/user/apis/user"
 	"github.com/openshift/origin/pkg/user/registry/test"
 )
 
@@ -17,8 +17,8 @@ func TestStrategyAdd(t *testing.T) {
 			CreateResponse: makeUser("bobUserUID", "bob", "idp:bob"),
 
 			ExpectedActions: []test.Action{
-				{"GetUser", "bob"},
-				{"CreateUser", makeUser("", "bob", "idp:bob")},
+				{Name: "GetUser", Object: "bob"},
+				{Name: "CreateUser", Object: makeUser("", "bob", "idp:bob")},
 			},
 			ExpectedUserName:   "bob",
 			ExpectedInitialize: true,
@@ -28,12 +28,12 @@ func TestStrategyAdd(t *testing.T) {
 			PreferredUsername: "bob",
 			Identity:          makeIdentity("", "idp", "bob", "", ""),
 
-			ExistingUsers:  []*api.User{makeUser("bobUserUID", "bob")},
+			ExistingUsers:  []*userapi.User{makeUser("bobUserUID", "bob")},
 			UpdateResponse: makeUser("bobUserUID", "bob", "idp:bob"),
 
 			ExpectedActions: []test.Action{
-				{"GetUser", "bob"},
-				{"UpdateUser", makeUser("bobUserUID", "bob", "idp:bob")},
+				{Name: "GetUser", Object: "bob"},
+				{Name: "UpdateUser", Object: makeUser("bobUserUID", "bob", "idp:bob")},
 			},
 			ExpectedUserName:   "bob",
 			ExpectedInitialize: true,
@@ -43,12 +43,12 @@ func TestStrategyAdd(t *testing.T) {
 			PreferredUsername: "bob",
 			Identity:          makeIdentity("", "idp", "bob", "", ""),
 
-			ExistingUsers:  []*api.User{makeUser("bobUserUID", "bob", "otheridp:user")},
+			ExistingUsers:  []*userapi.User{makeUser("bobUserUID", "bob", "otheridp:user")},
 			UpdateResponse: makeUser("bobUserUID", "bob", "otheridp:user", "idp:bob"),
 
 			ExpectedActions: []test.Action{
-				{"GetUser", "bob"},
-				{"UpdateUser", makeUser("bobUserUID", "bob", "otheridp:user", "idp:bob")},
+				{Name: "GetUser", Object: "bob"},
+				{Name: "UpdateUser", Object: makeUser("bobUserUID", "bob", "otheridp:user", "idp:bob")},
 			},
 			ExpectedUserName:   "bob",
 			ExpectedInitialize: false,

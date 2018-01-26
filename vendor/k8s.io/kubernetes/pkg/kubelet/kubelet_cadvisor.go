@@ -19,8 +19,8 @@ package kubelet
 import (
 	cadvisorapi "github.com/google/cadvisor/info/v1"
 	cadvisorapiv2 "github.com/google/cadvisor/info/v2"
+	"k8s.io/apimachinery/pkg/types"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
-	"k8s.io/kubernetes/pkg/types"
 )
 
 // GetContainerInfo returns stats (from Cadvisor) for a container.
@@ -43,19 +43,6 @@ func (kl *Kubelet) GetContainerInfo(podFullName string, podUID types.UID, contai
 		return nil, err
 	}
 	return &ci, nil
-}
-
-// HasDedicatedImageFs returns true if the imagefs has a dedicated device.
-func (kl *Kubelet) HasDedicatedImageFs() (bool, error) {
-	imageFsInfo, err := kl.ImagesFsInfo()
-	if err != nil {
-		return false, err
-	}
-	rootFsInfo, err := kl.RootFsInfo()
-	if err != nil {
-		return false, err
-	}
-	return imageFsInfo.Device != rootFsInfo.Device, nil
 }
 
 // GetContainerInfoV2 returns stats (from Cadvisor) for containers.
@@ -89,6 +76,11 @@ func (kl *Kubelet) GetRawContainerInfo(containerName string, req *cadvisorapi.Co
 	}
 }
 
+// GetVersionInfo returns information about the version of cAdvisor in use.
+func (kl *Kubelet) GetVersionInfo() (*cadvisorapi.VersionInfo, error) {
+	return kl.cadvisor.VersionInfo()
+}
+
 // GetCachedMachineInfo assumes that the machine info can't change without a reboot
 func (kl *Kubelet) GetCachedMachineInfo() (*cadvisorapi.MachineInfo, error) {
 	if kl.machineInfo == nil {
@@ -99,4 +91,16 @@ func (kl *Kubelet) GetCachedMachineInfo() (*cadvisorapi.MachineInfo, error) {
 		kl.machineInfo = info
 	}
 	return kl.machineInfo, nil
+}
+
+// GetCachedRootFsInfo assumes that the rootfs info can't change without a reboot
+func (kl *Kubelet) GetCachedRootFsInfo() (cadvisorapiv2.FsInfo, error) {
+	if kl.rootfsInfo == nil {
+		info, err := kl.cadvisor.RootFsInfo()
+		if err != nil {
+			return cadvisorapiv2.FsInfo{}, err
+		}
+		kl.rootfsInfo = &info
+	}
+	return *kl.rootfsInfo, nil
 }

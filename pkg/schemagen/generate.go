@@ -24,6 +24,7 @@ import (
 
 type PackageDescriptor struct {
 	GoPackage   string
+	ApiGroup    string
 	JavaPackage string
 	Prefix      string
 }
@@ -82,6 +83,11 @@ func (g *schemaGenerator) qualifiedName(t reflect.Type) string {
 	}
 }
 
+func (g *schemaGenerator) resourceDetails(t reflect.Type) string {
+	var name = strings.ToLower(t.Name())
+	return name
+}
+
 func (g *schemaGenerator) generateReference(t reflect.Type) string {
 	return "#/definitions/" + g.qualifiedName(t)
 }
@@ -123,14 +129,26 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 		t = t.Elem()
 	}
 	pkgDesc, ok := g.packages[pkgPath(t)]
+
+	//Added a special case for RunAsUserStrategyOptions
+	//If i don't add a prefix it get conflict with
+	//openShift RunAsUserStrategyOptions and project give compilation error
+	//because both classes are different
+
 	if t.Kind() == reflect.Struct && ok {
-		switch t.Name() {
-		case "RawExtension":
-			return "io.fabric8.kubernetes.api.model.HasMetadata"
-		case "List":
-			return pkgDesc.JavaPackage + ".BaseKubernetesList"
-		default:
-			return pkgDesc.JavaPackage + "." + t.Name()
+	    if g.qualifiedName(t) == "kubernetes_extensions_RunAsUserStrategyOptions" {
+	        return pkgDesc.JavaPackage + "." + "Kubernetes" + t.Name()
+	    } else {
+		    switch t.Name() {
+		    case "Time":
+		       	return "String"
+		    case "RawExtension":
+		    	return "io.fabric8.kubernetes.api.model.HasMetadata"
+		    case "List":
+		    	return pkgDesc.JavaPackage + ".BaseKubernetesList"
+		    default:
+		    	return pkgDesc.JavaPackage + "." + t.Name()
+		    }
 		}
 	} else {
 		switch t.Kind() {
@@ -152,6 +170,9 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 		case reflect.Map:
 			return "java.util.Map<String," + g.javaTypeWrapPrimitive(t.Elem()) + ">"
 		default:
+			if t.Name() == "Time" {
+				return "String"
+			}
 			if len(t.Name()) == 0 && t.NumField() == 0 {
 				return "Object"
 			}
@@ -188,8 +209,11 @@ func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
 	s.JSONObjectDescriptor = g.generateObjectDescriptor(t)
 	if len(g.types) > 0 {
 		s.Definitions = make(map[string]JSONPropertyDescriptor)
+		s.Resources = make(map[string]*JSONObjectDescriptor)
+
 		for k, v := range g.types {
 			name := g.qualifiedName(k)
+			resource := g.resourceDetails(k)
 			value := JSONPropertyDescriptor{
 				JSONDescriptor: &JSONDescriptor{
 					Type: "object",
@@ -203,8 +227,10 @@ func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
 				},
 			}
 			s.Definitions[name] = value
+			s.Resources[resource] = v
 		}
 	}
+
 	return &s, nil
 }
 
@@ -307,6 +333,7 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSO
 			},
 		}
 	}
+
 	return JSONPropertyDescriptor{}
 }
 
@@ -323,7 +350,8 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 			continue
 		}
 		// Skip dockerImageMetadata field
-		if pkgPath(t) == "github.com/openshift/origin/pkg/image/api/v1" && t.Name() == "Image" && name == "dockerImageMetadata" {
+		path := pkgPath(t)
+		if path == "github.com/openshift/origin/pkg/image/api/v1" && t.Name() == "Image" && name == "dockerImageMetadata" {
 			continue
 		}
 
@@ -351,10 +379,27 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 						},
 					}
 				case "apiVersion":
-					apiVersion := filepath.Base(pkgPath(t))
-					apiGroup := filepath.Base(strings.TrimSuffix(pkgPath(t), apiVersion))
+					apiVersion := filepath.Base(path)
+					apiGroup := filepath.Base(strings.TrimSuffix(path, apiVersion))
+
+ 					pkgDesc, ok := g.packages[path]
+					if ok && pkgDesc.ApiGroup != "" {
+						apiGroup = pkgDesc.ApiGroup
+					}
+
 					if apiGroup != "api" {
-						apiVersion = apiGroup + "/" + apiVersion
+						groupPostfix := ""
+						if strings.HasPrefix(path, "github.com/openshift/origin/pkg/") {
+							groupPostfix = ".openshift.io"
+						}
+
+						//Added a special case for SecurityContextConstraints and SecurityContextConstraintsList
+						//Because its fetching "security.openshift.io/v1"
+						//and "v1" is working with kubernetes-client
+						 
+						if t.Name() != "SecurityContextConstraints" && t.Name() != "SecurityContextConstraintsList" {
+						    apiVersion = apiGroup + groupPostfix + "/" + apiVersion
+						}
 					}
 					v = JSONPropertyDescriptor{
 						JSONDescriptor: &JSONDescriptor{

@@ -6,10 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/util/sets"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/kubernetes/pkg/apis/rbac"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 )
 
 func TestUserEvaluator(t *testing.T) {
@@ -84,7 +85,7 @@ func TestClusterRoleEvaluator(t *testing.T) {
 		name            string
 		scopes          []string
 		namespace       string
-		clusterRoles    []authorizationapi.ClusterRole
+		clusterRoles    []rbac.ClusterRole
 		policyGetterErr error
 		numRules        int
 		err             string
@@ -114,11 +115,12 @@ func TestClusterRoleEvaluator(t *testing.T) {
 			numRules: 1, // we always add the discovery rules
 		},
 		{
-			name: "missing-role",
-			clusterRoles: []authorizationapi.ClusterRole{
+			name:            "missing-role",
+			policyGetterErr: fmt.Errorf(`clusterrole "missing" not found`),
+			clusterRoles: []rbac.ClusterRole{
 				{
-					ObjectMeta: kapi.ObjectMeta{Name: "admin"},
-					Rules:      []authorizationapi.PolicyRule{{}},
+					ObjectMeta: metav1.ObjectMeta{Name: "admin"},
+					Rules:      []rbac.PolicyRule{{}},
 				},
 			},
 			scopes:   []string{ClusterRoleIndicator + "missing:*"},
@@ -127,10 +129,10 @@ func TestClusterRoleEvaluator(t *testing.T) {
 		},
 		{
 			name: "mismatched-namespace",
-			clusterRoles: []authorizationapi.ClusterRole{
+			clusterRoles: []rbac.ClusterRole{
 				{
-					ObjectMeta: kapi.ObjectMeta{Name: "admin"},
-					Rules:      []authorizationapi.PolicyRule{{}},
+					ObjectMeta: metav1.ObjectMeta{Name: "admin"},
+					Rules:      []rbac.PolicyRule{{}},
 				},
 			},
 			namespace: "current-ns",
@@ -139,10 +141,10 @@ func TestClusterRoleEvaluator(t *testing.T) {
 		},
 		{
 			name: "all-namespaces",
-			clusterRoles: []authorizationapi.ClusterRole{
+			clusterRoles: []rbac.ClusterRole{
 				{
-					ObjectMeta: kapi.ObjectMeta{Name: "admin"},
-					Rules:      []authorizationapi.PolicyRule{{}},
+					ObjectMeta: metav1.ObjectMeta{Name: "admin"},
+					Rules:      []rbac.PolicyRule{{}},
 				},
 			},
 			namespace: "current-ns",
@@ -151,10 +153,10 @@ func TestClusterRoleEvaluator(t *testing.T) {
 		},
 		{
 			name: "matching-namespaces",
-			clusterRoles: []authorizationapi.ClusterRole{
+			clusterRoles: []rbac.ClusterRole{
 				{
-					ObjectMeta: kapi.ObjectMeta{Name: "admin"},
-					Rules:      []authorizationapi.PolicyRule{{}},
+					ObjectMeta: metav1.ObjectMeta{Name: "admin"},
+					Rules:      []rbac.PolicyRule{{}},
 				},
 			},
 			namespace: "current-ns",
@@ -163,10 +165,10 @@ func TestClusterRoleEvaluator(t *testing.T) {
 		},
 		{
 			name: "colon-role",
-			clusterRoles: []authorizationapi.ClusterRole{
+			clusterRoles: []rbac.ClusterRole{
 				{
-					ObjectMeta: kapi.ObjectMeta{Name: "admin:two"},
-					Rules:      []authorizationapi.PolicyRule{{}},
+					ObjectMeta: metav1.ObjectMeta{Name: "admin:two"},
+					Rules:      []rbac.PolicyRule{{}},
 				},
 			},
 			namespace: "current-ns",
@@ -209,62 +211,62 @@ func TestEscalationProtection(t *testing.T) {
 		scopes    []string
 		namespace string
 
-		clusterRoles  []authorizationapi.ClusterRole
-		expectedRules []authorizationapi.PolicyRule
+		clusterRoles  []rbac.ClusterRole
+		expectedRules []rbac.PolicyRule
 	}{
 		{
 			name: "simple match secrets",
-			clusterRoles: []authorizationapi.ClusterRole{
+			clusterRoles: []rbac.ClusterRole{
 				{
-					ObjectMeta: kapi.ObjectMeta{Name: "admin"},
-					Rules:      []authorizationapi.PolicyRule{{APIGroups: []string{""}, Resources: sets.NewString("pods", "secrets")}},
+					ObjectMeta: metav1.ObjectMeta{Name: "admin"},
+					Rules:      []rbac.PolicyRule{{APIGroups: []string{""}, Resources: []string{"pods", "secrets"}}},
 				},
 			},
-			expectedRules: []authorizationapi.PolicyRule{authorizationapi.DiscoveryRule, {APIGroups: []string{""}, Resources: sets.NewString("pods")}},
+			expectedRules: []rbac.PolicyRule{authorizationapi.RbacDiscoveryRule, {APIGroups: []string{""}, Resources: []string{"pods"}}},
 			scopes:        []string{ClusterRoleIndicator + "admin:*"},
 		},
 		{
 			name: "match old group secrets",
-			clusterRoles: []authorizationapi.ClusterRole{
+			clusterRoles: []rbac.ClusterRole{
 				{
-					ObjectMeta: kapi.ObjectMeta{Name: "admin"},
-					Rules:      []authorizationapi.PolicyRule{{APIGroups: []string{}, Resources: sets.NewString("pods", "secrets")}},
+					ObjectMeta: metav1.ObjectMeta{Name: "admin"},
+					Rules:      []rbac.PolicyRule{{APIGroups: []string{}, Resources: []string{"pods", "secrets"}}},
 				},
 			},
-			expectedRules: []authorizationapi.PolicyRule{authorizationapi.DiscoveryRule, {APIGroups: []string{}, Resources: sets.NewString("pods")}},
+			expectedRules: []rbac.PolicyRule{authorizationapi.RbacDiscoveryRule, {APIGroups: []string{}, Resources: []string{"pods"}}},
 			scopes:        []string{ClusterRoleIndicator + "admin:*"},
 		},
 		{
 			name: "skip non-matching group secrets",
-			clusterRoles: []authorizationapi.ClusterRole{
+			clusterRoles: []rbac.ClusterRole{
 				{
-					ObjectMeta: kapi.ObjectMeta{Name: "admin"},
-					Rules:      []authorizationapi.PolicyRule{{APIGroups: []string{"foo"}, Resources: sets.NewString("pods", "secrets")}},
+					ObjectMeta: metav1.ObjectMeta{Name: "admin"},
+					Rules:      []rbac.PolicyRule{{APIGroups: []string{"foo"}, Resources: []string{"pods", "secrets"}}},
 				},
 			},
-			expectedRules: []authorizationapi.PolicyRule{authorizationapi.DiscoveryRule, {APIGroups: []string{"foo"}, Resources: sets.NewString("pods", "secrets")}},
+			expectedRules: []rbac.PolicyRule{authorizationapi.RbacDiscoveryRule, {APIGroups: []string{"foo"}, Resources: []string{"pods", "secrets"}}},
 			scopes:        []string{ClusterRoleIndicator + "admin:*"},
 		},
 		{
 			name: "access tokens",
-			clusterRoles: []authorizationapi.ClusterRole{
+			clusterRoles: []rbac.ClusterRole{
 				{
-					ObjectMeta: kapi.ObjectMeta{Name: "admin"},
-					Rules:      []authorizationapi.PolicyRule{{APIGroups: []string{"", "and-foo"}, Resources: sets.NewString("pods", "oauthaccesstokens")}},
+					ObjectMeta: metav1.ObjectMeta{Name: "admin"},
+					Rules:      []rbac.PolicyRule{{APIGroups: []string{"", "and-foo"}, Resources: []string{"pods", "oauthaccesstokens"}}},
 				},
 			},
-			expectedRules: []authorizationapi.PolicyRule{authorizationapi.DiscoveryRule, {APIGroups: []string{"", "and-foo"}, Resources: sets.NewString("pods")}},
+			expectedRules: []rbac.PolicyRule{authorizationapi.RbacDiscoveryRule, {APIGroups: []string{"", "and-foo"}, Resources: []string{"pods"}}},
 			scopes:        []string{ClusterRoleIndicator + "admin:*"},
 		},
 		{
 			name: "allow the escalation",
-			clusterRoles: []authorizationapi.ClusterRole{
+			clusterRoles: []rbac.ClusterRole{
 				{
-					ObjectMeta: kapi.ObjectMeta{Name: "admin"},
-					Rules:      []authorizationapi.PolicyRule{{APIGroups: []string{""}, Resources: sets.NewString("pods", "secrets")}},
+					ObjectMeta: metav1.ObjectMeta{Name: "admin"},
+					Rules:      []rbac.PolicyRule{{APIGroups: []string{""}, Resources: []string{"pods", "secrets"}}},
 				},
 			},
-			expectedRules: []authorizationapi.PolicyRule{authorizationapi.DiscoveryRule, {APIGroups: []string{""}, Resources: sets.NewString("pods", "secrets")}},
+			expectedRules: []rbac.PolicyRule{authorizationapi.RbacDiscoveryRule, {APIGroups: []string{""}, Resources: []string{"pods", "secrets"}}},
 			scopes:        []string{ClusterRoleIndicator + "admin:*:!"},
 		},
 	}
@@ -282,26 +284,23 @@ func TestEscalationProtection(t *testing.T) {
 }
 
 type fakePolicyGetter struct {
-	clusterRoles []authorizationapi.ClusterRole
+	clusterRoles []rbac.ClusterRole
 	err          error
 }
 
-func (f *fakePolicyGetter) List(kapi.ListOptions) (*authorizationapi.ClusterPolicyList, error) {
-	policy, err := f.Get("")
-	if err != nil {
-		return nil, err
+func (f *fakePolicyGetter) List(label labels.Selector) ([]*rbac.ClusterRole, error) {
+	ret := []*rbac.ClusterRole{}
+	for _, v := range f.clusterRoles {
+		ret = append(ret, &v)
 	}
-
-	ret := &authorizationapi.ClusterPolicyList{}
-	ret.Items = append(ret.Items, *policy)
 	return ret, f.err
 }
 
-func (f *fakePolicyGetter) Get(id string) (*authorizationapi.ClusterPolicy, error) {
-	ret := &authorizationapi.ClusterPolicy{}
-	ret.Roles = map[string]*authorizationapi.ClusterRole{}
-	for i := range f.clusterRoles {
-		ret.Roles[f.clusterRoles[i].Name] = &f.clusterRoles[i]
+func (f *fakePolicyGetter) Get(id string) (*rbac.ClusterRole, error) {
+	for _, v := range f.clusterRoles {
+		if v.ObjectMeta.Name == id {
+			return &v, nil
+		}
 	}
-	return ret, f.err
+	return &rbac.ClusterRole{}, f.err
 }

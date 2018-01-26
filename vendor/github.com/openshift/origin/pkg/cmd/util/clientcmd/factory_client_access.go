@@ -1,6 +1,7 @@
 package clientcmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -15,27 +16,29 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	restclient "k8s.io/client-go/rest"
+	kclientcmd "k8s.io/client-go/tools/clientcmd"
+	kclientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/client-go/util/homedir"
 	fedclientset "k8s.io/kubernetes/federation/client/clientset_generated/federation_internalclientset"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/meta"
-	"k8s.io/kubernetes/pkg/api/unversioned"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/client/restclient"
-	"k8s.io/kubernetes/pkg/client/typed/discovery"
-	kclientcmd "k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
-	kclientcmdapi "k8s.io/kubernetes/pkg/client/unversioned/clientcmd/api"
 	"k8s.io/kubernetes/pkg/kubectl"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/homedir"
+	kprinters "k8s.io/kubernetes/pkg/printers"
 
 	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/cli/config"
-	"github.com/openshift/origin/pkg/cmd/cli/describe"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	deploycmd "github.com/openshift/origin/pkg/deploy/cmd"
 	imageutil "github.com/openshift/origin/pkg/image/util"
+	"github.com/openshift/origin/pkg/oc/cli/config"
+	"github.com/openshift/origin/pkg/oc/cli/describe"
 	routegen "github.com/openshift/origin/pkg/route/generator"
 )
 
@@ -81,6 +84,9 @@ func (f *discoveryFactory) DiscoveryClient() (discovery.CachedDiscoveryInterface
 	if err != nil {
 		return nil, err
 	}
+	// given 25 groups with one-ish version each, discovery needs to make 50 requests
+	// double it just so we don't end up here again for a while.  This config is only used for discovery.
+	cfg.Burst = 100
 
 	// at this point we've negotiated and can get the client
 	oclient, err := client.New(cfg)
@@ -145,11 +151,11 @@ func (f *ring0Factory) DiscoveryClient() (discovery.CachedDiscoveryInterface, er
 	return f.kubeClientAccessFactory.DiscoveryClient()
 }
 
-func (f *ring0Factory) ClientSet() (*kclientset.Clientset, error) {
+func (f *ring0Factory) ClientSet() (kclientset.Interface, error) {
 	return f.kubeClientAccessFactory.ClientSet()
 }
 
-func (f *ring0Factory) ClientSetForVersion(requiredVersion *unversioned.GroupVersion) (*kclientset.Clientset, error) {
+func (f *ring0Factory) ClientSetForVersion(requiredVersion *schema.GroupVersion) (kclientset.Interface, error) {
 	return f.kubeClientAccessFactory.ClientSetForVersion(requiredVersion)
 }
 
@@ -157,7 +163,11 @@ func (f *ring0Factory) ClientConfig() (*restclient.Config, error) {
 	return f.kubeClientAccessFactory.ClientConfig()
 }
 
-func (f *ring0Factory) ClientConfigForVersion(requiredVersion *unversioned.GroupVersion) (*restclient.Config, error) {
+func (f *ring0Factory) BareClientConfig() (*restclient.Config, error) {
+	return f.clientConfig.ClientConfig()
+}
+
+func (f *ring0Factory) ClientConfigForVersion(requiredVersion *schema.GroupVersion) (*restclient.Config, error) {
 	return f.kubeClientAccessFactory.ClientConfigForVersion(nil)
 }
 
@@ -165,11 +175,11 @@ func (f *ring0Factory) RESTClient() (*restclient.RESTClient, error) {
 	return f.kubeClientAccessFactory.RESTClient()
 }
 
-func (f *ring0Factory) FederationClientSetForVersion(version *unversioned.GroupVersion) (fedclientset.Interface, error) {
+func (f *ring0Factory) FederationClientSetForVersion(version *schema.GroupVersion) (fedclientset.Interface, error) {
 	return f.kubeClientAccessFactory.FederationClientSetForVersion(version)
 }
 
-func (f *ring0Factory) FederationClientForVersion(version *unversioned.GroupVersion) (*restclient.RESTClient, error) {
+func (f *ring0Factory) FederationClientForVersion(version *schema.GroupVersion) (*restclient.RESTClient, error) {
 	return f.kubeClientAccessFactory.FederationClientForVersion(version)
 }
 
@@ -230,8 +240,8 @@ func (f *ring0Factory) FlagSet() *pflag.FlagSet {
 	return f.kubeClientAccessFactory.FlagSet()
 }
 
-func (f *ring0Factory) Command() string {
-	return f.kubeClientAccessFactory.Command()
+func (f *ring0Factory) Command(cmd *cobra.Command, showSecrets bool) string {
+	return f.kubeClientAccessFactory.Command(cmd, showSecrets)
 }
 
 func (f *ring0Factory) BindFlags(flags *pflag.FlagSet) {
@@ -242,7 +252,7 @@ func (f *ring0Factory) BindExternalFlags(flags *pflag.FlagSet) {
 	f.kubeClientAccessFactory.BindExternalFlags(flags)
 }
 
-func (f *ring0Factory) DefaultResourceFilterOptions(cmd *cobra.Command, withNamespace bool) *kubectl.PrintOptions {
+func (f *ring0Factory) DefaultResourceFilterOptions(cmd *cobra.Command, withNamespace bool) *kprinters.PrintOptions {
 	return f.kubeClientAccessFactory.DefaultResourceFilterOptions(cmd, withNamespace)
 }
 
@@ -250,36 +260,23 @@ func (f *ring0Factory) DefaultResourceFilterFunc() kubectl.Filters {
 	return f.kubeClientAccessFactory.DefaultResourceFilterFunc()
 }
 
-func (f *ring0Factory) SuggestedPodTemplateResources() []unversioned.GroupResource {
+func (f *ring0Factory) SuggestedPodTemplateResources() []schema.GroupResource {
 	return f.kubeClientAccessFactory.SuggestedPodTemplateResources()
 }
 
-// Saves current resource name (or alias if any) in PrintOptions. Once saved, it will not be overwritten by the
-// kubernetes resource alias look-up, as it will notice a non-empty value in `options.Kind`
-func (f *ring0Factory) Printer(mapping *meta.RESTMapping, options kubectl.PrintOptions) (kubectl.ResourcePrinter, error) {
-	if mapping != nil {
-		options.Kind = mapping.Resource
-		if alias, ok := resourceShortFormFor(mapping.Resource); ok {
-			options.Kind = alias
-		}
-	}
-	return describe.NewHumanReadablePrinter(options), nil
+func (f *ring0Factory) Printer(mapping *meta.RESTMapping, options kprinters.PrintOptions) (kprinters.ResourcePrinter, error) {
+	return describe.NewHumanReadablePrinter(f.JSONEncoder(), f.Decoder(true), options), nil
 }
 
-func (f *ring0Factory) Pauser(info *resource.Info) (bool, error) {
+func (f *ring0Factory) Pauser(info *resource.Info) ([]byte, error) {
 	switch t := info.Object.(type) {
 	case *deployapi.DeploymentConfig:
 		if t.Spec.Paused {
-			return true, nil
+			return nil, errors.New("is already paused")
 		}
 		t.Spec.Paused = true
-		oc, _, err := f.Clients()
-		if err != nil {
-			return false, err
-		}
-		_, err = oc.DeploymentConfigs(t.Namespace).Update(t)
 		// TODO: Pause the deployer containers.
-		return false, err
+		return runtime.Encode(f.JSONEncoder(), info.Object)
 	default:
 		return f.kubeClientAccessFactory.Pauser(info)
 	}
@@ -301,7 +298,7 @@ func (o *imageResolutionOptions) Bind(f *pflag.FlagSet) {
 	if o.Bound() {
 		return
 	}
-	f.StringVarP(&o.Source, "source", "", "istag", "The image source type; valid types are valid values are 'imagestreamtag', 'istag', 'imagestreamimage', 'isimage', and 'docker'")
+	f.StringVarP(&o.Source, "source", "", "docker", "The image source type; valid types are 'imagestreamtag', 'istag', 'imagestreamimage', 'isimage', and 'docker'")
 	o.bound = true
 }
 
@@ -325,20 +322,15 @@ func (f *ring0Factory) ResolveImage(image string) (string, error) {
 	return imageutil.ResolveImagePullSpec(oc, oc, options.Source, image, namespace)
 }
 
-func (f *ring0Factory) Resumer(info *resource.Info) (bool, error) {
+func (f *ring0Factory) Resumer(info *resource.Info) ([]byte, error) {
 	switch t := info.Object.(type) {
 	case *deployapi.DeploymentConfig:
 		if !t.Spec.Paused {
-			return true, nil
+			return nil, errors.New("is not paused")
 		}
 		t.Spec.Paused = false
-		oc, _, err := f.Clients()
-		if err != nil {
-			return false, err
-		}
-		_, err = oc.DeploymentConfigs(t.Namespace).Update(t)
 		// TODO: Resume the deployer containers.
-		return false, err
+		return runtime.Encode(f.JSONEncoder(), info.Object)
 	default:
 		return f.kubeClientAccessFactory.Resumer(info)
 	}
@@ -375,15 +367,15 @@ func (f *ring0Factory) Generators(cmdName string) map[string]kubectl.Generator {
 	return ret
 }
 
-func (f *ring0Factory) CanBeExposed(kind unversioned.GroupKind) error {
-	if kind == deployapi.Kind("DeploymentConfig") {
+func (f *ring0Factory) CanBeExposed(kind schema.GroupKind) error {
+	if deployapi.IsKindOrLegacy("DeploymentConfig", kind) {
 		return nil
 	}
 	return f.kubeClientAccessFactory.CanBeExposed(kind)
 }
 
-func (f *ring0Factory) CanBeAutoscaled(kind unversioned.GroupKind) error {
-	if kind == deployapi.Kind("DeploymentConfig") {
+func (f *ring0Factory) CanBeAutoscaled(kind schema.GroupKind) error {
+	if deployapi.IsKindOrLegacy("DeploymentConfig", kind) {
 		return nil
 	}
 	return f.kubeClientAccessFactory.CanBeAutoscaled(kind)
@@ -431,7 +423,7 @@ func (c defaultingClientConfig) Namespace() (string, bool, error) {
 		}
 	}
 
-	return kapi.NamespaceDefault, false, nil
+	return metav1.NamespaceDefault, false, nil
 }
 
 // ConfigAccess implements ClientConfig

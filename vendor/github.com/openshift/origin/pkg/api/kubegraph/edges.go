@@ -5,15 +5,16 @@ import (
 
 	"github.com/gonum/graph"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
-	"k8s.io/kubernetes/pkg/apimachinery/registered"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/runtime"
 
 	osgraph "github.com/openshift/origin/pkg/api/graph"
 	kubegraph "github.com/openshift/origin/pkg/api/kubegraph/nodes"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	deploygraph "github.com/openshift/origin/pkg/deploy/graph/nodes"
 )
 
@@ -130,7 +131,7 @@ func AddMountedSecretEdges(g osgraph.Graph, podSpec *kubegraph.PodSpecNode) {
 	containerNode := osgraph.GetTopLevelContainerNode(g, podSpec)
 	containerObj := g.GraphDescriber.Object(containerNode)
 
-	meta, err := kapi.ObjectMetaFor(containerObj.(runtime.Object))
+	meta, err := meta.Accessor(containerObj.(runtime.Object))
 	if err != nil {
 		// this should never happen.  it means that a podSpec is owned by a top level container that is not a runtime.Object
 		panic(err)
@@ -144,7 +145,7 @@ func AddMountedSecretEdges(g osgraph.Graph, podSpec *kubegraph.PodSpecNode) {
 
 		// pod secrets must be in the same namespace
 		syntheticSecret := &kapi.Secret{}
-		syntheticSecret.Namespace = meta.Namespace
+		syntheticSecret.Namespace = meta.GetNamespace()
 		syntheticSecret.Name = source.Secret.SecretName
 
 		secretNode := kubegraph.FindOrCreateSyntheticSecretNode(g, syntheticSecret)
@@ -184,7 +185,7 @@ func AddRequestedServiceAccountEdges(g osgraph.Graph, podSpecNode *kubegraph.Pod
 	containerNode := osgraph.GetTopLevelContainerNode(g, podSpecNode)
 	containerObj := g.GraphDescriber.Object(containerNode)
 
-	meta, err := kapi.ObjectMetaFor(containerObj.(runtime.Object))
+	meta, err := meta.Accessor(containerObj.(runtime.Object))
 	if err != nil {
 		panic(err)
 	}
@@ -196,7 +197,7 @@ func AddRequestedServiceAccountEdges(g osgraph.Graph, podSpecNode *kubegraph.Pod
 	}
 
 	syntheticSA := &kapi.ServiceAccount{}
-	syntheticSA.Namespace = meta.Namespace
+	syntheticSA.Namespace = meta.GetNamespace()
 	syntheticSA.Name = name
 
 	saNode := kubegraph.FindOrCreateSyntheticServiceAccountNode(g, syntheticSA)
@@ -215,29 +216,30 @@ func AddHPAScaleRefEdges(g osgraph.Graph) {
 	for _, node := range g.NodesByKind(kubegraph.HorizontalPodAutoscalerNodeKind) {
 		hpaNode := node.(*kubegraph.HorizontalPodAutoscalerNode)
 
-		syntheticMeta := kapi.ObjectMeta{
+		syntheticMeta := metav1.ObjectMeta{
 			Name:      hpaNode.HorizontalPodAutoscaler.Spec.ScaleTargetRef.Name,
 			Namespace: hpaNode.HorizontalPodAutoscaler.Namespace,
 		}
 
-		var groupVersionResource unversioned.GroupVersionResource
+		var groupVersionResource schema.GroupVersionResource
 		resource := strings.ToLower(hpaNode.HorizontalPodAutoscaler.Spec.ScaleTargetRef.Kind)
-		if groupVersion, err := unversioned.ParseGroupVersion(hpaNode.HorizontalPodAutoscaler.Spec.ScaleTargetRef.APIVersion); err == nil {
+		if groupVersion, err := schema.ParseGroupVersion(hpaNode.HorizontalPodAutoscaler.Spec.ScaleTargetRef.APIVersion); err == nil {
 			groupVersionResource = groupVersion.WithResource(resource)
 		} else {
-			groupVersionResource = unversioned.GroupVersionResource{Resource: resource}
+			groupVersionResource = schema.GroupVersionResource{Resource: resource}
 		}
 
-		groupVersionResource, err := registered.RESTMapper().ResourceFor(groupVersionResource)
+		groupVersionResource, err := kapi.Registry.RESTMapper().ResourceFor(groupVersionResource)
 		if err != nil {
 			continue
 		}
 
 		var syntheticNode graph.Node
-		switch groupVersionResource.GroupResource() {
-		case kapi.Resource("replicationcontrollers"):
+		r := groupVersionResource.GroupResource()
+		switch {
+		case r == kapi.Resource("replicationcontrollers"):
 			syntheticNode = kubegraph.FindOrCreateSyntheticReplicationControllerNode(g, &kapi.ReplicationController{ObjectMeta: syntheticMeta})
-		case deployapi.Resource("deploymentconfigs"):
+		case deployapi.IsResourceOrLegacy("deploymentconfigs", r):
 			syntheticNode = deploygraph.FindOrCreateSyntheticDeploymentConfigNode(g, &deployapi.DeploymentConfig{ObjectMeta: syntheticMeta})
 		default:
 			continue

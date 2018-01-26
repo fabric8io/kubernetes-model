@@ -23,11 +23,12 @@ import (
 	"github.com/docker/distribution/registry/client/auth"
 	"github.com/docker/distribution/registry/client/transport"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	"github.com/openshift/origin/pkg/dockerregistry"
-	"github.com/openshift/origin/pkg/image/api"
-	"github.com/openshift/origin/pkg/image/api/dockerpre012"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	"github.com/openshift/origin/pkg/image/apis/image/dockerpre012"
 )
 
 // ErrNotV2Registry is returned when the server does not report itself as a V2 Docker registry
@@ -158,7 +159,7 @@ func (r *repositoryRetriever) ping(registry url.URL, insecure bool, transport ht
 	return nil, nil
 }
 
-func schema1ToImage(manifest *schema1.SignedManifest, d digest.Digest) (*api.Image, error) {
+func schema1ToImage(manifest *schema1.SignedManifest, d digest.Digest) (*imageapi.Image, error) {
 	if len(manifest.History) == 0 {
 		return nil, fmt.Errorf("image has no v1Compatibility history and cannot be used")
 	}
@@ -176,8 +177,8 @@ func schema1ToImage(manifest *schema1.SignedManifest, d digest.Digest) (*api.Ima
 	} else {
 		dockerImage.ID = digest.FromBytes(manifest.Canonical).String()
 	}
-	image := &api.Image{
-		ObjectMeta: kapi.ObjectMeta{
+	image := &imageapi.Image{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: dockerImage.ID,
 		},
 		DockerImageMetadata:          *dockerImage,
@@ -189,7 +190,7 @@ func schema1ToImage(manifest *schema1.SignedManifest, d digest.Digest) (*api.Ima
 	return image, nil
 }
 
-func schema2ToImage(manifest *schema2.DeserializedManifest, imageConfig []byte, d digest.Digest) (*api.Image, error) {
+func schema2ToImage(manifest *schema2.DeserializedManifest, imageConfig []byte, d digest.Digest) (*imageapi.Image, error) {
 	mediatype, payload, err := manifest.Payload()
 	if err != nil {
 		return nil, err
@@ -205,8 +206,8 @@ func schema2ToImage(manifest *schema2.DeserializedManifest, imageConfig []byte, 
 		dockerImage.ID = digest.FromBytes(payload).String()
 	}
 
-	image := &api.Image{
-		ObjectMeta: kapi.ObjectMeta{
+	image := &imageapi.Image{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: dockerImage.ID,
 		},
 		DockerImageMetadata:          *dockerImage,
@@ -219,14 +220,14 @@ func schema2ToImage(manifest *schema2.DeserializedManifest, imageConfig []byte, 
 	return image, nil
 }
 
-func schema0ToImage(dockerImage *dockerregistry.Image, id string) (*api.Image, error) {
-	var baseImage api.DockerImage
+func schema0ToImage(dockerImage *dockerregistry.Image) (*imageapi.Image, error) {
+	var baseImage imageapi.DockerImage
 	if err := kapi.Scheme.Convert(&dockerImage.Image, &baseImage, nil); err != nil {
 		return nil, fmt.Errorf("could not convert image: %#v", err)
 	}
 
-	image := &api.Image{
-		ObjectMeta: kapi.ObjectMeta{
+	image := &imageapi.Image{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: dockerImage.ID,
 		},
 		DockerImageMetadata:        baseImage,
@@ -236,12 +237,12 @@ func schema0ToImage(dockerImage *dockerregistry.Image, id string) (*api.Image, e
 	return image, nil
 }
 
-func unmarshalDockerImage(body []byte) (*api.DockerImage, error) {
+func unmarshalDockerImage(body []byte) (*imageapi.DockerImage, error) {
 	var image dockerpre012.DockerImage
 	if err := json.Unmarshal(body, &image); err != nil {
 		return nil, err
 	}
-	dockerImage := &api.DockerImage{}
+	dockerImage := &imageapi.DockerImage{}
 	if err := kapi.Scheme.Convert(&image, dockerImage, nil); err != nil {
 		return nil, err
 	}

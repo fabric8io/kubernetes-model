@@ -27,7 +27,7 @@ middleware:
   repository:
     - name: openshift
       options:
-        acceptschema2: false
+        acceptschema2: true
         pullthrough: true
         mirrorpullthrough: true
         enforcequota: false
@@ -35,3 +35,26 @@ middleware:
         blobrepositorycachettl: 10m
   storage:
     - name: openshift
+openshift:
+  version: 1.0
+  metrics:
+    enabled: false
+    # secret is used to authenticate to metrics endpoint. It cannot be empty.
+    # Attention! A weak secret can lead to the leakage of private data.
+    #
+    # secret: TopSecretLongToken
+  requests:
+    # GET and HEAD requests
+    read:
+      # maxrunning is a limit for the number of in-flight requests. A zero value means there is no limit.
+      maxrunning: 0
+      # maxinqueue sets the maximum number of requests that can be queued if the limit for the number of in-flight requests is reached.
+      maxinqueue: 0
+      # maxwaitinqueue is how long a request can wait in the queue. A zero value means it can wait forever.
+      maxwaitinqueue: 0
+    # PUT, PATCH, POST, DELETE requests and internal mirroring requests
+    write:
+      # See description of openshift.requests.read.
+      maxrunning: 0
+      maxinqueue: 0
+      maxwaitinqueue: 0

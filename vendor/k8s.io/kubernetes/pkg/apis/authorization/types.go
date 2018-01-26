@@ -17,19 +17,18 @@ limitations under the License.
 package authorization
 
 import (
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/unversioned"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// +genclient=true
-// +nonNamespaced=true
-// +noMethods=true
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:noVerbs
 
 // SubjectAccessReview checks whether or not a user or group can perform an action.  Not filling in a
 // spec.namespace means "in all namespaces".
 type SubjectAccessReview struct {
-	unversioned.TypeMeta
-	api.ObjectMeta
+	metav1.TypeMeta
+	metav1.ObjectMeta
 
 	// Spec holds information about the request being evaluated
 	Spec SubjectAccessReviewSpec
@@ -38,16 +37,16 @@ type SubjectAccessReview struct {
 	Status SubjectAccessReviewStatus
 }
 
-// +genclient=true
-// +nonNamespaced=true
-// +noMethods=true
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:noVerbs
 
 // SelfSubjectAccessReview checks whether or the current user can perform an action.  Not filling in a
 // spec.namespace means "in all namespaces".  Self is a special case, because users should always be able
 // to check whether they can perform an action
 type SelfSubjectAccessReview struct {
-	unversioned.TypeMeta
-	api.ObjectMeta
+	metav1.TypeMeta
+	metav1.ObjectMeta
 
 	// Spec holds information about the request being evaluated.
 	Spec SelfSubjectAccessReviewSpec
@@ -56,15 +55,15 @@ type SelfSubjectAccessReview struct {
 	Status SubjectAccessReviewStatus
 }
 
-// +genclient=true
-// +noMethods=true
+// +genclient
+// +genclient:noVerbs
 
 // LocalSubjectAccessReview checks whether or not a user or group can perform an action in a given namespace.
 // Having a namespace scoped resource makes it much easier to grant namespace scoped policy that includes permissions
 // checking.
 type LocalSubjectAccessReview struct {
-	unversioned.TypeMeta
-	api.ObjectMeta
+	metav1.TypeMeta
+	metav1.ObjectMeta
 
 	// Spec holds information about the request being evaluated.  spec.namespace must be equal to the namespace
 	// you made the request against.  If empty, it is defaulted.

@@ -21,23 +21,12 @@ import (
 	"fmt"
 	"reflect"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/conversion"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/extensions"
-	"k8s.io/kubernetes/pkg/conversion"
-	"k8s.io/kubernetes/pkg/runtime"
-	"k8s.io/kubernetes/pkg/util/validation/field"
-	"k8s.io/kubernetes/pkg/watch/versioned"
-)
-
-const (
-	// Annotation key used to identify mirror pods.
-	mirrorAnnotationKey = "kubernetes.io/config.mirror"
-
-	// Value used to identify mirror pods from pre-v1.1 kubelet.
-	mirrorAnnotationValue_1_0 = "mirror"
-
-	// annotation key prefix used to identify non-convertible json paths.
-	NonConvertibleAnnotationPrefix = "kubernetes.io/non-convertible"
 )
 
 // This is a "fast-path" that avoids reflection for common types. It focuses on the objects that are
@@ -123,15 +112,15 @@ func addFastPathConversionFuncs(scheme *runtime.Scheme) error {
 				return true, Convert_api_Endpoints_To_v1_Endpoints(a, b, s)
 			}
 
-		case *versioned.Event:
+		case *metav1.WatchEvent:
 			switch b := objB.(type) {
-			case *versioned.InternalEvent:
-				return true, versioned.Convert_versioned_Event_to_versioned_InternalEvent(a, b, s)
+			case *metav1.InternalEvent:
+				return true, metav1.Convert_versioned_Event_to_versioned_InternalEvent(a, b, s)
 			}
-		case *versioned.InternalEvent:
+		case *metav1.InternalEvent:
 			switch b := objB.(type) {
-			case *versioned.Event:
-				return true, versioned.Convert_versioned_InternalEvent_to_versioned_Event(a, b, s)
+			case *metav1.WatchEvent:
+				return true, metav1.Convert_versioned_InternalEvent_to_versioned_Event(a, b, s)
 			}
 		}
 		return false, nil
@@ -158,12 +147,6 @@ func addConversionFuncs(scheme *runtime.Scheme) error {
 		Convert_extensions_ReplicaSet_to_v1_ReplicationController,
 		Convert_extensions_ReplicaSetSpec_to_v1_ReplicationControllerSpec,
 		Convert_extensions_ReplicaSetStatus_to_v1_ReplicationControllerStatus,
-
-		Convert_api_VolumeSource_To_v1_VolumeSource,
-		Convert_v1_VolumeSource_To_api_VolumeSource,
-
-		Convert_v1_SecurityContextConstraints_To_api_SecurityContextConstraints,
-		Convert_api_SecurityContextConstraints_To_v1_SecurityContextConstraints,
 	)
 	if err != nil {
 		return err
@@ -207,6 +190,7 @@ func addConversionFuncs(scheme *runtime.Scheme) error {
 				"spec.restartPolicy",
 				"spec.serviceAccountName",
 				"status.phase",
+				"status.hostIP",
 				"status.podIP":
 				return label, value, nil
 				// This is for backwards compatibility with old v1 clients which send spec.host
@@ -275,9 +259,7 @@ func addConversionFuncs(scheme *runtime.Scheme) error {
 }
 
 func Convert_v1_ReplicationController_to_extensions_ReplicaSet(in *ReplicationController, out *extensions.ReplicaSet, s conversion.Scope) error {
-	if err := Convert_v1_ObjectMeta_To_api_ObjectMeta(&in.ObjectMeta, &out.ObjectMeta, s); err != nil {
-		return err
-	}
+	out.ObjectMeta = in.ObjectMeta
 	if err := Convert_v1_ReplicationControllerSpec_to_extensions_ReplicaSetSpec(&in.Spec, &out.Spec, s); err != nil {
 		return err
 	}
@@ -290,7 +272,7 @@ func Convert_v1_ReplicationController_to_extensions_ReplicaSet(in *ReplicationCo
 func Convert_v1_ReplicationControllerSpec_to_extensions_ReplicaSetSpec(in *ReplicationControllerSpec, out *extensions.ReplicaSetSpec, s conversion.Scope) error {
 	out.Replicas = *in.Replicas
 	if in.Selector != nil {
-		api.Convert_map_to_unversioned_LabelSelector(&in.Selector, out.Selector, s)
+		metav1.Convert_map_to_unversioned_LabelSelector(&in.Selector, out.Selector, s)
 	}
 	if in.Template != nil {
 		if err := Convert_v1_PodTemplateSpec_To_api_PodTemplateSpec(in.Template, &out.Template, s); err != nil {
@@ -310,9 +292,7 @@ func Convert_v1_ReplicationControllerStatus_to_extensions_ReplicaSetStatus(in *R
 }
 
 func Convert_extensions_ReplicaSet_to_v1_ReplicationController(in *extensions.ReplicaSet, out *ReplicationController, s conversion.Scope) error {
-	if err := Convert_api_ObjectMeta_To_v1_ObjectMeta(&in.ObjectMeta, &out.ObjectMeta, s); err != nil {
-		return err
-	}
+	out.ObjectMeta = in.ObjectMeta
 	if err := Convert_extensions_ReplicaSetSpec_to_v1_ReplicationControllerSpec(&in.Spec, &out.Spec, s); err != nil {
 		fieldErr, ok := err.(*field.Error)
 		if !ok {
@@ -335,7 +315,7 @@ func Convert_extensions_ReplicaSetSpec_to_v1_ReplicationControllerSpec(in *exten
 	out.MinReadySeconds = in.MinReadySeconds
 	var invalidErr error
 	if in.Selector != nil {
-		invalidErr = api.Convert_unversioned_LabelSelector_to_map(in.Selector, &out.Selector, s)
+		invalidErr = metav1.Convert_unversioned_LabelSelector_to_map(in.Selector, &out.Selector, s)
 	}
 	out.Template = new(PodTemplateSpec)
 	if err := Convert_api_PodTemplateSpec_To_v1_PodTemplateSpec(&in.Template, out.Template, s); err != nil {
@@ -499,6 +479,18 @@ func Convert_v1_PodTemplateSpec_To_api_PodTemplateSpec(in *PodTemplateSpec, out 
 		// taking responsibility to ensure mutation of in is not exposed
 		// back to the caller.
 		in.Spec.InitContainers = values
+
+		// Call defaulters explicitly until annotations are removed
+		tmpPodTemp := &PodTemplate{
+			Template: PodTemplateSpec{
+				Spec: PodSpec{
+					HostNetwork:    in.Spec.HostNetwork,
+					InitContainers: values,
+				},
+			},
+		}
+		SetObjectDefaults_PodTemplate(tmpPodTemp)
+		in.Spec.InitContainers = tmpPodTemp.Template.Spec.InitContainers
 	}
 
 	if err := autoConvert_v1_PodTemplateSpec_To_api_PodTemplateSpec(in, out, s); err != nil {
@@ -594,17 +586,6 @@ func Convert_api_Pod_To_v1_Pod(in *api.Pod, out *Pod, s conversion.Scope) error 
 		out.Annotations[PodInitContainerStatusesBetaAnnotationKey] = string(value)
 	}
 
-	// We need to reset certain fields for mirror pods from pre-v1.1 kubelet
-	// (#15960).
-	// TODO: Remove this code after we drop support for v1.0 kubelets.
-	if value, ok := in.Annotations[mirrorAnnotationKey]; ok && value == mirrorAnnotationValue_1_0 {
-		// Reset the TerminationGracePeriodSeconds.
-		out.Spec.TerminationGracePeriodSeconds = nil
-		// Reset the resource requests.
-		for i := range out.Spec.Containers {
-			out.Spec.Containers[i].Resources.Requests = nil
-		}
-	}
 	return nil
 }
 
@@ -629,10 +610,14 @@ func Convert_v1_Pod_To_api_Pod(in *Pod, out *api.Pod, s conversion.Scope) error 
 		// back to the caller.
 		in.Spec.InitContainers = values
 		// Call defaulters explicitly until annotations are removed
-		for i := range in.Spec.InitContainers {
-			c := &in.Spec.InitContainers[i]
-			SetDefaults_Container(c)
+		tmpPod := &Pod{
+			Spec: PodSpec{
+				HostNetwork:    in.Spec.HostNetwork,
+				InitContainers: values,
+			},
 		}
+		SetObjectDefaults_Pod(tmpPod)
+		in.Spec.InitContainers = tmpPod.Spec.InitContainers
 	}
 	// If there is a beta annotation, copy to alpha key.
 	// See commit log for PR #31026 for why we do this.
@@ -670,15 +655,6 @@ func Convert_v1_Pod_To_api_Pod(in *Pod, out *api.Pod, s conversion.Scope) error 
 	return nil
 }
 
-func Convert_api_ServiceSpec_To_v1_ServiceSpec(in *api.ServiceSpec, out *ServiceSpec, s conversion.Scope) error {
-	if err := autoConvert_api_ServiceSpec_To_v1_ServiceSpec(in, out, s); err != nil {
-		return err
-	}
-	// Publish both externalIPs and deprecatedPublicIPs fields in v1.
-	out.DeprecatedPublicIPs = in.ExternalIPs
-	return nil
-}
-
 func Convert_v1_Secret_To_api_Secret(in *Secret, out *api.Secret, s conversion.Scope) error {
 	if err := autoConvert_v1_Secret_To_api_Secret(in, out, s); err != nil {
 		return err
@@ -694,17 +670,6 @@ func Convert_v1_Secret_To_api_Secret(in *Secret, out *api.Secret, s conversion.S
 		}
 	}
 
-	return nil
-}
-
-func Convert_v1_ServiceSpec_To_api_ServiceSpec(in *ServiceSpec, out *api.ServiceSpec, s conversion.Scope) error {
-	if err := autoConvert_v1_ServiceSpec_To_api_ServiceSpec(in, out, s); err != nil {
-		return err
-	}
-	// Prefer the legacy deprecatedPublicIPs field, if provided.
-	if len(in.DeprecatedPublicIPs) > 0 {
-		out.ExternalIPs = in.DeprecatedPublicIPs
-	}
 	return nil
 }
 
@@ -808,86 +773,4 @@ func AddFieldLabelConversionsForSecret(scheme *runtime.Scheme) error {
 				return "", "", fmt.Errorf("field label not supported: %s", label)
 			}
 		})
-}
-
-// This will Convert our internal represantation of VolumeSource to its v1 representation
-// Used for keeping backwards compatibility for the Metadata field
-func Convert_api_VolumeSource_To_v1_VolumeSource(in *api.VolumeSource, out *VolumeSource, s conversion.Scope) error {
-	if err := autoConvert_api_VolumeSource_To_v1_VolumeSource(in, out, s); err != nil {
-		return err
-	}
-
-	// Metadata is a copy of DownwardAPI
-	if out.DownwardAPI != nil {
-		out.Metadata = &DeprecatedDownwardAPIVolumeSource{
-			DefaultMode: in.DownwardAPI.DefaultMode,
-		}
-		for _, item := range out.DownwardAPI.Items {
-			out.Metadata.Items = append(out.Metadata.Items, DeprecatedDownwardAPIVolumeFile{
-				Path:             item.Path,
-				FieldRef:         item.FieldRef,
-				ResourceFieldRef: item.ResourceFieldRef,
-				Mode:             item.Mode,
-			})
-		}
-	}
-
-	return nil
-}
-
-// This will Convert the v1 representation of VolumeSource to our internal representation
-// Used for keeping backwards compatibility for the Metadata field
-func Convert_v1_VolumeSource_To_api_VolumeSource(in *VolumeSource, out *api.VolumeSource, s conversion.Scope) error {
-	if err := autoConvert_v1_VolumeSource_To_api_VolumeSource(in, out, s); err != nil {
-		return err
-	}
-
-	// Metadata overrides DownwardAPI
-	if in.Metadata != nil {
-		SetDefaults_DeprecatedDownwardAPIVolumeSource(in.Metadata)
-		out.DownwardAPI = &api.DownwardAPIVolumeSource{
-			DefaultMode: in.Metadata.DefaultMode,
-		}
-		for _, item := range in.Metadata.Items {
-			file := api.DownwardAPIVolumeFile{
-				Path: item.Path,
-				Mode: item.Mode,
-			}
-			if item.FieldRef != nil {
-				file.FieldRef = new(api.ObjectFieldSelector)
-				if err := Convert_v1_ObjectFieldSelector_To_api_ObjectFieldSelector(item.FieldRef, file.FieldRef, s); err != nil {
-					return err
-				}
-			}
-			if item.ResourceFieldRef != nil {
-				file.ResourceFieldRef = new(api.ResourceFieldSelector)
-				if err := Convert_v1_ResourceFieldSelector_To_api_ResourceFieldSelector(item.ResourceFieldRef, file.ResourceFieldRef, s); err != nil {
-					return err
-				}
-			}
-			out.DownwardAPI.Items = append(out.DownwardAPI.Items, file)
-		}
-	}
-	return nil
-}
-
-func Convert_v1_SecurityContextConstraints_To_api_SecurityContextConstraints(in *SecurityContextConstraints, out *api.SecurityContextConstraints, s conversion.Scope) error {
-	return autoConvert_v1_SecurityContextConstraints_To_api_SecurityContextConstraints(in, out, s)
-}
-
-func Convert_api_SecurityContextConstraints_To_v1_SecurityContextConstraints(in *api.SecurityContextConstraints, out *SecurityContextConstraints, s conversion.Scope) error {
-	if err := autoConvert_api_SecurityContextConstraints_To_v1_SecurityContextConstraints(in, out, s); err != nil {
-		return err
-	}
-
-	if in.Volumes != nil {
-		for _, v := range in.Volumes {
-			// set the Allow* fields based on the existence in the volume slice
-			switch v {
-			case api.FSTypeHostPath, api.FSTypeAll:
-				out.AllowHostDirVolumePlugin = true
-			}
-		}
-	}
-	return nil
 }

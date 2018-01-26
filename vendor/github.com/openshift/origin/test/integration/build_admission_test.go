@@ -4,15 +4,17 @@ import (
 	"strings"
 	"testing"
 
-	kapierror "k8s.io/kubernetes/pkg/api/errors"
+	kapierror "k8s.io/apimachinery/pkg/api/errors"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
-	buildapi "github.com/openshift/origin/pkg/build/api"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
+	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	"github.com/openshift/origin/pkg/client"
-	policy "github.com/openshift/origin/pkg/cmd/admin/policy"
+	configapi "github.com/openshift/origin/pkg/cmd/server/api"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
+	policy "github.com/openshift/origin/pkg/oc/admin/policy"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
+	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 )
 
 // all build strategy types
@@ -26,8 +28,8 @@ func buildStrategyTypesRestricted() []string {
 }
 
 func TestPolicyBasedRestrictionOfBuildCreateAndCloneByStrategy(t *testing.T) {
-	defer testutil.DumpEtcdOnFailure(t)
-	clusterAdminClient, projectAdminClient, projectEditorClient := setupBuildStrategyTest(t, false)
+	clusterAdminClient, projectAdminClient, projectEditorClient, fn := setupBuildStrategyTest(t, false)
+	defer fn()
 
 	clients := map[string]*client.Client{"admin": projectAdminClient, "editor": projectEditorClient}
 	builds := map[string]*buildapi.Build{}
@@ -102,8 +104,8 @@ func TestPolicyBasedRestrictionOfBuildCreateAndCloneByStrategy(t *testing.T) {
 }
 
 func TestPolicyBasedRestrictionOfBuildConfigCreateAndInstantiateByStrategy(t *testing.T) {
-	defer testutil.DumpEtcdOnFailure(t)
-	clusterAdminClient, projectAdminClient, projectEditorClient := setupBuildStrategyTest(t, true)
+	clusterAdminClient, projectAdminClient, projectEditorClient, fn := setupBuildStrategyTest(t, true)
+	defer fn()
 
 	clients := map[string]*client.Client{"admin": projectAdminClient, "editor": projectEditorClient}
 	buildConfigs := map[string]*buildapi.BuildConfig{}
@@ -177,19 +179,22 @@ func TestPolicyBasedRestrictionOfBuildConfigCreateAndInstantiateByStrategy(t *te
 	}
 }
 
-func setupBuildStrategyTest(t *testing.T, includeControllers bool) (clusterAdminClient, projectAdminClient, projectEditorClient *client.Client) {
-	testutil.RequireEtcd(t)
+func setupBuildStrategyTest(t *testing.T, includeControllers bool) (clusterAdminClient, projectAdminClient, projectEditorClient *client.Client, cleanup func()) {
 	namespace := testutil.Namespace()
 	var clusterAdminKubeConfig string
+	var masterConfig *configapi.MasterConfig
 	var err error
 
 	if includeControllers {
-		_, clusterAdminKubeConfig, err = testserver.StartTestMaster()
+		masterConfig, clusterAdminKubeConfig, err = testserver.StartTestMaster()
 	} else {
-		_, clusterAdminKubeConfig, err = testserver.StartTestMasterAPI()
+		masterConfig, clusterAdminKubeConfig, err = testserver.StartTestMasterAPI()
 	}
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	cleanup = func() {
+		testserver.CleanupMasterEtcd(t, masterConfig)
 	}
 
 	clusterAdminClient, err = testutil.GetClusterAdminClient(clusterAdminKubeConfig)
@@ -206,7 +211,8 @@ func setupBuildStrategyTest(t *testing.T, includeControllers bool) (clusterAdmin
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	projectEditorClient, _, _, err = testutil.GetClientForUser(*clusterAdminClientConfig, "joe")
+	var kubeClient kclientset.Interface
+	projectEditorClient, kubeClient, _, err = testutil.GetClientForUser(*clusterAdminClientConfig, "joe")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -222,6 +228,12 @@ func setupBuildStrategyTest(t *testing.T, includeControllers bool) (clusterAdmin
 	}
 	if err := testutil.WaitForPolicyUpdate(projectEditorClient, namespace, "create", buildapi.Resource(authorizationapi.DockerBuildResource), true); err != nil {
 		t.Fatalf(err.Error())
+	}
+
+	if includeControllers {
+		if err := testserver.WaitForServiceAccounts(kubeClient, namespace, []string{"builder"}); err != nil {
+			t.Fatalf(err.Error())
+		}
 	}
 
 	// we need a template that doesn't create service accounts or rolebindings so editors can create
@@ -240,6 +252,17 @@ func setupBuildStrategyTest(t *testing.T, includeControllers bool) (clusterAdmin
 	_, err = clusterAdminClient.Templates("openshift").Create(template)
 	if err != nil {
 		t.Fatalf("Couldn't create jenkins template: %v", err)
+	}
+
+	if includeControllers {
+		clusterAdminKubeClientset, err := testutil.GetClusterAdminKubeClient(clusterAdminKubeConfig)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := testserver.WaitForServiceAccounts(clusterAdminKubeClientset, testutil.Namespace(), []string{bootstrappolicy.BuilderServiceAccountName, bootstrappolicy.DefaultServiceAccountName}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 	}
 
 	return

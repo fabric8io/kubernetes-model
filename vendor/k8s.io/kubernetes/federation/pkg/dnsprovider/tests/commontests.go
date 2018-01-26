@@ -32,7 +32,6 @@ func CommonTestResourceRecordSetsReplace(t *testing.T, zone dnsprovider.Zone) {
 	rrset := rrsets.New("alpha.test.com", []string{"8.8.4.4"}, 40, rrstype.A)
 	addRrsetOrFail(t, sets, rrset)
 	defer sets.StartChangeset().Remove(rrset).Apply()
-	t.Logf("Successfully added resource record set: %v", rrset)
 
 	// Replace the record (change ttl and rrdatas)
 	newRrset := rrsets.New("alpha.test.com", []string{"8.8.8.8"}, 80, rrstype.A)
@@ -40,9 +39,9 @@ func CommonTestResourceRecordSetsReplace(t *testing.T, zone dnsprovider.Zone) {
 	if err != nil {
 		t.Errorf("Failed to replace resource record set %v -> %v: %v", rrset, newRrset, err)
 	} else {
+		defer sets.StartChangeset().Remove(newRrset).Apply()
 		t.Logf("Correctly replaced resource record %v -> %v", rrset, newRrset)
 	}
-	defer sets.StartChangeset().Remove(newRrset).Apply()
 
 	// Check that the record was updated
 	assertHasRecord(t, sets, newRrset)
@@ -56,7 +55,6 @@ func CommonTestResourceRecordSetsReplaceAll(t *testing.T, zone dnsprovider.Zone)
 	rrset := rrsets.New("alpha.test.com", []string{"8.8.4.4"}, 40, rrstype.A)
 	addRrsetOrFail(t, sets, rrset)
 	defer sets.StartChangeset().Remove(rrset).Apply()
-	t.Logf("Successfully added resource record set: %v", rrset)
 
 	newRrset := rrsets.New("beta.test.com", []string{"8.8.8.8"}, 80, rrstype.A)
 
@@ -74,7 +72,7 @@ func CommonTestResourceRecordSetsReplaceAll(t *testing.T, zone dnsprovider.Zone)
 	assertNotHasRecord(t, sets, rrset.Name(), rrset.Type())
 }
 
-/* CommonTestResourceRecordSetsHonorsType verifies that we can add records of the same name but different types */
+/* CommonTestResourceRecordSetsDifferentType verifies that we can add records of the same name but different types */
 func CommonTestResourceRecordSetsDifferentTypes(t *testing.T, zone dnsprovider.Zone) {
 	rrsets, _ := zone.ResourceRecordSets()
 
@@ -82,7 +80,6 @@ func CommonTestResourceRecordSetsDifferentTypes(t *testing.T, zone dnsprovider.Z
 	rrset := rrsets.New("alpha.test.com", []string{"8.8.4.4"}, 40, rrstype.A)
 	addRrsetOrFail(t, sets, rrset)
 	defer sets.StartChangeset().Remove(rrset).Apply()
-	t.Logf("Successfully added resource record set: %v", rrset)
 
 	aaaaRrset := rrsets.New("alpha.test.com", []string{"2001:4860:4860::8888"}, 80, rrstype.AAAA)
 
@@ -108,33 +105,54 @@ func rrs(t *testing.T, zone dnsprovider.Zone) (r dnsprovider.ResourceRecordSets)
 	return rrsets
 }
 
-func listRrsOrFail(t *testing.T, rrsets dnsprovider.ResourceRecordSets) []dnsprovider.ResourceRecordSet {
-	rrset, err := rrsets.List()
+func getRrOrFail(t *testing.T, rrsets dnsprovider.ResourceRecordSets, name string) []dnsprovider.ResourceRecordSet {
+	rrsetList, err := rrsets.Get(name)
 	if err != nil {
-		t.Fatalf("Failed to list recordsets: %v", err)
+		t.Fatalf("Failed to get recordset: %v", err)
+	} else if len(rrsetList) == 0 {
+		t.Logf("Did not Get recordset: %v", name)
 	} else {
-		if len(rrset) < 0 {
-			t.Fatalf("Record set length=%d, expected >=0", len(rrset))
-		} else {
-			t.Logf("Got %d recordsets: %v", len(rrset), rrset)
-		}
+		t.Logf("Got recordset: %v", rrsetList[0].Name())
 	}
-	return rrset
+	return rrsetList
 }
 
 // assertHasRecord tests that rrsets has a record equivalent to rrset
 func assertHasRecord(t *testing.T, rrsets dnsprovider.ResourceRecordSets, rrset dnsprovider.ResourceRecordSet) {
 	var found dnsprovider.ResourceRecordSet
-	for _, r := range listRrsOrFail(t, rrsets) {
-		if r.Name() != rrset.Name() || r.Type() != rrset.Type() {
-			continue
+
+	rrs, err := rrsets.List()
+	if err != nil {
+		if err.Error() == "OperationNotSupported" {
+			foundList := getRrOrFail(t, rrsets, rrset.Name())
+			for i, elem := range foundList {
+				if elem.Name() == rrset.Name() && elem.Type() == rrset.Type() {
+					found = foundList[i]
+					break
+				}
+			}
+		} else {
+			t.Fatalf("Failed to list recordsets: %v", err)
+		}
+	} else {
+		if len(rrs) < 0 {
+			t.Fatalf("Record set length=%d, expected >=0", len(rrs))
+		} else {
+			t.Logf("Got %d recordsets: %v", len(rrs), rrs)
 		}
 
-		if found != nil {
-			t.Errorf("found duplicate resource record set: %q and %q", r, found)
+		for _, r := range rrs {
+			if r.Name() != rrset.Name() || r.Type() != rrset.Type() {
+				continue
+			}
+
+			if found != nil {
+				t.Errorf("found duplicate resource record set: %q and %q", r, found)
+			}
+			found = r
 		}
-		found = r
 	}
+
 	if found == nil {
 		t.Errorf("resource record set %v not found", rrset)
 	} else {
@@ -144,17 +162,7 @@ func assertHasRecord(t *testing.T, rrsets dnsprovider.ResourceRecordSets, rrset 
 
 // assertNotHasRecord tests that rrsets does not have a record matching name and type
 func assertNotHasRecord(t *testing.T, rrsets dnsprovider.ResourceRecordSets, name string, rrstype rrstype.RrsType) {
-	var found dnsprovider.ResourceRecordSet
-	for _, r := range listRrsOrFail(t, rrsets) {
-		if r.Name() != name || r.Type() != rrstype {
-			continue
-		}
-
-		if found != nil {
-			t.Errorf("found duplicate resource record set: %q and %q", r, found)
-		}
-		found = r
-	}
+	found := getRrOrFail(t, rrsets, name)
 	if found != nil {
 		t.Errorf("resource record set found unexpectedly: %v", found)
 	}
@@ -179,6 +187,8 @@ func assertEquivalent(t *testing.T, l, r dnsprovider.ResourceRecordSet) {
 func addRrsetOrFail(t *testing.T, rrsets dnsprovider.ResourceRecordSets, rrset dnsprovider.ResourceRecordSet) {
 	err := rrsets.StartChangeset().Add(rrset).Apply()
 	if err != nil {
-		t.Fatalf("Failed to add recordsets: %v", err)
+		t.Fatalf("Failed to add recordset %v: %v", rrset, err)
+	} else {
+		t.Logf("Successfully added resource record set: %v", rrset)
 	}
 }

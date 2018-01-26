@@ -1,6 +1,7 @@
 package deployments
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -9,20 +10,24 @@ import (
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/errors"
-	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/util/wait"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
+	kcontroller "k8s.io/kubernetes/pkg/controller"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 
 	"github.com/openshift/origin/pkg/client"
-	deployapi "github.com/openshift/origin/pkg/deploy/api"
+	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	deployutil "github.com/openshift/origin/pkg/deploy/util"
-	imageapi "github.com/openshift/origin/pkg/image/api"
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	exutil "github.com/openshift/origin/test/extended/util"
 )
 
 const deploymentRunTimeout = 5 * time.Minute
+const deploymentChangeTimeout = 30 * time.Second
 
 var _ = g.Describe("deploymentconfigs", func() {
 	defer g.GinkgoRecover()
@@ -44,6 +49,7 @@ var _ = g.Describe("deploymentconfigs", func() {
 		readinessFixture                = exutil.FixturePath("testdata", "deployments", "readiness-test.yaml")
 		envRefDeploymentFixture         = exutil.FixturePath("testdata", "deployments", "deployment-with-ref-env.yaml")
 		ignoresDeployersFixture         = exutil.FixturePath("testdata", "deployments", "deployment-ignores-deployer.yaml")
+		imageChangeTriggerFixture       = exutil.FixturePath("testdata", "deployments", "deployment-trigger.yaml")
 	)
 
 	g.Describe("when run iteratively [Conformance]", func() {
@@ -74,10 +80,10 @@ var _ = g.Describe("deploymentconfigs", func() {
 					e2e.Logf("%02d: cancelling deployment", i)
 					if out, err := oc.Run("rollout").Args("cancel", "dc/deployment-simple").Output(); err != nil {
 						// TODO: we should fix this
-						if !strings.Contains(out, "the object has been modified") {
+						if !strings.Contains(out, "the object has been modified") && !strings.Contains(out, "there have been no replication controllers") {
 							o.Expect(err).NotTo(o.HaveOccurred())
 						}
-						e2e.Logf("rollout cancel deployment failed due to conflict: %v", err)
+						e2e.Logf("rollout cancel deployment failed due to known safe error: %v", err)
 					}
 
 				case n < 0.0:
@@ -106,11 +112,11 @@ var _ = g.Describe("deploymentconfigs", func() {
 						}
 						for _, pod := range pods {
 							e2e.Logf("%02d: deleting deployer pod %s", i, pod.Name)
-							options := kapi.NewDeleteOptions(0)
+							options := metav1.NewDeleteOptions(0)
 							if rand.Float32() < 0.5 {
 								options = nil
 							}
-							if err := oc.KubeClient().Core().Pods(oc.Namespace()).Delete(pod.Name, options); err != nil {
+							if err := oc.KubeClient().CoreV1().Pods(oc.Namespace()).Delete(pod.Name, options); err != nil {
 								e2e.Logf("%02d: unable to delete deployer pod %q: %v", i, pod.Name, err)
 							}
 						}
@@ -197,35 +203,41 @@ var _ = g.Describe("deploymentconfigs", func() {
 		})
 	})
 
-	g.It("should respect image stream tag reference policy [Conformance]", func() {
-		o.Expect(oc.Run("create").Args("-f", resolutionFixture).Execute()).NotTo(o.HaveOccurred())
+	g.Describe("should respect image stream tag reference policy [Conformance]", func() {
+		g.AfterEach(func() {
+			failureTrap(oc, "deployment-image-resolution", g.CurrentGinkgoTestDescription().Failed)
+		})
 
-		name := "deployment-image-resolution"
-		o.Expect(waitForLatestCondition(oc, name, deploymentRunTimeout, deploymentImageTriggersResolved(2))).NotTo(o.HaveOccurred())
+		g.It("resolve the image pull spec", func() {
+			o.Expect(oc.Run("create").Args("-f", resolutionFixture).Execute()).NotTo(o.HaveOccurred())
 
-		is, err := oc.Client().ImageStreams(oc.Namespace()).Get(name)
-		o.Expect(err).NotTo(o.HaveOccurred())
-		o.Expect(is.Status.DockerImageRepository).NotTo(o.BeEmpty())
-		o.Expect(is.Status.Tags["direct"].Items).NotTo(o.BeEmpty())
-		o.Expect(is.Status.Tags["pullthrough"].Items).NotTo(o.BeEmpty())
+			name := "deployment-image-resolution"
+			o.Expect(waitForLatestCondition(oc, name, deploymentRunTimeout, deploymentImageTriggersResolved(2))).NotTo(o.HaveOccurred())
 
-		dc, err := oc.Client().DeploymentConfigs(oc.Namespace()).Get(name)
-		o.Expect(err).NotTo(o.HaveOccurred())
-		o.Expect(dc.Spec.Triggers).To(o.HaveLen(3))
+			is, err := oc.Client().ImageStreams(oc.Namespace()).Get(name, metav1.GetOptions{})
+			o.Expect(err).NotTo(o.HaveOccurred())
+			o.Expect(is.Status.DockerImageRepository).NotTo(o.BeEmpty())
+			o.Expect(is.Status.Tags["direct"].Items).NotTo(o.BeEmpty())
+			o.Expect(is.Status.Tags["pullthrough"].Items).NotTo(o.BeEmpty())
 
-		imageID := is.Status.Tags["pullthrough"].Items[0].Image
-		resolvedReference := fmt.Sprintf("%s@%s", is.Status.DockerImageRepository, imageID)
-		directReference := is.Status.Tags["direct"].Items[0].DockerImageReference
+			dc, err := oc.Client().DeploymentConfigs(oc.Namespace()).Get(name, metav1.GetOptions{})
+			o.Expect(err).NotTo(o.HaveOccurred())
+			o.Expect(dc.Spec.Triggers).To(o.HaveLen(3))
 
-		// controller should be using pullthrough for this (pointing to local registry)
-		o.Expect(dc.Spec.Triggers[1].ImageChangeParams).NotTo(o.BeNil())
-		o.Expect(dc.Spec.Triggers[1].ImageChangeParams.LastTriggeredImage).To(o.Equal(resolvedReference))
-		o.Expect(dc.Spec.Template.Spec.Containers[0].Image).To(o.Equal(resolvedReference))
+			imageID := is.Status.Tags["pullthrough"].Items[0].Image
+			resolvedReference := fmt.Sprintf("%s@%s", is.Status.DockerImageRepository, imageID)
+			directReference := is.Status.Tags["direct"].Items[0].DockerImageReference
 
-		// controller should have preferred the base image
-		o.Expect(dc.Spec.Triggers[2].ImageChangeParams).NotTo(o.BeNil())
-		o.Expect(dc.Spec.Triggers[2].ImageChangeParams.LastTriggeredImage).To(o.Equal(directReference))
-		o.Expect(dc.Spec.Template.Spec.Containers[1].Image).To(o.Equal(directReference))
+			// controller should be using pullthrough for this (pointing to local registry)
+			o.Expect(dc.Spec.Triggers[1].ImageChangeParams).NotTo(o.BeNil())
+			o.Expect(dc.Spec.Triggers[1].ImageChangeParams.LastTriggeredImage).To(o.Equal(resolvedReference))
+			o.Expect(dc.Spec.Template.Spec.Containers[0].Image).To(o.Equal(resolvedReference))
+
+			// controller should have preferred the base image
+			o.Expect(dc.Spec.Triggers[2].ImageChangeParams).NotTo(o.BeNil())
+			o.Expect(dc.Spec.Triggers[2].ImageChangeParams.LastTriggeredImage).To(o.Equal(directReference))
+			o.Expect(dc.Spec.Template.Spec.Containers[1].Image).To(o.Equal(directReference))
+		})
 	})
 
 	g.Describe("with test deployments [Conformance]", func() {
@@ -244,7 +256,10 @@ var _ = g.Describe("deploymentconfigs", func() {
 			g.By(fmt.Sprintf("checking the logs for substrings\n%s", out))
 			o.Expect(out).To(o.ContainSubstring("deployment-test-1 to 2"))
 			o.Expect(out).To(o.ContainSubstring("--> pre: Success"))
-			o.Expect(out).To(o.ContainSubstring("--> Success"))
+			// FIXME: In some cases the last log messages is lost because of the journald rate
+			// limiter bug. For this test it should be enough to verify the deployment is marked
+			// as complete. We should uncomment this once the rate-limiter issues are fixed.
+			// o.Expect(out).To(o.ContainSubstring("--> Success"))
 
 			g.By("verifying the deployment is marked complete and scaled to zero")
 			o.Expect(waitForLatestCondition(oc, "deployment-test", deploymentRunTimeout, deploymentReachedCompletion)).NotTo(o.HaveOccurred())
@@ -255,15 +270,15 @@ var _ = g.Describe("deploymentconfigs", func() {
 
 			g.By("ensuring no scale up of the deployment happens")
 			wait.PollImmediate(100*time.Millisecond, 10*time.Second, func() (bool, error) {
-				rc, err := oc.KubeClient().Core().ReplicationControllers(oc.Namespace()).Get("deployment-test-1")
+				rc, err := oc.KubeClient().CoreV1().ReplicationControllers(oc.Namespace()).Get("deployment-test-1", metav1.GetOptions{})
 				o.Expect(err).NotTo(o.HaveOccurred())
-				o.Expect(rc.Spec.Replicas).Should(o.BeEquivalentTo(0))
+				o.Expect(*rc.Spec.Replicas).Should(o.BeEquivalentTo(0))
 				o.Expect(rc.Status.Replicas).Should(o.BeEquivalentTo(0))
 				return false, nil
 			})
 
 			g.By("verifying the scale is updated on the deployment config")
-			config, err := oc.Client().DeploymentConfigs(oc.Namespace()).Get("deployment-test")
+			config, err := oc.Client().DeploymentConfigs(oc.Namespace()).Get("deployment-test", metav1.GetOptions{})
 			o.Expect(err).NotTo(o.HaveOccurred())
 			o.Expect(config.Spec.Replicas).Should(o.BeEquivalentTo(1))
 			o.Expect(config.Spec.Test).Should(o.BeTrue())
@@ -273,11 +288,9 @@ var _ = g.Describe("deploymentconfigs", func() {
 				rolloutCompleteWithLogs := make(chan struct{})
 				out := ""
 				go func(rolloutNumber int) {
+					defer g.GinkgoRecover()
+					defer close(rolloutCompleteWithLogs)
 					var err error
-					defer func() {
-						close(rolloutCompleteWithLogs)
-						g.GinkgoRecover()
-					}()
 					out, err = waitForDeployerToComplete(oc, fmt.Sprintf("deployment-test-%d", rolloutNumber), deploymentRunTimeout)
 					o.Expect(err).NotTo(o.HaveOccurred())
 				}(i + 2) // we already did 2 rollouts previously.
@@ -296,8 +309,61 @@ var _ = g.Describe("deploymentconfigs", func() {
 				o.Expect(out).To(o.ContainSubstring(fmt.Sprintf("deployment-test-%d up to 1", i+2)))
 				o.Expect(out).To(o.ContainSubstring("--> pre: Success"))
 				o.Expect(out).To(o.ContainSubstring("test pre hook executed"))
-				o.Expect(out).To(o.ContainSubstring("--> Success"))
+				// FIXME: In some cases the last log messages is lost because of the journald rate
+				// limiter bug. For this test it should be enough to verify the deployment is marked
+				// as complete. We should uncomment this once the rate-limiter issues are fixed.
+				// o.Expect(out).To(o.ContainSubstring("--> Success"))
 			}
+		})
+	})
+
+	g.Describe("when changing image change trigger [Conformance]", func() {
+		g.AfterEach(func() {
+			failureTrap(oc, "example", g.CurrentGinkgoTestDescription().Failed)
+		})
+
+		g.It("should successfully trigger from an updated image", func() {
+			_, name, err := createFixture(oc, imageChangeTriggerFixture)
+			o.Expect(err).NotTo(o.HaveOccurred())
+			o.Expect(waitForSyncedConfig(oc, name, deploymentRunTimeout)).NotTo(o.HaveOccurred())
+
+			g.By("tagging the busybox:latest as test:v1 image")
+			_, err = oc.Run("tag").Args("docker.io/busybox:latest", "test:v1").Output()
+			o.Expect(err).NotTo(o.HaveOccurred())
+
+			expectLatestVersion := func(version int) {
+				dc, err := oc.Client().DeploymentConfigs(oc.Namespace()).Get(name, metav1.GetOptions{})
+				o.Expect(err).NotTo(o.HaveOccurred())
+				latestVersion := dc.Status.LatestVersion
+				err = wait.PollImmediate(500*time.Millisecond, 10*time.Second, func() (bool, error) {
+					dc, err = oc.Client().DeploymentConfigs(oc.Namespace()).Get(name, metav1.GetOptions{})
+					o.Expect(err).NotTo(o.HaveOccurred())
+					latestVersion = dc.Status.LatestVersion
+					return latestVersion == int64(version), nil
+				})
+				if err == wait.ErrWaitTimeout {
+					err = fmt.Errorf("expected latestVersion: %d, got: %d", version, latestVersion)
+				}
+				o.Expect(err).NotTo(o.HaveOccurred())
+				o.Expect(waitForLatestCondition(oc, name, deploymentRunTimeout, deploymentReachedCompletion)).NotTo(o.HaveOccurred())
+			}
+
+			g.By("ensuring the deployment config latest version is 1 and rollout completed")
+			expectLatestVersion(1)
+
+			g.By("updating the image change trigger to point to test:v2 image")
+			_, err = oc.Run("set").Args("triggers", "dc/"+name, "--remove-all").Output()
+			o.Expect(err).NotTo(o.HaveOccurred())
+			_, err = oc.Run("set").Args("triggers", "dc/"+name, "--from-image", "test:v2", "--auto", "-c", "test").Output()
+			o.Expect(err).NotTo(o.HaveOccurred())
+			o.Expect(waitForSyncedConfig(oc, name, deploymentRunTimeout)).NotTo(o.HaveOccurred())
+
+			g.By("tagging the busybox:1.25 as test:v2 image")
+			_, err = oc.Run("tag").Args("docker.io/busybox:1.25", "test:v2").Output()
+			o.Expect(err).NotTo(o.HaveOccurred())
+
+			g.By("ensuring the deployment config latest version is 2 and rollout completed")
+			expectLatestVersion(2)
 		})
 	})
 
@@ -307,17 +373,24 @@ var _ = g.Describe("deploymentconfigs", func() {
 		})
 
 		g.It("should successfully tag the deployed image", func() {
+			g.By("creating the deployment config fixture")
 			_, name, err := createFixture(oc, tagImagesFixture)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("verifying the deployment is marked complete")
 			o.Expect(waitForLatestCondition(oc, name, deploymentRunTimeout, deploymentReachedCompletion)).NotTo(o.HaveOccurred())
 
+			g.By("verifying the deployer service account can update imagestreamtags and user can get them")
+			err = exutil.WaitForUserBeAuthorized(oc, oc.Username(), "get", "imagestreamtags")
+			o.Expect(err).NotTo(o.HaveOccurred())
+			err = exutil.WaitForUserBeAuthorized(oc, "system:serviceaccount:"+oc.Namespace()+":deployer", "update", "imagestreamtags")
+			o.Expect(err).NotTo(o.HaveOccurred())
+
 			g.By("verifying the post deployment action happened: tag is set")
 			var istag *imageapi.ImageStreamTag
 			pollErr := wait.PollImmediate(100*time.Millisecond, 1*time.Minute, func() (bool, error) {
 				istag, err = oc.Client().ImageStreamTags(oc.Namespace()).Get("sample-stream", "deployed")
-				if errors.IsNotFound(err) {
+				if kerrors.IsNotFound(err) {
 					return false, nil
 				}
 				if err != nil {
@@ -438,7 +511,10 @@ var _ = g.Describe("deploymentconfigs", func() {
 			o.Expect(out).To(o.ContainSubstring("--> Reached 50%"))
 			o.Expect(out).To(o.ContainSubstring("Halfway"))
 			o.Expect(out).To(o.ContainSubstring("Finished"))
-			o.Expect(out).To(o.ContainSubstring("--> Success"))
+			// FIXME: In some cases the last log messages is lost because of the journald rate
+			// limiter bug. For this test it should be enough to verify the deployment is marked
+			// as complete. We should uncomment this once the rate-limiter issues are fixed.
+			// o.Expect(out).To(o.ContainSubstring("--> Success"))
 		})
 	})
 
@@ -453,7 +529,7 @@ var _ = g.Describe("deploymentconfigs", func() {
 			g.By("waiting for the first rollout to complete")
 			o.Expect(waitForLatestCondition(oc, name, deploymentRunTimeout, deploymentReachedCompletion)).NotTo(o.HaveOccurred())
 
-			dc, err := oc.Client().DeploymentConfigs(oc.Namespace()).Get(name)
+			dc, err := oc.Client().DeploymentConfigs(oc.Namespace()).Get(name, metav1.GetOptions{})
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("updating the deployment config in order to trigger a new rollout")
@@ -465,7 +541,7 @@ var _ = g.Describe("deploymentconfigs", func() {
 			// Wait for latestVersion=2 to be surfaced in the API
 			latestVersion := dc.Status.LatestVersion
 			err = wait.PollImmediate(500*time.Millisecond, 10*time.Second, func() (bool, error) {
-				dc, err = oc.Client().DeploymentConfigs(oc.Namespace()).Get(name)
+				dc, err = oc.Client().DeploymentConfigs(oc.Namespace()).Get(name, metav1.GetOptions{})
 				if err != nil {
 					return false, err
 				}
@@ -765,12 +841,13 @@ var _ = g.Describe("deploymentconfigs", func() {
 		g.It("should never persist more old deployments than acceptable after being observed by the controller", func() {
 			revisionHistoryLimit := 3 // as specified in the fixture
 
-			_, err := oc.Run("create").Args("-f", historyLimitedDeploymentFixture).Output()
+			dc, err := createDeploymentConfig(oc, historyLimitedDeploymentFixture)
 			o.Expect(err).NotTo(o.HaveOccurred())
+			deploymentTimeout := time.Duration(*dc.Spec.Strategy.RollingParams.TimeoutSeconds) * time.Second
 
 			iterations := 10
 			for i := 0; i < iterations; i++ {
-				o.Expect(waitForLatestCondition(oc, "history-limit", deploymentRunTimeout, deploymentReachedCompletion)).NotTo(o.HaveOccurred(),
+				o.Expect(waitForLatestCondition(oc, "history-limit", deploymentTimeout, deploymentReachedCompletion)).NotTo(o.HaveOccurred(),
 					"the current deployment needs to have finished before attempting to trigger a new deployment through configuration change")
 				e2e.Logf("%02d: triggering a new deployment with config change", i)
 				out, err := oc.Run("set", "env").Args("dc/history-limit", fmt.Sprintf("A=%d", i)).Output()
@@ -780,75 +857,111 @@ var _ = g.Describe("deploymentconfigs", func() {
 
 			o.Expect(waitForSyncedConfig(oc, "history-limit", deploymentRunTimeout)).NotTo(o.HaveOccurred())
 			g.By("waiting for the deployment to complete")
-			o.Expect(waitForLatestCondition(oc, "history-limit", deploymentRunTimeout, deploymentReachedCompletion)).NotTo(o.HaveOccurred())
+			o.Expect(waitForLatestCondition(oc, "history-limit", deploymentTimeout, deploymentReachedCompletion)).NotTo(o.HaveOccurred())
 			o.Expect(waitForSyncedConfig(oc, "history-limit", deploymentRunTimeout)).NotTo(o.HaveOccurred(),
 				"the controller needs to have synced with the updated deployment configuration before checking that the revision history limits are being adhered to")
-			deploymentConfig, deployments, _, err := deploymentInfo(oc, "history-limit")
-			o.Expect(err).NotTo(o.HaveOccurred())
-			// sanity check to ensure that the following asertion on the amount of old deployments is valid
-			o.Expect(*deploymentConfig.Spec.RevisionHistoryLimit).To(o.Equal(int32(revisionHistoryLimit)))
+			var pollErr error
+			err = wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+				deploymentConfig, deployments, _, err := deploymentInfo(oc, "history-limit")
+				if err != nil {
+					pollErr = err
+					return false, nil
+				}
 
-			// we need to filter out any deployments that we don't care about,
-			// namely the active deployment and any newer deployments
-			oldDeployments := deployutil.DeploymentsForCleanup(deploymentConfig, deployments)
+				// we need to filter out any deployments that we don't care about,
+				// namely the active deployment and any newer deployments
+				oldDeployments := deployutil.DeploymentsForCleanup(deploymentConfig, deployments)
 
-			// we should not have more deployments than acceptable
-			o.Expect(len(oldDeployments)).To(o.BeNumerically("==", revisionHistoryLimit))
+				// we should not have more deployments than acceptable
+				if len(oldDeployments) != revisionHistoryLimit {
+					pollErr = fmt.Errorf("expected len of old deployments: %d to equal dc revisionHistoryLimit: %d", len(oldDeployments), revisionHistoryLimit)
+					return false, nil
+				}
 
-			// the deployments we continue to keep should be the latest ones
-			for _, deployment := range oldDeployments {
-				o.Expect(deployutil.DeploymentVersionFor(&deployment)).To(o.BeNumerically(">=", iterations-revisionHistoryLimit))
+				// the deployments we continue to keep should be the latest ones
+				for _, deployment := range oldDeployments {
+					o.Expect(deployutil.DeploymentVersionFor(&deployment)).To(o.BeNumerically(">=", iterations-revisionHistoryLimit))
+				}
+				return true, nil
+			})
+			if err == wait.ErrWaitTimeout {
+				err = pollErr
 			}
+			o.Expect(err).NotTo(o.HaveOccurred())
 		})
 	})
 
 	g.Describe("with minimum ready seconds set [Conformance]", func() {
+		dc := readDCFixtureOrDie(minReadySecondsFixture)
+		rcName := func(i int) string { return fmt.Sprintf("%s-%d", dc.Name, i) }
 		g.AfterEach(func() {
-			failureTrap(oc, "minreadytest", g.CurrentGinkgoTestDescription().Failed)
+			failureTrap(oc, dc.Name, g.CurrentGinkgoTestDescription().Failed)
 		})
 
 		g.It("should not transition the deployment to Complete before satisfied", func() {
-			_, name, err := createFixture(oc, minReadySecondsFixture)
+			namespace := oc.Namespace()
+			watcher, err := oc.KubeClient().CoreV1().ReplicationControllers(namespace).Watch(metav1.SingleObject(metav1.ObjectMeta{Name: rcName(1), ResourceVersion: ""}))
 			o.Expect(err).NotTo(o.HaveOccurred())
 
-			g.By("verifying the deployment is marked running")
-			o.Expect(waitForLatestCondition(oc, name, deploymentRunTimeout, deploymentRunning)).NotTo(o.HaveOccurred())
+			o.Expect(dc.Spec.Triggers).To(o.BeNil())
+			// FIXME: remove when tests are migrated to the new client
+			// (the old one incorrectly translates nil into an empty array)
+			dc.Spec.Triggers = append(dc.Spec.Triggers, deployapi.DeploymentTriggerPolicy{Type: deployapi.DeploymentTriggerOnConfigChange})
+			dc, err = oc.Client().DeploymentConfigs(namespace).Create(dc)
+			o.Expect(err).NotTo(o.HaveOccurred())
+
+			g.By("verifying the deployment is created")
+			rcEvent, err := watch.Until(deploymentChangeTimeout, watcher, func(event watch.Event) (bool, error) {
+				if event.Type == watch.Added {
+					return true, nil
+				}
+				return false, fmt.Errorf("different kind of event appeared while waiting for Added event: %#v", event)
+			})
+			o.Expect(err).NotTo(o.HaveOccurred())
+			rc1 := rcEvent.Object.(*kapiv1.ReplicationController)
 
 			g.By("verifying that all pods are ready")
-			config, err := oc.Client().DeploymentConfigs(oc.Namespace()).Get(name)
+			rc1, err = waitForRCModification(oc, namespace, rc1.Name, deploymentRunTimeout,
+				rc1.GetResourceVersion(), func(rc *kapiv1.ReplicationController) (bool, error) {
+					return rc.Status.ReadyReplicas == dc.Spec.Replicas, nil
+				})
 			o.Expect(err).NotTo(o.HaveOccurred())
-
-			selector := labels.Set(config.Spec.Selector).AsSelector()
-			opts := kapi.ListOptions{LabelSelector: selector}
-			ready := 0
-			if err := wait.PollImmediate(500*time.Millisecond, 3*time.Minute, func() (bool, error) {
-				pods, err := oc.KubeClient().Core().Pods(oc.Namespace()).List(opts)
-				if err != nil {
-					return false, nil
-				}
-
-				ready = 0
-				for i := range pods.Items {
-					pod := pods.Items[i]
-					if kapi.IsPodReady(&pod) {
-						ready++
-					}
-				}
-
-				return len(pods.Items) == ready, nil
-			}); err != nil {
-				o.Expect(fmt.Errorf("deployment config %q never became ready (ready: %d, desired: %d)",
-					config.Name, ready, config.Spec.Replicas)).NotTo(o.HaveOccurred())
-			}
+			o.Expect(rc1.Status.AvailableReplicas).To(o.BeZero())
 
 			g.By("verifying that the deployment is still running")
-			latestName := deployutil.DeploymentNameForConfigVersion(name, config.Status.LatestVersion)
-			latest, err := oc.KubeClient().Core().ReplicationControllers(oc.Namespace()).Get(latestName)
-			o.Expect(err).NotTo(o.HaveOccurred())
-			if deployutil.IsTerminatedDeployment(latest) {
-				o.Expect(fmt.Errorf("expected deployment %q not to have terminated", latest.Name)).NotTo(o.HaveOccurred())
+			if deployutil.IsTerminatedDeployment(rc1) {
+				o.Expect(fmt.Errorf("expected deployment %q not to have terminated", rc1.Name)).NotTo(o.HaveOccurred())
 			}
-			o.Expect(waitForLatestCondition(oc, name, deploymentRunTimeout, deploymentRunning)).NotTo(o.HaveOccurred())
+
+			g.By("waiting for the deployment to finish")
+			rc1, err = waitForRCModification(oc, namespace, rc1.Name,
+				deploymentChangeTimeout+time.Duration(dc.Spec.MinReadySeconds)*time.Second,
+				rc1.GetResourceVersion(), func(rc *kapiv1.ReplicationController) (bool, error) {
+					if rc.Status.AvailableReplicas == dc.Spec.Replicas {
+						return true, nil
+					}
+
+					if deployutil.DeploymentStatusFor(rc) == deployapi.DeploymentStatusComplete {
+						e2e.Logf("Failed RC: %#v", rc)
+						return false, errors.New("deployment shouldn't be completed before ReadyReplicas become AvailableReplicas")
+					}
+					return false, nil
+				})
+			o.Expect(err).NotTo(o.HaveOccurred())
+			o.Expect(rc1.Status.AvailableReplicas).To(o.Equal(dc.Spec.Replicas))
+			// Deployment status can't be updated yet but should be right after
+			o.Expect(deployutil.DeploymentStatusFor(rc1)).To(o.Equal(deployapi.DeploymentStatusRunning))
+			// It should finish right after
+			rc1, err = waitForRCModification(oc, namespace, rc1.Name, deploymentChangeTimeout,
+				rc1.GetResourceVersion(), func(rc *kapiv1.ReplicationController) (bool, error) {
+					return deployutil.DeploymentStatusFor(rc) == deployapi.DeploymentStatusComplete, nil
+				})
+			o.Expect(err).NotTo(o.HaveOccurred())
+
+			// We might check that minReadySecond passed between pods becoming ready
+			// and available but I don't think there is a way to get a timestamp from events
+			// and other ways are just flaky.
+			// But since we are reusing MinReadySeconds and AvailableReplicas from RC it should be tested there
 		})
 	})
 
@@ -883,12 +996,113 @@ var _ = g.Describe("deploymentconfigs", func() {
 				}
 				conditions = dc.Status.Conditions
 				cond := deployutil.GetDeploymentCondition(dc.Status, deployapi.DeploymentProgressing)
-				return cond != nil && cond.Reason == deployutil.NewReplicationControllerReason, nil
+				return cond != nil && cond.Reason == deployapi.NewReplicationControllerReason, nil
 			})
 			if err == wait.ErrWaitTimeout {
 				err = fmt.Errorf("deployment config %q never updated its conditions: %#v", name, conditions)
 			}
 			o.Expect(err).NotTo(o.HaveOccurred())
+		})
+	})
+
+	g.Describe("", func() {
+		dcName := "deployment-simple"
+		g.AfterEach(func() {
+			failureTrap(oc, dcName, g.CurrentGinkgoTestDescription().Failed)
+			failureTrapForDetachedRCs(oc, dcName, g.CurrentGinkgoTestDescription().Failed)
+		})
+
+		g.It("should adhere to Three Laws of Controllers [Conformance]", func() {
+			namespace := oc.Namespace()
+			rcName := func(i int) string { return fmt.Sprintf("%s-%d", dcName, i) }
+
+			var dc *deployapi.DeploymentConfig
+			var rc1 *kapiv1.ReplicationController
+			var err error
+
+			g.By("should create ControllerRef in RCs it creates", func() {
+				dc, err = readDCFixture(simpleDeploymentFixture)
+				o.Expect(err).NotTo(o.HaveOccurred())
+				dc, err = oc.Client().DeploymentConfigs(namespace).Create(dc)
+				o.Expect(err).NotTo(o.HaveOccurred())
+
+				err = waitForLatestCondition(oc, dcName, deploymentRunTimeout, deploymentRunning)
+				o.Expect(err).NotTo(o.HaveOccurred())
+
+				rc1, err = oc.KubeClient().CoreV1().ReplicationControllers(namespace).Get(rcName(1), metav1.GetOptions{})
+				o.Expect(err).NotTo(o.HaveOccurred())
+				validRef := HasValidDCControllerRef(dc, rc1)
+				o.Expect(validRef).To(o.BeTrue())
+			})
+
+			err = waitForLatestCondition(oc, dcName, deploymentRunTimeout, deploymentReachedCompletion)
+			o.Expect(err).NotTo(o.HaveOccurred())
+
+			g.By("releasing RCs that no longer match its selector", func() {
+				dc, err = oc.Client().DeploymentConfigs(namespace).Get(dcName, metav1.GetOptions{})
+				o.Expect(err).NotTo(o.HaveOccurred())
+
+				patch := []byte(fmt.Sprintf(`{"metadata": {"labels":{"openshift.io/deployment-config.name": "%s-detached"}}}`, dcName))
+				rc1, err = oc.KubeClient().CoreV1().ReplicationControllers(namespace).Patch(rcName(1), types.StrategicMergePatchType, patch)
+				o.Expect(err).NotTo(o.HaveOccurred())
+
+				rc1, err = waitForRCModification(oc, namespace, rcName(1), deploymentChangeTimeout,
+					rc1.GetResourceVersion(), rCConditionFromMeta(controllerRefChangeCondition(kcontroller.GetControllerOf(rc1))))
+				o.Expect(err).NotTo(o.HaveOccurred())
+				controllerRef := kcontroller.GetControllerOf(rc1)
+				o.Expect(controllerRef).To(o.BeNil())
+
+				dc, err = waitForDCModification(oc, namespace, dcName, deploymentChangeTimeout,
+					dc.GetResourceVersion(), func(config *deployapi.DeploymentConfig) (bool, error) {
+						return config.Status.AvailableReplicas != dc.Status.AvailableReplicas, nil
+					})
+				o.Expect(err).NotTo(o.HaveOccurred())
+				o.Expect(dc.Status.AvailableReplicas).To(o.BeZero())
+				o.Expect(dc.Status.UnavailableReplicas).To(o.BeZero())
+			})
+
+			g.By("adopting RCs that match its selector and have no ControllerRef", func() {
+				patch := []byte(fmt.Sprintf(`{"metadata": {"labels":{"openshift.io/deployment-config.name": "%s"}}}`, dcName))
+				rc1, err = oc.KubeClient().CoreV1().ReplicationControllers(namespace).Patch(rcName(1), types.StrategicMergePatchType, patch)
+				o.Expect(err).NotTo(o.HaveOccurred())
+
+				rc1, err = waitForRCModification(oc, namespace, rcName(1), deploymentChangeTimeout,
+					rc1.GetResourceVersion(), rCConditionFromMeta(controllerRefChangeCondition(kcontroller.GetControllerOf(rc1))))
+				o.Expect(err).NotTo(o.HaveOccurred())
+				validRef := HasValidDCControllerRef(dc, rc1)
+				o.Expect(validRef).To(o.BeTrue())
+
+				dc, err = waitForDCModification(oc, namespace, dcName, deploymentChangeTimeout,
+					dc.GetResourceVersion(), func(config *deployapi.DeploymentConfig) (bool, error) {
+						return config.Status.AvailableReplicas != dc.Status.AvailableReplicas, nil
+					})
+				o.Expect(err).NotTo(o.HaveOccurred())
+				o.Expect(dc.Status.AvailableReplicas).To(o.Equal(dc.Spec.Replicas))
+				o.Expect(dc.Status.UnavailableReplicas).To(o.BeZero())
+			})
+
+			g.By("deleting owned RCs when deleted", func() {
+				err = oc.Clientset().AppsV1().DeploymentConfigs(namespace).Delete(dcName, &metav1.DeleteOptions{})
+				o.Expect(err).NotTo(o.HaveOccurred())
+
+				err = wait.PollImmediate(200*time.Millisecond, 5*time.Minute, func() (bool, error) {
+					pods, err := oc.KubeClient().CoreV1().Pods(namespace).List(metav1.ListOptions{})
+					if err != nil {
+						return false, err
+					}
+					return len(pods.Items) == 0, nil
+				})
+				o.Expect(err).NotTo(o.HaveOccurred())
+
+				err = wait.PollImmediate(200*time.Millisecond, 30*time.Second, func() (bool, error) {
+					rcs, err := oc.KubeClient().CoreV1().ReplicationControllers(namespace).List(metav1.ListOptions{})
+					if err != nil {
+						return false, err
+					}
+					return len(rcs.Items) == 0, nil
+				})
+				o.Expect(err).NotTo(o.HaveOccurred())
+			})
 		})
 	})
 })

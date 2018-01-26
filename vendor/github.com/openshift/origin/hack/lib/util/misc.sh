@@ -13,12 +13,7 @@
 #  None
 function os::util::describe_return_code() {
 	local return_code=$1
-
-	if [[ "${return_code}" = "0" ]]; then
-		echo -n "[INFO] $0 succeeded "
-	else
-		echo -n "[ERROR] $0 failed "
-	fi
+	local message="$( os::util::repository_relative_path $0 ) exited with code ${return_code} "
 
 	if [[ -n "${OS_SCRIPT_START_TIME:-}" ]]; then
 		local end_time
@@ -27,9 +22,13 @@ function os::util::describe_return_code() {
         elapsed_time="$(( end_time - OS_SCRIPT_START_TIME ))"
 		local formatted_time
         formatted_time="$( os::util::format_seconds "${elapsed_time}" )"
-		echo "after ${formatted_time}"
+		message+="after ${formatted_time}"
+	fi
+
+	if [[ "${return_code}" = "0" ]]; then
+		os::log::info "${message}"
 	else
-		echo
+		os::log::error "${message}"
 	fi
 }
 readonly -f os::util::describe_return_code
@@ -120,10 +119,11 @@ readonly -f os::util::format_seconds
 # Return:
 #  None
 function os::util::sed() {
+	local sudo="${USE_SUDO:+sudo}"
 	if LANG=C sed --help 2>&1 | grep -q "GNU sed"; then
-		sed -i'' "$@"
+		${sudo} sed -i'' "$@"
 	else
-		sed -i '' "$@"
+		${sudo} sed -i '' "$@"
 	fi
 }
 readonly -f os::util::sed
@@ -190,9 +190,9 @@ function os::util::curl_etcd() {
 	fi
 }
 
-# os::util::host_platform determines what the host OS and architecture
-# are, as Golang sees it. The go tool chain does some slightly different
-# things when the target platform matches the host platform.
+# os::util::list_go_src_files lists files we consider part of our project
+# source code, useful for tools that iterate over source to provide vet-
+# ting or linting, etc.
 #
 # Globals:
 #  None
@@ -200,7 +200,37 @@ function os::util::curl_etcd() {
 #  None
 # Returns:
 #  None
-function os::util::host_platform() {
-	echo "$(go env GOHOSTOS)/$(go env GOHOSTARCH)"
+function os::util::list_go_src_files() {
+	find . -not \( \
+		\( \
+		-wholename './_output' \
+		-o -wholename './.*' \
+		-o -wholename './pkg/assets/bindata.go' \
+		-o -wholename './pkg/assets/*/bindata.go' \
+		-o -wholename './pkg/oc/bootstrap/bindata.go' \
+		-o -wholename './openshift.local.*' \
+		-o -wholename './test/extended/testdata/bindata.go' \
+		-o -wholename '*/vendor/*' \
+		-o -wholename './cmd/service-catalog/*' \
+		-o -wholename './cmd/cluster-capacity/*' \
+		-o -wholename './assets/bower_components/*' \
+		\) -prune \
+	\) -name '*.go' | sort -u
 }
-readonly -f os::util::host_platform
+readonly -f os::util::list_go_src_files
+
+# os::util::list_go_src_dirs lists dirs in origin/ and cmd/ dirs excluding
+# cmd/cluster-capacity and cmd/service-catalog and doc.go useful for tools that
+# iterate over source to provide vetting or linting, or for godep-save etc.
+#
+# Globals:
+#  None
+# Arguments:
+#  None
+# Returns:
+#  None
+function os::util::list_go_src_dirs() {
+	os::util::list_go_src_files | cut -d '/' -f 1-2 | grep -v ".go$" | grep -v "^./cmd" | LC_ALL=C sort -u
+	os::util::list_go_src_files | grep "^./cmd/"| cut -d '/' -f 1-3 | grep -v ".go$" | LC_ALL=C sort -u
+}
+readonly -f os::util::list_go_src_dirs

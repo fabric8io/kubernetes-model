@@ -3,9 +3,9 @@ package rulevalidation
 import (
 	"strings"
 
-	"k8s.io/kubernetes/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/sets"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/api"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 )
 
 // Covers determines whether or not the ownerRules cover the servantRules in terms of allowed actions.
@@ -47,11 +47,16 @@ func Covers(ownerRules, servantRules []authorizationapi.PolicyRule) (bool, []aut
 func BreakdownRule(rule authorizationapi.PolicyRule) []authorizationapi.PolicyRule {
 	subrules := []authorizationapi.PolicyRule{}
 
+	// A rule with an attribute restriction is ignored and thus is the same as having no rule at all
+	if rule.AttributeRestrictions != nil {
+		return subrules
+	}
+
 	for _, group := range rule.APIGroups {
 		subrules = append(subrules, breakdownRuleForGroup(group, rule)...)
 	}
 
-	// if no groups are present, then the default group is assumed.  Buidl the subrules, then strip the groups
+	// if no groups are present, then the default group is assumed.  Build the subrules, then strip the groups
 	if len(rule.APIGroups) == 0 {
 		for _, subrule := range breakdownRuleForGroup("", rule) {
 			subrule.APIGroups = nil
@@ -72,7 +77,7 @@ func BreakdownRule(rule authorizationapi.PolicyRule) []authorizationapi.PolicyRu
 func breakdownRuleForGroup(group string, rule authorizationapi.PolicyRule) []authorizationapi.PolicyRule {
 	subrules := []authorizationapi.PolicyRule{}
 
-	for resource := range authorizationapi.NormalizeResources(rule.Resources) {
+	for resource := range rule.Resources {
 		for verb := range rule.Verbs {
 			if len(rule.ResourceNames) > 0 {
 				for _, resourceName := range rule.ResourceNames.List() {
@@ -91,7 +96,12 @@ func breakdownRuleForGroup(group string, rule authorizationapi.PolicyRule) []aut
 // ruleCovers determines whether the ownerRule (which may have multiple verbs, resources, and resourceNames) covers
 // the subrule (which may only contain at most one verb, resource, and resourceName)
 func ruleCovers(ownerRule, subrule authorizationapi.PolicyRule) bool {
-	allResources := authorizationapi.NormalizeResources(ownerRule.Resources)
+	// A rule with an attribute restriction is ignored and thus it can never cover another rule
+	if ownerRule.AttributeRestrictions != nil {
+		return false
+	}
+
+	allResources := ownerRule.Resources
 
 	ownerGroups := sets.NewString(ownerRule.APIGroups...)
 	groupMatches := ownerGroups.Has(authorizationapi.APIGroupAll) || ownerGroups.HasAll(subrule.APIGroups...) || (len(ownerRule.APIGroups) == 0 && len(subrule.APIGroups) == 0)
