@@ -2403,7 +2403,7 @@ type PodSpec struct {
 	// +patchStrategy=merge
 	Volumes []Volume `json:"volumes,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,1,rep,name=volumes"`
 	//List of ips and hosts to add into container's /etc/hosts 
-	HostAliases []Ip `json:"hostAliases,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,1,rep,name=hostAliases"`
+	//HostAliases []Ip `json:"hostAliases,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,1,rep,name=hostAliases"`
 	// List of initialization containers belonging to the pod.
 	// Init containers are executed in order prior to containers being started. If any
 	// init container fails, the pod is considered to have failed and is handled according
