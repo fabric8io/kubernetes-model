@@ -98,7 +98,7 @@ public class RouteTest {
         assertEquals("www.example.com", route.getSpec().getHost());
         assertEquals("/test", route.getSpec().getPath());
         assertNotNull(route.getSpec().getPort());
-        assertEquals("8080", route.getSpec().getPort().getTargetPort().getStrVal());
+        assertEquals(8080, route.getSpec().getPort().getTargetPort().getIntVal().intValue());
         assertNotNull(route.getSpec().getTo());
         assertEquals("Service", route.getSpec().getTo().getKind());
         assertEquals("fabric8-maven-sample-zero-config", route.getSpec().getTo().getName());
@@ -116,10 +116,10 @@ public class RouteTest {
         assertTrue(route.getSpec().getAlternateBackends().get(2).getName().startsWith("test"));
         assertNotNull(route.getSpec().getTls());
         assertEquals("edge", route.getSpec().getTls().getTermination());
-        assertEquals("$(perl -pe 's/\\n/\\\\n/' example-test.key)", route.getSpec().getTls().getKey());
-        assertEquals("$(perl -pe 's/\\n/\\\\n/' example-test.cert)", route.getSpec().getTls().getCertificate());
-        assertEquals("$(perl -pe 's/\\n/\\\\n/' example-test.cert)", route.getSpec().getTls().getCaCertificate());
-        assertEquals("$(perl -pe 's/\\n/\\\\n/' example-test.cert)", route.getSpec().getTls().getDestinationCACertificate());
+        assertEquals("$(perl -pe 's/\n/\\n/' example-test.key)", route.getSpec().getTls().getKey());
+        assertEquals("$(perl -pe 's/\n/\\n/' example-test.cert)", route.getSpec().getTls().getCertificate());
+        assertEquals("$(perl -pe 's/\n/\\n/' example-test.cert)", route.getSpec().getTls().getCaCertificate());
+        assertEquals("$(perl -pe 's/\n/\\n/' example-test.cert)", route.getSpec().getTls().getDestinationCACertificate());
         assertEquals("Allow", route.getSpec().getTls().getInsecureEdgeTerminationPolicy());
         assertEquals("Subdomain", route.getSpec().getWildcardPolicy());
     }
