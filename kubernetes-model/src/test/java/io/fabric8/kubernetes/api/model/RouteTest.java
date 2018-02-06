@@ -89,7 +89,7 @@ public class RouteTest {
                 .build();
 
         assertNotNull(route);
-        assertEquals("",route.getMetadata().getName());
+        assertEquals("fabric8-maven-sample-zero-config",route.getMetadata().getName());
         assertTrue(route.getMetadata().getLabels().get("expose").equals("true"));
         assertTrue(route.getMetadata().getLabels().get("app").equals("fabric8-maven-sample-zero-config"));
         assertTrue(route.getMetadata().getLabels().get("provider").equals("fabric8"));
