@@ -62,6 +62,19 @@ func getFieldName(f reflect.StructField) string {
 	return f.Name
 }
 
+func isOmitEmpty(f reflect.StructField) bool {
+	json := f.Tag.Get("json")
+	if len(json) > 0 {
+		parts := strings.Split(json, ",")
+		for _, part := range parts {
+			if part == "omitempty" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func getFieldDescription(f reflect.StructField) string {
 	json := f.Tag.Get("description")
 	if len(json) > 0 {
@@ -234,7 +247,7 @@ func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
 	return &s, nil
 }
 
-func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSONPropertyDescriptor {
+func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string, omitEmpty bool) JSONPropertyDescriptor {
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
@@ -298,9 +311,10 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSO
 				JSONDescriptor: &JSONDescriptor{
 					Type:        "array",
 					Description: desc,
+					JavaOmitEmpty: omitEmpty,
 				},
 				JSONArrayDescriptor: &JSONArrayDescriptor{
-					Items: g.getPropertyDescriptor(t.Elem(), desc),
+					Items: g.getPropertyDescriptor(t.Elem(), desc, false),
 				},
 			}
 		}
@@ -311,7 +325,7 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string) JSO
 				Description: desc,
 			},
 			JSONMapDescriptor: &JSONMapDescriptor{
-				MapValueType: g.getPropertyDescriptor(t.Elem(), desc),
+				MapValueType: g.getPropertyDescriptor(t.Elem(), desc, false),
 			},
 			JavaTypeDescriptor: &JavaTypeDescriptor{
 				JavaType: "java.util.Map<String," + g.javaTypeWrapPrimitive(t.Elem()) + ">",
@@ -356,7 +370,8 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 		}
 
 		desc := getFieldDescription(field)
-		prop := g.getPropertyDescriptor(field.Type, desc)
+		omitEmpty := isOmitEmpty(field)
+		prop := g.getPropertyDescriptor(field.Type, desc, omitEmpty)
 		if field.Anonymous && field.Type.Kind() == reflect.Struct && len(name) == 0 {
 			var newProps map[string]JSONPropertyDescriptor
 			if prop.JSONReferenceDescriptor != nil {

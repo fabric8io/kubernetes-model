@@ -38,6 +38,7 @@ type JSONDescriptor struct {
 	MaxLength   int           `json:"maxLength,omitempty"`
 	Pattern     string        `json:"pattern,omitempty"`
 	Enum        []interface{} `json:"enum,omitempty"`
+	JavaOmitEmpty	bool	  `json:"javaOmitEmpty,omitempty"`
 }
 
 type JSONObjectDescriptor struct {

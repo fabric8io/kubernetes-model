@@ -15,6 +15,7 @@
  */
 package io.fabric8.kubernetes.annotator;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -72,6 +73,15 @@ public class KubernetesTypeAnnotator extends Jackson2Annotator {
             annotateMetatadataValidator(clazz);
         } catch (JClassAlreadyExistsException e) {
             e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void propertyField(JFieldVar field, JDefinedClass clazz, String propertyName, JsonNode propertyNode) {
+        super.propertyField(field, clazz, propertyName, propertyNode);
+
+        if (propertyNode.has("javaOmitEmpty") && propertyNode.get("javaOmitEmpty").asBoolean(false)) {
+            field.annotate(JsonInclude.class).param("value", JsonInclude.Include.NON_EMPTY);
         }
     }
 

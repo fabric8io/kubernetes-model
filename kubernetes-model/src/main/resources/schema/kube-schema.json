@@ -142,6 +142,7 @@
         "shortNames": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -253,6 +254,7 @@
         "matchExpressions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/k8s_io_apimachinery_LabelSelectorRequirement",
             "javaType": "io.fabric8.kubernetes.api.model.LabelSelectorRequirement"
@@ -289,6 +291,7 @@
         "values": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -353,6 +356,7 @@
         "finalizers": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -393,6 +397,7 @@
         "ownerReferences": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/k8s_io_apimachinery_OwnerReference",
             "javaType": "io.fabric8.kubernetes.api.model.OwnerReference"
@@ -557,6 +562,7 @@
         "causes": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/k8s_io_apimachinery_StatusCause",
             "javaType": "io.fabric8.kubernetes.api.model.StatusCause"
@@ -826,6 +832,7 @@
         "add": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -834,6 +841,7 @@
         "drop": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -948,6 +956,7 @@
         "conditions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_ComponentCondition",
             "javaType": "io.fabric8.kubernetes.api.model.ComponentCondition"
@@ -1127,6 +1136,7 @@
         "items": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_KeyToPath",
             "javaType": "io.fabric8.kubernetes.api.model.KeyToPath"
@@ -1158,6 +1168,7 @@
         "items": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_KeyToPath",
             "javaType": "io.fabric8.kubernetes.api.model.KeyToPath"
@@ -1185,6 +1196,7 @@
         "args": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -1193,6 +1205,7 @@
         "command": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -1201,6 +1214,7 @@
         "env": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -1209,6 +1223,7 @@
         "envFrom": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_EnvFromSource",
             "javaType": "io.fabric8.kubernetes.api.model.EnvFromSource"
@@ -1239,6 +1254,7 @@
         "ports": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_ContainerPort",
             "javaType": "io.fabric8.kubernetes.api.model.ContainerPort"
@@ -1279,6 +1295,7 @@
         "volumeMounts": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_VolumeMount",
             "javaType": "io.fabric8.kubernetes.api.model.VolumeMount"
@@ -1553,6 +1570,7 @@
         "items": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_DownwardAPIVolumeFile",
             "javaType": "io.fabric8.kubernetes.api.model.DownwardAPIVolumeFile"
@@ -1603,6 +1621,7 @@
         "items": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_DownwardAPIVolumeFile",
             "javaType": "io.fabric8.kubernetes.api.model.DownwardAPIVolumeFile"
@@ -1693,6 +1712,7 @@
         "addresses": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_EndpointAddress",
             "javaType": "io.fabric8.kubernetes.api.model.EndpointAddress"
@@ -1701,6 +1721,7 @@
         "notReadyAddresses": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_EndpointAddress",
             "javaType": "io.fabric8.kubernetes.api.model.EndpointAddress"
@@ -1709,6 +1730,7 @@
         "ports": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_EndpointPort",
             "javaType": "io.fabric8.kubernetes.api.model.EndpointPort"
@@ -1987,6 +2009,7 @@
         "command": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -2169,6 +2192,7 @@
         "httpHeaders": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_HTTPHeader",
             "javaType": "io.fabric8.kubernetes.api.model.HTTPHeader"
@@ -2242,6 +2266,7 @@
         "hostnames": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -2304,6 +2329,7 @@
         "portals": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -2578,6 +2604,7 @@
         "ingress": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_LoadBalancerIngress",
             "javaType": "io.fabric8.kubernetes.api.model.LoadBalancerIngress"
@@ -2721,6 +2748,7 @@
         "finalizers": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -2809,6 +2837,7 @@
         "preferredDuringSchedulingIgnoredDuringExecution": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_PreferredSchedulingTerm",
             "javaType": "io.fabric8.kubernetes.api.model.PreferredSchedulingTerm"
@@ -2945,6 +2974,7 @@
         "values": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -2995,6 +3025,7 @@
         "taints": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_Taint",
             "javaType": "io.fabric8.kubernetes.api.model.Taint"
@@ -3018,6 +3049,7 @@
         "addresses": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_NodeAddress",
             "javaType": "io.fabric8.kubernetes.api.model.NodeAddress"
@@ -3044,6 +3076,7 @@
         "conditions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_NodeCondition",
             "javaType": "io.fabric8.kubernetes.api.model.NodeCondition"
@@ -3056,6 +3089,7 @@
         "images": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_ContainerImage",
             "javaType": "io.fabric8.kubernetes.api.model.ContainerImage"
@@ -3072,6 +3106,7 @@
         "volumesAttached": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_AttachedVolume",
             "javaType": "io.fabric8.kubernetes.api.model.AttachedVolume"
@@ -3080,6 +3115,7 @@
         "volumesInUse": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -3314,6 +3350,7 @@
         "accessModes": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -3349,6 +3386,7 @@
         "accessModes": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -3531,6 +3569,7 @@
         "accessModes": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -3732,6 +3771,7 @@
         "preferredDuringSchedulingIgnoredDuringExecution": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_WeightedPodAffinityTerm",
             "javaType": "io.fabric8.kubernetes.api.model.WeightedPodAffinityTerm"
@@ -3740,6 +3780,7 @@
         "requiredDuringSchedulingIgnoredDuringExecution": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_PodAffinityTerm",
             "javaType": "io.fabric8.kubernetes.api.model.PodAffinityTerm"
@@ -3763,6 +3804,7 @@
         "namespaces": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -3786,6 +3828,7 @@
         "preferredDuringSchedulingIgnoredDuringExecution": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_WeightedPodAffinityTerm",
             "javaType": "io.fabric8.kubernetes.api.model.WeightedPodAffinityTerm"
@@ -3794,6 +3837,7 @@
         "requiredDuringSchedulingIgnoredDuringExecution": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_PodAffinityTerm",
             "javaType": "io.fabric8.kubernetes.api.model.PodAffinityTerm"
@@ -3902,6 +3946,7 @@
         "supplementalGroups": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "integer",
             "description": "",
@@ -3947,6 +3992,7 @@
         "hostAliases": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_HostAlias",
             "javaType": "io.fabric8.kubernetes.api.model.HostAlias"
@@ -3971,6 +4017,7 @@
         "imagePullSecrets": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_LocalObjectReference",
             "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
@@ -3979,6 +4026,7 @@
         "initContainers": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_Container",
             "javaType": "io.fabric8.kubernetes.api.model.Container"
@@ -4029,6 +4077,7 @@
         "tolerations": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_Toleration",
             "javaType": "io.fabric8.kubernetes.api.model.Toleration"
@@ -4037,6 +4086,7 @@
         "volumes": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_Volume",
             "javaType": "io.fabric8.kubernetes.api.model.Volume"
@@ -4056,6 +4106,7 @@
         "conditions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_PodCondition",
             "javaType": "io.fabric8.kubernetes.api.model.PodCondition"
@@ -4064,6 +4115,7 @@
         "containerStatuses": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_ContainerStatus",
             "javaType": "io.fabric8.kubernetes.api.model.ContainerStatus"
@@ -4076,6 +4128,7 @@
         "initContainerStatuses": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_ContainerStatus",
             "javaType": "io.fabric8.kubernetes.api.model.ContainerStatus"
@@ -4544,6 +4597,7 @@
         "conditions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_ReplicationControllerCondition",
             "javaType": "io.fabric8.kubernetes.api.model.ReplicationControllerCondition"
@@ -4683,6 +4737,7 @@
         "scopes": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -4965,6 +5020,7 @@
         "items": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_KeyToPath",
             "javaType": "io.fabric8.kubernetes.api.model.KeyToPath"
@@ -4996,6 +5052,7 @@
         "items": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_KeyToPath",
             "javaType": "io.fabric8.kubernetes.api.model.KeyToPath"
@@ -5104,6 +5161,7 @@
         "imagePullSecrets": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_LocalObjectReference",
             "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
@@ -5122,6 +5180,7 @@
         "secrets": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_ObjectReference",
             "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
@@ -5250,6 +5309,7 @@
         "externalIPs": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -5274,6 +5334,7 @@
         "loadBalancerSourceRanges": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -5282,6 +5343,7 @@
         "ports": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_ServicePort",
             "javaType": "io.fabric8.kubernetes.api.model.ServicePort"
@@ -5927,6 +5989,7 @@
         "volumeClaimTemplates": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_PersistentVolumeClaim",
             "javaType": "io.fabric8.kubernetes.api.model.PersistentVolumeClaim"
@@ -6091,6 +6154,7 @@
         "groups": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -6259,6 +6323,7 @@
         "groups": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -6577,6 +6642,7 @@
         "active": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_ObjectReference",
             "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
@@ -6750,6 +6816,7 @@
         "conditions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_batch_JobCondition",
             "javaType": "io.fabric8.kubernetes.api.model.JobCondition"
@@ -6804,6 +6871,7 @@
         "as-groups": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -6845,6 +6913,7 @@
         "extensions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_config_NamedExtension",
             "javaType": "io.fabric8.kubernetes.api.model.NamedExtension"
@@ -6912,6 +6981,7 @@
         "extensions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_config_NamedExtension",
             "javaType": "io.fabric8.kubernetes.api.model.NamedExtension"
@@ -6963,6 +7033,7 @@
         "extensions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_config_NamedExtension",
             "javaType": "io.fabric8.kubernetes.api.model.NamedExtension"
@@ -7002,6 +7073,7 @@
         "extensions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_config_NamedExtension",
             "javaType": "io.fabric8.kubernetes.api.model.NamedExtension"
@@ -7109,6 +7181,7 @@
         "extensions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_config_NamedExtension",
             "javaType": "io.fabric8.kubernetes.api.model.NamedExtension"
@@ -7520,6 +7593,7 @@
         "conditions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_extensions_DeploymentCondition",
             "javaType": "io.fabric8.kubernetes.api.model.extensions.DeploymentCondition"
@@ -7579,6 +7653,7 @@
         "ranges": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_extensions_IDRange",
             "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
@@ -7808,6 +7883,7 @@
         "rules": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_extensions_IngressRule",
             "javaType": "io.fabric8.kubernetes.api.model.extensions.IngressRule"
@@ -7816,6 +7892,7 @@
         "tls": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_extensions_IngressTLS",
             "javaType": "io.fabric8.kubernetes.api.model.extensions.IngressTLS"
@@ -7850,6 +7927,7 @@
         "hosts": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -7904,6 +7982,7 @@
         "from": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyPeer",
             "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPeer"
@@ -7912,6 +7991,7 @@
         "ports": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyPort",
             "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyPort"
@@ -8005,6 +8085,7 @@
         "ingress": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_extensions_NetworkPolicyIngressRule",
             "javaType": "io.fabric8.kubernetes.api.model.extensions.NetworkPolicyIngressRule"
@@ -8095,6 +8176,7 @@
         "allowedCapabilities": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -8103,6 +8185,7 @@
         "defaultAddCapabilities": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -8127,6 +8210,7 @@
         "hostPorts": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_extensions_HostPortRange",
             "javaType": "io.fabric8.kubernetes.api.model.extensions.HostPortRange"
@@ -8143,6 +8227,7 @@
         "requiredDropCapabilities": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -8163,6 +8248,7 @@
         "volumes": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -8315,6 +8401,7 @@
         "conditions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_extensions_ReplicaSetCondition",
             "javaType": "io.fabric8.kubernetes.api.model.extensions.ReplicaSetCondition"
@@ -8401,6 +8488,7 @@
         "ranges": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_extensions_IDRange",
             "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
@@ -8521,6 +8609,7 @@
         "ranges": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_extensions_IDRange",
             "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
@@ -8564,6 +8653,7 @@
         "versions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_extensions_APIVersion",
             "javaType": "io.fabric8.kubernetes.api.model.extensions.APIVersion"
@@ -9539,6 +9629,7 @@
         "nonResourceURLs": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -9547,6 +9638,7 @@
         "resourceNames": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -10262,6 +10354,7 @@
         "imageLabels": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_build_ImageLabel",
             "javaType": "io.fabric8.openshift.api.model.ImageLabel"
@@ -10289,6 +10382,7 @@
         "args": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -10297,6 +10391,7 @@
         "command": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -10334,6 +10429,7 @@
         "env": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -10404,6 +10500,7 @@
         "images": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_build_ImageSource",
             "javaType": "io.fabric8.openshift.api.model.ImageSource"
@@ -10412,6 +10509,7 @@
         "secrets": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_build_SecretBuildSource",
             "javaType": "io.fabric8.openshift.api.model.SecretBuildSource"
@@ -10541,6 +10639,7 @@
         "stages": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_build_StageInfo",
             "javaType": "io.fabric8.openshift.api.model.StageInfo"
@@ -10771,6 +10870,7 @@
         "env": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -10795,6 +10895,7 @@
         "secrets": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_build_SecretSpec",
             "javaType": "io.fabric8.openshift.api.model.SecretSpec"
@@ -10814,6 +10915,7 @@
         "buildArgs": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -10826,6 +10928,7 @@
         "env": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -10865,6 +10968,7 @@
         "buildArgs": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -11102,6 +11206,7 @@
         "env": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -11190,6 +11295,7 @@
         "env": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -11214,6 +11320,7 @@
         "runtimeArtifacts": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_build_ImageSourcePath",
             "javaType": "io.fabric8.openshift.api.model.ImageSourcePath"
@@ -11292,6 +11399,7 @@
         "steps": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_build_StepInfo",
             "javaType": "io.fabric8.openshift.api.model.StepInfo"
@@ -11354,6 +11462,7 @@
         "command": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -11362,6 +11471,7 @@
         "environment": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -11585,6 +11695,7 @@
         "conditions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_deploy_DeploymentCondition",
             "javaType": "io.fabric8.openshift.api.model.DeploymentCondition"
@@ -11715,6 +11826,7 @@
         "containerNames": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -11773,6 +11885,7 @@
         "env": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/kubernetes_EnvVar",
             "javaType": "io.fabric8.kubernetes.api.model.EnvVar"
@@ -11781,6 +11894,7 @@
         "volumes": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -11808,6 +11922,7 @@
         "tagImages": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_deploy_TagImageHook",
             "javaType": "io.fabric8.openshift.api.model.TagImageHook"
@@ -11954,6 +12069,7 @@
         "dockerImageSignatures": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -11972,6 +12088,7 @@
         "signatures": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_image_ImageSignature",
             "javaType": "io.fabric8.openshift.api.model.ImageSignature"
@@ -12072,6 +12189,7 @@
         "conditions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_image_SignatureCondition",
             "javaType": "io.fabric8.openshift.api.model.SignatureCondition"
@@ -12213,6 +12331,7 @@
         "tags": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_image_TagReference",
             "javaType": "io.fabric8.openshift.api.model.TagReference"
@@ -12240,6 +12359,7 @@
         "tags": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_image_NamedTagEventList",
             "javaType": "io.fabric8.openshift.api.model.NamedTagEventList"
@@ -12265,6 +12385,7 @@
         "conditions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_image_TagEventCondition",
             "javaType": "io.fabric8.openshift.api.model.TagEventCondition"
@@ -12347,6 +12468,7 @@
         "conditions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_image_TagEventCondition",
             "javaType": "io.fabric8.openshift.api.model.TagEventCondition"
@@ -12685,6 +12807,7 @@
         "scopes": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -12785,6 +12908,7 @@
         "scopes": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -12852,6 +12976,7 @@
         "additionalSecrets": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -12880,6 +13005,7 @@
         "redirectURIs": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -12892,6 +13018,7 @@
         "scopeRestrictions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_oauth_ScopeRestriction",
             "javaType": "io.fabric8.openshift.api.model.ScopeRestriction"
@@ -12935,6 +13062,7 @@
         "scopes": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -13038,6 +13166,7 @@
         "literals": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -13163,6 +13292,7 @@
         "finalizers": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -13232,6 +13362,7 @@
         "conditions": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_route_RouteIngressCondition",
             "javaType": "io.fabric8.openshift.api.model.RouteIngressCondition"
@@ -13349,6 +13480,7 @@
         "alternateBackends": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_route_RouteTargetReference",
             "javaType": "io.fabric8.openshift.api.model.RouteTargetReference"
@@ -13469,6 +13601,7 @@
         "ranges": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_security_IDRange",
             "javaType": "io.fabric8.openshift.api.model.IDRange"
@@ -13612,6 +13745,7 @@
         "groups": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -13654,6 +13788,7 @@
         "seccompProfiles": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -13666,6 +13801,7 @@
         "users": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -13729,6 +13865,7 @@
         "ranges": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_security_IDRange",
             "javaType": "io.fabric8.openshift.api.model.IDRange"
@@ -13828,6 +13965,7 @@
         "parameters": {
           "type": "array",
           "description": "",
+          "javaOmitEmpty": true,
           "items": {
             "$ref": "#/definitions/os_template_Parameter",
             "javaType": "io.fabric8.openshift.api.model.Parameter"
