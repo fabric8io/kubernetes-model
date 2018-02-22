@@ -1,5 +1,5 @@
 hash: 7146e3fd7ece62498f145a3a1449f3cfd82a7aa714bb7a28827c4a3969ae1b76
-updated: 2017-09-27T16:25:47.265966373+08:00
+updated: 2018-02-22T16:12:39.559032877+02:00
 imports:
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
@@ -311,6 +311,8 @@ imports:
   - pkg/apis/apps/v1beta1
   - pkg/apis/authentication
   - pkg/apis/authentication/v1
+  - pkg/apis/authorization
+  - pkg/apis/authorization/v1
   - pkg/apis/autoscaling
   - pkg/apis/autoscaling/v1
   - pkg/apis/batch
@@ -319,6 +321,8 @@ imports:
   - pkg/apis/extensions
   - pkg/apis/extensions/v1beta1
   - pkg/apis/networking
+  - pkg/apis/policy
+  - pkg/apis/policy/v1beta1
   - pkg/apis/rbac
   - pkg/apis/storage
   - pkg/apis/storage/v1

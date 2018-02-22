@@ -25,7 +25,6 @@ import (
 	"time"
 
 	authapi "github.com/openshift/origin/pkg/authorization/apis/authorization/v1"
-	k8sauthapi "k8s.io/kubernetes/pkg/apis/authorization/v1"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build/v1"
 	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image/v1"
@@ -38,11 +37,13 @@ import (
 	apiextensions "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimachineryversion "k8s.io/apimachinery/pkg/version"
 	configapi "k8s.io/client-go/tools/clientcmd/api/v1"
 	rapi "k8s.io/kubernetes/pkg/api/unversioned"
 	kapi "k8s.io/kubernetes/pkg/api/v1"
 	appsapi "k8s.io/kubernetes/pkg/apis/apps/v1beta1"
 	authenticationapi "k8s.io/kubernetes/pkg/apis/authentication/v1"
+	k8sauthapi "k8s.io/kubernetes/pkg/apis/authorization/v1"
 	autoscalingapi "k8s.io/kubernetes/pkg/apis/autoscaling/v1"
 	batchapiv1 "k8s.io/kubernetes/pkg/apis/batch/v1"
 	batchapiv2alpha1 "k8s.io/kubernetes/pkg/apis/batch/v2alpha1"
@@ -57,6 +58,7 @@ import (
 )
 
 type Schema struct {
+	Info                              apimachineryversion.Info
 	BaseKubernetesList                kapi.List
 	ObjectMeta                        metav1.ObjectMeta
 	PodList                           kapi.PodList
@@ -192,6 +194,7 @@ func main() {
 		{"k8s.io/apimachinery/pkg/api/resource", "", "io.fabric8.kubernetes.api.model", "kubernetes_resource_"},
 		{"k8s.io/apimachinery/pkg/util/intstr", "", "io.fabric8.kubernetes.api.model", "k8s_io_apimachinery_pkg_util_intstr_"},
 		{"k8s.io/apimachinery/pkg/runtime", "", "io.fabric8.kubernetes.api.model.runtime", "k8s_io_apimachinery_pkg_runtime_"},
+		{"k8s.io/apimachinery/pkg/version", "", "io.fabric8.kubernetes.api.model.version", "k8s_io_apimachinery_pkg_version_"},
 		{"k8s.io/kubernetes/pkg/util", "", "io.fabric8.kubernetes.api.model", "kubernetes_util_"},
 		{"k8s.io/kubernetes/pkg/watch/json", "", "io.fabric8.kubernetes.api.model", "kubernetes_watch_"},
 		{"k8s.io/kubernetes/pkg/api/errors", "", "io.fabric8.kubernetes.api.model", "kubernetes_errors_"},
