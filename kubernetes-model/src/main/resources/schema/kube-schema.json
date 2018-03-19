@@ -667,6 +667,53 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "k8s_io_apimachinery_pkg_version_Info": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "buildDate": {
+          "type": "string",
+          "description": ""
+        },
+        "compiler": {
+          "type": "string",
+          "description": ""
+        },
+        "gitCommit": {
+          "type": "string",
+          "description": ""
+        },
+        "gitTreeState": {
+          "type": "string",
+          "description": ""
+        },
+        "gitVersion": {
+          "type": "string",
+          "description": ""
+        },
+        "goVersion": {
+          "type": "string",
+          "description": ""
+        },
+        "major": {
+          "type": "string",
+          "description": ""
+        },
+        "minor": {
+          "type": "string",
+          "description": ""
+        },
+        "platform": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.version.Info",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "kubernetes_AWSElasticBlockStoreVolumeSource": {
       "type": "object",
       "description": "",
@@ -14434,6 +14481,10 @@
     "ImageStreamTagList": {
       "$ref": "#/definitions/os_image_ImageStreamTagList",
       "javaType": "io.fabric8.openshift.api.model.ImageStreamTagList"
+    },
+    "Info": {
+      "$ref": "#/definitions/k8s_io_apimachinery_pkg_version_Info",
+      "javaType": "io.fabric8.kubernetes.api.model.version.Info"
     },
     "Ingress": {
       "$ref": "#/definitions/kubernetes_extensions_Ingress",
