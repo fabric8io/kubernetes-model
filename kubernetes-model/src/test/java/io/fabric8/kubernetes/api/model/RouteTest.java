@@ -18,7 +18,6 @@ package io.fabric8.kubernetes.api.model;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fabric8.openshift.api.model.Route;
 import io.fabric8.openshift.api.model.RouteBuilder;
-import io.fabric8.openshift.api.model.RouteTargetReference;
 import io.fabric8.openshift.api.model.RouteTargetReferenceBuilder;
 import org.junit.Test;
 
