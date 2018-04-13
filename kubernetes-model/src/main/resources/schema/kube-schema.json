@@ -629,6 +629,21 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "k8s_io_apimachinery_pkg_runtime_ImageRawExtension": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "Raw": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.runtime.RawExtension",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "k8s_io_apimachinery_pkg_runtime_RawExtension": {
       "type": "object",
       "description": "",
@@ -1401,7 +1416,9 @@
         },
         "name": {
           "type": "string",
-          "description": ""
+          "description": "",
+          "maxLength": 63,
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         },
         "protocol": {
           "type": "string",
@@ -12102,8 +12119,8 @@
           "description": ""
         },
         "dockerImageMetadata": {
-          "$ref": "#/definitions/k8s_io_apimachinery_pkg_runtime_RawExtension",
-          "javaType": "io.fabric8.kubernetes.api.model.HasMetadata"
+          "$ref": "#/definitions/k8s_io_apimachinery_pkg_runtime_ImageRawExtension",
+          "javaType": "io.fabric8.kubernetes.api.model.runtime.RawExtension"
         },
         "dockerImageMetadataVersion": {
           "type": "string",
