@@ -14511,6 +14511,14 @@
       "$ref": "#/definitions/kubernetes_extensions_IngressList",
       "javaType": "io.fabric8.kubernetes.api.model.extensions.IngressList"
     },
+    "Initializer": {
+      "$ref": "#/definitions/k8s_io_apimachinery_Initializer",
+      "javaType": "io.fabric8.kubernetes.api.model.Initializer"
+    },
+    "Initializers": {
+      "$ref": "#/definitions/k8s_io_apimachinery_Initializers",
+      "javaType": "io.fabric8.kubernetes.api.model.Initializers"
+    },
     "Job": {
       "$ref": "#/definitions/kubernetes_batch_Job",
       "javaType": "io.fabric8.kubernetes.api.model.Job"
@@ -14814,6 +14822,10 @@
     "Toleration": {
       "$ref": "#/definitions/kubernetes_Toleration",
       "javaType": "io.fabric8.kubernetes.api.model.Toleration"
+    },
+    "TypeMeta": {
+      "$ref": "#/definitions/k8s_io_apimachinery_TypeMeta",
+      "javaType": "io.fabric8.kubernetes.api.model.TypeMeta"
     },
     "User": {
       "$ref": "#/definitions/os_user_User",

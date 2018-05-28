@@ -61,6 +61,9 @@ type Schema struct {
 	Info                              apimachineryversion.Info
 	BaseKubernetesList                kapi.List
 	ObjectMeta                        metav1.ObjectMeta
+	TypeMeta                          metav1.TypeMeta
+	Initializer                       metav1.Initializer
+	Initializers                      metav1.Initializers
 	PodList                           kapi.PodList
 	PodTemplateList                   kapi.PodTemplateList
 	ReplicationControllerList         kapi.ReplicationControllerList
