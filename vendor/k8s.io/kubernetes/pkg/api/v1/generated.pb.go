@@ -14129,6 +14129,7 @@ func (this *PodSpec) String() string {
 	mapStringForNodeSelector += "}"
 	s := strings.Join([]string{`&PodSpec{`,
 		`Volumes:` + strings.Replace(strings.Replace(fmt.Sprintf("%v", this.Volumes), "Volume", "Volume", 1), `&`, ``, 1) + `,`,
+		`HostAliases:` + strings.Replace(strings.Replace(fmt.Sprintf("%v", this.HostAliases), "HostAliases", "HostAliases", 1), `&`, ``, 1) + `,`,
 		`Containers:` + strings.Replace(strings.Replace(fmt.Sprintf("%v", this.Containers), "Container", "Container", 1), `&`, ``, 1) + `,`,
 		`RestartPolicy:` + fmt.Sprintf("%v", this.RestartPolicy) + `,`,
 		`TerminationGracePeriodSeconds:` + valueToStringGenerated(this.TerminationGracePeriodSeconds) + `,`,
