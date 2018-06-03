@@ -21,7 +21,7 @@
     <parent>
         <groupId>io.fabric8</groupId>
         <artifactId>kubernetes-model-generator</artifactId>
-        <version>1.0.58.redhat-SNAPSHOT</version>
+        <version>1.0.58.fuse-000038</version>
     </parent>
 
     <modelVersion>4.0.0</modelVersion>
