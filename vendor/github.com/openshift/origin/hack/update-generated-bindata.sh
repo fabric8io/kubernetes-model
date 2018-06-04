@@ -23,6 +23,8 @@ pushd "${OS_ROOT}" > /dev/null
     -ignore ".*\.go$" \
     -ignore "\.DS_Store" \
     -ignore application-template.json \
+    -ignore "prometheus-standalone.yaml" \
+    -ignore "node-exporter.yaml" \
     examples/image-streams/... \
     examples/db-templates/... \
     examples/jenkins \
@@ -32,8 +34,8 @@ pushd "${OS_ROOT}" > /dev/null
     examples/heapster/... \
     examples/prometheus/... \
     examples/service-catalog/... \
-    examples/templateservicebroker/... \
-    pkg/image/admission/imagepolicy/api/v1/...
+    install/... \
+    pkg/image/admission/apis/imagepolicy/v1/...
 
 "$(os::util::find::gopath_binary go-bindata)" \
     -nocompress \
@@ -44,6 +46,8 @@ pushd "${OS_ROOT}" > /dev/null
     -ignore "OWNERS" \
     -ignore "\.DS_Store" \
     -ignore ".*\.(go|md)$" \
+    -ignore "prometheus-standalone.yaml" \
+    -ignore "node-exporter.yaml" \
     test/extended/testdata/... \
     test/integration/testdata \
     examples/db-templates \
@@ -54,12 +58,12 @@ pushd "${OS_ROOT}" > /dev/null
     examples/hello-openshift \
     examples/jenkins/... \
     examples/quickstarts/cakephp-mysql.json \
-    examples/templateservicebroker/...
+    install/...
 
 popd > /dev/null
 
 # If you hit this, please reduce other tests instead of importing more
-if [[ "$( cat "${OUTPUT_PARENT}/test/extended/testdata/bindata.go" | wc -c )" -gt 950000 ]]; then
+if [[ "$( cat "${OUTPUT_PARENT}/test/extended/testdata/bindata.go" | wc -c )" -gt 1500000 ]]; then
     echo "error: extended bindata is $( cat "${OUTPUT_PARENT}/test/extended/testdata/bindata.go" | wc -c ) bytes, reduce the size of the import" 1>&2
     exit 1
 fi

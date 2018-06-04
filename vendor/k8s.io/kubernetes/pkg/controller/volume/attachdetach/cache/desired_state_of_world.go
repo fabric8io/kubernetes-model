@@ -25,8 +25,8 @@ import (
 	"fmt"
 	"sync"
 
+	"k8s.io/api/core/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util/operationexecutor"
 	"k8s.io/kubernetes/pkg/volume/util/types"
@@ -101,6 +101,14 @@ type DesiredStateOfWorld interface {
 	// GetKeepTerminatedPodVolumesForNode determines if node wants volumes to be
 	// mounted and attached for terminated pods
 	GetKeepTerminatedPodVolumesForNode(k8stypes.NodeName) bool
+
+	// Mark multiattach error as reported to prevent spamming multiple
+	// events for same error
+	SetMultiAttachError(v1.UniqueVolumeName, k8stypes.NodeName)
+
+	// GetPodsOnNodes returns list of pods ("namespace/name") that require
+	// given volume on given nodes.
+	GetVolumePodsOnNodes(nodes []k8stypes.NodeName, volumeName v1.UniqueVolumeName) []*v1.Pod
 }
 
 // VolumeToAttach represents a volume that should be attached to a node.
@@ -329,6 +337,21 @@ func (dsw *desiredStateOfWorld) VolumeExists(
 	return false
 }
 
+func (dsw *desiredStateOfWorld) SetMultiAttachError(
+	volumeName v1.UniqueVolumeName,
+	nodeName k8stypes.NodeName) {
+	dsw.Lock()
+	defer dsw.Unlock()
+
+	nodeObj, nodeExists := dsw.nodesManaged[nodeName]
+	if nodeExists {
+		if volumeObj, volumeExists := nodeObj.volumesToAttach[volumeName]; volumeExists {
+			volumeObj.multiAttachErrorReported = true
+			dsw.nodesManaged[nodeName].volumesToAttach[volumeName] = volumeObj
+		}
+	}
+}
+
 // GetKeepTerminatedPodVolumesForNode determines if node wants volumes to be
 // mounted and attached for terminated pods
 func (dsw *desiredStateOfWorld) GetKeepTerminatedPodVolumesForNode(nodeName k8stypes.NodeName) bool {
@@ -389,6 +412,27 @@ func (dsw *desiredStateOfWorld) GetPodToAdd() map[types.UniquePodName]PodToAdd {
 					NodeName:   nodeName,
 				}
 			}
+		}
+	}
+	return pods
+}
+
+func (dsw *desiredStateOfWorld) GetVolumePodsOnNodes(nodes []k8stypes.NodeName, volumeName v1.UniqueVolumeName) []*v1.Pod {
+	dsw.RLock()
+	defer dsw.RUnlock()
+
+	pods := []*v1.Pod{}
+	for _, nodeName := range nodes {
+		node, ok := dsw.nodesManaged[nodeName]
+		if !ok {
+			continue
+		}
+		volume, ok := node.volumesToAttach[volumeName]
+		if !ok {
+			continue
+		}
+		for _, pod := range volume.scheduledPods {
+			pods = append(pods, pod.podObj)
 		}
 	}
 	return pods

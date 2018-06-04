@@ -20,13 +20,13 @@ import (
 	"math"
 	"sort"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/kubernetes/pkg/api/v1"
-	apps "k8s.io/kubernetes/pkg/apis/apps/v1beta1"
-	"k8s.io/kubernetes/pkg/controller/history"
-
 	"github.com/golang/glog"
+
+	apps "k8s.io/api/apps/v1beta1"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
+	"k8s.io/kubernetes/pkg/controller/history"
 )
 
 // StatefulSetControl implements the control logic for updating StatefulSets and their children Pods. It is implemented
@@ -54,14 +54,16 @@ type StatefulSetControlInterface interface {
 func NewDefaultStatefulSetControl(
 	podControl StatefulPodControlInterface,
 	statusUpdater StatefulSetStatusUpdaterInterface,
-	controllerHistory history.Interface) StatefulSetControlInterface {
-	return &defaultStatefulSetControl{podControl, statusUpdater, controllerHistory}
+	controllerHistory history.Interface,
+	recorder record.EventRecorder) StatefulSetControlInterface {
+	return &defaultStatefulSetControl{podControl, statusUpdater, controllerHistory, recorder}
 }
 
 type defaultStatefulSetControl struct {
 	podControl        StatefulPodControlInterface
 	statusUpdater     StatefulSetStatusUpdaterInterface
 	controllerHistory history.Interface
+	recorder          record.EventRecorder
 }
 
 // UpdateStatefulSet executes the core logic loop for a stateful set, applying the predictable and
@@ -80,13 +82,13 @@ func (ssc *defaultStatefulSetControl) UpdateStatefulSet(set *apps.StatefulSet, p
 	history.SortControllerRevisions(revisions)
 
 	// get the current, and update revisions
-	currentRevision, updateRevision, err := ssc.getStatefulSetRevisions(set, revisions)
+	currentRevision, updateRevision, collisionCount, err := ssc.getStatefulSetRevisions(set, revisions)
 	if err != nil {
 		return err
 	}
 
 	// perform the main update function and get the status
-	status, err := ssc.updateStatefulSet(set, currentRevision, updateRevision, pods)
+	status, err := ssc.updateStatefulSet(set, currentRevision, updateRevision, collisionCount, pods)
 	if err != nil {
 		return err
 	}
@@ -174,21 +176,31 @@ func (ssc *defaultStatefulSetControl) truncateHistory(
 	return nil
 }
 
-// getStatefulSetRevisions returns the current and update ControllerRevisions for set. This method may create a new revision,
-// or modify the Revision of an existing revision if an update to set is detected. This method expects that revisions
-// is sorted when supplied.
+// getStatefulSetRevisions returns the current and update ControllerRevisions for set. It also
+// returns a collision count that records the number of name collisions set saw when creating
+// new ControllerRevisions. This count is incremented on every name collision and is used in
+// building the ControllerRevision names for name collision avoidance. This method may create
+// a new revision, or modify the Revision of an existing revision if an update to set is detected.
+// This method expects that revisions is sorted when supplied.
 func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
 	set *apps.StatefulSet,
-	revisions []*apps.ControllerRevision) (*apps.ControllerRevision, *apps.ControllerRevision, error) {
+	revisions []*apps.ControllerRevision) (*apps.ControllerRevision, *apps.ControllerRevision, int32, error) {
 	var currentRevision, updateRevision *apps.ControllerRevision
 
 	revisionCount := len(revisions)
 	history.SortControllerRevisions(revisions)
 
+	// Use a local copy of set.Status.CollisionCount to avoid modifying set.Status directly.
+	// This copy is returned so the value gets carried over to set.Status in updateStatefulSet.
+	var collisionCount int32
+	if set.Status.CollisionCount != nil {
+		collisionCount = *set.Status.CollisionCount
+	}
+
 	// create a new revision from the current set
-	updateRevision, err := newRevision(set, nextRevision(revisions))
+	updateRevision, err := newRevision(set, nextRevision(revisions), &collisionCount)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, collisionCount, err
 	}
 
 	// find any equivalent revisions
@@ -205,13 +217,13 @@ func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
 			equalRevisions[equalCount-1],
 			updateRevision.Revision)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, collisionCount, err
 		}
 	} else {
 		//if there is no equivalent revision we create a new one
-		updateRevision, err = ssc.controllerHistory.CreateControllerRevision(set, updateRevision)
+		updateRevision, err = ssc.controllerHistory.CreateControllerRevision(set, updateRevision, &collisionCount)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, collisionCount, err
 		}
 	}
 
@@ -227,7 +239,7 @@ func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
 		currentRevision = updateRevision
 	}
 
-	return currentRevision, updateRevision, nil
+	return currentRevision, updateRevision, collisionCount, nil
 }
 
 // updateStatefulSet performs the update function for a StatefulSet. This method creates, updates, and deletes Pods in
@@ -243,13 +255,14 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	set *apps.StatefulSet,
 	currentRevision *apps.ControllerRevision,
 	updateRevision *apps.ControllerRevision,
+	collisionCount int32,
 	pods []*v1.Pod) (*apps.StatefulSetStatus, error) {
 	// get the current and update revisions of the set.
-	currentSet, err := applyRevision(set, currentRevision)
+	currentSet, err := ApplyRevision(set, currentRevision)
 	if err != nil {
 		return nil, err
 	}
-	updateSet, err := applyRevision(set, updateRevision)
+	updateSet, err := ApplyRevision(set, updateRevision)
 	if err != nil {
 		return nil, err
 	}
@@ -260,6 +273,8 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	*status.ObservedGeneration = set.Generation
 	status.CurrentRevision = currentRevision.Name
 	status.UpdateRevision = updateRevision.Name
+	status.CollisionCount = new(int32)
+	*status.CollisionCount = collisionCount
 
 	replicaCount := int(*set.Spec.Replicas)
 	// slice that will contain all Pods such that 0 <= getOrdinal(pod) < set.Spec.Replicas
@@ -355,7 +370,8 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	for i := range replicas {
 		// delete and recreate failed pods
 		if isFailed(replicas[i]) {
-			glog.V(4).Infof("StatefulSet %s/%s is recreating failed Pod %s",
+			ssc.recorder.Eventf(set, v1.EventTypeWarning, "RecreatingFailedPod",
+				"StatefulSet %s/%s is recreating failed Pod %s",
 				set.Namespace,
 				set.Name,
 				replicas[i].Name)
@@ -420,11 +436,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 			continue
 		}
 		// Make a deep copy so we don't mutate the shared cache
-		copy, err := scheme.Scheme.DeepCopy(replicas[i])
-		if err != nil {
-			return &status, err
-		}
-		replica := copy.(*v1.Pod)
+		replica := replicas[i].DeepCopy()
 		if err := ssc.podControl.UpdateStatefulPod(updateSet, replica); err != nil {
 			return &status, err
 		}
@@ -530,11 +542,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSetStatus(
 	}
 
 	// copy set and update its status
-	obj, err := scheme.Scheme.Copy(set)
-	if err != nil {
-		return err
-	}
-	set = obj.(*apps.StatefulSet)
+	set = set.DeepCopy()
 	if err := ssc.statusUpdater.UpdateStatefulSetStatus(set, status); err != nil {
 		return err
 	}

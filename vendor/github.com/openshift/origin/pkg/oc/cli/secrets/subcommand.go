@@ -7,23 +7,22 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
-	"github.com/openshift/origin/pkg/build/builder/cmd/scmauth"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 const SecretsRecommendedName = "secrets"
 
 const (
 	// SourceUsername is the key of the optional username for basic authentication subcommand
-	SourceUsername = scmauth.UsernameSecret
+	SourceUsername = "username"
 	// SourcePassword is the key of the optional password or token for basic authentication subcommand
-	SourcePassword = scmauth.PasswordSecret
+	SourcePassword = "password"
 	// SourceCertificate is the key of the optional certificate authority for basic authentication subcommand
-	SourceCertificate = scmauth.CACertName
+	SourceCertificate = "ca.crt"
 	// SourcePrivateKey is the key of the required SSH private key for SSH authentication subcommand
-	SourcePrivateKey = scmauth.SSHPrivateKeyMethodName
+	SourcePrivateKey = "ssh-privatekey"
 	// SourceGitconfig is the key of the optional gitconfig content for both basic and SSH authentication subcommands
-	SourceGitConfig = scmauth.GitConfigName
+	SourceGitConfig = ".gitconfig"
 )
 
 var (
@@ -35,7 +34,7 @@ var (
     Docker registries.`)
 )
 
-func NewCmdSecrets(name, fullName string, f *clientcmd.Factory, reader io.Reader, out, errOut io.Writer, ocEditFullName string) *cobra.Command {
+func NewCmdSecrets(name, fullName string, f *clientcmd.Factory, out, errOut io.Writer) *cobra.Command {
 	// Parent command to which all subcommands are added.
 	cmds := &cobra.Command{
 		Use:     name,
@@ -45,11 +44,6 @@ func NewCmdSecrets(name, fullName string, f *clientcmd.Factory, reader io.Reader
 		Run:     cmdutil.DefaultSubCommandRun(errOut),
 	}
 
-	newSecretFullName := fullName + " " + NewSecretRecommendedCommandName
-	cmds.AddCommand(NewCmdCreateSecret(NewSecretRecommendedCommandName, newSecretFullName, f, out))
-	cmds.AddCommand(NewCmdCreateDockerConfigSecret(CreateDockerConfigSecretRecommendedName, fullName+" "+CreateDockerConfigSecretRecommendedName, f, out, newSecretFullName, ocEditFullName))
-	cmds.AddCommand(NewCmdCreateBasicAuthSecret(CreateBasicAuthSecretRecommendedCommandName, fullName+" "+CreateBasicAuthSecretRecommendedCommandName, f, reader, out, newSecretFullName, ocEditFullName))
-	cmds.AddCommand(NewCmdCreateSSHAuthSecret(CreateSSHAuthSecretRecommendedCommandName, fullName+" "+CreateSSHAuthSecretRecommendedCommandName, f, out, newSecretFullName, ocEditFullName))
 	cmds.AddCommand(NewCmdLinkSecret(LinkSecretRecommendedName, fullName+" "+LinkSecretRecommendedName, f, out))
 	cmds.AddCommand(NewCmdUnlinkSecret(UnlinkSecretRecommendedName, fullName+" "+UnlinkSecretRecommendedName, f, out))
 

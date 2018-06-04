@@ -4,15 +4,15 @@ import (
 	"reflect"
 	"testing"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapihelper "k8s.io/kubernetes/pkg/api/helper"
-	"k8s.io/kubernetes/pkg/api/v1"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
+	kapihelper "k8s.io/kubernetes/pkg/apis/core/helper"
 
 	buildadmission "github.com/openshift/origin/pkg/build/admission"
 	u "github.com/openshift/origin/pkg/build/admission/testutil"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	defaultsapi "github.com/openshift/origin/pkg/build/controller/build/defaults/api"
+	defaultsapi "github.com/openshift/origin/pkg/build/controller/build/apis/defaults"
 	buildutil "github.com/openshift/origin/pkg/build/util"
 
 	_ "github.com/openshift/origin/pkg/api/install"

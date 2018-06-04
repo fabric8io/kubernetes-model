@@ -7,9 +7,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/api"
+	api "k8s.io/kubernetes/pkg/apis/core"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 )
 
@@ -28,7 +29,7 @@ func NewListWatchServiceLookup(svcGetter kcoreclient.ServicesGetter, resync time
 			return svcGetter.Services(api.NamespaceAll).Watch(options)
 		},
 	}
-	cache.NewReflector(lw, &api.Service{}, svcStore, resync).Run()
+	go cache.NewReflector(lw, &api.Service{}, svcStore, resync).Run(wait.NeverStop)
 
 	return &serviceLWLookup{
 		store: svcStore,

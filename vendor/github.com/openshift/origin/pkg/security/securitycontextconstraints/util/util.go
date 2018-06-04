@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/kubernetes/pkg/api"
+	api "k8s.io/kubernetes/pkg/apis/core"
 
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
 )
@@ -140,4 +140,18 @@ func SCCAllowsFSType(scc *securityapi.SecurityContextConstraints, fsType securit
 		}
 	}
 	return false
+}
+
+// EqualStringSlices compares string slices for equality. Slices are equal when
+// their sizes and elements on similar positions are equal.
+func EqualStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

@@ -1,16 +1,23 @@
 package integration
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
-	extensionsv1beta1 "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
+	"k8s.io/client-go/discovery"
+	discocache "k8s.io/client-go/discovery/cached"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/scale"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
-	deploytest "github.com/openshift/origin/pkg/deploy/apis/apps/test"
-	deployutil "github.com/openshift/origin/pkg/deploy/util"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	appstest "github.com/openshift/origin/pkg/apps/apis/apps/test"
+	appsclient "github.com/openshift/origin/pkg/apps/generated/internalclientset"
+	appsutil "github.com/openshift/origin/pkg/apps/util"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -27,42 +34,94 @@ func TestDeployScale(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
+	_, _, err = testserver.CreateNewProject(clusterAdminClientConfig, namespace, "my-test-user")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, namespace, "my-test-user")
+	_, adminConfig, err := testutil.GetClientForUser(clusterAdminClientConfig, "my-test-user")
 	if err != nil {
 		t.Fatal(err)
 	}
-	osClient, _, _, err := testutil.GetClientForUser(*clusterAdminClientConfig, "my-test-user")
-	if err != nil {
-		t.Fatal(err)
-	}
+	adminAppsClient := appsclient.NewForConfigOrDie(adminConfig)
 
-	config := deploytest.OkDeploymentConfig(0)
+	config := appstest.OkDeploymentConfig(0)
 	config.Namespace = namespace
-	config.Spec.Triggers = []deployapi.DeploymentTriggerPolicy{}
+	config.Spec.Triggers = []appsapi.DeploymentTriggerPolicy{}
 	config.Spec.Replicas = 1
 
-	dc, err := osClient.DeploymentConfigs(namespace).Create(config)
+	dc, err := adminAppsClient.Apps().DeploymentConfigs(namespace).Create(config)
 	if err != nil {
 		t.Fatalf("Couldn't create DeploymentConfig: %v %#v", err, config)
 	}
 	generation := dc.Generation
 
+	{
+		// Get scale subresource
+		legacyPath := fmt.Sprintf("/oapi/v1/namespaces/%s/deploymentconfigs/%s/scale", dc.Namespace, dc.Name)
+		legacyScale := &unstructured.Unstructured{}
+		if err := adminAppsClient.RESTClient().Get().AbsPath(legacyPath).Do().Into(legacyScale); err != nil {
+			t.Fatal(err)
+		}
+		// Ensure correct type
+		if legacyScale.GetAPIVersion() != "extensions/v1beta1" {
+			t.Fatalf("Expected extensions/v1beta1, got %v", legacyScale.GetAPIVersion())
+		}
+		scaleBytes, err := legacyScale.MarshalJSON()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Ensure we can submit the same type back
+		if err := adminAppsClient.RESTClient().Put().AbsPath(legacyPath).Body(scaleBytes).Do().Error(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	{
+		// Get scale subresource
+		scalePath := fmt.Sprintf("/apis/apps.openshift.io/v1/namespaces/%s/deploymentconfigs/%s/scale", dc.Namespace, dc.Name)
+		scale := &unstructured.Unstructured{}
+		if err := adminAppsClient.RESTClient().Get().AbsPath(scalePath).Do().Into(scale); err != nil {
+			t.Fatal(err)
+		}
+		// Ensure correct type
+		if scale.GetAPIVersion() != "extensions/v1beta1" {
+			t.Fatalf("Expected extensions/v1beta1, got %v", scale.GetAPIVersion())
+		}
+		scaleBytes, err := scale.MarshalJSON()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Ensure we can submit the same type back
+		if err := adminAppsClient.RESTClient().Put().AbsPath(scalePath).Body(scaleBytes).Do().Error(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	condition := func() (bool, error) {
-		config, err := osClient.DeploymentConfigs(namespace).Get(dc.Name, metav1.GetOptions{})
+		config, err := adminAppsClient.Apps().DeploymentConfigs(namespace).Get(dc.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, nil
 		}
-		return deployutil.HasSynced(config, generation), nil
+		return appsutil.HasSynced(config, generation), nil
 	}
 	if err := wait.PollImmediate(500*time.Millisecond, 10*time.Second, condition); err != nil {
 		t.Fatalf("Deployment config never synced: %v", err)
 	}
 
-	scale, err := osClient.DeploymentConfigs(namespace).GetScale(config.Name)
+	cachedDiscovery := discocache.NewMemCacheClient(adminAppsClient.Discovery())
+	restMapper := discovery.NewDeferredDiscoveryRESTMapper(cachedDiscovery, apimeta.InterfacesForUnstructured)
+	restMapper.Reset()
+	// we don't use cached discovery because DiscoveryScaleKindResolver does its own caching,
+	// so we want to re-fetch every time when we actually ask for it
+	scaleKindResolver := scale.NewDiscoveryScaleKindResolver(adminAppsClient.Discovery())
+	scaleClient, err := scale.NewForConfig(adminConfig, restMapper, dynamic.LegacyAPIPathResolverFunc, scaleKindResolver)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	scale, err := scaleClient.Scales(namespace).Get(appsapi.Resource("deploymentconfigs"), config.Name)
 	if err != nil {
 		t.Fatalf("Couldn't get DeploymentConfig scale: %v", err)
 	}
@@ -70,13 +129,9 @@ func TestDeployScale(t *testing.T) {
 		t.Fatalf("Expected scale.spec.replicas=1, got %#v", scale)
 	}
 
-	scaleUpdate := deployapi.ScaleFromConfig(dc)
+	scaleUpdate := scale.DeepCopy()
 	scaleUpdate.Spec.Replicas = 3
-	scaleUpdatev1beta1 := &extensionsv1beta1.Scale{}
-	if err := extensionsv1beta1.Convert_extensions_Scale_To_v1beta1_Scale(scaleUpdate, scaleUpdatev1beta1, nil); err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	updatedScale, err := osClient.DeploymentConfigs(namespace).UpdateScale(scaleUpdatev1beta1)
+	updatedScale, err := scaleClient.Scales(namespace).Update(appsapi.Resource("deploymentconfigs"), scaleUpdate)
 	if err != nil {
 		// If this complains about "Scale" not being registered in "v1", check the kind overrides in the API registration in SubresourceGroupVersionKind
 		t.Fatalf("Couldn't update DeploymentConfig scale to %#v: %v", scaleUpdate, err)
@@ -85,7 +140,7 @@ func TestDeployScale(t *testing.T) {
 		t.Fatalf("Expected scale.spec.replicas=3, got %#v", scale)
 	}
 
-	persistedScale, err := osClient.DeploymentConfigs(namespace).GetScale(config.Name)
+	persistedScale, err := scaleClient.Scales(namespace).Get(appsapi.Resource("deploymentconfigs"), config.Name)
 	if err != nil {
 		t.Fatalf("Couldn't get DeploymentConfig scale: %v", err)
 	}

@@ -12,16 +12,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/watch"
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	kprinters "k8s.io/kubernetes/pkg/printers"
 
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	imageapiv1 "github.com/openshift/api/image/v1"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
-	imageapiv1 "github.com/openshift/origin/pkg/image/apis/image/v1"
+	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset/typed/image/internalversion"
 	"github.com/openshift/origin/pkg/oc/cli/describe"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
+	quotautil "github.com/openshift/origin/pkg/quota/util"
 )
 
 var (
@@ -47,11 +49,10 @@ var (
 func NewCmdImportImage(fullName string, f *clientcmd.Factory, out, errout io.Writer) *cobra.Command {
 	opts := &ImportImageOptions{}
 	cmd := &cobra.Command{
-		Use:        "import-image IMAGESTREAM[:TAG]",
-		Short:      "Imports images from a Docker registry",
-		Long:       importImageLong,
-		Example:    fmt.Sprintf(importImageExample, fullName),
-		SuggestFor: []string{"image"},
+		Use:     "import-image IMAGESTREAM[:TAG]",
+		Short:   "Imports images from a Docker registry",
+		Long:    importImageLong,
+		Example: fmt.Sprintf(importImageExample, fullName),
 		Run: func(cmd *cobra.Command, args []string) {
 			kcmdutil.CheckErr(opts.Complete(f, cmd, args, fullName, out, errout))
 			kcmdutil.CheckErr(opts.Validate(cmd))
@@ -90,10 +91,10 @@ type ImportImageOptions struct {
 	CommandName string
 
 	// helpers
-	out      io.Writer
-	errout   io.Writer
-	osClient client.Interface
-	isClient client.ImageStreamInterface
+	out         io.Writer
+	errout      io.Writer
+	imageClient imageclient.ImageInterface
+	isClient    imageclient.ImageStreamInterface
 }
 
 // Complete turns a partially defined ImportImageOptions into a solvent structure
@@ -118,12 +119,13 @@ func (o *ImportImageOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, 
 	}
 	o.Namespace = namespace
 
-	osClient, _, err := f.Clients()
+	client, err := f.OpenshiftInternalImageClient()
 	if err != nil {
 		return err
 	}
-	o.osClient = osClient
-	o.isClient = osClient.ImageStreams(namespace)
+	o.imageClient = client.Image()
+	o.isClient = client.Image().ImageStreams(namespace)
+
 	o.out = out
 	o.errout = errout
 
@@ -134,7 +136,7 @@ func (o *ImportImageOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, 
 // an import.
 func (o *ImportImageOptions) Validate(cmd *cobra.Command) error {
 	if len(o.Target) == 0 {
-		return kcmdutil.UsageError(cmd, "you must specify the name of an image stream")
+		return kcmdutil.UsageErrorf(cmd, "you must specify the name of an image stream")
 	}
 
 	targetRef, err := imageapi.ParseDockerImageReference(o.Target)
@@ -164,9 +166,10 @@ func (o *ImportImageOptions) Run() error {
 	}
 
 	// Attempt the new, direct import path
-	result, err := o.isClient.Import(isi)
+	result, err := o.imageClient.ImageStreamImports(isi.Namespace).Create(isi)
+	err = TransformUnsupportedError(err)
 	switch {
-	case err == client.ErrImageStreamImportUnsupported:
+	case err == imageapi.ErrImageStreamImportUnsupported:
 	case err != nil:
 		return err
 	default:
@@ -258,7 +261,7 @@ func (o *ImportImageOptions) Run() error {
 
 	fmt.Fprint(o.out, "The import completed successfully.\n\n")
 
-	d := describe.ImageStreamDescriber{Interface: o.osClient}
+	d := describe.ImageStreamDescriber{ImageClient: o.imageClient}
 	info, err := d.Describe(updatedStream.Namespace, updatedStream.Name, kprinters.DescriberSettings{})
 	if err != nil {
 		return err
@@ -342,22 +345,17 @@ func (o *ImportImageOptions) createImageImport() (*imageapi.ImageStream, *imagea
 		stream, isi = o.newImageStream()
 		// ensure defaulting is applied by round trip converting
 		// TODO: convert to using versioned types.
-		external, err := kapi.Scheme.ConvertToVersion(stream, imageapiv1.SchemeGroupVersion)
+		external, err := legacyscheme.Scheme.ConvertToVersion(stream, imageapiv1.SchemeGroupVersion)
 		if err != nil {
 			return nil, nil, err
 		}
-		kapi.Scheme.Default(external)
-		internal, err := kapi.Scheme.ConvertToVersion(external, imageapi.SchemeGroupVersion)
+		legacyscheme.Scheme.Default(external)
+		internal, err := legacyscheme.Scheme.ConvertToVersion(external, imageapi.SchemeGroupVersion)
 		if err != nil {
 			return nil, nil, err
 		}
 		stream = internal.(*imageapi.ImageStream)
 		return stream, isi, nil
-	}
-
-	// the stream already exists
-	if len(stream.Spec.DockerImageRepository) == 0 && len(stream.Spec.Tags) == 0 {
-		return nil, nil, fmt.Errorf("image stream does not have valid docker images to be imported")
 	}
 
 	if o.All {
@@ -414,13 +412,31 @@ func (o *ImportImageOptions) importTag(stream *imageapi.ImageStream) (*imageapi.
 	from := o.From
 	tag := o.Tag
 	// follow any referential tags to the destination
-	finalTag, existing, ok, multiple := imageapi.FollowTagReference(stream, tag)
-	if !ok && multiple {
-		return nil, fmt.Errorf("tag %q on the image stream is a reference to %q, which does not exist", tag, finalTag)
-	}
-
-	// update ImageStream appropriately
-	if ok {
+	finalTag, existing, multiple, err := imageapi.FollowTagReference(stream, tag)
+	switch err {
+	case imageapi.ErrInvalidReference:
+		return nil, fmt.Errorf("tag %q points to an invalid imagestreamtag", tag)
+	case imageapi.ErrCrossImageStreamReference:
+		return nil, fmt.Errorf("tag %q points to an imagestreamtag from another ImageStream", tag)
+	case imageapi.ErrCircularReference:
+		return nil, fmt.Errorf("tag %q on the image stream is a reference to same tag", tag)
+	case imageapi.ErrNotFoundReference:
+		// create a new tag
+		if len(from) == 0 && tag == imageapi.DefaultImageTag {
+			from = stream.Spec.DockerImageRepository
+		}
+		// if the from is still empty this means there's no such tag defined
+		// nor we can't create any from .spec.dockerImageRepository
+		if len(from) == 0 {
+			return nil, fmt.Errorf("the tag %q does not exist on the image stream - choose an existing tag to import or use the 'tag' command to create a new tag", tag)
+		}
+		existing = &imageapi.TagReference{
+			From: &kapi.ObjectReference{
+				Kind: "DockerImage",
+				Name: from,
+			},
+		}
+	case nil:
 		// disallow re-importing anything other than DockerImage
 		if existing.From != nil && existing.From.Kind != "DockerImage" {
 			return nil, fmt.Errorf("tag %q points to existing %s %q, it cannot be re-imported", tag, existing.From.Kind, existing.From.Name)
@@ -431,7 +447,8 @@ func (o *ImportImageOptions) importTag(stream *imageapi.ImageStream) (*imageapi.
 		}
 		if len(from) != 0 && from != existing.From.Name {
 			if multiple {
-				return nil, fmt.Errorf("the tag %q points to the tag %q which points to %q - use the 'tag' command if you want to change the source to %q", tag, finalTag, existing.From.Name, from)
+				return nil, fmt.Errorf("the tag %q points to the tag %q which points to %q - use the 'tag' command if you want to change the source to %q",
+					tag, finalTag, existing.From.Name, from)
 			}
 			return nil, fmt.Errorf("the tag %q points to %q - use the 'tag' command if you want to change the source to %q", tag, existing.From.Name, from)
 		}
@@ -448,22 +465,6 @@ func (o *ImportImageOptions) importTag(stream *imageapi.ImageStream) (*imageapi.
 		zero := int64(0)
 		existing.Generation = &zero
 
-	} else {
-		// create a new tag
-		if len(from) == 0 && tag == imageapi.DefaultImageTag {
-			from = stream.Spec.DockerImageRepository
-		}
-		// if the from is still empty this means there's no such tag defined
-		// nor we can't create any from .spec.dockerImageRepository
-		if len(from) == 0 {
-			return nil, fmt.Errorf("the tag %q does not exist on the image stream - choose an existing tag to import or use the 'tag' command to create a new tag", tag)
-		}
-		existing = &imageapi.TagReference{
-			From: &kapi.ObjectReference{
-				Kind: "DockerImage",
-				Name: from,
-			},
-		}
 	}
 	stream.Spec.Tags[tag] = *existing
 
@@ -563,11 +564,13 @@ func (o *ImportImageOptions) newImageStreamImportAll(stream *imageapi.ImageStrea
 }
 
 func (o *ImportImageOptions) newImageStreamImportTags(stream *imageapi.ImageStream, tags map[string]string) *imageapi.ImageStreamImport {
-	isi, insecure := o.newImageStreamImport(stream)
+	isi, streamInsecure := o.newImageStreamImport(stream)
 	for tag, from := range tags {
+		insecure := streamInsecure
 		scheduled := o.Scheduled
 		oldTag, ok := stream.Spec.Tags[tag]
 		if ok {
+			insecure = insecure || oldTag.ImportPolicy.Insecure
 			scheduled = scheduled || oldTag.ImportPolicy.Scheduled
 		}
 		isi.Spec.Images = append(isi.Spec.Images, imageapi.ImageImportSpec{
@@ -584,4 +587,28 @@ func (o *ImportImageOptions) newImageStreamImportTags(stream *imageapi.ImageStre
 		})
 	}
 	return isi
+}
+
+// TransformUnsupportedError converts specific error conditions to unsupported
+func TransformUnsupportedError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.IsNotFound(err) {
+		status, ok := err.(errors.APIStatus)
+		if !ok {
+			return imageapi.ErrImageStreamImportUnsupported
+		}
+		if status.Status().Details == nil || status.Status().Details.Kind == "" {
+			return imageapi.ErrImageStreamImportUnsupported
+		}
+	}
+	// The ImageStreamImport resource exists in v1.1.1 of origin but is not yet
+	// enabled by policy. A create request will return a Forbidden(403) error.
+	// We want to return ErrImageStreamImportUnsupported to allow fallback behavior
+	// in clients.
+	if errors.IsForbidden(err) && !quotautil.IsErrorQuotaExceeded(err) {
+		return imageapi.ErrImageStreamImportUnsupported
+	}
+	return err
 }

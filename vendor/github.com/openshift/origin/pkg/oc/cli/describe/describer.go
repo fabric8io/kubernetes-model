@@ -10,6 +10,7 @@ import (
 	"time"
 
 	units "github.com/docker/go-units"
+	"github.com/golang/glog"
 
 	kerrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -18,66 +19,130 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/client-go/rest"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	kprinters "k8s.io/kubernetes/pkg/printers"
 	kinternalprinters "k8s.io/kubernetes/pkg/printers/internalversion"
 
 	oapi "github.com/openshift/origin/pkg/api"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	appsclient "github.com/openshift/origin/pkg/apps/generated/internalclientset/typed/apps/internalversion"
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
+	oauthorizationclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset/typed/authorization/internalversion"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	"github.com/openshift/origin/pkg/client"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	buildclient "github.com/openshift/origin/pkg/build/generated/internalclientset/typed/build/internalversion"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset/typed/image/internalversion"
+	networkapi "github.com/openshift/origin/pkg/network/apis/network"
+	onetworkclient "github.com/openshift/origin/pkg/network/generated/internalclientset/typed/network/internalversion"
 	oauthapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
+	oauthclient "github.com/openshift/origin/pkg/oauth/generated/internalclientset/typed/oauth/internalversion"
 	projectapi "github.com/openshift/origin/pkg/project/apis/project"
+	projectclient "github.com/openshift/origin/pkg/project/generated/internalclientset/typed/project/internalversion"
 	quotaapi "github.com/openshift/origin/pkg/quota/apis/quota"
+	quotaclient "github.com/openshift/origin/pkg/quota/generated/internalclientset/typed/quota/internalversion"
 	routeapi "github.com/openshift/origin/pkg/route/apis/route"
-	sdnapi "github.com/openshift/origin/pkg/sdn/apis/network"
+	routeclient "github.com/openshift/origin/pkg/route/generated/internalclientset/typed/route/internalversion"
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
-	"github.com/openshift/origin/pkg/security/legacyclient"
+	securityclient "github.com/openshift/origin/pkg/security/generated/internalclientset/typed/security/internalversion"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
+	templateclient "github.com/openshift/origin/pkg/template/generated/internalclientset/typed/template/internalversion"
 	userapi "github.com/openshift/origin/pkg/user/apis/user"
+	userclient "github.com/openshift/origin/pkg/user/generated/internalclientset/typed/user/internalversion"
 )
 
-func describerMap(c *client.Client, kclient kclientset.Interface, host string, withCoreGroup bool) map[schema.GroupKind]kprinters.Describer {
+func describerMap(clientConfig *rest.Config, kclient kclientset.Interface, host string, withCoreGroup bool) map[schema.GroupKind]kprinters.Describer {
+	// FIXME: This should use the client factory
+	// we can't fail and we can't log at a normal level because this is sometimes called with `nils` for help :(
+	oauthorizationClient, err := oauthorizationclient.NewForConfig(clientConfig)
+	if err != nil {
+		glog.V(1).Info(err)
+	}
+	onetworkClient, err := onetworkclient.NewForConfig(clientConfig)
+	if err != nil {
+		glog.V(1).Info(err)
+	}
+	userClient, err := userclient.NewForConfig(clientConfig)
+	if err != nil {
+		glog.V(1).Info(err)
+	}
+	quotaClient, err := quotaclient.NewForConfig(clientConfig)
+	if err != nil {
+		glog.V(1).Info(err)
+	}
+	imageClient, err := imageclient.NewForConfig(clientConfig)
+	if err != nil {
+		glog.V(1).Info(err)
+	}
+	appsClient, err := appsclient.NewForConfig(clientConfig)
+	if err != nil {
+		glog.V(1).Info(err)
+	}
+	buildClient, err := buildclient.NewForConfig(clientConfig)
+	if err != nil {
+		glog.V(1).Info(err)
+	}
+	templateClient, err := templateclient.NewForConfig(clientConfig)
+	if err != nil {
+		glog.V(1).Info(err)
+	}
+	routeClient, err := routeclient.NewForConfig(clientConfig)
+	if err != nil {
+		glog.V(1).Info(err)
+	}
+	projectClient, err := projectclient.NewForConfig(clientConfig)
+	if err != nil {
+		glog.V(1).Info(err)
+	}
+	oauthClient, err := oauthclient.NewForConfig(clientConfig)
+	if err != nil {
+		glog.V(1).Info(err)
+	}
+	securityClient, err := securityclient.NewForConfig(clientConfig)
+	if err != nil {
+		glog.V(1).Info(err)
+	}
+
 	m := map[schema.GroupKind]kprinters.Describer{
-		buildapi.Kind("Build"):                          &BuildDescriber{c, kclient},
-		buildapi.Kind("BuildConfig"):                    &BuildConfigDescriber{c, kclient, host},
-		deployapi.Kind("DeploymentConfig"):              &DeploymentConfigDescriber{c, kclient, nil},
-		authorizationapi.Kind("Identity"):               &IdentityDescriber{c},
-		imageapi.Kind("Image"):                          &ImageDescriber{c},
-		imageapi.Kind("ImageStream"):                    &ImageStreamDescriber{c},
-		imageapi.Kind("ImageStreamTag"):                 &ImageStreamTagDescriber{c},
-		imageapi.Kind("ImageStreamImage"):               &ImageStreamImageDescriber{c},
-		routeapi.Kind("Route"):                          &RouteDescriber{c, kclient},
-		projectapi.Kind("Project"):                      &ProjectDescriber{c, kclient},
-		templateapi.Kind("Template"):                    &TemplateDescriber{c, meta.NewAccessor(), kapi.Scheme, nil},
-		authorizationapi.Kind("Policy"):                 &PolicyDescriber{c},
-		authorizationapi.Kind("PolicyBinding"):          &PolicyBindingDescriber{c},
-		authorizationapi.Kind("RoleBinding"):            &RoleBindingDescriber{c},
-		authorizationapi.Kind("Role"):                   &RoleDescriber{c},
-		authorizationapi.Kind("ClusterPolicy"):          &ClusterPolicyDescriber{c},
-		authorizationapi.Kind("ClusterPolicyBinding"):   &ClusterPolicyBindingDescriber{c},
-		authorizationapi.Kind("ClusterRoleBinding"):     &ClusterRoleBindingDescriber{c},
-		authorizationapi.Kind("ClusterRole"):            &ClusterRoleDescriber{c},
-		oauthapi.Kind("OAuthAccessToken"):               &OAuthAccessTokenDescriber{c},
-		userapi.Kind("User"):                            &UserDescriber{c},
-		userapi.Kind("Group"):                           &GroupDescriber{c.Groups()},
-		userapi.Kind("UserIdentityMapping"):             &UserIdentityMappingDescriber{c},
-		quotaapi.Kind("ClusterResourceQuota"):           &ClusterQuotaDescriber{c},
-		quotaapi.Kind("AppliedClusterResourceQuota"):    &AppliedClusterQuotaDescriber{c},
-		sdnapi.Kind("ClusterNetwork"):                   &ClusterNetworkDescriber{c},
-		sdnapi.Kind("HostSubnet"):                       &HostSubnetDescriber{c},
-		sdnapi.Kind("NetNamespace"):                     &NetNamespaceDescriber{c},
-		sdnapi.Kind("EgressNetworkPolicy"):              &EgressNetworkPolicyDescriber{c},
-		authorizationapi.Kind("RoleBindingRestriction"): &RoleBindingRestrictionDescriber{c},
-		securityapi.Kind("SecurityContextConstraints"):  &SecurityContextConstraintsDescriber{kclient},
+		buildapi.Kind("Build"):                          &BuildDescriber{buildClient, kclient},
+		buildapi.Kind("BuildConfig"):                    &BuildConfigDescriber{buildClient, kclient, host},
+		appsapi.Kind("DeploymentConfig"):                &DeploymentConfigDescriber{appsClient, kclient, nil},
+		imageapi.Kind("Image"):                          &ImageDescriber{imageClient},
+		imageapi.Kind("ImageStream"):                    &ImageStreamDescriber{imageClient},
+		imageapi.Kind("ImageStreamTag"):                 &ImageStreamTagDescriber{imageClient},
+		imageapi.Kind("ImageStreamImage"):               &ImageStreamImageDescriber{imageClient},
+		routeapi.Kind("Route"):                          &RouteDescriber{routeClient, kclient},
+		projectapi.Kind("Project"):                      &ProjectDescriber{projectClient, kclient},
+		templateapi.Kind("Template"):                    &TemplateDescriber{templateClient, meta.NewAccessor(), legacyscheme.Scheme, nil},
+		templateapi.Kind("TemplateInstance"):            &TemplateInstanceDescriber{kclient, templateClient, nil},
+		authorizationapi.Kind("Policy"):                 &PolicyDescriber{oauthorizationClient},
+		authorizationapi.Kind("PolicyBinding"):          &PolicyBindingDescriber{oauthorizationClient},
+		authorizationapi.Kind("RoleBinding"):            &RoleBindingDescriber{oauthorizationClient},
+		authorizationapi.Kind("Role"):                   &RoleDescriber{oauthorizationClient},
+		authorizationapi.Kind("ClusterPolicy"):          &ClusterPolicyDescriber{oauthorizationClient},
+		authorizationapi.Kind("ClusterPolicyBinding"):   &ClusterPolicyBindingDescriber{oauthorizationClient},
+		authorizationapi.Kind("ClusterRoleBinding"):     &ClusterRoleBindingDescriber{oauthorizationClient},
+		authorizationapi.Kind("ClusterRole"):            &ClusterRoleDescriber{oauthorizationClient},
+		authorizationapi.Kind("RoleBindingRestriction"): &RoleBindingRestrictionDescriber{oauthorizationClient},
+		oauthapi.Kind("OAuthAccessToken"):               &OAuthAccessTokenDescriber{oauthClient},
+		userapi.Kind("Identity"):                        &IdentityDescriber{userClient},
+		userapi.Kind("User"):                            &UserDescriber{userClient},
+		userapi.Kind("Group"):                           &GroupDescriber{userClient},
+		userapi.Kind("UserIdentityMapping"):             &UserIdentityMappingDescriber{userClient},
+		quotaapi.Kind("ClusterResourceQuota"):           &ClusterQuotaDescriber{quotaClient},
+		quotaapi.Kind("AppliedClusterResourceQuota"):    &AppliedClusterQuotaDescriber{quotaClient},
+		networkapi.Kind("ClusterNetwork"):               &ClusterNetworkDescriber{onetworkClient},
+		networkapi.Kind("HostSubnet"):                   &HostSubnetDescriber{onetworkClient},
+		networkapi.Kind("NetNamespace"):                 &NetNamespaceDescriber{onetworkClient},
+		networkapi.Kind("EgressNetworkPolicy"):          &EgressNetworkPolicyDescriber{onetworkClient},
+		securityapi.Kind("SecurityContextConstraints"):  &SecurityContextConstraintsDescriber{securityClient},
 	}
 
 	// Register the legacy ("core") API group for all kinds as well.
 	if withCoreGroup {
-		for _, t := range kapi.Scheme.KnownTypes(oapi.SchemeGroupVersion) {
+		for _, t := range legacyscheme.Scheme.KnownTypes(oapi.SchemeGroupVersion) {
 			coreKind := oapi.SchemeGroupVersion.WithKind(t.Name())
 			for g, d := range m {
 				if g.Kind == coreKind.Kind {
@@ -94,7 +159,7 @@ func DescribableResources() []string {
 	// Include describable resources in kubernetes
 	keys := kinternalprinters.DescribableResources()
 
-	for k := range describerMap(nil, nil, "", false) {
+	for k := range describerMap(&rest.Config{}, nil, "", false) {
 		resource := strings.ToLower(k.Kind)
 		keys = append(keys, resource)
 	}
@@ -102,8 +167,8 @@ func DescribableResources() []string {
 }
 
 // DescriberFor returns a describer for a given kind of resource
-func DescriberFor(kind schema.GroupKind, c *client.Client, kclient kclientset.Interface, host string) (kprinters.Describer, bool) {
-	f, ok := describerMap(c, kclient, host, true)[kind]
+func DescriberFor(kind schema.GroupKind, clientConfig *rest.Config, kclient kclientset.Interface, host string) (kprinters.Describer, bool) {
+	f, ok := describerMap(clientConfig, kclient, host, true)[kind]
 	if ok {
 		return f, true
 	}
@@ -112,24 +177,24 @@ func DescriberFor(kind schema.GroupKind, c *client.Client, kclient kclientset.In
 
 // BuildDescriber generates information about a build
 type BuildDescriber struct {
-	osClient   client.Interface
-	kubeClient kclientset.Interface
+	buildClient buildclient.BuildInterface
+	kubeClient  kclientset.Interface
 }
 
 // Describe returns the description of a build
 func (d *BuildDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.osClient.Builds(namespace)
+	c := d.buildClient.Builds(namespace)
 	build, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
-	events, _ := d.kubeClient.Core().Events(namespace).Search(kapi.Scheme, build)
+	events, _ := d.kubeClient.Core().Events(namespace).Search(legacyscheme.Scheme, build)
 	if events == nil {
 		events = &kapi.EventList{}
 	}
 	// get also pod events and merge it all into one list for describe
 	if pod, err := d.kubeClient.Core().Pods(namespace).Get(buildapi.GetBuildPodName(build), metav1.GetOptions{}); err == nil {
-		if podEvents, _ := d.kubeClient.Core().Events(namespace).Search(kapi.Scheme, pod); podEvents != nil {
+		if podEvents, _ := d.kubeClient.Core().Events(namespace).Search(legacyscheme.Scheme, pod); podEvents != nil {
 			events.Items = append(events.Items, podEvents.Items...)
 		}
 	}
@@ -197,16 +262,21 @@ func describeBuildDuration(build *buildapi.Build) string {
 		// time a still running build has been running in a pod
 		duration := metav1.Now().Rfc3339Copy().Time.Sub(build.Status.StartTimestamp.Rfc3339Copy().Time)
 		return fmt.Sprintf("running for %v", duration)
+	} else if build.Status.CompletionTimestamp == nil &&
+		build.Status.StartTimestamp == nil &&
+		build.Status.Phase == buildapi.BuildPhaseCancelled {
+		return "<none>"
 	}
+
 	duration := build.Status.CompletionTimestamp.Rfc3339Copy().Time.Sub(build.Status.StartTimestamp.Rfc3339Copy().Time)
 	return fmt.Sprintf("%v", duration)
 }
 
 // BuildConfigDescriber generates information about a buildConfig
 type BuildConfigDescriber struct {
-	client.Interface
-	kubeClient kclientset.Interface
-	host       string
+	buildClient buildclient.BuildInterface
+	kubeClient  kclientset.Interface
+	host        string
 }
 
 func nameAndNamespace(ns, name string) string {
@@ -439,7 +509,7 @@ func describeBuildTriggers(triggers []buildapi.BuildTriggerPolicy, name, namespa
 	desc := strings.Join(labels, ", ")
 	formatString(w, "Triggered by", desc)
 
-	webHooks := webHooksDescribe(triggers, name, namespace, d.Interface)
+	webHooks := webHooksDescribe(triggers, name, namespace, d.buildClient.RESTClient())
 	for webHookType, webHookDesc := range webHooks {
 		fmt.Fprintf(w, "Webhook %s:\n", strings.Title(webHookType))
 		for _, trigger := range webHookDesc {
@@ -453,12 +523,12 @@ func describeBuildTriggers(triggers []buildapi.BuildTriggerPolicy, name, namespa
 
 // Describe returns the description of a buildConfig
 func (d *BuildConfigDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.BuildConfigs(namespace)
+	c := d.buildClient.BuildConfigs(namespace)
 	buildConfig, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
-	buildList, err := d.Builds(namespace).List(metav1.ListOptions{})
+	buildList, err := d.buildClient.Builds(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -495,7 +565,7 @@ func (d *BuildConfigDescriber) Describe(namespace, name string, settings kprinte
 		}
 
 		if settings.ShowEvents {
-			events, _ := d.kubeClient.Core().Events(namespace).Search(kapi.Scheme, buildConfig)
+			events, _ := d.kubeClient.Core().Events(namespace).Search(legacyscheme.Scheme, buildConfig)
 			if events != nil {
 				fmt.Fprint(out, "\n")
 				kinternalprinters.DescribeEvents(events, kinternalprinters.NewPrefixWriter(out))
@@ -507,23 +577,27 @@ func (d *BuildConfigDescriber) Describe(namespace, name string, settings kprinte
 
 // OAuthAccessTokenDescriber generates information about an OAuth Acess Token (OAuth)
 type OAuthAccessTokenDescriber struct {
-	client.Interface
+	client oauthclient.OauthInterface
 }
 
 func (d *OAuthAccessTokenDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.OAuthAccessTokens()
+	c := d.client.OAuthAccessTokens()
 	oAuthAccessToken, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
 
 	var timeCreated time.Time = oAuthAccessToken.ObjectMeta.CreationTimestamp.Time
-	var timeExpired time.Time = timeCreated.Add(time.Duration(oAuthAccessToken.ExpiresIn) * time.Second)
+	expires := "never"
+	if oAuthAccessToken.ExpiresIn > 0 {
+		var timeExpired time.Time = timeCreated.Add(time.Duration(oAuthAccessToken.ExpiresIn) * time.Second)
+		expires = formatToHumanDuration(timeExpired.Sub(time.Now()))
+	}
 
 	return tabbedString(func(out *tabwriter.Writer) error {
 		formatMeta(out, oAuthAccessToken.ObjectMeta)
 		formatString(out, "Scopes", oAuthAccessToken.Scopes)
-		formatString(out, "Expires In", formatToHumanDuration(timeExpired.Sub(time.Now())))
+		formatString(out, "Expires In", expires)
 		formatString(out, "User Name", oAuthAccessToken.UserName)
 		formatString(out, "User UID", oAuthAccessToken.UserUID)
 		formatString(out, "Client Name", oAuthAccessToken.ClientName)
@@ -534,12 +608,12 @@ func (d *OAuthAccessTokenDescriber) Describe(namespace, name string, settings kp
 
 // ImageDescriber generates information about a Image
 type ImageDescriber struct {
-	client.Interface
+	c imageclient.ImageInterface
 }
 
 // Describe returns the description of an image
 func (d *ImageDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.Images()
+	c := d.c.Images()
 	image, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -670,12 +744,12 @@ func describeDockerImage(out *tabwriter.Writer, image *imageapi.DockerConfig) {
 
 // ImageStreamTagDescriber generates information about a ImageStreamTag (Image).
 type ImageStreamTagDescriber struct {
-	client.Interface
+	c imageclient.ImageInterface
 }
 
 // Describe returns the description of an imageStreamTag
 func (d *ImageStreamTagDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.ImageStreamTags(namespace)
+	c := d.c.ImageStreamTags(namespace)
 	repo, tag, err := imageapi.ParseImageStreamTagName(name)
 	if err != nil {
 		return "", err
@@ -684,7 +758,7 @@ func (d *ImageStreamTagDescriber) Describe(namespace, name string, settings kpri
 		// TODO use repo's preferred default, when that's coded
 		tag = imageapi.DefaultImageTag
 	}
-	imageStreamTag, err := c.Get(repo, tag)
+	imageStreamTag, err := c.Get(repo+":"+tag, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -694,17 +768,13 @@ func (d *ImageStreamTagDescriber) Describe(namespace, name string, settings kpri
 
 // ImageStreamImageDescriber generates information about a ImageStreamImage (Image).
 type ImageStreamImageDescriber struct {
-	client.Interface
+	c imageclient.ImageInterface
 }
 
 // Describe returns the description of an imageStreamImage
 func (d *ImageStreamImageDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.ImageStreamImages(namespace)
-	repo, id, err := imageapi.ParseImageStreamImageName(name)
-	if err != nil {
-		return "", err
-	}
-	imageStreamImage, err := c.Get(repo, id)
+	c := d.c.ImageStreamImages(namespace)
+	imageStreamImage, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -714,12 +784,12 @@ func (d *ImageStreamImageDescriber) Describe(namespace, name string, settings kp
 
 // ImageStreamDescriber generates information about a ImageStream (Image).
 type ImageStreamDescriber struct {
-	client.Interface
+	ImageClient imageclient.ImageInterface
 }
 
 // Describe returns the description of an imageStream
 func (d *ImageStreamDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.ImageStreams(namespace)
+	c := d.ImageClient.ImageStreams(namespace)
 	imageStream, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -730,7 +800,11 @@ func (d *ImageStreamDescriber) Describe(namespace, name string, settings kprinte
 func DescribeImageStream(imageStream *imageapi.ImageStream) (string, error) {
 	return tabbedString(func(out *tabwriter.Writer) error {
 		formatMeta(out, imageStream.ObjectMeta)
-		formatString(out, "Docker Pull Spec", imageStream.Status.DockerImageRepository)
+		if len(imageStream.Status.PublicDockerImageRepository) > 0 {
+			formatString(out, "Docker Pull Spec", imageStream.Status.PublicDockerImageRepository)
+		} else {
+			formatString(out, "Docker Pull Spec", imageStream.Status.DockerImageRepository)
+		}
 		formatString(out, "Image Lookup", fmt.Sprintf("local=%t", imageStream.Spec.LookupPolicy.Local))
 		formatImageStreamTags(out, imageStream)
 		return nil
@@ -739,8 +813,8 @@ func DescribeImageStream(imageStream *imageapi.ImageStream) (string, error) {
 
 // RouteDescriber generates information about a Route
 type RouteDescriber struct {
-	client.Interface
-	kubeClient kclientset.Interface
+	routeClient routeclient.RouteInterface
+	kubeClient  kclientset.Interface
 }
 
 type routeEndpointInfo struct {
@@ -750,7 +824,7 @@ type routeEndpointInfo struct {
 
 // Describe returns the description of a route
 func (d *RouteDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.Routes(namespace)
+	c := d.routeClient.Routes(namespace)
 	route, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -878,13 +952,13 @@ func (d *RouteDescriber) Describe(namespace, name string, settings kprinters.Des
 
 // ProjectDescriber generates information about a Project
 type ProjectDescriber struct {
-	osClient   client.Interface
-	kubeClient kclientset.Interface
+	projectClient projectclient.ProjectInterface
+	kubeClient    kclientset.Interface
 }
 
 // Describe returns the description of a project
 func (d *ProjectDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	projectsClient := d.osClient.Projects()
+	projectsClient := d.projectClient.Projects()
 	project, err := projectsClient.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -945,13 +1019,15 @@ func (d *ProjectDescriber) Describe(namespace, name string, settings kprinters.D
 			for i := range limitRangeList.Items {
 				limitRange := &limitRangeList.Items[i]
 				fmt.Fprintf(out, "\tName:\t%s\n", limitRange.Name)
-				fmt.Fprintf(out, "\tType\tResource\tMin\tMax\tDefault\n")
-				fmt.Fprintf(out, "\t----\t--------\t---\t---\t---\n")
+				fmt.Fprintf(out, "\tType\tResource\tMin\tMax\tDefault\tLimit\tLimit/Request\n")
+				fmt.Fprintf(out, "\t----\t--------\t---\t---\t---\t-----\t-------------\n")
 				for i := range limitRange.Spec.Limits {
 					item := limitRange.Spec.Limits[i]
 					maxResources := item.Max
 					minResources := item.Min
 					defaultResources := item.Default
+					defaultRequestResources := item.DefaultRequest
+					ratio := item.MaxLimitRequestRatio
 
 					set := map[kapi.ResourceName]bool{}
 					for k := range maxResources {
@@ -963,12 +1039,20 @@ func (d *ProjectDescriber) Describe(namespace, name string, settings kprinters.D
 					for k := range defaultResources {
 						set[k] = true
 					}
+					for k := range defaultRequestResources {
+						set[k] = true
+					}
+					for k := range ratio {
+						set[k] = true
+					}
 
 					for k := range set {
 						// if no value is set, we output -
 						maxValue := "-"
 						minValue := "-"
 						defaultValue := "-"
+						defaultLimitValue := "-"
+						ratioValue := "-"
 
 						maxQuantity, maxQuantityFound := maxResources[k]
 						if maxQuantityFound {
@@ -985,8 +1069,18 @@ func (d *ProjectDescriber) Describe(namespace, name string, settings kprinters.D
 							defaultValue = defaultQuantity.String()
 						}
 
-						msg := "\t%v\t%v\t%v\t%v\t%v\n"
-						fmt.Fprintf(out, msg, item.Type, k, minValue, maxValue, defaultValue)
+						defaultLimitQuantity, defaultLimitQuantityFound := defaultResources[k]
+						if defaultLimitQuantityFound {
+							defaultLimitValue = defaultLimitQuantity.String()
+						}
+
+						ratioQuantity, ratioQuantityFound := ratio[k]
+						if ratioQuantityFound {
+							ratioValue = ratioQuantity.String()
+						}
+
+						msg := "\t%v\t%v\t%v\t%v\t%v\t%v\t%v\n"
+						fmt.Fprintf(out, msg, item.Type, k, minValue, maxValue, defaultValue, defaultLimitValue, ratioValue)
 					}
 				}
 			}
@@ -997,7 +1091,7 @@ func (d *ProjectDescriber) Describe(namespace, name string, settings kprinters.D
 
 // TemplateDescriber generates information about a template
 type TemplateDescriber struct {
-	client.Interface
+	templateClient templateclient.TemplateInterface
 	meta.MetadataAccessor
 	runtime.ObjectTyper
 	kprinters.ObjectDescriber
@@ -1082,7 +1176,7 @@ func (d *TemplateDescriber) describeObjects(objects []runtime.Object, out *tabwr
 
 // Describe returns the description of a template
 func (d *TemplateDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.Templates(namespace)
+	c := d.templateClient.Templates(namespace)
 	template, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -1110,15 +1204,106 @@ func (d *TemplateDescriber) DescribeTemplate(template *templateapi.Template) (st
 	})
 }
 
+// TemplateInstanceDescriber generates information about a template instance
+type TemplateInstanceDescriber struct {
+	kubeClient     kclientset.Interface
+	templateClient templateclient.TemplateInterface
+	kprinters.ObjectDescriber
+}
+
+// Describe returns the description of a template instance
+func (d *TemplateInstanceDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
+	c := d.templateClient.TemplateInstances(namespace)
+	templateInstance, err := c.Get(name, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	return d.DescribeTemplateInstance(templateInstance, namespace, settings)
+}
+
+// DescribeTemplateInstance prints out information about the template instance
+func (d *TemplateInstanceDescriber) DescribeTemplateInstance(templateInstance *templateapi.TemplateInstance, namespace string, settings kprinters.DescriberSettings) (string, error) {
+	return tabbedString(func(out *tabwriter.Writer) error {
+		formatMeta(out, templateInstance.ObjectMeta)
+		out.Write([]byte("\n"))
+		out.Flush()
+		d.DescribeConditions(templateInstance.Status.Conditions, out)
+		out.Write([]byte("\n"))
+		out.Flush()
+		d.DescribeObjects(templateInstance.Status.Objects, out)
+		out.Write([]byte("\n"))
+		out.Flush()
+		d.DescribeParameters(templateInstance.Spec.Template, namespace, templateInstance.Spec.Secret.Name, out)
+		out.Write([]byte("\n"))
+		out.Flush()
+		return nil
+	})
+}
+
+// DescribeConditions prints out information about the conditions of a template instance
+func (d *TemplateInstanceDescriber) DescribeConditions(conditions []templateapi.TemplateInstanceCondition, out *tabwriter.Writer) {
+	formatString(out, "Conditions", " ")
+	indent := "    "
+	for _, c := range conditions {
+		formatString(out, indent+"Type", c.Type)
+		formatString(out, indent+"Status", c.Status)
+		formatString(out, indent+"LastTransitionTime", c.LastTransitionTime)
+		formatString(out, indent+"Reason", c.Reason)
+		formatString(out, indent+"Message", c.Message)
+		out.Write([]byte("\n"))
+	}
+}
+
+// DescribeObjects prints out information about the objects that a template instance creates
+func (d *TemplateInstanceDescriber) DescribeObjects(objects []templateapi.TemplateInstanceObject, out *tabwriter.Writer) {
+	formatString(out, "Objects", " ")
+	indent := "    "
+	for _, o := range objects {
+		formatString(out, indent+o.Ref.Kind, fmt.Sprintf("%s/%s", o.Ref.Namespace, o.Ref.Name))
+	}
+}
+
+// DescribeParameters prints out information about the secret that holds the template instance parameters
+// kinternalprinter.SecretDescriber#Describe could have been used here, but the formatting
+// is off when it prints the information and seems to not be easily fixable
+func (d *TemplateInstanceDescriber) DescribeParameters(template templateapi.Template, namespace, name string, out *tabwriter.Writer) {
+	secret, err := d.kubeClient.Core().Secrets(namespace).Get(name, metav1.GetOptions{})
+
+	formatString(out, "Parameters", " ")
+
+	if kerrs.IsForbidden(err) || kerrs.IsUnauthorized(err) {
+		fmt.Fprintf(out, "Unable to access parameters, insufficient permissions.")
+		return
+	} else if kerrs.IsNotFound(err) {
+		fmt.Fprintf(out, "Unable to access parameters, secret not found: %s", secret.Name)
+		return
+	} else if err != nil {
+		fmt.Fprintf(out, "Unknown error occurred, please rerun with loglevel > 4 for more information")
+		glog.V(4).Infof("%v", err)
+		return
+	}
+
+	indent := "    "
+	if len(template.Parameters) == 0 {
+		fmt.Fprintf(out, indent+"No parameters found.")
+	} else {
+		for _, p := range template.Parameters {
+			if val, ok := secret.Data[p.Name]; ok {
+				formatString(out, indent+p.Name, fmt.Sprintf("%d bytes", len(val)))
+			}
+		}
+	}
+}
+
 // IdentityDescriber generates information about a user
 type IdentityDescriber struct {
-	client.Interface
+	c userclient.UserInterface
 }
 
 // Describe returns the description of an identity
 func (d *IdentityDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	userClient := d.Users()
-	identityClient := d.Identities()
+	userClient := d.c.Users()
+	identityClient := d.c.Identities()
 
 	identity, err := identityClient.Get(name, metav1.GetOptions{})
 	if err != nil {
@@ -1160,12 +1345,12 @@ func (d *IdentityDescriber) Describe(namespace, name string, settings kprinters.
 
 // UserIdentityMappingDescriber generates information about a user
 type UserIdentityMappingDescriber struct {
-	client.Interface
+	c userclient.UserInterface
 }
 
 // Describe returns the description of a userIdentity
 func (d *UserIdentityMappingDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.UserIdentityMappings()
+	c := d.c.UserIdentityMappings()
 
 	mapping, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
@@ -1183,13 +1368,13 @@ func (d *UserIdentityMappingDescriber) Describe(namespace, name string, settings
 
 // UserDescriber generates information about a user
 type UserDescriber struct {
-	client.Interface
+	c userclient.UserInterface
 }
 
 // Describe returns the description of a user
 func (d *UserDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	userClient := d.Users()
-	identityClient := d.Identities()
+	userClient := d.c.Users()
+	identityClient := d.c.Identities()
 
 	user, err := userClient.Get(name, metav1.GetOptions{})
 	if err != nil {
@@ -1232,12 +1417,12 @@ func (d *UserDescriber) Describe(namespace, name string, settings kprinters.Desc
 
 // GroupDescriber generates information about a group
 type GroupDescriber struct {
-	c client.GroupInterface
+	c userclient.UserInterface
 }
 
 // Describe returns the description of a group
 func (d *GroupDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	group, err := d.c.Get(name, metav1.GetOptions{})
+	group, err := d.c.Groups().Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -1264,13 +1449,13 @@ func (d *GroupDescriber) Describe(namespace, name string, settings kprinters.Des
 
 // PolicyDescriber generates information about a Project
 type PolicyDescriber struct {
-	client.Interface
+	c oauthorizationclient.AuthorizationInterface
 }
 
 // Describe returns the description of a policy
 // TODO make something a lot prettier
 func (d *PolicyDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.Policies(namespace)
+	c := d.c.Policies(namespace)
 	policy, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -1316,12 +1501,12 @@ func DescribePolicyRule(out *tabwriter.Writer, rule authorizationapi.PolicyRule,
 
 // RoleDescriber generates information about a Project
 type RoleDescriber struct {
-	client.Interface
+	c oauthorizationclient.AuthorizationInterface
 }
 
 // Describe returns the description of a role
 func (d *RoleDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.Roles(namespace)
+	c := d.c.Roles(namespace)
 	role, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -1346,12 +1531,12 @@ func DescribeRole(role *authorizationapi.Role) (string, error) {
 
 // PolicyBindingDescriber generates information about a Project
 type PolicyBindingDescriber struct {
-	client.Interface
+	c oauthorizationclient.AuthorizationInterface
 }
 
 // Describe returns the description of a policyBinding
 func (d *PolicyBindingDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.PolicyBindings(namespace)
+	c := d.c.PolicyBindings(namespace)
 	policyBinding, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -1386,12 +1571,12 @@ func DescribePolicyBinding(policyBinding *authorizationapi.PolicyBinding) (strin
 
 // RoleBindingDescriber generates information about a Project
 type RoleBindingDescriber struct {
-	client.Interface
+	c oauthorizationclient.AuthorizationInterface
 }
 
 // Describe returns the description of a roleBinding
 func (d *RoleBindingDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.RoleBindings(namespace)
+	c := d.c.RoleBindings(namespace)
 	roleBinding, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -1400,10 +1585,10 @@ func (d *RoleBindingDescriber) Describe(namespace, name string, settings kprinte
 	var role *authorizationapi.Role
 	if len(roleBinding.RoleRef.Namespace) == 0 {
 		var clusterRole *authorizationapi.ClusterRole
-		clusterRole, err = d.ClusterRoles().Get(roleBinding.RoleRef.Name, metav1.GetOptions{})
+		clusterRole, err = d.c.ClusterRoles().Get(roleBinding.RoleRef.Name, metav1.GetOptions{})
 		role = authorizationapi.ToRole(clusterRole)
 	} else {
-		role, err = d.Roles(roleBinding.RoleRef.Namespace).Get(roleBinding.RoleRef.Name, metav1.GetOptions{})
+		role, err = d.c.Roles(roleBinding.RoleRef.Namespace).Get(roleBinding.RoleRef.Name, metav1.GetOptions{})
 	}
 
 	return DescribeRoleBinding(roleBinding, role, err)
@@ -1442,13 +1627,13 @@ func DescribeRoleBinding(roleBinding *authorizationapi.RoleBinding, role *author
 
 // ClusterPolicyDescriber generates information about a Project
 type ClusterPolicyDescriber struct {
-	client.Interface
+	c oauthorizationclient.AuthorizationInterface
 }
 
 // Describe returns the description of a policy
 // TODO make something a lot prettier
 func (d *ClusterPolicyDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.ClusterPolicies()
+	c := d.c.ClusterPolicies()
 	policy, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -1458,12 +1643,12 @@ func (d *ClusterPolicyDescriber) Describe(namespace, name string, settings kprin
 }
 
 type ClusterRoleDescriber struct {
-	client.Interface
+	c oauthorizationclient.AuthorizationInterface
 }
 
 // Describe returns the description of a role
 func (d *ClusterRoleDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.ClusterRoles()
+	c := d.c.ClusterRoles()
 	role, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -1474,12 +1659,12 @@ func (d *ClusterRoleDescriber) Describe(namespace, name string, settings kprinte
 
 // ClusterPolicyBindingDescriber generates information about a Project
 type ClusterPolicyBindingDescriber struct {
-	client.Interface
+	c oauthorizationclient.AuthorizationInterface
 }
 
 // Describe returns the description of a policyBinding
 func (d *ClusterPolicyBindingDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.ClusterPolicyBindings()
+	c := d.c.ClusterPolicyBindings()
 	policyBinding, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -1490,18 +1675,18 @@ func (d *ClusterPolicyBindingDescriber) Describe(namespace, name string, setting
 
 // ClusterRoleBindingDescriber generates information about a Project
 type ClusterRoleBindingDescriber struct {
-	client.Interface
+	c oauthorizationclient.AuthorizationInterface
 }
 
 // Describe returns the description of a roleBinding
 func (d *ClusterRoleBindingDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.ClusterRoleBindings()
+	c := d.c.ClusterRoleBindings()
 	roleBinding, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
 
-	role, err := d.ClusterRoles().Get(roleBinding.RoleRef.Name, metav1.GetOptions{})
+	role, err := d.c.ClusterRoles().Get(roleBinding.RoleRef.Name, metav1.GetOptions{})
 	return DescribeRoleBinding(authorizationapi.ToRoleBinding(roleBinding), authorizationapi.ToRole(role), err)
 }
 
@@ -1565,11 +1750,11 @@ func squashGitInfo(sourceRevision *buildapi.SourceRevision, out *tabwriter.Write
 }
 
 type ClusterQuotaDescriber struct {
-	client.Interface
+	c quotaclient.QuotaInterface
 }
 
 func (d *ClusterQuotaDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	quota, err := d.ClusterResourceQuotas().Get(name, metav1.GetOptions{})
+	quota, err := d.c.ClusterResourceQuotas().Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -1623,11 +1808,11 @@ func DescribeClusterQuota(quota *quotaapi.ClusterResourceQuota) (string, error) 
 }
 
 type AppliedClusterQuotaDescriber struct {
-	client.Interface
+	c quotaclient.QuotaInterface
 }
 
 func (d *AppliedClusterQuotaDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	quota, err := d.AppliedClusterResourceQuotas(namespace).Get(name, metav1.GetOptions{})
+	quota, err := d.c.AppliedClusterResourceQuotas(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -1635,32 +1820,36 @@ func (d *AppliedClusterQuotaDescriber) Describe(namespace, name string, settings
 }
 
 type ClusterNetworkDescriber struct {
-	client.Interface
+	c onetworkclient.NetworkInterface
 }
 
 // Describe returns the description of a ClusterNetwork
 func (d *ClusterNetworkDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	cn, err := d.ClusterNetwork().Get(name, metav1.GetOptions{})
+	cn, err := d.c.ClusterNetworks().Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
 	return tabbedString(func(out *tabwriter.Writer) error {
 		formatMeta(out, cn.ObjectMeta)
-		formatString(out, "Cluster Network", cn.Network)
-		formatString(out, "Host Subnet Length", cn.HostSubnetLength)
 		formatString(out, "Service Network", cn.ServiceNetwork)
 		formatString(out, "Plugin Name", cn.PluginName)
+		fmt.Fprintf(out, "ClusterNetworks:\n")
+		fmt.Fprintf(out, "CIDR\tHost Subnet Length\n")
+		fmt.Fprintf(out, "----\t------------------\n")
+		for _, clusterNetwork := range cn.ClusterNetworks {
+			fmt.Fprintf(out, "%s\t%d\n", clusterNetwork.CIDR, clusterNetwork.HostSubnetLength)
+		}
 		return nil
 	})
 }
 
 type HostSubnetDescriber struct {
-	client.Interface
+	c onetworkclient.NetworkInterface
 }
 
 // Describe returns the description of a HostSubnet
 func (d *HostSubnetDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	hs, err := d.HostSubnets().Get(name, metav1.GetOptions{})
+	hs, err := d.c.HostSubnets().Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -1669,17 +1858,18 @@ func (d *HostSubnetDescriber) Describe(namespace, name string, settings kprinter
 		formatString(out, "Node", hs.Host)
 		formatString(out, "Node IP", hs.HostIP)
 		formatString(out, "Pod Subnet", hs.Subnet)
+		formatString(out, "Egress IPs", strings.Join(hs.EgressIPs, ", "))
 		return nil
 	})
 }
 
 type NetNamespaceDescriber struct {
-	client.Interface
+	c onetworkclient.NetworkInterface
 }
 
 // Describe returns the description of a NetNamespace
 func (d *NetNamespaceDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	netns, err := d.NetNamespaces().Get(name, metav1.GetOptions{})
+	netns, err := d.c.NetNamespaces().Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -1687,17 +1877,18 @@ func (d *NetNamespaceDescriber) Describe(namespace, name string, settings kprint
 		formatMeta(out, netns.ObjectMeta)
 		formatString(out, "Name", netns.NetName)
 		formatString(out, "ID", netns.NetID)
+		formatString(out, "Egress IPs", strings.Join(netns.EgressIPs, ", "))
 		return nil
 	})
 }
 
 type EgressNetworkPolicyDescriber struct {
-	osClient client.Interface
+	c onetworkclient.NetworkInterface
 }
 
 // Describe returns the description of an EgressNetworkPolicy
 func (d *EgressNetworkPolicyDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	c := d.osClient.EgressNetworkPolicies(namespace)
+	c := d.c.EgressNetworkPolicies(namespace)
 	policy, err := c.Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -1716,12 +1907,12 @@ func (d *EgressNetworkPolicyDescriber) Describe(namespace, name string, settings
 }
 
 type RoleBindingRestrictionDescriber struct {
-	client.Interface
+	c oauthorizationclient.AuthorizationInterface
 }
 
 // Describe returns the description of a RoleBindingRestriction.
 func (d *RoleBindingRestrictionDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	rbr, err := d.RoleBindingRestrictions(namespace).Get(name, metav1.GetOptions{})
+	rbr, err := d.c.RoleBindingRestrictions(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -1778,11 +1969,11 @@ func (d *RoleBindingRestrictionDescriber) Describe(namespace, name string, setti
 
 // SecurityContextConstraintsDescriber generates information about an SCC
 type SecurityContextConstraintsDescriber struct {
-	kclientset.Interface
+	c securityclient.SecurityContextConstraintsGetter
 }
 
 func (d *SecurityContextConstraintsDescriber) Describe(namespace, name string, s kprinters.DescriberSettings) (string, error) {
-	scc, err := legacyclient.NewFromClient(d.Core().RESTClient()).Get(name, metav1.GetOptions{})
+	scc, err := d.c.SecurityContextConstraints().Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -1810,6 +2001,7 @@ func describeSecurityContextConstraints(scc *securityapi.SecurityContextConstrai
 		fmt.Fprintf(out, "  Allowed Capabilities:\t%s\n", capsToString(scc.AllowedCapabilities))
 		fmt.Fprintf(out, "  Allowed Seccomp Profiles:\t%s\n", stringOrNone(strings.Join(scc.SeccompProfiles, ",")))
 		fmt.Fprintf(out, "  Allowed Volume Types:\t%s\n", fsTypeToString(scc.Volumes))
+		fmt.Fprintf(out, "  Allowed Flexvolumes:\t%s\n", flexVolumesToString(scc.AllowedFlexVolumes))
 		fmt.Fprintf(out, "  Allow Host Network:\t%t\n", scc.AllowHostNetwork)
 		fmt.Fprintf(out, "  Allow Host Ports:\t%t\n", scc.AllowHostPorts)
 		fmt.Fprintf(out, "  Allow Host PID:\t%t\n", scc.AllowHostPID)
@@ -1859,10 +2051,14 @@ func describeSecurityContextConstraints(scc *securityapi.SecurityContextConstrai
 }
 
 func stringOrNone(s string) string {
+	return stringOrDefaultValue(s, "<none>")
+}
+
+func stringOrDefaultValue(s, defaultValue string) string {
 	if len(s) > 0 {
 		return s
 	}
-	return "<none>"
+	return defaultValue
 }
 
 func fsTypeToString(volumes []securityapi.FSType) string {
@@ -1871,6 +2067,14 @@ func fsTypeToString(volumes []securityapi.FSType) string {
 		strVolumes = append(strVolumes, string(v))
 	}
 	return stringOrNone(strings.Join(strVolumes, ","))
+}
+
+func flexVolumesToString(flexVolumes []securityapi.AllowedFlexVolume) string {
+	volumes := []string{}
+	for _, flexVolume := range flexVolumes {
+		volumes = append(volumes, "driver="+flexVolume.Driver)
+	}
+	return stringOrDefaultValue(strings.Join(volumes, ","), "<all>")
 }
 
 func idRangeToString(ranges []securityapi.IDRange) string {

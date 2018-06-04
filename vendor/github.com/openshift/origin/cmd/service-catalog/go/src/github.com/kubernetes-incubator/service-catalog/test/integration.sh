@@ -18,18 +18,20 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# this script resides in the `test/` folder at the root of the project
-KUBE_ROOT=$(realpath $(dirname "${BASH_SOURCE}")/../vendor/k8s.io/kubernetes)
-source "${KUBE_ROOT}/hack/lib/init.sh"
+GOROOT=$(go env GOROOT)
 
 runTests() {
-  kube::etcd::start
+  if [[ -w ${GOROOT}/pkg ]]; then
+    FLAGS="-i"
+  elif [[ -n ${PKGDIR:-} ]]; then
+    FLAGS="-pkgdir $PKGDIR"
+  else
+    FLAGS=""
+  fi
 
-  go test -race -v github.com/kubernetes-incubator/service-catalog/test/integration/... --args -v 10 -logtostderr
+  go test -race $FLAGS github.com/kubernetes-incubator/service-catalog/test/integration/... -c \
+     && ./integration.test -test.v $@
 }
 
-# Run cleanup to stop etcd on interrupt or other kill signal.
-trap kube::etcd::cleanup EXIT
-
-runTests
+runTests $@
 

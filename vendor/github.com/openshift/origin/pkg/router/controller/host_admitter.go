@@ -6,7 +6,7 @@ import (
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
 	routeapi "github.com/openshift/origin/pkg/route/apis/route"
 	"github.com/openshift/origin/pkg/router"
@@ -123,7 +123,7 @@ func (p *HostAdmitter) HandleEndpoints(eventType watch.EventType, endpoints *kap
 // HandleRoute processes watch events on the Route resource.
 func (p *HostAdmitter) HandleRoute(eventType watch.EventType, route *routeapi.Route) error {
 	if err := p.admitter(route); err != nil {
-		glog.Errorf("Route %s not admitted: %s", routeNameKey(route), err.Error())
+		glog.V(4).Infof("Route %s not admitted: %s", routeNameKey(route), err.Error())
 		p.recorder.RecordRouteRejection(route, "RouteNotAdmitted", err.Error())
 		return err
 	}

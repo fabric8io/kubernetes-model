@@ -7,12 +7,12 @@ import (
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 
+	kapiv1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
 	"github.com/openshift/origin/pkg/api/latest"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
@@ -112,28 +112,24 @@ var _ = g.Describe("[Conformance][templates] templateinstance cross-namespace te
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("deleting the templateinstance")
-		err = cli.TemplateClient().Template().TemplateInstances(cli.Namespace()).Delete(templateinstance.Name, nil)
+		foreground := metav1.DeletePropagationForeground
+		err = cli.TemplateClient().Template().TemplateInstances(cli.Namespace()).Delete(templateinstance.Name, &metav1.DeleteOptions{PropagationPolicy: &foreground})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		// wait for garbage collector to do its thing
-		err = wait.Poll(time.Second, time.Minute, func() (bool, error) {
+		err = wait.Poll(100*time.Millisecond, 30*time.Second, func() (bool, error) {
 			_, err = cli.TemplateClient().Template().TemplateInstances(cli.Namespace()).Get(templateinstance.Name, metav1.GetOptions{})
-			if err == nil || !kerrors.IsNotFound(err) {
-				return false, err
+			if kerrors.IsNotFound(err) {
+				return true, nil
 			}
-
-			_, err = cli.KubeClient().CoreV1().Secrets(cli.Namespace()).Get("secret1", metav1.GetOptions{})
-			if err == nil || !kerrors.IsNotFound(err) {
-				return false, err
-			}
-
-			_, err = cli.KubeClient().CoreV1().Secrets(cli2.Namespace()).Get("secret2", metav1.GetOptions{})
-			if err == nil || !kerrors.IsNotFound(err) {
-				return false, err
-			}
-
-			return true, nil
+			return false, err
 		})
 		o.Expect(err).NotTo(o.HaveOccurred())
+
+		_, err = cli.KubeClient().CoreV1().Secrets(cli.Namespace()).Get("secret1", metav1.GetOptions{})
+		o.Expect(kerrors.IsNotFound(err)).To(o.BeTrue())
+
+		_, err = cli.KubeClient().CoreV1().Secrets(cli2.Namespace()).Get("secret2", metav1.GetOptions{})
+		o.Expect(kerrors.IsNotFound(err)).To(o.BeTrue())
 	})
 })

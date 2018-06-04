@@ -41,7 +41,6 @@ func Route(container *restful.Container, path string, b api.Broker) {
 	ws.Path(path + "/v2")
 	ws.Filter(apiVersion)
 	ws.Filter(contentType)
-	ws.Filter(waitForReady(b))
 
 	ws.Route(ws.GET("/catalog").To(shim(catalog)))
 	ws.Route(ws.PUT("/service_instances/{instance_id}").To(shim(provision)))
@@ -109,11 +108,6 @@ func contentType(req *restful.Request, resp *restful.Response, chain *restful.Fi
 */
 func getUser(req *restful.Request) (user.Info, error) {
 	identity := req.Request.Header.Get(api.XBrokerAPIOriginatingIdentity)
-	//TODO - when https://github.com/kubernetes-incubator/service-catalog/pull/939 sufficiently progresses
-	// we will error if the originating identity header is not set, so remove the identity == "" check
-	if identity == "" {
-		return &user.DefaultInfo{}, nil
-	}
 	parts := strings.SplitN(identity, " ", 2)
 	if !strings.EqualFold(parts[0], api.OriginatingIdentitySchemeKubernetes) || len(parts) != 2 {
 		return nil, fmt.Errorf("couldn't parse %s header", api.XBrokerAPIOriginatingIdentity)
@@ -131,17 +125,6 @@ func getUser(req *restful.Request) (user.Info, error) {
 	u := api.ConvertTemplateInstanceRequesterToUser(&templatereq)
 
 	return u, nil
-}
-
-func waitForReady(b api.Broker) func(*restful.Request, *restful.Response, *restful.FilterChain) {
-	return func(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {
-		if err := b.WaitForReady(); err != nil {
-			resp.WriteHeaderAndJson(http.StatusServiceUnavailable, &api.ErrorResponse{Description: http.StatusText(http.StatusServiceUnavailable)}, restful.MIME_JSON)
-			return
-		}
-
-		chain.ProcessFilter(req, resp)
-	}
 }
 
 func catalog(b api.Broker, req *restful.Request) *api.Response {
@@ -170,14 +153,6 @@ func provision(b api.Broker, req *restful.Request) *api.Response {
 	u, err := getUser(req)
 	if err != nil {
 		return api.BadRequest(err)
-	}
-
-	//TODO - when https://github.com/kubernetes-incubator/service-catalog/pull/939 sufficiently progresses, this
-	// check of originating-identity and username param should be removed, as only originating-identity will be
-	// supported at that point
-	reqName := preq.Parameters[templateapi.RequesterUsernameParameterKey]
-	if u.GetName() != "" && reqName != "" {
-		return api.BadRequest(fmt.Errorf("do not support user identity via both originating-identity header and request parameter: %s and %s", u.GetName(), reqName))
 	}
 
 	return b.Provision(u, instanceID, &preq)
@@ -245,14 +220,6 @@ func bind(b api.Broker, req *restful.Request) *api.Response {
 	u, err := getUser(req)
 	if err != nil {
 		return api.BadRequest(err)
-	}
-
-	//TODO - when https://github.com/kubernetes-incubator/service-catalog/pull/939 sufficiently progresses, this
-	// check of originating-identity and username param should be removed, as only originating-identity will be
-	// supported at that point
-	reqName := breq.Parameters[templateapi.RequesterUsernameParameterKey]
-	if u.GetName() != "" && reqName != "" {
-		return api.BadRequest(fmt.Errorf("do not support user identity via both originating-identity header and request parameter: %s and %s", u.GetName(), reqName))
 	}
 
 	return b.Bind(u, instanceID, bindingID, &breq)

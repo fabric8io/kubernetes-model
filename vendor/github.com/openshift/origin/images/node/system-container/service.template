@@ -4,10 +4,13 @@ After=${OPENVSWITCH_SERVICE}
 Wants=${DOCKER_SERVICE}
 After=$NAME-dep.service
 After=${MASTER_SERVICE}
+Requires=dnsmasq.service
+After=dnsmasq.service
 
 [Service]
+Type=notify
 EnvironmentFile=/etc/sysconfig/$NAME
-EnvironmentFile=/etc/sysconfig/$NAME-dep
+
 ExecStartPre=/bin/bash -c 'export -p > /run/$NAME-env'
 ExecStart=$EXEC_START
 ExecStop=$EXEC_STOP
@@ -18,4 +21,4 @@ WorkingDirectory=$DESTDIR
 RuntimeDirectory=${NAME}
 
 [Install]
-WantedBy=docker.service
+WantedBy=${DOCKER_SERVICE}

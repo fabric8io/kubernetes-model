@@ -26,7 +26,7 @@ public class KubernetesListTest {
 
     @Test
     public void testDefaultValues() throws JsonProcessingException {
-        Service service = new ServiceBuilder()
+        Service service = new io.fabric8.kubernetes.api.model.ServiceBuilder()
                 .withNewMetadata()
                     .withName("test-service")
                 .endMetadata()
@@ -34,7 +34,7 @@ public class KubernetesListTest {
         assertNotNull(service.getApiVersion());
         assertEquals(service.getKind(), "Service");
         
-        ReplicationController replicationController = new ReplicationControllerBuilder()
+        ReplicationController replicationController = new io.fabric8.kubernetes.api.model.ReplicationControllerBuilder()
                 .withNewMetadata()
                 .withName("test-controller")
                 .endMetadata()
@@ -42,7 +42,8 @@ public class KubernetesListTest {
         assertNotNull(replicationController.getApiVersion());
         assertEquals(replicationController.getKind(), "ReplicationController");
         
-        KubernetesList kubernetesList = new KubernetesListBuilder()
+        KubernetesList kubernetesList;
+        kubernetesList = new io.fabric8.kubernetes.api.model.KubernetesListBuilder()
                 .addNewServiceItem()
                 .withNewMetadata()
                     .withName("test-service")
@@ -54,7 +55,7 @@ public class KubernetesListTest {
                 .endMetadata()
                 .and()
                 .build();
-        
+
         assertNotNull(kubernetesList.getApiVersion());
         assertEquals(kubernetesList.getKind(), "List");
         assertThat(kubernetesList.getItems(), CoreMatchers.hasItem(service));
@@ -63,7 +64,7 @@ public class KubernetesListTest {
 
     @Test
     public void testVisitor() throws JsonProcessingException {
-        KubernetesList list = new KubernetesListBuilder()
+        KubernetesList list = new io.fabric8.kubernetes.api.model.KubernetesListBuilder()
                 .addNewPodItem()
                     .withNewSpec()
                         .addNewContainer()
@@ -74,7 +75,7 @@ public class KubernetesListTest {
                 .and()
                 .build();
 
-        list = new KubernetesListBuilder(list).accept(new Visitor() {
+        list = new io.fabric8.kubernetes.api.model.KubernetesListBuilder(list).accept(new Visitor() {
             public void visit(Object item) {
                 if (item instanceof io.fabric8.kubernetes.api.model.PodSpecBuilder) {
                     ((io.fabric8.kubernetes.api.model.PodSpecBuilder)item).addNewContainer()
@@ -89,12 +90,12 @@ public class KubernetesListTest {
 
     @Test
     public void testDefaultNullValues() throws JsonProcessingException {
-        Container container = new ContainerBuilder().build();
+        Container container = new io.fabric8.kubernetes.api.model.ContainerBuilder().build();
         assertNull(container.getLifecycle());
         assertNull(container.getLivenessProbe());
 
 
-        Pod pod = new PodBuilder().build();
+        Pod pod = new io.fabric8.kubernetes.api.model.PodBuilder().build();
         assertNull(pod.getSpec());
         assertNull(pod.getStatus());
     }

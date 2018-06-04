@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -11,14 +12,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	clientgotesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapihelper "k8s.io/kubernetes/pkg/api/helper"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kcorelisters "k8s.io/kubernetes/pkg/client/listers/core/internalversion"
 
-	"github.com/openshift/origin/pkg/client/testclient"
+	quotaapiv1 "github.com/openshift/api/quota/v1"
 	quotaapi "github.com/openshift/origin/pkg/quota/apis/quota"
-	quotaapiv1 "github.com/openshift/origin/pkg/quota/apis/quota/v1"
 	"github.com/openshift/origin/pkg/quota/controller/clusterquotamapping"
+	fakequotaclient "github.com/openshift/origin/pkg/quota/generated/internalclientset/fake"
 	quotalister "github.com/openshift/origin/pkg/quota/generated/listers/quota/internalversion"
 )
 
@@ -105,9 +106,9 @@ func TestUpdateQuota(t *testing.T) {
 		}
 		quotaLister := quotalister.NewClusterResourceQuotaLister(quotaIndexer)
 
-		client := testclient.NewSimpleFake(objs...)
+		client := fakequotaclient.NewSimpleClientset(objs...)
 
-		accessor := newQuotaAccessor(quotaLister, nil, client, nil)
+		accessor := newQuotaAccessor(quotaLister, nil, client.Quota(), nil)
 
 		actualErr := accessor.UpdateQuotaStatus(tc.quotaToUpdate)
 		switch {
@@ -135,17 +136,17 @@ func TestUpdateQuota(t *testing.T) {
 			}
 		}
 
-		expectedV1, err := kapi.Scheme.ConvertToVersion(tc.expectedQuota(), quotaapiv1.SchemeGroupVersion)
+		expectedV1, err := legacyscheme.Scheme.ConvertToVersion(tc.expectedQuota(), quotaapiv1.SchemeGroupVersion)
 		if err != nil {
 			t.Errorf("%s: unexpected error: %v", tc.name, err)
 			continue
 		}
-		actualV1, err := kapi.Scheme.ConvertToVersion(actualQuota, quotaapiv1.SchemeGroupVersion)
+		actualV1, err := legacyscheme.Scheme.ConvertToVersion(actualQuota, quotaapiv1.SchemeGroupVersion)
 		if err != nil {
 			t.Errorf("%s: unexpected error: %v", tc.name, err)
 			continue
 		}
-		if !kapihelper.Semantic.DeepEqual(expectedV1, actualV1) {
+		if !equality.Semantic.DeepEqual(expectedV1, actualV1) {
 			t.Errorf("%s: %v", tc.name, utildiff.ObjectDiff(expectedV1, actualV1))
 			continue
 		}
@@ -296,9 +297,9 @@ func TestGetQuota(t *testing.T) {
 		}
 		namespaceLister := kcorelisters.NewNamespaceLister(namespaceIndexer)
 
-		client := testclient.NewSimpleFake()
+		client := fakequotaclient.NewSimpleClientset()
 
-		accessor := newQuotaAccessor(quotaLister, namespaceLister, client, tc.mapperFunc())
+		accessor := newQuotaAccessor(quotaLister, namespaceLister, client.Quota(), tc.mapperFunc())
 
 		actualQuotas, actualErr := accessor.GetQuotas(tc.requestedNamespace)
 		switch {
@@ -324,20 +325,20 @@ func TestGetQuota(t *testing.T) {
 		}
 
 		expectedQuotas := tc.expectedQuotas()
-		if !kapihelper.Semantic.DeepEqual(expectedQuotas, actualQuotaPointers) {
+		if !equality.Semantic.DeepEqual(expectedQuotas, actualQuotaPointers) {
 			t.Errorf("%s: expectedLen: %v actualLen: %v", tc.name, len(expectedQuotas), len(actualQuotas))
 			for i := range expectedQuotas {
-				expectedV1, err := kapi.Scheme.ConvertToVersion(expectedQuotas[i], quotaapiv1.SchemeGroupVersion)
+				expectedV1, err := legacyscheme.Scheme.ConvertToVersion(expectedQuotas[i], quotaapiv1.SchemeGroupVersion)
 				if err != nil {
 					t.Errorf("%s: unexpected error: %v", tc.name, err)
 					continue
 				}
-				actualV1, err := kapi.Scheme.ConvertToVersion(actualQuotaPointers[i], quotaapiv1.SchemeGroupVersion)
+				actualV1, err := legacyscheme.Scheme.ConvertToVersion(actualQuotaPointers[i], quotaapiv1.SchemeGroupVersion)
 				if err != nil {
 					t.Errorf("%s: unexpected error: %v", tc.name, err)
 					continue
 				}
-				t.Errorf("%s: %v equal? %v", tc.name, utildiff.ObjectDiff(expectedV1, actualV1), kapihelper.Semantic.DeepEqual(expectedV1, actualV1))
+				t.Errorf("%s: %v equal? %v", tc.name, utildiff.ObjectDiff(expectedV1, actualV1), equality.Semantic.DeepEqual(expectedV1, actualV1))
 			}
 			continue
 		}

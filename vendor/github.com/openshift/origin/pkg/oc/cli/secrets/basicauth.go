@@ -8,11 +8,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"k8s.io/kubernetes/pkg/api"
+	api "k8s.io/kubernetes/pkg/apis/core"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
-	kterm "k8s.io/kubernetes/pkg/util/term"
+	kterm "k8s.io/kubernetes/pkg/kubectl/util/term"
 
 	"github.com/openshift/origin/pkg/cmd/util/term"
 )
@@ -65,17 +65,18 @@ func NewCmdCreateBasicAuthSecret(name, fullName string, f kcmdutil.Factory, read
 	}
 
 	cmd := &cobra.Command{
-		Use:     fmt.Sprintf("%s SECRET --username=USERNAME --password=PASSWORD [--ca-cert=FILENAME] [--gitconfig=FILENAME]", name),
-		Short:   "Create a new secret for basic authentication",
-		Long:    createBasicAuthSecretLong,
-		Example: fmt.Sprintf(createBasicAuthSecretExample, fullName, newSecretFullName, ocEditFullName),
+		Use:        fmt.Sprintf("%s SECRET --username=USERNAME --password=PASSWORD [--ca-cert=FILENAME] [--gitconfig=FILENAME]", name),
+		Short:      "Create a new secret for basic authentication",
+		Long:       createBasicAuthSecretLong,
+		Example:    fmt.Sprintf(createBasicAuthSecretExample, fullName, newSecretFullName, ocEditFullName),
+		Deprecated: "use oc create secret",
 		Run: func(c *cobra.Command, args []string) {
 			if err := o.Complete(f, args); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(c, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(c, err.Error()))
 			}
 
 			if err := o.Validate(); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(c, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(c, err.Error()))
 			}
 
 			if len(kcmdutil.GetFlagString(c, "output")) != 0 {

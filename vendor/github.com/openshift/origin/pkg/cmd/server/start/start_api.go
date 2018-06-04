@@ -14,7 +14,7 @@ import (
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
 	"github.com/openshift/origin/pkg/cmd/flagtypes"
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
 )
 
 var apiLong = templates.LongDesc(`
@@ -38,17 +38,17 @@ func NewCommandStartMasterAPI(name, basename string, out, errout io.Writer) (*co
 		Long:  fmt.Sprintf(apiLong, basename, name),
 		Run: func(c *cobra.Command, args []string) {
 			if err := options.Complete(); err != nil {
-				fmt.Fprintln(errout, kcmdutil.UsageError(c, err.Error()))
+				fmt.Fprintln(errout, kcmdutil.UsageErrorf(c, err.Error()))
 				return
 			}
 
 			if len(options.ConfigFile) == 0 {
-				fmt.Fprintln(errout, kcmdutil.UsageError(c, "--config is required for this command"))
+				fmt.Fprintln(errout, kcmdutil.UsageErrorf(c, "--config is required for this command"))
 				return
 			}
 
 			if err := options.Validate(args); err != nil {
-				fmt.Fprintln(errout, kcmdutil.UsageError(c, err.Error()))
+				fmt.Fprintln(errout, kcmdutil.UsageErrorf(c, err.Error()))
 				return
 			}
 
@@ -133,9 +133,6 @@ func applyBindAddressOverride(addr string, config *configapi.MasterConfig) {
 	}
 	if config.DNSConfig != nil {
 		config.DNSConfig.BindAddress = overrideAddress(config.DNSConfig.BindAddress, defaultHost, "")
-	}
-	if config.AssetConfig != nil {
-		config.AssetConfig.ServingInfo.BindAddress = overrideAddress(config.AssetConfig.ServingInfo.BindAddress, defaultHost, defaultPort)
 	}
 }
 

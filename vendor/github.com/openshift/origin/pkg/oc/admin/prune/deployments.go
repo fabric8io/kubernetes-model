@@ -10,15 +10,15 @@ import (
 	"github.com/spf13/cobra"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
-	"github.com/openshift/origin/pkg/deploy/prune"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	appsclientinternal "github.com/openshift/origin/pkg/apps/generated/internalclientset/typed/apps/internalversion"
+	"github.com/openshift/origin/pkg/oc/cli/deploymentconfigs/prune"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 const PruneDeploymentsRecommendedName = "deployments"
@@ -47,9 +47,9 @@ type PruneDeploymentsOptions struct {
 	KeepFailed      int
 	Namespace       string
 
-	OSClient client.Interface
-	KClient  kclientset.Interface
-	Out      io.Writer
+	AppsClient appsclientinternal.DeploymentConfigsGetter
+	KClient    kclientset.Interface
+	Out        io.Writer
 }
 
 // NewCmdPruneDeployments implements the OpenShift cli prune deployments command.
@@ -87,7 +87,7 @@ func NewCmdPruneDeployments(f *clientcmd.Factory, parentName, name string, out i
 // which can be validated and used for pruning deployments.
 func (o *PruneDeploymentsOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, args []string, out io.Writer) error {
 	if len(args) > 0 {
-		return kcmdutil.UsageError(cmd, "no arguments are allowed to this command")
+		return kcmdutil.UsageErrorf(cmd, "no arguments are allowed to this command")
 	}
 
 	o.Namespace = metav1.NamespaceAll
@@ -100,11 +100,15 @@ func (o *PruneDeploymentsOptions) Complete(f *clientcmd.Factory, cmd *cobra.Comm
 	}
 	o.Out = out
 
-	osClient, kClient, err := f.Clients()
+	kClient, err := f.ClientSet()
 	if err != nil {
 		return err
 	}
-	o.OSClient = osClient
+	appsClient, err := f.OpenshiftInternalAppsClient()
+	if err != nil {
+		return err
+	}
+	o.AppsClient = appsClient.Apps()
 	o.KClient = kClient
 
 	return nil
@@ -126,11 +130,11 @@ func (o PruneDeploymentsOptions) Validate() error {
 
 // Run contains all the necessary functionality for the OpenShift cli prune deployments command.
 func (o PruneDeploymentsOptions) Run() error {
-	deploymentConfigList, err := o.OSClient.DeploymentConfigs(o.Namespace).List(metav1.ListOptions{})
+	deploymentConfigList, err := o.AppsClient.DeploymentConfigs(o.Namespace).List(metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
-	deploymentConfigs := []*deployapi.DeploymentConfig{}
+	deploymentConfigs := []*appsapi.DeploymentConfig{}
 	for i := range deploymentConfigList.Items {
 		deploymentConfigs = append(deploymentConfigs, &deploymentConfigList.Items[i])
 	}

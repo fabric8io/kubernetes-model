@@ -1,6 +1,10 @@
-# Prometheus Ops Metrics Example
+# Prometheus for OpenShift
 
-This template creates a Prometheus instance preconfigured to gather OpenShift and Kubernetes platform and node metrics and report them to admins. It is protected by an OAuth proxy that only allows access for users who have view access to the `kube-system` namespace.
+This directory contains example components for running either an operational Prometheus setup for your OpenShift cluster, or deploying a standalone secured Prometheus instance for configurating yourself.
+
+## Prometheus for Operations
+
+The `prometheus.yaml` template creates a Prometheus instance preconfigured to gather OpenShift and Kubernetes platform and node metrics and report them to admins. It is protected by an OAuth proxy that only allows access for users who have view access to the `kube-system` namespace.
 
 To deploy, run:
 
@@ -9,6 +13,47 @@ $ oc new-app -f prometheus.yaml
 ```
 
 You may customize where the images (built from `openshift/prometheus` and `openshift/oauth-proxy`) are pulled from via template parameters.
+
+The optional `node-exporter` component may be installed as a daemon set to gather host level metrics. It requires additional
+privileges to view the host and should only be run in administrator controlled namespaces.
+
+To deploy, run:
+
+```
+$ oc create -f node-exporter.yaml -n kube-system
+$ oc adm policy add-scc-to-user -z prometheus-node-exporter -n kube-system hostaccess
+$ oc annotate ns kube-system openshift.io/node-selector= --overwrite
+```
+
+## Standalone Prometheus
+
+The `prometheus-standalone.yaml` template creates a Prometheus instance without any configuration, intended for use when you have your own configuration. It expects two secrets to be created ahead of time:
+
+* `prom` which should contain:
+  * `prometheus.yml`: The Prometheus configuration
+  * `*.rules`: Will be treated as recording or alerting rules
+  * Any additional files referenced by `prometheus.yml`
+* `prom-alerts` which should contain:
+  * `alertmanager.yml`: The Alert Manager configuration
+  * Any additional files referenced by `alertmanager.yml`
+
+The example uses secrets instead of config maps in case either config file needs to reference a secret.
+
+Example creation steps:
+
+```
+# Create the prom secret
+$ oc create secret generic prom --from-file=../prometheus.yml
+
+# Create the prom-alerts secret
+$ oc create secret generic prom --from-file=../alertmanager.yml
+
+# Create the prometheus instance
+$ oc process -f prometheus-standalone.yaml | oc apply -f -
+```
+
+You can find the Prometheus route by invoking `oc get routes` and then browsing in your web console. Users who are granted `view` access on the namespace will have access to login to Prometheus.
+
 
 ## Useful metrics queries
 
@@ -83,3 +128,76 @@ Number of non-mutating API requests being made to the control plane.
 
 Top 10 pods doing the most receive network traffic
 
+### etcd related queries
+
+> etcd_disk_wal_fsync_duration_seconds_count{type="master"}
+
+etcd "write-ahead-log" latency in milliseconds.  If this goes over 100ms, the cluster might destabilize.  Over 1000ms and things definitely start falling apart.
+
+### Kubelet / docker related queries
+
+> kubelet_docker_operations_latency_microseconds{type="compute",quantile="0.9"}
+
+90th percentile latency for docker operations (in microseconds).  This number will include image pulls, so often will be hundreds of seconds.
+
+> kubelet_docker_operations_timeout
+
+Returns a running count (not a rate) of docker operations that have timed out since the kubelet was started.
+
+> kubelet_docker_operations_errors
+
+Returns a running count (not a rate) of docker operations that have failed since the kubelet was started.
+
+> kubelet_pleg_relist_latency_microseconds
+
+Returns PLEG (pod lifecycle event generator) latency metrics.  This represents the latency experienced by calls from the kubelet to the container runtime (i.e. docker or CRI-O).  High PLEG latency is often related to disk I/O performance on the docker storage partition.
+
+### OpenShift build related queries
+
+> count(openshift_build_active_time_seconds{phase="New",strategy!="JenkinsPipeline",reason!="InvalidOutputReference",reason!="InvalidImageReference",reason!="CannotRetrieveServiceAccount"} < time() - 600)
+
+Returns the number of builds which have not yet started after 10 minutes.  This query filters out
+builds where the fact they have not started could be cited as resulting from user error.  Namely:
+
+* Image references in the BuildConfig are incorrect (pointing to non-existent Images or ImageStreams for example)
+* ServiceAccount references are incorrect (again, pointing to a ServiceAccount which cannot be retrieved by the user submitting the build request)
+* Pipeline strategy builds can often be hung up by conditions in the Jenkins server the user has created which the Build subsystem cannot account for
+
+NOTE:  OpenShift Online monitors builds in a fashion similar to this today.
+
+> sum(rate(openshift_build_total{phase="Error"}[10m])) / sum((rate(openshift_build_total{phase="Complete"}[10m]) + rate(openshift_build_total{phase="Error"}[10m]))) * 100
+
+Calculates the error rate for builds over the last 10 minutes, where the error might indicate issues with the cluster or namespace.  Note, it ignores build in the "Failed" and "Cancelled" phases, as builds typically end up in
+one of those phases as the result of a user choice or error.  Administrators after some experience with their cluster could decide what is an acceptable error rate and monitor when it is exceeded.
+
+> predict_linear(openshift_build_total{phase="Error"}[1h],3600)
+
+Predicts what the error count will be in 1 hour, using last hours data.
+
+> predict_linear(openshift_build_total{phase="Error"}[1h],3600) / (predict_linear(openshift_build_total{phase="Error"}[1h],3600) + predict_linear(openshift_build_total{phase="Completed"}[1h],3600)) * 100
+
+Similar to the two queries above, this query will predict what the error rate will be in one hour based on last hours data.
+
+> count(openshift_build_active_time_seconds{phase="Running"} < time() - 600)
+
+Returns the number of builds that have been running for more than 10 minutes (600 seconds).
+
+> count(openshift_build_active_time_seconds{phase="Pending"} < time() - 600)
+
+Returns the number of build that have been waiting at least 10 minutes (600 seconds) to start.
+
+> sum(openshift_build_total{phase="Failed"})
+
+Returns the number of failed builds, regardless of the failure reason.
+
+> openshift_build_total{phase="failed",reason="FetchSourceFailed"}
+
+Returns the number of failed builds because of problems retrieving source from the associated Git repository.
+
+> sum(openshift_build_total{phase="Complete"})
+
+Returns the number of successfully completed builds.
+
+> openshift_build_total{phase="Failed"} offset 5m
+
+Returns the failed builds totals, per failure reason, from 5 minutes ago.

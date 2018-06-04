@@ -16,15 +16,35 @@ function os::build::version::get_vars() {
 		fi
 		os::log::warning "No version file at ${OS_VERSION_FILE}, falling back to git versions"
 	fi
-	os::build::version::openshift_vars
-	os::build::version::kubernetes_vars
-	os::build::version::etcd_vars
+	os::build::version::git_vars
 }
 readonly -f os::build::version::get_vars
 
-# os::build::version::openshift_vars looks up the current Git vars
-function os::build::version::openshift_vars() {
+# os::build::version::git_vars looks up the current Git vars if they have not been calculated.
+function os::build::version::git_vars() {
+	if [[ -n "${OS_GIT_VERSION-}" ]]; then
+		return 0
+ 	fi
+
+	os::build::version::kubernetes_vars
+	os::build::version::etcd_vars
+
 	local git=(git --work-tree "${OS_ROOT}")
+
+	if [[ -z "${OS_GIT_CATALOG_VERSION:-}" ]]; then
+		# search git merge commits for template text and extract version
+		# subject template: Merge version v0.0.14 of Service Catalog from https://github.com/openshift/service-catalog:v0.0.14+origin
+		summary_text="$(${git[@]} log --merges --grep "Merge version v.* of Service Catalog from https://github.com/openshift/service-catalog" --pretty=%s -1)"
+		if [[ "${summary_text}" =~ Merge[[:space:]]version[[:space:]](v.*)[[:space:]]of[[:space:]]Service[[:space:]]Catalog ]]; then
+			OS_GIT_CATALOG_VERSION="${BASH_REMATCH[1]}"
+		else
+			os::log::fatal "Unable to find version for service catalog - (this should never happen)"
+		fi
+
+		if git_status=$("${git[@]}" status --porcelain cmd/service-catalog 2>/dev/null) && [[ -n ${git_status} ]]; then
+			OS_GIT_CATALOG_VERSION+="dirty"
+		fi
+	fi
 
 	if [[ -n ${OS_GIT_COMMIT-} ]] || OS_GIT_COMMIT=$("${git[@]}" rev-parse --short "HEAD^{commit}" 2>/dev/null); then
 		if [[ -z ${OS_GIT_TREE_STATE-} ]]; then
@@ -64,7 +84,7 @@ function os::build::version::openshift_vars() {
 		fi
 	fi
 }
-readonly -f os::build::version::openshift_vars
+readonly -f os::build::version::git_vars
 
 function os::build::version::etcd_vars() {
 	ETCD_GIT_VERSION=$(go run "${OS_ROOT}/tools/godepversion/godepversion.go" "${OS_ROOT}/Godeps/Godeps.json" "github.com/coreos/etcd/etcdserver" "comment")
@@ -101,12 +121,7 @@ readonly -f os::build::version::kubernetes_vars
 
 # Saves the environment flags to $1
 function os::build::version::save_vars() {
-	local version_file=${1-}
-	if [[ -z ${version_file} ]]; then
-		os::log::fatal "No file specified as an argument to os::build::version::save_vars"
-	fi
-
-	cat <<EOF >"${version_file}"
+	cat <<EOF
 OS_GIT_COMMIT='${OS_GIT_COMMIT-}'
 OS_GIT_TREE_STATE='${OS_GIT_TREE_STATE-}'
 OS_GIT_VERSION='${OS_GIT_VERSION-}'
@@ -117,6 +132,7 @@ KUBE_GIT_COMMIT='${KUBE_GIT_COMMIT-}'
 KUBE_GIT_VERSION='${KUBE_GIT_VERSION-}'
 ETCD_GIT_VERSION='${ETCD_GIT_VERSION-}'
 ETCD_GIT_COMMIT='${ETCD_GIT_COMMIT-}'
+OS_GIT_CATALOG_VERSION='${OS_GIT_CATALOG_VERSION-}'
 EOF
 }
 readonly -f os::build::version::save_vars

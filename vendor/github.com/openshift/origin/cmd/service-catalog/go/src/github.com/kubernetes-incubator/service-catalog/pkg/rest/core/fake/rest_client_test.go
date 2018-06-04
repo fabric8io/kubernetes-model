@@ -42,18 +42,18 @@ const (
 //Helpers
 func createSingleItemStorage() NamespacedStorage {
 	storage := make(NamespacedStorage)
-	storage.Set(ns1, tipe1, name1, &servicecatalog.Broker{})
+	storage.Set(ns1, tipe1, name1, &servicecatalog.ClusterServiceBroker{})
 	return storage
 }
 
 func createMultipleItemStorage() NamespacedStorage {
 	storage := make(NamespacedStorage)
-	storage.Set(ns1, tipe1, name1, &servicecatalog.Broker{})
-	storage.Set(ns1, tipe1, name2, &servicecatalog.Broker{})
-	storage.Set(ns1, tipe1, name3, &servicecatalog.Broker{})
+	storage.Set(ns1, tipe1, name1, &servicecatalog.ClusterServiceBroker{})
+	storage.Set(ns1, tipe1, name2, &servicecatalog.ClusterServiceBroker{})
+	storage.Set(ns1, tipe1, name3, &servicecatalog.ClusterServiceBroker{})
 
-	storage.Set(ns2, tipe1, name1, &servicecatalog.Broker{})
-	storage.Set(ns2, tipe1, name2, &servicecatalog.Broker{})
+	storage.Set(ns2, tipe1, name1, &servicecatalog.ClusterServiceBroker{})
+	storage.Set(ns2, tipe1, name2, &servicecatalog.ClusterServiceBroker{})
 
 	return storage
 
@@ -133,8 +133,8 @@ func TestGetItem(t *testing.T) {
 		url            string
 		expectedStatus int
 	}{
-		{"Empty Storage", make(NamespacedStorage), NewWatcher(), newResponseWriter(), fmt.Sprintf("/apis/servicecatalog.k8s.io/v1alpha1/namespaces/%s/%s/%s", ns1, tipe1, name1), http.StatusNotFound},
-		{"One Item in storage", createSingleItemStorage(), NewWatcher(), newResponseWriter(), fmt.Sprintf("/apis/servicecatalog.k8s.io/v1alpha1/namespaces/%s/%s/%s", ns1, tipe1, name1), http.StatusOK},
+		{"Empty Storage", make(NamespacedStorage), NewWatcher(), newResponseWriter(), fmt.Sprintf("/apis/servicecatalog.k8s.io/v1beta1/namespaces/%s/%s/%s", ns1, tipe1, name1), http.StatusNotFound},
+		{"One Item in storage", createSingleItemStorage(), NewWatcher(), newResponseWriter(), fmt.Sprintf("/apis/servicecatalog.k8s.io/v1beta1/namespaces/%s/%s/%s", ns1, tipe1, name1), http.StatusOK},
 	}
 
 	for _, tc := range testCases {
@@ -145,7 +145,7 @@ func TestGetItem(t *testing.T) {
 			}
 
 			router := getRouter(tc.storage, tc.watcher, func() runtime.Object {
-				return &servicecatalog.Instance{}
+				return &servicecatalog.ServiceInstance{}
 			})
 
 			router.ServeHTTP(tc.rw, request)
@@ -175,8 +175,8 @@ func TestGetItems(t *testing.T) {
 		url            string
 		expectedStatus int
 	}{
-		{"Empty Storage", make(NamespacedStorage), NewWatcher(), newResponseWriter(), fmt.Sprintf("/apis/servicecatalog.k8s.io/v1alpha1/namespaces/%v/brokers", ns1), http.StatusOK},
-		{"Multiple Items", createMultipleItemStorage(), NewWatcher(), newResponseWriter(), fmt.Sprintf("/apis/servicecatalog.k8s.io/v1alpha1/namespaces/%v/brokers", ns1), http.StatusOK},
+		{"Empty Storage", make(NamespacedStorage), NewWatcher(), newResponseWriter(), fmt.Sprintf("/apis/servicecatalog.k8s.io/v1beta1/namespaces/%v/clusterservicebrokers", ns1), http.StatusOK},
+		{"Multiple Items", createMultipleItemStorage(), NewWatcher(), newResponseWriter(), fmt.Sprintf("/apis/servicecatalog.k8s.io/v1beta1/namespaces/%v/clusterservicebrokers", ns1), http.StatusOK},
 	}
 
 	for _, tc := range testCases {
@@ -187,7 +187,7 @@ func TestGetItems(t *testing.T) {
 			}
 
 			router := getRouter(tc.storage, tc.watcher, func() runtime.Object {
-				return &servicecatalog.Instance{}
+				return &servicecatalog.ServiceInstance{}
 			})
 
 			router.ServeHTTP(tc.rw, request)
@@ -224,26 +224,17 @@ func TestCreateItem(t *testing.T) {
 			"Create Item (empty storage)",
 			make(NamespacedStorage), NewWatcher(),
 			newResponseWriter(),
-			fmt.Sprintf("/apis/servicecatalog.k8s.io/v1alpha1/namespaces/%s/%s", ns1, tipe1),
-			&servicecatalog.Broker{ObjectMeta: metav1.ObjectMeta{Name: name1}, TypeMeta: metav1.TypeMeta{Kind: "Broker", APIVersion: "servicecatalog.k8s.io/v1alpha1"}},
+			fmt.Sprintf("/apis/servicecatalog.k8s.io/v1beta1/namespaces/%s/%s", ns1, tipe1),
+			&servicecatalog.ClusterServiceBroker{ObjectMeta: metav1.ObjectMeta{Name: name1}, TypeMeta: metav1.TypeMeta{Kind: "ClusterServiceBroker", APIVersion: "servicecatalog.k8s.io/v1beta1"}},
 			http.StatusCreated,
 			1,
 		},
 		{
-			"Create misformed item(no Kind)",
-			make(NamespacedStorage),
-			NewWatcher(),
-			newResponseWriter(),
-			fmt.Sprintf("/apis/servicecatalog.k8s.io/v1alpha1/namespaces/%s/%s", ns1, tipe1),
-			&servicecatalog.Broker{}, http.StatusInternalServerError,
-			0,
-		},
-		{
-			"Create Item(non-empty storage)",
+			"Create Item (non-empty storage)",
 			createMultipleItemStorage(),
 			NewWatcher(),
 			newResponseWriter(),
-			fmt.Sprintf("/apis/servicecatalog.k8s.io/v1alpha1/namespaces/%s/%s", ns1, tipe1), &servicecatalog.Broker{TypeMeta: metav1.TypeMeta{Kind: "Broker", APIVersion: "servicecatalog.k8s.io/v1alpha1"}},
+			fmt.Sprintf("/apis/servicecatalog.k8s.io/v1beta1/namespaces/%s/%s", ns1, tipe1), &servicecatalog.ClusterServiceBroker{TypeMeta: metav1.TypeMeta{Kind: "ClusterServiceBroker", APIVersion: "servicecatalog.k8s.io/v1beta1"}},
 			http.StatusCreated,
 			2,
 		},

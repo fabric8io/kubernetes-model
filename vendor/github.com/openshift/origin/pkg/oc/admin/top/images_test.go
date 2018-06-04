@@ -4,12 +4,10 @@ import (
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
-	"github.com/docker/distribution/digest"
-
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 )
 
@@ -300,7 +298,7 @@ func TestImagesTop(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{Name: "image2"},
 						DockerImageLayers: []imageapi.ImageLayer{
 							{Name: "layer1"},
-							{Name: digest.DigestSha256EmptyTar},
+							{Name: digestSHA256EmptyTar},
 							{Name: "layer2"},
 						},
 						DockerImageManifest: "non empty metadata",
@@ -465,7 +463,7 @@ func TestImagesTop(t *testing.T) {
 			pods: &kapi.PodList{
 				Items: []kapi.Pod{
 					{
-						ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Annotations: map[string]string{deployapi.DeploymentPodAnnotation: "deployer1"}},
+						ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Annotations: map[string]string{appsapi.DeploymentPodAnnotation: "deployer1"}},
 						Spec:       kapi.PodSpec{Containers: []kapi.Container{{Image: "image@sha256:08151bf2fc92355f236918bb16905921e6f66e1d03100fb9b18d60125db3df3a"}}},
 						Status:     kapi.PodStatus{Phase: kapi.PodPending},
 					},
@@ -504,7 +502,7 @@ func TestImagesTop(t *testing.T) {
 			pods: &kapi.PodList{
 				Items: []kapi.Pod{
 					{
-						ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Annotations: map[string]string{deployapi.DeploymentPodAnnotation: "deployer1"}},
+						ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Annotations: map[string]string{appsapi.DeploymentPodAnnotation: "deployer1"}},
 						Spec:       kapi.PodSpec{Containers: []kapi.Container{{Image: "image@sha256:08151bf2fc92355f236918bb16905921e6f66e1d03100fb9b18d60125db3df3a"}}},
 						Status:     kapi.PodStatus{Phase: kapi.PodRunning},
 					},
@@ -543,7 +541,7 @@ func TestImagesTop(t *testing.T) {
 			pods: &kapi.PodList{
 				Items: []kapi.Pod{
 					{
-						ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Annotations: map[string]string{deployapi.DeploymentAnnotation: "deplyment1"}},
+						ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Annotations: map[string]string{appsapi.DeploymentAnnotation: "deplyment1"}},
 						Spec:       kapi.PodSpec{Containers: []kapi.Container{{Image: "image@sha256:08151bf2fc92355f236918bb16905921e6f66e1d03100fb9b18d60125db3df3a"}}},
 						Status:     kapi.PodStatus{Phase: kapi.PodPending},
 					},
@@ -582,7 +580,7 @@ func TestImagesTop(t *testing.T) {
 			pods: &kapi.PodList{
 				Items: []kapi.Pod{
 					{
-						ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Annotations: map[string]string{deployapi.DeploymentAnnotation: "deplyment1"}},
+						ObjectMeta: metav1.ObjectMeta{Namespace: "ns1", Annotations: map[string]string{appsapi.DeploymentAnnotation: "deplyment1"}},
 						Spec:       kapi.PodSpec{Containers: []kapi.Container{{Image: "image@sha256:08151bf2fc92355f236918bb16905921e6f66e1d03100fb9b18d60125db3df3a"}}},
 						Status:     kapi.PodStatus{Phase: kapi.PodRunning},
 					},

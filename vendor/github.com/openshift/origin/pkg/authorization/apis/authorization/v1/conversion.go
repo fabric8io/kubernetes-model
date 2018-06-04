@@ -6,14 +6,14 @@ import (
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 
-	oapi "github.com/openshift/origin/pkg/api"
-	"github.com/openshift/origin/pkg/api/extension"
+	"github.com/openshift/api/authorization/v1"
+	"github.com/openshift/origin/pkg/api/apihelpers"
 	newer "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	uservalidation "github.com/openshift/origin/pkg/user/apis/user/validation"
 )
 
-func Convert_v1_SubjectAccessReview_To_authorization_SubjectAccessReview(in *SubjectAccessReview, out *newer.SubjectAccessReview, s conversion.Scope) error {
+func Convert_v1_SubjectAccessReview_To_authorization_SubjectAccessReview(in *v1.SubjectAccessReview, out *newer.SubjectAccessReview, s conversion.Scope) error {
 	if err := autoConvert_v1_SubjectAccessReview_To_authorization_SubjectAccessReview(in, out, s); err != nil {
 		return err
 	}
@@ -23,17 +23,17 @@ func Convert_v1_SubjectAccessReview_To_authorization_SubjectAccessReview(in *Sub
 	return nil
 }
 
-func Convert_authorization_SubjectAccessReview_To_v1_SubjectAccessReview(in *newer.SubjectAccessReview, out *SubjectAccessReview, s conversion.Scope) error {
+func Convert_authorization_SubjectAccessReview_To_v1_SubjectAccessReview(in *newer.SubjectAccessReview, out *v1.SubjectAccessReview, s conversion.Scope) error {
 	if err := autoConvert_authorization_SubjectAccessReview_To_v1_SubjectAccessReview(in, out, s); err != nil {
 		return err
 	}
 
 	out.GroupsSlice = in.Groups.List()
-	out.Scopes = OptionalScopes(in.Scopes)
+	out.Scopes = v1.OptionalScopes(in.Scopes)
 	return nil
 }
 
-func Convert_v1_SelfSubjectRulesReviewSpec_To_authorization_SelfSubjectRulesReviewSpec(in *SelfSubjectRulesReviewSpec, out *newer.SelfSubjectRulesReviewSpec, s conversion.Scope) error {
+func Convert_v1_SelfSubjectRulesReviewSpec_To_authorization_SelfSubjectRulesReviewSpec(in *v1.SelfSubjectRulesReviewSpec, out *newer.SelfSubjectRulesReviewSpec, s conversion.Scope) error {
 	if err := autoConvert_v1_SelfSubjectRulesReviewSpec_To_authorization_SelfSubjectRulesReviewSpec(in, out, s); err != nil {
 		return err
 	}
@@ -42,16 +42,16 @@ func Convert_v1_SelfSubjectRulesReviewSpec_To_authorization_SelfSubjectRulesRevi
 	return nil
 }
 
-func Convert_authorization_SelfSubjectRulesReviewSpec_To_v1_SelfSubjectRulesReviewSpec(in *newer.SelfSubjectRulesReviewSpec, out *SelfSubjectRulesReviewSpec, s conversion.Scope) error {
+func Convert_authorization_SelfSubjectRulesReviewSpec_To_v1_SelfSubjectRulesReviewSpec(in *newer.SelfSubjectRulesReviewSpec, out *v1.SelfSubjectRulesReviewSpec, s conversion.Scope) error {
 	if err := autoConvert_authorization_SelfSubjectRulesReviewSpec_To_v1_SelfSubjectRulesReviewSpec(in, out, s); err != nil {
 		return err
 	}
 
-	out.Scopes = OptionalScopes(in.Scopes)
+	out.Scopes = v1.OptionalScopes(in.Scopes)
 	return nil
 }
 
-func Convert_v1_LocalSubjectAccessReview_To_authorization_LocalSubjectAccessReview(in *LocalSubjectAccessReview, out *newer.LocalSubjectAccessReview, s conversion.Scope) error {
+func Convert_v1_LocalSubjectAccessReview_To_authorization_LocalSubjectAccessReview(in *v1.LocalSubjectAccessReview, out *newer.LocalSubjectAccessReview, s conversion.Scope) error {
 	if err := autoConvert_v1_LocalSubjectAccessReview_To_authorization_LocalSubjectAccessReview(in, out, s); err != nil {
 		return err
 	}
@@ -61,17 +61,17 @@ func Convert_v1_LocalSubjectAccessReview_To_authorization_LocalSubjectAccessRevi
 	return nil
 }
 
-func Convert_authorization_LocalSubjectAccessReview_To_v1_LocalSubjectAccessReview(in *newer.LocalSubjectAccessReview, out *LocalSubjectAccessReview, s conversion.Scope) error {
+func Convert_authorization_LocalSubjectAccessReview_To_v1_LocalSubjectAccessReview(in *newer.LocalSubjectAccessReview, out *v1.LocalSubjectAccessReview, s conversion.Scope) error {
 	if err := autoConvert_authorization_LocalSubjectAccessReview_To_v1_LocalSubjectAccessReview(in, out, s); err != nil {
 		return err
 	}
 
 	out.GroupsSlice = in.Groups.List()
-	out.Scopes = OptionalScopes(in.Scopes)
+	out.Scopes = v1.OptionalScopes(in.Scopes)
 	return nil
 }
 
-func Convert_v1_ResourceAccessReviewResponse_To_authorization_ResourceAccessReviewResponse(in *ResourceAccessReviewResponse, out *newer.ResourceAccessReviewResponse, s conversion.Scope) error {
+func Convert_v1_ResourceAccessReviewResponse_To_authorization_ResourceAccessReviewResponse(in *v1.ResourceAccessReviewResponse, out *newer.ResourceAccessReviewResponse, s conversion.Scope) error {
 	if err := autoConvert_v1_ResourceAccessReviewResponse_To_authorization_ResourceAccessReviewResponse(in, out, s); err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func Convert_v1_ResourceAccessReviewResponse_To_authorization_ResourceAccessRevi
 	return nil
 }
 
-func Convert_authorization_ResourceAccessReviewResponse_To_v1_ResourceAccessReviewResponse(in *newer.ResourceAccessReviewResponse, out *ResourceAccessReviewResponse, s conversion.Scope) error {
+func Convert_authorization_ResourceAccessReviewResponse_To_v1_ResourceAccessReviewResponse(in *newer.ResourceAccessReviewResponse, out *v1.ResourceAccessReviewResponse, s conversion.Scope) error {
 	if err := autoConvert_authorization_ResourceAccessReviewResponse_To_v1_ResourceAccessReviewResponse(in, out, s); err != nil {
 		return err
 	}
@@ -91,9 +91,9 @@ func Convert_authorization_ResourceAccessReviewResponse_To_v1_ResourceAccessRevi
 	return nil
 }
 
-func Convert_v1_PolicyRule_To_authorization_PolicyRule(in *PolicyRule, out *newer.PolicyRule, s conversion.Scope) error {
+func Convert_v1_PolicyRule_To_authorization_PolicyRule(in *v1.PolicyRule, out *newer.PolicyRule, s conversion.Scope) error {
 	SetDefaults_PolicyRule(in)
-	if err := oapi.Convert_runtime_RawExtension_To_runtime_Object(&in.AttributeRestrictions, &out.AttributeRestrictions, s); err != nil {
+	if err := apihelpers.Convert_runtime_RawExtension_To_runtime_Object(legacyscheme.Scheme, &in.AttributeRestrictions, &out.AttributeRestrictions, s); err != nil {
 		return err
 	}
 
@@ -112,8 +112,8 @@ func Convert_v1_PolicyRule_To_authorization_PolicyRule(in *PolicyRule, out *newe
 	return nil
 }
 
-func Convert_authorization_PolicyRule_To_v1_PolicyRule(in *newer.PolicyRule, out *PolicyRule, s conversion.Scope) error {
-	if err := oapi.Convert_runtime_Object_To_runtime_RawExtension(&in.AttributeRestrictions, &out.AttributeRestrictions, s); err != nil {
+func Convert_authorization_PolicyRule_To_v1_PolicyRule(in *newer.PolicyRule, out *v1.PolicyRule, s conversion.Scope) error {
+	if err := apihelpers.Convert_runtime_Object_To_runtime_RawExtension(legacyscheme.Scheme, &in.AttributeRestrictions, &out.AttributeRestrictions, s); err != nil {
 		return err
 	}
 
@@ -132,7 +132,7 @@ func Convert_authorization_PolicyRule_To_v1_PolicyRule(in *newer.PolicyRule, out
 	return nil
 }
 
-func Convert_v1_Policy_To_authorization_Policy(in *Policy, out *newer.Policy, s conversion.Scope) error {
+func Convert_v1_Policy_To_authorization_Policy(in *v1.Policy, out *newer.Policy, s conversion.Scope) error {
 	if err := autoConvert_v1_Policy_To_authorization_Policy(in, out, s); err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func Convert_v1_Policy_To_authorization_Policy(in *Policy, out *newer.Policy, s 
 	return nil
 }
 
-func Convert_v1_RoleBinding_To_authorization_RoleBinding(in *RoleBinding, out *newer.RoleBinding, s conversion.Scope) error {
+func Convert_v1_RoleBinding_To_authorization_RoleBinding(in *v1.RoleBinding, out *newer.RoleBinding, s conversion.Scope) error {
 	if err := autoConvert_v1_RoleBinding_To_authorization_RoleBinding(in, out, s); err != nil {
 		return err
 	}
@@ -152,12 +152,12 @@ func Convert_v1_RoleBinding_To_authorization_RoleBinding(in *RoleBinding, out *n
 		return nil
 	}
 
-	out.Subjects = newer.BuildSubjects(in.UserNames, in.GroupNames, uservalidation.ValidateUserName, uservalidation.ValidateGroupName)
+	out.Subjects = newer.BuildSubjects(in.UserNames, in.GroupNames)
 
 	return nil
 }
 
-func Convert_authorization_RoleBinding_To_v1_RoleBinding(in *newer.RoleBinding, out *RoleBinding, s conversion.Scope) error {
+func Convert_authorization_RoleBinding_To_v1_RoleBinding(in *newer.RoleBinding, out *v1.RoleBinding, s conversion.Scope) error {
 	if err := autoConvert_authorization_RoleBinding_To_v1_RoleBinding(in, out, s); err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func Convert_authorization_RoleBinding_To_v1_RoleBinding(in *newer.RoleBinding, 
 	return nil
 }
 
-func Convert_v1_PolicyBinding_To_authorization_PolicyBinding(in *PolicyBinding, out *newer.PolicyBinding, s conversion.Scope) error {
+func Convert_v1_PolicyBinding_To_authorization_PolicyBinding(in *v1.PolicyBinding, out *newer.PolicyBinding, s conversion.Scope) error {
 	if err := autoConvert_v1_PolicyBinding_To_authorization_PolicyBinding(in, out, s); err != nil {
 		return err
 	}
@@ -178,7 +178,7 @@ func Convert_v1_PolicyBinding_To_authorization_PolicyBinding(in *PolicyBinding, 
 }
 
 // and now the globals
-func Convert_v1_ClusterPolicy_To_authorization_ClusterPolicy(in *ClusterPolicy, out *newer.ClusterPolicy, s conversion.Scope) error {
+func Convert_v1_ClusterPolicy_To_authorization_ClusterPolicy(in *v1.ClusterPolicy, out *newer.ClusterPolicy, s conversion.Scope) error {
 	if err := autoConvert_v1_ClusterPolicy_To_authorization_ClusterPolicy(in, out, s); err != nil {
 		return err
 	}
@@ -188,7 +188,7 @@ func Convert_v1_ClusterPolicy_To_authorization_ClusterPolicy(in *ClusterPolicy, 
 	return nil
 }
 
-func Convert_v1_ClusterRoleBinding_To_authorization_ClusterRoleBinding(in *ClusterRoleBinding, out *newer.ClusterRoleBinding, s conversion.Scope) error {
+func Convert_v1_ClusterRoleBinding_To_authorization_ClusterRoleBinding(in *v1.ClusterRoleBinding, out *newer.ClusterRoleBinding, s conversion.Scope) error {
 	if err := autoConvert_v1_ClusterRoleBinding_To_authorization_ClusterRoleBinding(in, out, s); err != nil {
 		return err
 	}
@@ -198,12 +198,12 @@ func Convert_v1_ClusterRoleBinding_To_authorization_ClusterRoleBinding(in *Clust
 		return nil
 	}
 
-	out.Subjects = newer.BuildSubjects(in.UserNames, in.GroupNames, uservalidation.ValidateUserName, uservalidation.ValidateGroupName)
+	out.Subjects = newer.BuildSubjects(in.UserNames, in.GroupNames)
 
 	return nil
 }
 
-func Convert_authorization_ClusterRoleBinding_To_v1_ClusterRoleBinding(in *newer.ClusterRoleBinding, out *ClusterRoleBinding, s conversion.Scope) error {
+func Convert_authorization_ClusterRoleBinding_To_v1_ClusterRoleBinding(in *newer.ClusterRoleBinding, out *v1.ClusterRoleBinding, s conversion.Scope) error {
 	if err := autoConvert_authorization_ClusterRoleBinding_To_v1_ClusterRoleBinding(in, out, s); err != nil {
 		return err
 	}
@@ -213,7 +213,7 @@ func Convert_authorization_ClusterRoleBinding_To_v1_ClusterRoleBinding(in *newer
 	return nil
 }
 
-func Convert_v1_ClusterPolicyBinding_To_authorization_ClusterPolicyBinding(in *ClusterPolicyBinding, out *newer.ClusterPolicyBinding, s conversion.Scope) error {
+func Convert_v1_ClusterPolicyBinding_To_authorization_ClusterPolicyBinding(in *v1.ClusterPolicyBinding, out *newer.ClusterPolicyBinding, s conversion.Scope) error {
 	if err := autoConvert_v1_ClusterPolicyBinding_To_authorization_ClusterPolicyBinding(in, out, s); err != nil {
 		return err
 	}
@@ -223,7 +223,7 @@ func Convert_v1_ClusterPolicyBinding_To_authorization_ClusterPolicyBinding(in *C
 	return nil
 }
 
-func Convert_v1_NamedRoles_To_authorization_RolesByName(in *NamedRoles, out *newer.RolesByName, s conversion.Scope) error {
+func Convert_v1_NamedRoles_To_authorization_RolesByName(in *v1.NamedRoles, out *newer.RolesByName, s conversion.Scope) error {
 	if *out == nil {
 		*out = make(newer.RolesByName)
 	}
@@ -238,7 +238,7 @@ func Convert_v1_NamedRoles_To_authorization_RolesByName(in *NamedRoles, out *new
 
 	return nil
 }
-func Convert_authorization_RolesByName_To_v1_NamedRoles(in *newer.RolesByName, out *NamedRoles, s conversion.Scope) error {
+func Convert_authorization_RolesByName_To_v1_NamedRoles(in *newer.RolesByName, out *v1.NamedRoles, s conversion.Scope) error {
 	allKeys := make([]string, 0, len(*in))
 	for key := range *in {
 		allKeys = append(allKeys, key)
@@ -247,19 +247,19 @@ func Convert_authorization_RolesByName_To_v1_NamedRoles(in *newer.RolesByName, o
 
 	for _, key := range allKeys {
 		newRole := (*in)[key]
-		oldRole := &Role{}
+		oldRole := &v1.Role{}
 		if err := Convert_authorization_Role_To_v1_Role(newRole, oldRole, s); err != nil {
 			return err
 		}
 
-		namedRole := NamedRole{key, *oldRole}
+		namedRole := v1.NamedRole{key, *oldRole}
 		*out = append(*out, namedRole)
 	}
 
 	return nil
 }
 
-func Convert_v1_NamedRoleBindings_To_authorization_RoleBindingsByName(in *NamedRoleBindings, out *newer.RoleBindingsByName, s conversion.Scope) error {
+func Convert_v1_NamedRoleBindings_To_authorization_RoleBindingsByName(in *v1.NamedRoleBindings, out *newer.RoleBindingsByName, s conversion.Scope) error {
 	if *out == nil {
 		*out = make(newer.RoleBindingsByName)
 	}
@@ -273,7 +273,7 @@ func Convert_v1_NamedRoleBindings_To_authorization_RoleBindingsByName(in *NamedR
 
 	return nil
 }
-func Convert_authorization_RoleBindingsByName_To_v1_NamedRoleBindings(in *newer.RoleBindingsByName, out *NamedRoleBindings, s conversion.Scope) error {
+func Convert_authorization_RoleBindingsByName_To_v1_NamedRoleBindings(in *newer.RoleBindingsByName, out *v1.NamedRoleBindings, s conversion.Scope) error {
 	allKeys := make([]string, 0, len(*in))
 	for key := range *in {
 		allKeys = append(allKeys, key)
@@ -282,19 +282,19 @@ func Convert_authorization_RoleBindingsByName_To_v1_NamedRoleBindings(in *newer.
 
 	for _, key := range allKeys {
 		newRoleBinding := (*in)[key]
-		oldRoleBinding := &RoleBinding{}
+		oldRoleBinding := &v1.RoleBinding{}
 		if err := Convert_authorization_RoleBinding_To_v1_RoleBinding(newRoleBinding, oldRoleBinding, s); err != nil {
 			return err
 		}
 
-		namedRoleBinding := NamedRoleBinding{key, *oldRoleBinding}
+		namedRoleBinding := v1.NamedRoleBinding{key, *oldRoleBinding}
 		*out = append(*out, namedRoleBinding)
 	}
 
 	return nil
 }
 
-func Convert_v1_NamedClusterRoles_To_authorization_ClusterRolesByName(in *NamedClusterRoles, out *newer.ClusterRolesByName, s conversion.Scope) error {
+func Convert_v1_NamedClusterRoles_To_authorization_ClusterRolesByName(in *v1.NamedClusterRoles, out *newer.ClusterRolesByName, s conversion.Scope) error {
 	if *out == nil {
 		*out = make(newer.ClusterRolesByName)
 	}
@@ -308,7 +308,7 @@ func Convert_v1_NamedClusterRoles_To_authorization_ClusterRolesByName(in *NamedC
 
 	return nil
 }
-func Convert_authorization_ClusterRolesByName_To_v1_NamedClusterRoles(in *newer.ClusterRolesByName, out *NamedClusterRoles, s conversion.Scope) error {
+func Convert_authorization_ClusterRolesByName_To_v1_NamedClusterRoles(in *newer.ClusterRolesByName, out *v1.NamedClusterRoles, s conversion.Scope) error {
 	allKeys := make([]string, 0, len(*in))
 	for key := range *in {
 		allKeys = append(allKeys, key)
@@ -317,18 +317,18 @@ func Convert_authorization_ClusterRolesByName_To_v1_NamedClusterRoles(in *newer.
 
 	for _, key := range allKeys {
 		newRole := (*in)[key]
-		oldRole := &ClusterRole{}
+		oldRole := &v1.ClusterRole{}
 		if err := Convert_authorization_ClusterRole_To_v1_ClusterRole(newRole, oldRole, s); err != nil {
 			return err
 		}
 
-		namedRole := NamedClusterRole{key, *oldRole}
+		namedRole := v1.NamedClusterRole{key, *oldRole}
 		*out = append(*out, namedRole)
 	}
 
 	return nil
 }
-func Convert_v1_NamedClusterRoleBindings_To_authorization_ClusterRoleBindingsByName(in *NamedClusterRoleBindings, out *newer.ClusterRoleBindingsByName, s conversion.Scope) error {
+func Convert_v1_NamedClusterRoleBindings_To_authorization_ClusterRoleBindingsByName(in *v1.NamedClusterRoleBindings, out *newer.ClusterRoleBindingsByName, s conversion.Scope) error {
 	if *out == nil {
 		*out = make(newer.ClusterRoleBindingsByName)
 	}
@@ -341,7 +341,7 @@ func Convert_v1_NamedClusterRoleBindings_To_authorization_ClusterRoleBindingsByN
 	}
 	return nil
 }
-func Convert_authorization_ClusterRoleBindingsByName_To_v1_NamedClusterRoleBindings(in *newer.ClusterRoleBindingsByName, out *NamedClusterRoleBindings, s conversion.Scope) error {
+func Convert_authorization_ClusterRoleBindingsByName_To_v1_NamedClusterRoleBindings(in *newer.ClusterRoleBindingsByName, out *v1.NamedClusterRoleBindings, s conversion.Scope) error {
 	allKeys := make([]string, 0, len(*in))
 	for key := range *in {
 		allKeys = append(allKeys, key)
@@ -350,12 +350,12 @@ func Convert_authorization_ClusterRoleBindingsByName_To_v1_NamedClusterRoleBindi
 
 	for _, key := range allKeys {
 		newRoleBinding := (*in)[key]
-		oldRoleBinding := &ClusterRoleBinding{}
+		oldRoleBinding := &v1.ClusterRoleBinding{}
 		if err := Convert_authorization_ClusterRoleBinding_To_v1_ClusterRoleBinding(newRoleBinding, oldRoleBinding, s); err != nil {
 			return err
 		}
 
-		namedRoleBinding := NamedClusterRoleBinding{key, *oldRoleBinding}
+		namedRoleBinding := v1.NamedClusterRoleBinding{key, *oldRoleBinding}
 		*out = append(*out, namedRoleBinding)
 	}
 
@@ -394,224 +394,28 @@ func addConversionFuncs(scheme *runtime.Scheme) error {
 		return err
 	}
 
-	if err := scheme.AddFieldLabelConversionFunc("v1", "PolicyBinding",
-		oapi.GetFieldLabelConversionFunc(newer.PolicyBindingToSelectableFields(&newer.PolicyBinding{}), nil),
-	); err != nil {
+	return nil
+}
+
+func addLegacyFieldSelectorKeyConversions(scheme *runtime.Scheme) error {
+	if err := scheme.AddFieldLabelConversionFunc(LegacySchemeGroupVersion.String(), "PolicyBinding", legacyPolicyBindingFieldSelectorKeyConversionFunc); err != nil {
 		return err
 	}
-
 	return nil
 }
 
-var _ runtime.NestedObjectDecoder = &PolicyRule{}
-var _ runtime.NestedObjectEncoder = &PolicyRule{}
-
-func (c *PolicyRule) DecodeNestedObjects(d runtime.Decoder) error {
-	// decoding failures result in a runtime.Unknown object being created in Object and passed
-	// to conversion
-	extension.DecodeNestedRawExtensionOrUnknown(d, &c.AttributeRestrictions)
+func addFieldSelectorKeyConversions(scheme *runtime.Scheme) error {
 	return nil
 }
-func (c *PolicyRule) EncodeNestedObjects(e runtime.Encoder) error {
-	return extension.EncodeNestedRawExtension(e, &c.AttributeRestrictions)
-}
 
-var _ runtime.NestedObjectDecoder = &SelfSubjectRulesReview{}
-var _ runtime.NestedObjectEncoder = &SelfSubjectRulesReview{}
+// because field selectors can vary in support by version they are exposed under, we have one function for each
+// groupVersion we're registering for
 
-func (c *SelfSubjectRulesReview) DecodeNestedObjects(d runtime.Decoder) error {
-	// decoding failures result in a runtime.Unknown object being created in Object and passed
-	// to conversion
-	for i := range c.Status.Rules {
-		c.Status.Rules[i].DecodeNestedObjects(d)
+func legacyPolicyBindingFieldSelectorKeyConversionFunc(label, value string) (internalLabel, internalValue string, err error) {
+	switch label {
+	case "policyRef.namespace":
+		return label, value, nil
+	default:
+		return runtime.DefaultMetaV1FieldSelectorConversion(label, value)
 	}
-	return nil
-}
-func (c *SelfSubjectRulesReview) EncodeNestedObjects(e runtime.Encoder) error {
-	for i := range c.Status.Rules {
-		if err := c.Status.Rules[i].EncodeNestedObjects(e); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-var _ runtime.NestedObjectDecoder = &SubjectRulesReview{}
-var _ runtime.NestedObjectEncoder = &SubjectRulesReview{}
-
-func (c *SubjectRulesReview) DecodeNestedObjects(d runtime.Decoder) error {
-	// decoding failures result in a runtime.Unknown object being created in Object and passed
-	// to conversion
-	for i := range c.Status.Rules {
-		c.Status.Rules[i].DecodeNestedObjects(d)
-	}
-	return nil
-}
-func (c *SubjectRulesReview) EncodeNestedObjects(e runtime.Encoder) error {
-	for i := range c.Status.Rules {
-		if err := c.Status.Rules[i].EncodeNestedObjects(e); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-var _ runtime.NestedObjectDecoder = &ClusterRole{}
-var _ runtime.NestedObjectEncoder = &ClusterRole{}
-
-func (c *ClusterRole) DecodeNestedObjects(d runtime.Decoder) error {
-	// decoding failures result in a runtime.Unknown object being created in Object and passed
-	// to conversion
-	for i := range c.Rules {
-		c.Rules[i].DecodeNestedObjects(d)
-	}
-	return nil
-}
-func (c *ClusterRole) EncodeNestedObjects(e runtime.Encoder) error {
-	for i := range c.Rules {
-		if err := c.Rules[i].EncodeNestedObjects(e); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-var _ runtime.NestedObjectDecoder = &Role{}
-var _ runtime.NestedObjectEncoder = &Role{}
-
-func (c *Role) DecodeNestedObjects(d runtime.Decoder) error {
-	// decoding failures result in a runtime.Unknown object being created in Object and passed
-	// to conversion
-	for i := range c.Rules {
-		c.Rules[i].DecodeNestedObjects(d)
-	}
-	return nil
-}
-func (c *Role) EncodeNestedObjects(e runtime.Encoder) error {
-	for i := range c.Rules {
-		if err := c.Rules[i].EncodeNestedObjects(e); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-var _ runtime.NestedObjectDecoder = &ClusterRoleList{}
-var _ runtime.NestedObjectEncoder = &ClusterRoleList{}
-
-func (c *ClusterRoleList) DecodeNestedObjects(d runtime.Decoder) error {
-	// decoding failures result in a runtime.Unknown object being created in Object and passed
-	// to conversion
-	for i := range c.Items {
-		c.Items[i].DecodeNestedObjects(d)
-	}
-	return nil
-}
-func (c *ClusterRoleList) EncodeNestedObjects(e runtime.Encoder) error {
-	for i := range c.Items {
-		if err := c.Items[i].EncodeNestedObjects(e); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-var _ runtime.NestedObjectDecoder = &RoleList{}
-var _ runtime.NestedObjectEncoder = &RoleList{}
-
-func (c *RoleList) DecodeNestedObjects(d runtime.Decoder) error {
-	// decoding failures result in a runtime.Unknown object being created in Object and passed
-	// to conversion
-	for i := range c.Items {
-		c.Items[i].DecodeNestedObjects(d)
-	}
-	return nil
-}
-func (c *RoleList) EncodeNestedObjects(e runtime.Encoder) error {
-	for i := range c.Items {
-		if err := c.Items[i].EncodeNestedObjects(e); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-var _ runtime.NestedObjectDecoder = &ClusterPolicy{}
-var _ runtime.NestedObjectEncoder = &ClusterPolicy{}
-
-func (c *ClusterPolicy) DecodeNestedObjects(d runtime.Decoder) error {
-	// decoding failures result in a runtime.Unknown object being created in Object and passed
-	// to conversion
-	for i := range c.Roles {
-		c.Roles[i].Role.DecodeNestedObjects(d)
-	}
-	return nil
-}
-func (c *ClusterPolicy) EncodeNestedObjects(e runtime.Encoder) error {
-	for i := range c.Roles {
-		if err := c.Roles[i].Role.EncodeNestedObjects(e); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-var _ runtime.NestedObjectDecoder = &Policy{}
-var _ runtime.NestedObjectEncoder = &Policy{}
-
-func (c *Policy) DecodeNestedObjects(d runtime.Decoder) error {
-	// decoding failures result in a runtime.Unknown object being created in Object and passed
-	// to conversion
-	for i := range c.Roles {
-		c.Roles[i].Role.DecodeNestedObjects(d)
-	}
-	return nil
-}
-func (c *Policy) EncodeNestedObjects(e runtime.Encoder) error {
-	for i := range c.Roles {
-		if err := c.Roles[i].Role.EncodeNestedObjects(e); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-var _ runtime.NestedObjectDecoder = &ClusterPolicyList{}
-var _ runtime.NestedObjectEncoder = &ClusterPolicyList{}
-
-func (c *ClusterPolicyList) DecodeNestedObjects(d runtime.Decoder) error {
-	// decoding failures result in a runtime.Unknown object being created in Object and passed
-	// to conversion
-	for i := range c.Items {
-		c.Items[i].DecodeNestedObjects(d)
-	}
-	return nil
-}
-func (c *ClusterPolicyList) EncodeNestedObjects(e runtime.Encoder) error {
-	for i := range c.Items {
-		if err := c.Items[i].EncodeNestedObjects(e); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-var _ runtime.NestedObjectDecoder = &PolicyList{}
-var _ runtime.NestedObjectEncoder = &PolicyList{}
-
-func (c *PolicyList) DecodeNestedObjects(d runtime.Decoder) error {
-	// decoding failures result in a runtime.Unknown object being created in Object and passed
-	// to conversion
-	for i := range c.Items {
-		c.Items[i].DecodeNestedObjects(d)
-	}
-	return nil
-}
-func (c *PolicyList) EncodeNestedObjects(e runtime.Encoder) error {
-	for i := range c.Items {
-		if err := c.Items[i].EncodeNestedObjects(e); err != nil {
-			return err
-		}
-	}
-	return nil
 }

@@ -45,7 +45,7 @@ os::test::junit::declare_suite_end
 
 os::test::junit::declare_suite_start "cmd/admin/manage-node"
 # Test admin manage-node operations
-os::cmd::expect_success_and_text 'openshift admin manage-node --help' 'Manage nodes'
+os::cmd::expect_success_and_text 'oc adm manage-node --help' 'Manage nodes'
 
 # create a node object to mess with
 os::cmd::expect_success "echo 'apiVersion: v1
@@ -80,6 +80,8 @@ os::cmd::expect_success_and_text 'oc adm manage-node --selector= --schedulable=f
 os::cmd::expect_success_and_text 'oc get node -o yaml' 'unschedulable: true'
 # ensure correct serialization of podList output
 os::cmd::expect_success_and_text "oc adm manage-node --list-pods --selector= -o jsonpath='{ .kind }'" 'List'
+os::cmd::expect_success_and_text "oc adm manage-node --list-pods --selector=" 'NAMESPACE'
+
 echo "manage-node: ok"
 os::test::junit::declare_suite_end
 
@@ -116,9 +118,9 @@ os::test::junit::declare_suite_end
 
 os::test::junit::declare_suite_start "cmd/admin/groups"
 os::cmd::expect_success_and_text 'oc adm groups new shortoutputgroup -o name' 'groups/shortoutputgroup'
-os::cmd::expect_failure_and_text 'oc adm groups new shortoutputgroup' 'groups "shortoutputgroup" already exists'
+os::cmd::expect_failure_and_text 'oc adm groups new shortoutputgroup' 'groups.user.openshift.io "shortoutputgroup" already exists'
 os::cmd::expect_failure_and_text 'oc adm groups new errorgroup -o blah' 'error: output format "blah" not recognized'
-os::cmd::expect_failure_and_text 'oc get groups/errorgroup' 'groups "errorgroup" not found'
+os::cmd::expect_failure_and_text 'oc get groups/errorgroup' 'groups.user.openshift.io "errorgroup" not found'
 os::cmd::expect_success_and_text 'oc adm groups new group1 foo bar' 'group1.*foo, bar'
 os::cmd::expect_success_and_text 'oc get groups/group1 --no-headers' 'foo, bar'
 os::cmd::expect_success 'oc adm groups add-users group1 baz'
@@ -139,24 +141,32 @@ os::cmd::expect_success_and_text 'oc adm policy who-can get hpa.autoscaling -n d
 os::cmd::expect_success_and_text 'oc adm policy who-can get hpa.v1.autoscaling -n default' "Resource:  horizontalpodautoscalers.autoscaling"
 os::cmd::expect_success_and_text 'oc adm policy who-can get hpa -n default' "Resource:  horizontalpodautoscalers.autoscaling"
 
-os::cmd::expect_success 'oc adm policy add-role-to-group cluster-admin system:unauthenticated'
-os::cmd::expect_success 'oc adm policy add-role-to-user cluster-admin system:no-user'
-os::cmd::expect_success 'oc adm policy add-role-to-user admin -z fake-sa'
+os::cmd::expect_success 'oc adm policy add-role-to-group --rolebinding-name=cluster-admin cluster-admin system:unauthenticated'
+os::cmd::expect_success 'oc adm policy add-role-to-user --rolebinding-name=cluster-admin cluster-admin system:no-user'
+os::cmd::expect_success 'oc adm policy add-role-to-user --rolebinding-name=admin admin -z fake-sa'
 os::cmd::expect_success_and_text 'oc get rolebinding/admin -o jsonpath={.subjects}' 'fake-sa'
 os::cmd::expect_success 'oc adm policy remove-role-from-user admin -z fake-sa'
 os::cmd::expect_success_and_not_text 'oc get rolebinding/admin -o jsonpath={.subjects}' 'fake-sa'
-os::cmd::expect_success 'oc adm policy add-role-to-user admin -z fake-sa'
+os::cmd::expect_success 'oc adm policy add-role-to-user --rolebinding-name=admin admin -z fake-sa'
 os::cmd::expect_success_and_text 'oc get rolebinding/admin -o jsonpath={.subjects}' 'fake-sa'
 os::cmd::expect_success "oc adm policy remove-role-from-user admin system:serviceaccount:$(oc project -q):fake-sa"
 os::cmd::expect_success_and_not_text 'oc get rolebinding/admin -o jsonpath={.subjects}' 'fake-sa'
 os::cmd::expect_success 'oc adm policy remove-role-from-group cluster-admin system:unauthenticated'
 os::cmd::expect_success 'oc adm policy remove-role-from-user cluster-admin system:no-user'
+os::cmd::expect_failure_and_text 'oc adm policy remove-role-from-user admin ghost' 'error: unable to find target \[ghost\]'
+os::cmd::expect_failure_and_text 'oc adm policy remove-role-from-user admin -z ghost' 'error: unable to find target \[ghost\]'
 os::cmd::expect_success 'oc adm policy remove-group system:unauthenticated'
 os::cmd::expect_success 'oc adm policy remove-user system:no-user'
 os::cmd::expect_success 'oc adm policy add-cluster-role-to-group cluster-admin system:unauthenticated'
 os::cmd::expect_success 'oc adm policy remove-cluster-role-from-group cluster-admin system:unauthenticated'
 os::cmd::expect_success 'oc adm policy add-cluster-role-to-user cluster-admin system:no-user'
 os::cmd::expect_success 'oc adm policy remove-cluster-role-from-user cluster-admin system:no-user'
+os::cmd::expect_success 'oc adm policy add-role-to-user view foo'
+os::cmd::expect_success 'oc adm policy add-role-to-user view bar --rolebinding-name=custom'
+os::cmd::expect_success 'oc adm policy add-role-to-user view baz --rolebinding-name=custom'
+os::cmd::expect_success_and_text 'oc get rolebinding/view -o jsonpath="{.metadata.name},{.roleRef.name},{.userNames[*]}"' '^view,view,foo$'
+os::cmd::expect_success_and_text 'oc get rolebinding/custom -o jsonpath="{.metadata.name},{.roleRef.name},{.userNames[*]}"' '^custom,view,bar baz$'
+os::cmd::expect_failure_and_text 'oc adm policy add-role-to-user other fuz --rolebinding-name=custom' '^error: rolebinding custom found for role view, not other$'
 
 os::cmd::expect_success 'oc adm policy add-scc-to-user privileged fake-user'
 os::cmd::expect_success_and_text 'oc get scc/privileged -o yaml' 'fake-user'
@@ -288,7 +298,7 @@ os::test::junit::declare_suite_start "cmd/admin/ui-project-commands"
 # Test the commands the UI projects page tells users to run
 # These should match what is described in projects.html
 os::cmd::expect_success 'oc adm new-project ui-test-project --admin="createuser"'
-os::cmd::expect_success 'oc adm policy add-role-to-user admin adduser -n ui-test-project'
+os::cmd::expect_success 'oc adm policy add-role-to-user --rolebinding-name=admin admin adduser -n ui-test-project'
 # Make sure project can be listed by oc (after auth cache syncs)
 os::cmd::try_until_text 'oc get projects' 'ui\-test\-project'
 # Make sure users got added
@@ -326,7 +336,7 @@ os::cmd::expect_success "oc adm registry --daemonset --images='${USE_IMAGES}'"
 os::cmd::expect_success_and_text 'oc adm registry --daemonset' 'service exists'
 os::cmd::try_until_text 'oc get ds/docker-registry --template="{{.status.desiredNumberScheduled}}"' '1'
 # clean up so we can test non-daemonset
-os::cmd::expect_success "oc adm registry --daemonset -o yaml | oc delete -f -"
+os::cmd::expect_success "oc adm registry --daemonset -o yaml | oc delete -f - -ncmd-admin --cascade=false"
 echo "registry daemonset: ok"
 
 # Test running a registry
@@ -407,6 +417,9 @@ os::cmd::expect_success_and_not_text 'oc get scc/restricted -o yaml' 'topic: my-
 echo "reconcile-scc: ok"
 os::test::junit::declare_suite_end
 
+# cleanup the fake node that has been created so that it doesn't confuse other test-cmd scripts
+os::cmd::expect_success "oc delete node/fake-node"
+
 os::test::junit::declare_suite_start "cmd/admin/rolebinding-allowed"
 # Admin can bind local roles without cluster-admin permissions
 os::cmd::expect_success "oc create -f test/extended/testdata/roles/empty-role.yaml -n '${project}'"
@@ -441,10 +454,10 @@ os::cmd::expect_success_and_text 'oc adm groups new orphaned-group cascaded-user
 # Add roles, sccs to users/groups
 os::cmd::expect_success 'oc adm policy add-scc-to-user           restricted    cascaded-user  orphaned-user'
 os::cmd::expect_success 'oc adm policy add-scc-to-group          restricted    cascaded-group orphaned-group'
-os::cmd::expect_success 'oc adm policy add-role-to-user          cluster-admin cascaded-user  orphaned-user  -n default'
-os::cmd::expect_success 'oc adm policy add-role-to-group         cluster-admin cascaded-group orphaned-group -n default'
-os::cmd::expect_success 'oc adm policy add-cluster-role-to-user  cluster-admin cascaded-user  orphaned-user'
-os::cmd::expect_success 'oc adm policy add-cluster-role-to-group cluster-admin cascaded-group orphaned-group'
+os::cmd::expect_success 'oc adm policy add-role-to-user --rolebinding-name=cluster-admin cluster-admin cascaded-user  orphaned-user  -n default'
+os::cmd::expect_success 'oc adm policy add-role-to-group --rolebinding-name=cluster-admin cluster-admin cascaded-group orphaned-group -n default'
+os::cmd::expect_success 'oc adm policy add-cluster-role-to-user --rolebinding-name=cluster-admin cluster-admin cascaded-user  orphaned-user'
+os::cmd::expect_success 'oc adm policy add-cluster-role-to-group --rolebinding-name=cluster-admin cluster-admin cascaded-group orphaned-group'
 
 # Delete users
 os::cmd::expect_success 'oc delete user  cascaded-user'
@@ -511,8 +524,8 @@ os::test::junit::declare_suite_start "cmd/admin/images"
 
 # import image and check its information
 os::cmd::expect_success "oc create -f ${OS_ROOT}/test/testdata/stable-busybox.yaml"
-os::cmd::expect_success_and_text "oc adm top images" "sha256:a59906e33509d14c036c8678d687bd4eec81ed7c4b8ce907b888c607f6a1e0e6\W+default/busybox \(latest\)\W+<none>\W+<none>\W+yes\W+0\.65MiB"
-os::cmd::expect_success_and_text "oc adm top imagestreams" "default/busybox\W+0.65MiB\W+1\W+1"
+os::cmd::expect_success_and_text "oc adm top images" "sha256:a59906e33509d14c036c8678d687bd4eec81ed7c4b8ce907b888c607f6a1e0e6\W+default/busybox \(latest\)\W+<none>\W+<none>\W+yes\W+653\.4KiB"
+os::cmd::expect_success_and_text "oc adm top imagestreams" "default/busybox\W+653\.4KiB\W+1\W+1"
 os::cmd::expect_success "oc delete is/busybox -n default"
 
 # log in as an image-pruner and test that oc adm prune images works against the atomic binary

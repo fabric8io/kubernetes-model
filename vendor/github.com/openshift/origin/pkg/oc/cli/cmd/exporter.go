@@ -12,7 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/registry/core/endpoint"
 	"k8s.io/kubernetes/pkg/registry/core/namespace"
 	"k8s.io/kubernetes/pkg/registry/core/node"
@@ -24,11 +24,11 @@ import (
 	"k8s.io/kubernetes/pkg/registry/core/secret"
 	"k8s.io/kubernetes/pkg/registry/core/serviceaccount"
 
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	deployrest "github.com/openshift/origin/pkg/apps/registry/deployconfig"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	buildrest "github.com/openshift/origin/pkg/build/registry/build"
 	buildconfigrest "github.com/openshift/origin/pkg/build/registry/buildconfig"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
-	deployrest "github.com/openshift/origin/pkg/deploy/registry/deployconfig"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	routeapi "github.com/openshift/origin/pkg/route/apis/route"
 	osautil "github.com/openshift/origin/pkg/serviceaccounts/util"
@@ -145,7 +145,7 @@ func (e *DefaultExporter) Export(obj runtime.Object, exact bool) error {
 		}
 		t.Secrets = newMountableSecrets
 
-	case *deployapi.DeploymentConfig:
+	case *appsapi.DeploymentConfig:
 		return deployrest.CommonStrategy.Export(ctx, obj, exact)
 
 	case *buildapi.BuildConfig:

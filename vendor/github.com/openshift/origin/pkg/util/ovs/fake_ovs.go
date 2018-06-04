@@ -3,6 +3,7 @@ package ovs
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // ovsFake implements a fake ovs.Interface for testing purposes
@@ -12,10 +13,16 @@ import (
 // to support enough features to make the SDN unit tests pass, and should do enough
 // error checking to catch bugs that have tripped us up in the past (eg,
 // specifying "nw_dst" without "ip").
+
+type ovsPortInfo struct {
+	ofport      int
+	externalIDs map[string]string
+}
+
 type ovsFake struct {
 	bridge string
 
-	ports map[string]int
+	ports map[string]ovsPortInfo
 	flows ovsFlows
 }
 
@@ -25,12 +32,12 @@ func NewFake(bridge string) Interface {
 }
 
 func (fake *ovsFake) AddBridge(properties ...string) error {
-	fake.ports = make(map[string]int)
+	fake.ports = make(map[string]ovsPortInfo)
 	fake.flows = make([]OvsFlow, 0)
 	return nil
 }
 
-func (fake *ovsFake) DeleteBridge() error {
+func (fake *ovsFake) DeleteBridge(ifExists bool) error {
 	fake.ports = nil
 	fake.flows = nil
 	return nil
@@ -48,8 +55,8 @@ func (fake *ovsFake) GetOFPort(port string) (int, error) {
 		return -1, err
 	}
 
-	if ofport, exists := fake.ports[port]; exists {
-		return ofport, nil
+	if portInfo, exists := fake.ports[port]; exists {
+		return portInfo.ofport, nil
 	} else {
 		return -1, fmt.Errorf("no row %q in table Interface", port)
 	}
@@ -60,28 +67,42 @@ func (fake *ovsFake) AddPort(port string, ofportRequest int, properties ...strin
 		return -1, err
 	}
 
-	ofport, exists := fake.ports[port]
+	var externalIDs map[string]string
+	for _, property := range properties {
+		if !strings.HasPrefix(property, "external-ids=") {
+			continue
+		}
+		var err error
+		externalIDs, err = ParseExternalIDs(property[13:])
+		if err != nil {
+			return -1, err
+		}
+	}
+
+	portInfo, exists := fake.ports[port]
 	if exists {
-		if ofport != ofportRequest && ofportRequest != -1 {
-			return -1, fmt.Errorf("allocated ofport (%d) did not match request (%d)", ofport, ofportRequest)
+		if portInfo.ofport != ofportRequest && ofportRequest != -1 {
+			return -1, fmt.Errorf("allocated ofport (%d) did not match request (%d)", portInfo.ofport, ofportRequest)
 		}
 	} else {
 		if ofportRequest == -1 {
-			ofport := 1
-			for _, existingPort := range fake.ports {
-				if existingPort >= ofport {
-					ofport = existingPort + 1
+			portInfo.ofport = 1
+			for _, existingPortInfo := range fake.ports {
+				if existingPortInfo.ofport >= portInfo.ofport {
+					portInfo.ofport = existingPortInfo.ofport + 1
 				}
 			}
 		} else {
 			if ofportRequest < 1 || ofportRequest > 65535 {
 				return -1, fmt.Errorf("requested ofport (%d) out of range", ofportRequest)
 			}
-			ofport = ofportRequest
+			portInfo.ofport = ofportRequest
 		}
-		fake.ports[port] = ofport
+		portInfo.externalIDs = externalIDs
+		fake.ports[port] = portInfo
 	}
-	return ofport, nil
+
+	return portInfo.ofport, nil
 }
 
 func (fake *ovsFake) DeletePort(port string) error {
@@ -111,6 +132,28 @@ func (fake *ovsFake) Get(table, record, column string) (string, error) {
 
 func (fake *ovsFake) Set(table, record string, values ...string) error {
 	return nil
+}
+
+func (fake *ovsFake) Find(table, column, condition string) ([]string, error) {
+	results := make([]string, 0)
+	if (table == "Interface" || table == "interface") && strings.HasPrefix(condition, "external-ids:") {
+		parsed := strings.Split(condition[13:], "=")
+		if len(parsed) != 2 {
+			return nil, fmt.Errorf("could not parse condition %q", condition)
+		}
+		for portName, portInfo := range fake.ports {
+			if portInfo.externalIDs[parsed[0]] == parsed[1] {
+				if column == "name" {
+					results = append(results, portName)
+				} else if column == "ofport" {
+					results = append(results, fmt.Sprintf("%d", portInfo.ofport))
+				} else if column == "external-ids" {
+					results = append(results, UnparseExternalIDs(portInfo.externalIDs))
+				}
+			}
+		}
+	}
+	return results, nil
 }
 
 func (fake *ovsFake) Clear(table, record string, columns ...string) error {
@@ -169,7 +212,7 @@ func (tx *ovsFakeTx) AddFlow(flow string, args ...interface{}) {
 
 	// If there is already an exact match for this flow, then the new flow replaces it.
 	for i := range tx.fake.flows {
-		if FlowMatches(&tx.fake.flows[i], parsed, true) {
+		if FlowMatches(&tx.fake.flows[i], parsed) {
 			tx.fake.flows[i] = *parsed
 			return
 		}
@@ -183,7 +226,7 @@ func (tx *ovsFakeTx) DeleteFlows(flow string, args ...interface{}) {
 	if tx.err != nil {
 		return
 	}
-	parsed, err := ParseFlow(ParseForDelete, flow, args...)
+	parsed, err := ParseFlow(ParseForFilter, flow, args...)
 	if err != nil {
 		tx.err = err
 		return
@@ -192,7 +235,7 @@ func (tx *ovsFakeTx) DeleteFlows(flow string, args ...interface{}) {
 
 	newFlows := make([]OvsFlow, 0, len(tx.fake.flows))
 	for _, flow := range tx.fake.flows {
-		if !FlowMatches(&flow, parsed, false) {
+		if !FlowMatches(&flow, parsed) {
 			newFlows = append(newFlows, flow)
 		}
 	}
@@ -205,13 +248,25 @@ func (tx *ovsFakeTx) EndTransaction() error {
 	return err
 }
 
-func (fake *ovsFake) DumpFlows() ([]string, error) {
+func (fake *ovsFake) DumpFlows(flow string, args ...interface{}) ([]string, error) {
 	if err := fake.ensureExists(); err != nil {
 		return nil, err
 	}
 
+	// "ParseForFilter", because "ParseForDump" is for the *results* of DumpFlows,
+	// not the input
+	filter, err := ParseFlow(ParseForFilter, flow, args...)
+	if err != nil {
+		return nil, err
+	}
+	fixFlowFields(filter)
+
 	flows := make([]string, 0, len(fake.flows))
 	for _, flow := range fake.flows {
+		if !FlowMatches(&flow, filter) {
+			continue
+		}
+
 		str := fmt.Sprintf(" cookie=%s, table=%d", flow.Cookie, flow.Table)
 		if flow.Priority != defaultPriority {
 			str += fmt.Sprintf(", priority=%d", flow.Priority)

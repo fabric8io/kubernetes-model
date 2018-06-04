@@ -2,7 +2,7 @@ package user
 
 import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/kubernetes/pkg/api"
+	api "k8s.io/kubernetes/pkg/apis/core"
 
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
 )
@@ -23,6 +23,6 @@ func (s *runAsAny) Generate(pod *api.Pod, container *api.Container) (*int64, err
 }
 
 // Validate ensures that the specified values fall within the range of the strategy.
-func (s *runAsAny) Validate(pod *api.Pod, container *api.Container) field.ErrorList {
+func (s *runAsAny) Validate(fldPath *field.Path, _ *api.Pod, _ *api.Container, runAsNonRoot *bool, runAsUser *int64) field.ErrorList {
 	return field.ErrorList{}
 }

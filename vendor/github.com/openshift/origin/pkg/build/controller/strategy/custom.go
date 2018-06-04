@@ -5,14 +5,14 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	"github.com/openshift/origin/pkg/build/util"
+	buildutil "github.com/openshift/origin/pkg/build/util"
 )
 
 // CustomBuildStrategy creates a build using a custom builder image.
@@ -36,7 +36,7 @@ func (bs *CustomBuildStrategy) CreateBuildPod(build *buildapi.Build) (*v1.Pod, e
 		if err != nil {
 			return nil, &FatalError{fmt.Sprintf("failed to parse buildAPIVersion specified in custom build strategy (%q): %v", strategy.BuildAPIVersion, err)}
 		}
-		codec = kapi.Codecs.LegacyCodec(gv)
+		codec = legacyscheme.Codecs.LegacyCodec(gv)
 	}
 
 	data, err := runtime.Encode(codec, build)
@@ -63,12 +63,17 @@ func (bs *CustomBuildStrategy) CreateBuildPod(build *buildapi.Build) (*v1.Pod, e
 	}
 
 	if len(strategy.Env) > 0 {
-		containerEnv = append(containerEnv, util.CopyApiEnvVarToV1EnvVar(strategy.Env)...)
+		containerEnv = append(containerEnv, buildutil.CopyApiEnvVarToV1EnvVar(strategy.Env)...)
 	}
 
 	if strategy.ExposeDockerSocket {
 		glog.V(2).Infof("ExposeDockerSocket is enabled for %s build", build.Name)
 		containerEnv = append(containerEnv, v1.EnvVar{Name: "DOCKER_SOCKET", Value: dockerSocketPath})
+	}
+
+	serviceAccount := build.Spec.ServiceAccount
+	if len(serviceAccount) == 0 {
+		serviceAccount = buildutil.BuilderServiceAccountName
 	}
 
 	privileged := true
@@ -79,7 +84,7 @@ func (bs *CustomBuildStrategy) CreateBuildPod(build *buildapi.Build) (*v1.Pod, e
 			Labels:    getPodLabels(build),
 		},
 		Spec: v1.PodSpec{
-			ServiceAccountName: build.Spec.ServiceAccount,
+			ServiceAccountName: serviceAccount,
 			Containers: []v1.Container{
 				{
 					Name:  "custom-build",
@@ -106,7 +111,7 @@ func (bs *CustomBuildStrategy) CreateBuildPod(build *buildapi.Build) (*v1.Pod, e
 		glog.V(2).Infof("ForcePull is enabled for %s build", build.Name)
 		pod.Spec.Containers[0].ImagePullPolicy = v1.PullAlways
 	}
-	pod.Spec.Containers[0].Resources = util.CopyApiResourcesToV1Resources(&build.Spec.Resources)
+	pod.Spec.Containers[0].Resources = buildutil.CopyApiResourcesToV1Resources(&build.Spec.Resources)
 	if build.Spec.Source.Binary != nil {
 		pod.Spec.Containers[0].Stdin = true
 		pod.Spec.Containers[0].StdinOnce = true

@@ -7,16 +7,16 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	kclientcmd "k8s.io/client-go/tools/clientcmd"
 
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/oc/cli/cmd"
 	"github.com/openshift/origin/pkg/oc/cli/config"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 // CreateProject creates a project
 func CreateProject(f *clientcmd.Factory, name, display, desc, basecmd string, out io.Writer) error {
-	client, _, err := f.Clients()
+	projectClient, err := f.OpenshiftInternalProjectClient()
 	if err != nil {
-		return nil
+		return err
 	}
 	pathOptions := config.NewPathOptionsWithConfig("")
 	opt := &cmd.NewProjectOptions{
@@ -26,7 +26,7 @@ func CreateProject(f *clientcmd.Factory, name, display, desc, basecmd string, ou
 
 		Name: basecmd,
 
-		Client: client,
+		Client: projectClient.Project(),
 
 		ProjectOptions: &cmd.ProjectOptions{PathOptions: pathOptions},
 		Out:            ioutil.Discard,

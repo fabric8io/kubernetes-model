@@ -1,10 +1,8 @@
 package docker
 
 import (
-	"crypto/tls"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -14,12 +12,12 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 
-	"github.com/openshift/origin/pkg/cmd/server/api"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/cmd/server/apis/config"
 	"github.com/openshift/origin/pkg/oc/bootstrap/docker/dockerhelper"
 	"github.com/openshift/origin/pkg/oc/bootstrap/docker/errors"
 	"github.com/openshift/origin/pkg/oc/bootstrap/docker/exec"
 	"github.com/openshift/origin/pkg/oc/bootstrap/docker/openshift"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 // CmdStatusRecommendedName is the recommended command name
@@ -127,46 +125,6 @@ func (c *ClientStatusConfig) Status(f *clientcmd.Factory, out io.Writer) error {
 		notReady++
 	}
 
-	insecureCli := http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-		Timeout: 10 * time.Second,
-	}
-
-	ch := make(chan string)
-	go func() {
-		notice := ""
-		if config.AssetConfig.LoggingPublicURL != "" {
-			resp, _ := insecureCli.Get(config.AssetConfig.LoggingPublicURL)
-			if resp == nil || resp.StatusCode != http.StatusFound {
-				notice = "Notice: Logging component is not yet ready"
-			}
-		}
-		ch <- notice
-	}()
-
-	go func() {
-		notice := ""
-		if config.AssetConfig.MetricsPublicURL != "" {
-			resp, _ := insecureCli.Get(config.AssetConfig.MetricsPublicURL + "/status")
-			if resp == nil || resp.StatusCode != http.StatusOK {
-				notice = "Notice: Metrics component is not yet ready"
-			}
-		}
-		ch <- notice
-	}()
-
-	for i := 0; i < 2; i++ {
-		notice := <-ch
-		if notice != "" {
-			fmt.Fprintln(out, notice)
-			notReady++
-		}
-	}
-
 	if notReady > 0 {
 		fmt.Fprintf(out, "\nNotice: %d OpenShift component(s) are not yet ready (see above)\n", notReady)
 		return fmt.Errorf("")
@@ -176,18 +134,18 @@ func (c *ClientStatusConfig) Status(f *clientcmd.Factory, out io.Writer) error {
 }
 
 func isHealthy(f *clientcmd.Factory) (bool, error) {
-	osClient, _, err := f.Clients()
+	client, err := f.RESTClient()
 	if err != nil {
 		return false, err
 	}
 
 	var statusCode int
-	osClient.Client.Timeout = 10 * time.Second
-	osClient.Get().AbsPath("/healthz").Do().StatusCode(&statusCode)
+	client.Client.Timeout = 10 * time.Second
+	client.Get().AbsPath("/healthz").Do().StatusCode(&statusCode)
 	return statusCode == 200, nil
 }
 
-func status(container *types.ContainerJSON, config *api.MasterConfig) string {
+func status(container *types.ContainerJSON, config *config.MasterConfig) string {
 	mountMap := make(map[string]string)
 	for _, mount := range container.Mounts {
 		mountMap[mount.Destination] = mount.Source
@@ -207,13 +165,7 @@ func status(container *types.ContainerJSON, config *api.MasterConfig) string {
 		status += fmt.Sprintf("The OpenShift cluster was started %s ago\n\n", duration)
 	}
 
-	status = status + fmt.Sprintf("Web console URL: %s\n", config.AssetConfig.MasterPublicURL)
-	if config.AssetConfig.MetricsPublicURL != "" {
-		status = status + fmt.Sprintf("Metrics URL:     %s\n", config.AssetConfig.MetricsPublicURL)
-	}
-	if config.AssetConfig.LoggingPublicURL != "" {
-		status = status + fmt.Sprintf("Logging URL:     %s\n", config.AssetConfig.LoggingPublicURL)
-	}
+	status = status + fmt.Sprintf("Web console URL: %s\n", config.OAuthConfig.AssetPublicURL)
 	status = status + fmt.Sprintf("\n")
 
 	status = status + fmt.Sprintf("Config is at host directory %s\n", mountMap["/var/lib/origin/openshift.local.config"])

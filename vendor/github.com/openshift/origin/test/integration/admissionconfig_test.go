@@ -10,30 +10,25 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/apiserver/pkg/admission"
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/client-go/rest"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	"github.com/openshift/origin/pkg/client"
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	configapilatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
-	configapiv1 "github.com/openshift/origin/pkg/cmd/server/api/v1"
+	buildclient "github.com/openshift/origin/pkg/build/generated/internalclientset"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
+	configapilatest "github.com/openshift/origin/pkg/cmd/server/apis/config/latest"
+	configapiv1 "github.com/openshift/origin/pkg/cmd/server/apis/config/v1"
 	serveradmission "github.com/openshift/origin/pkg/cmd/server/origin/admission"
+	testtypes "github.com/openshift/origin/test/integration/testing"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
 
-type TestPluginConfig struct {
-	metav1.TypeMeta `json:",inline"`
-	Data            string `json:"data"`
-}
-
-func (obj *TestPluginConfig) GetObjectKind() schema.ObjectKind { return &obj.TypeMeta }
-
-func setupAdmissionTest(t *testing.T, setupConfig func(*configapi.MasterConfig)) (kclientset.Interface, *client.Client, func()) {
+func setupAdmissionTest(t *testing.T, setupConfig func(*configapi.MasterConfig)) (kclientset.Interface, *rest.Config, func()) {
 	masterConfig, err := testserver.DefaultMasterOptions()
 	if err != nil {
 		t.Fatalf("error creating config: %v", err)
@@ -47,11 +42,11 @@ func setupAdmissionTest(t *testing.T, setupConfig func(*configapi.MasterConfig))
 	if err != nil {
 		t.Fatalf("error getting client: %v", err)
 	}
-	openshiftClient, err := testutil.GetClusterAdminClient(kubeConfigFile)
+	clusterAdminConfig, err := testutil.GetClusterAdminClientConfig(kubeConfigFile)
 	if err != nil {
 		t.Fatalf("error getting openshift client: %v", err)
 	}
-	return kubeClient, openshiftClient, func() {
+	return kubeClient, clusterAdminConfig, func() {
 		testserver.CleanupMasterEtcd(t, masterConfig)
 	}
 }
@@ -105,8 +100,8 @@ func registerAdmissionPlugins(t *testing.T, names ...string) {
 					if err != nil {
 						return nil, err
 					}
-					configObj := &TestPluginConfig{}
-					err = runtime.DecodeInto(kapi.Codecs.UniversalDecoder(), configData, configObj)
+					configObj := &testtypes.TestPluginConfig{}
+					err = runtime.DecodeInto(legacyscheme.Codecs.UniversalDecoder(), configData, configObj)
 					if err != nil {
 						return nil, err
 					}
@@ -170,8 +165,8 @@ func checkAdmissionObjectLabelValues(labels, expected map[string]string) error {
 }
 
 func registerAdmissionPluginTestConfigType() {
-	configapi.Scheme.AddKnownTypes(configapi.SchemeGroupVersion, &TestPluginConfig{})
-	configapi.Scheme.AddKnownTypes(configapiv1.SchemeGroupVersion, &TestPluginConfig{})
+	configapi.Scheme.AddKnownTypes(configapi.SchemeGroupVersion, &testtypes.TestPluginConfig{})
+	configapi.Scheme.AddKnownTypes(configapiv1.SchemeGroupVersion, &testtypes.TestPluginConfig{})
 }
 
 func setupAdmissionPluginTestConfig(t *testing.T, value string) string {
@@ -180,7 +175,7 @@ func setupAdmissionPluginTestConfig(t *testing.T, value string) string {
 		t.Fatalf("error creating temp file: %v", err)
 	}
 	configFile.Close()
-	configObj := &TestPluginConfig{
+	configObj := &testtypes.TestPluginConfig{
 		Data: value,
 	}
 	configContent, err := configapilatest.WriteYAML(configObj)
@@ -194,7 +189,7 @@ func setupAdmissionPluginTestConfig(t *testing.T, value string) string {
 func TestKubernetesAdmissionPluginOrderOverride(t *testing.T) {
 	registerAdmissionPlugins(t, "plugin1", "plugin2", "plugin3")
 	kubeClient, _, fn := setupAdmissionTest(t, func(config *configapi.MasterConfig) {
-		config.KubernetesMasterConfig.AdmissionConfig.PluginOrderOverride = []string{"plugin1", "plugin2"}
+		config.AdmissionConfig.PluginOrderOverride = []string{"plugin1", "plugin2"}
 	})
 	defer fn()
 
@@ -212,8 +207,8 @@ func TestKubernetesAdmissionPluginConfigFile(t *testing.T) {
 	configFile := setupAdmissionPluginTestConfig(t, "plugin1configvalue")
 	registerAdmissionPlugins(t, "plugin1", "plugin2")
 	kubeClient, _, fn := setupAdmissionTest(t, func(config *configapi.MasterConfig) {
-		config.KubernetesMasterConfig.AdmissionConfig.PluginOrderOverride = []string{"plugin1", "plugin2"}
-		config.KubernetesMasterConfig.AdmissionConfig.PluginConfig = map[string]configapi.AdmissionPluginConfig{
+		config.AdmissionConfig.PluginOrderOverride = []string{"plugin1", "plugin2"}
+		config.AdmissionConfig.PluginConfig = map[string]*configapi.AdmissionPluginConfig{
 			"plugin1": {
 				Location: configFile,
 			},
@@ -230,10 +225,10 @@ func TestKubernetesAdmissionPluginEmbeddedConfig(t *testing.T) {
 	registerAdmissionPluginTestConfigType()
 	registerAdmissionPlugins(t, "plugin1", "plugin2")
 	kubeClient, _, fn := setupAdmissionTest(t, func(config *configapi.MasterConfig) {
-		config.KubernetesMasterConfig.AdmissionConfig.PluginOrderOverride = []string{"plugin1", "plugin2"}
-		config.KubernetesMasterConfig.AdmissionConfig.PluginConfig = map[string]configapi.AdmissionPluginConfig{
+		config.AdmissionConfig.PluginOrderOverride = []string{"plugin1", "plugin2"}
+		config.AdmissionConfig.PluginConfig = map[string]*configapi.AdmissionPluginConfig{
 			"plugin1": {
-				Configuration: &TestPluginConfig{
+				Configuration: &testtypes.TestPluginConfig{
 					Data: "embeddedvalue1",
 				},
 			},
@@ -248,12 +243,12 @@ func TestKubernetesAdmissionPluginEmbeddedConfig(t *testing.T) {
 
 func TestOpenshiftAdmissionPluginOrderOverride(t *testing.T) {
 	registerAdmissionPlugins(t, "plugin1", "plugin2", "plugin3")
-	_, openshiftClient, fn := setupAdmissionTest(t, func(config *configapi.MasterConfig) {
+	_, clusterAdminConfig, fn := setupAdmissionTest(t, func(config *configapi.MasterConfig) {
 		config.AdmissionConfig.PluginOrderOverride = []string{"plugin1", "plugin2"}
 	})
 	defer fn()
 
-	createdBuild, err := openshiftClient.Builds(metav1.NamespaceDefault).Create(admissionTestBuild())
+	createdBuild, err := buildclient.NewForConfigOrDie(clusterAdminConfig).Build().Builds(metav1.NamespaceDefault).Create(admissionTestBuild())
 	if err != nil {
 		t.Errorf("Unexpected error creating build: %v", err)
 	}
@@ -266,16 +261,16 @@ func TestOpenshiftAdmissionPluginConfigFile(t *testing.T) {
 	registerAdmissionPluginTestConfigType()
 	configFile := setupAdmissionPluginTestConfig(t, "plugin2configvalue")
 	registerAdmissionPlugins(t, "plugin1", "plugin2")
-	_, openshiftClient, fn := setupAdmissionTest(t, func(config *configapi.MasterConfig) {
+	_, clusterAdminConfig, fn := setupAdmissionTest(t, func(config *configapi.MasterConfig) {
 		config.AdmissionConfig.PluginOrderOverride = []string{"plugin1", "plugin2"}
-		config.AdmissionConfig.PluginConfig = map[string]configapi.AdmissionPluginConfig{
+		config.AdmissionConfig.PluginConfig = map[string]*configapi.AdmissionPluginConfig{
 			"plugin2": {
 				Location: configFile,
 			},
 		}
 	})
 	defer fn()
-	createdBuild, err := openshiftClient.Builds(metav1.NamespaceDefault).Create(admissionTestBuild())
+	createdBuild, err := buildclient.NewForConfigOrDie(clusterAdminConfig).Build().Builds(metav1.NamespaceDefault).Create(admissionTestBuild())
 	if err = checkAdmissionObjectLabelValues(createdBuild.Labels, map[string]string{"plugin1": "default", "plugin2": "plugin2configvalue"}); err != nil {
 		t.Errorf("Error: %v", err)
 	}
@@ -284,18 +279,18 @@ func TestOpenshiftAdmissionPluginConfigFile(t *testing.T) {
 func TestOpenshiftAdmissionPluginEmbeddedConfig(t *testing.T) {
 	registerAdmissionPluginTestConfigType()
 	registerAdmissionPlugins(t, "plugin1", "plugin2")
-	_, openshiftClient, fn := setupAdmissionTest(t, func(config *configapi.MasterConfig) {
+	_, clusterAdminConfig, fn := setupAdmissionTest(t, func(config *configapi.MasterConfig) {
 		config.AdmissionConfig.PluginOrderOverride = []string{"plugin1", "plugin2"}
-		config.AdmissionConfig.PluginConfig = map[string]configapi.AdmissionPluginConfig{
+		config.AdmissionConfig.PluginConfig = map[string]*configapi.AdmissionPluginConfig{
 			"plugin2": {
-				Configuration: &TestPluginConfig{
+				Configuration: &testtypes.TestPluginConfig{
 					Data: "embeddedvalue2",
 				},
 			},
 		}
 	})
 	defer fn()
-	createdBuild, err := openshiftClient.Builds(metav1.NamespaceDefault).Create(admissionTestBuild())
+	createdBuild, err := buildclient.NewForConfigOrDie(clusterAdminConfig).Build().Builds(metav1.NamespaceDefault).Create(admissionTestBuild())
 	if err = checkAdmissionObjectLabelValues(createdBuild.Labels, map[string]string{"plugin1": "default", "plugin2": "embeddedvalue2"}); err != nil {
 		t.Errorf("Error: %v", err)
 	}
@@ -307,7 +302,7 @@ func TestAlwaysPullImagesOn(t *testing.T) {
 		t.Fatalf("error creating config: %v", err)
 	}
 	defer testserver.CleanupMasterEtcd(t, masterConfig)
-	masterConfig.KubernetesMasterConfig.AdmissionConfig.PluginConfig = map[string]configapi.AdmissionPluginConfig{
+	masterConfig.AdmissionConfig.PluginConfig = map[string]*configapi.AdmissionPluginConfig{
 		"AlwaysPullImages": {
 			Configuration: &configapi.DefaultAdmissionConfig{},
 		},

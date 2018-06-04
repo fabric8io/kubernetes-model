@@ -5,33 +5,6 @@ const (
 	// IconClassAnnotation is the rss class of an icon representing a template
 	IconClassAnnotation = "iconClass"
 
-	// LongDescriptionAnnotation is a template's long description
-	LongDescriptionAnnotation = "template.openshift.io/long-description"
-
-	// ProviderDisplayNameAnnotation is the name of a template provider, e.g.
-	// "Red Hat, Inc."
-	ProviderDisplayNameAnnotation = "template.openshift.io/provider-display-name"
-
-	// DocumentationURLAnnotation is the url where documentation associated with
-	// a template can be found
-	DocumentationURLAnnotation = "template.openshift.io/documentation-url"
-
-	// SupportURLAnnotation is the url where support for a template can be found
-	SupportURLAnnotation = "template.openshift.io/support-url"
-
-	// TemplateInstanceLabel is used to label every object created by the
-	// TemplateInstance API.
-	TemplateInstanceLabel = "template.openshift.io/template-instance"
-
-	//TODO - when https://github.com/kubernetes-incubator/service-catalog/pull/939 sufficiently progresses, remove this constant
-	// RequesterUsernameParameterKey is the name of the key in the Open Service
-	// Broker API ProvisionRequest Parameters object where we receive the user
-	// name which will be impersonated during template provisioning.  The '/'
-	// and '.' characters in the name happen to make this an invalid template
-	// parameter name so there is no immediate overlap with passed template
-	// parameters in the same object.
-	RequesterUsernameParameterKey = "template.openshift.io/requester-username"
-
 	// ServiceBrokerRoot is the API root of the template service broker.
 	ServiceBrokerRoot = "/brokers/template.openshift.io"
 
@@ -62,4 +35,8 @@ const (
 	// should wait for the object to be ready before reporting the template
 	// instantiation complete.
 	WaitForReadyAnnotation = "template.alpha.openshift.io/wait-for-ready"
+
+	// BindableAnnotation indicates whether the template service broker should
+	// advertise the template as being bindable (default is true)
+	BindableAnnotation = "template.openshift.io/bindable"
 )

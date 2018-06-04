@@ -22,30 +22,44 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/prometheus/client_golang/prometheus"
+
+	certificates "k8s.io/api/certificates/v1beta1"
 	"k8s.io/apimachinery/pkg/types"
-	certificates "k8s.io/kubernetes/pkg/apis/certificates/v1beta1"
-	"k8s.io/kubernetes/pkg/apis/componentconfig"
-	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
-	clientcertificates "k8s.io/kubernetes/pkg/client/clientset_generated/clientset/typed/certificates/v1beta1"
+	clientset "k8s.io/client-go/kubernetes"
+	clientcertificates "k8s.io/client-go/kubernetes/typed/certificates/v1beta1"
+	"k8s.io/client-go/util/certificate"
+	"k8s.io/kubernetes/pkg/kubelet/apis/kubeletconfig"
+	"k8s.io/kubernetes/pkg/kubelet/metrics"
 )
 
 // NewKubeletServerCertificateManager creates a certificate manager for the kubelet when retrieving a server certificate
 // or returns an error.
-func NewKubeletServerCertificateManager(kubeClient clientset.Interface, kubeCfg *componentconfig.KubeletConfiguration, nodeName types.NodeName, ips []net.IP, hostnames []string) (Manager, error) {
+func NewKubeletServerCertificateManager(kubeClient clientset.Interface, kubeCfg *kubeletconfig.KubeletConfiguration, nodeName types.NodeName, ips []net.IP, hostnames []string, certDirectory string) (certificate.Manager, error) {
 	var certSigningRequestClient clientcertificates.CertificateSigningRequestInterface
-	if kubeClient != nil && kubeClient.Certificates() != nil {
-		certSigningRequestClient = kubeClient.Certificates().CertificateSigningRequests()
+	if kubeClient != nil && kubeClient.CertificatesV1beta1() != nil {
+		certSigningRequestClient = kubeClient.CertificatesV1beta1().CertificateSigningRequests()
 	}
-	certificateStore, err := NewFileStore(
+	certificateStore, err := certificate.NewFileStore(
 		"kubelet-server",
-		kubeCfg.CertDirectory,
-		kubeCfg.CertDirectory,
+		certDirectory,
+		certDirectory,
 		kubeCfg.TLSCertFile,
 		kubeCfg.TLSPrivateKeyFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize server certificate store: %v", err)
 	}
-	m, err := NewManager(&Config{
+	var certificateExpiration = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: metrics.KubeletSubsystem,
+			Subsystem: "certificate_manager",
+			Name:      "server_expiration_seconds",
+			Help:      "Gauge of the lifetime of a certificate. The value is the date the certificate will expire in seconds since January 1, 1970 UTC.",
+		},
+	)
+	prometheus.MustRegister(certificateExpiration)
+
+	m, err := certificate.NewManager(&certificate.Config{
 		CertificateSigningRequestClient: certSigningRequestClient,
 		Template: &x509.CertificateRequest{
 			Subject: pkix.Name{
@@ -62,14 +76,15 @@ func NewKubeletServerCertificateManager(kubeClient clientset.Interface, kubeCfg 
 			// digital signatures used during TLS negotiation.
 			certificates.UsageDigitalSignature,
 			// KeyEncipherment allows the cert/key pair to be used to encrypt
-			// keys, including the symetric keys negotiated during TLS setup
+			// keys, including the symmetric keys negotiated during TLS setup
 			// and used for data transfer.
 			certificates.UsageKeyEncipherment,
 			// ServerAuth allows the cert to be used by a TLS server to
 			// authenticate itself to a TLS client.
 			certificates.UsageServerAuth,
 		},
-		CertificateStore: certificateStore,
+		CertificateStore:      certificateStore,
+		CertificateExpiration: certificateExpiration,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize server certificate manager: %v", err)
@@ -81,8 +96,8 @@ func NewKubeletServerCertificateManager(kubeClient clientset.Interface, kubeCfg 
 // client that can be used to sign new certificates (or rotate). It answers with
 // whatever certificate it is initialized with. If a CSR client is set later, it
 // may begin rotating/renewing the client cert
-func NewKubeletClientCertificateManager(certDirectory string, nodeName types.NodeName, certData []byte, keyData []byte, certFile string, keyFile string) (Manager, error) {
-	certificateStore, err := NewFileStore(
+func NewKubeletClientCertificateManager(certDirectory string, nodeName types.NodeName, certData []byte, keyData []byte, certFile string, keyFile string) (certificate.Manager, error) {
+	certificateStore, err := certificate.NewFileStore(
 		"kubelet-client",
 		certDirectory,
 		certDirectory,
@@ -91,7 +106,17 @@ func NewKubeletClientCertificateManager(certDirectory string, nodeName types.Nod
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize client certificate store: %v", err)
 	}
-	m, err := NewManager(&Config{
+	var certificateExpiration = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: metrics.KubeletSubsystem,
+			Subsystem: "certificate_manager",
+			Name:      "client_expiration_seconds",
+			Help:      "Gauge of the lifetime of a certificate. The value is the date the certificate will expire in seconds since January 1, 1970 UTC.",
+		},
+	)
+	prometheus.MustRegister(certificateExpiration)
+
+	m, err := certificate.NewManager(&certificate.Config{
 		Template: &x509.CertificateRequest{
 			Subject: pkix.Name{
 				CommonName:   fmt.Sprintf("system:node:%s", nodeName),
@@ -106,7 +131,7 @@ func NewKubeletClientCertificateManager(certDirectory string, nodeName types.Nod
 			// negotiation.
 			certificates.UsageDigitalSignature,
 			// KeyEncipherment allows the cert/key pair to be used to encrypt
-			// keys, including the symetric keys negotiated during TLS setup
+			// keys, including the symmetric keys negotiated during TLS setup
 			// and used for data transfer..
 			certificates.UsageKeyEncipherment,
 			// ClientAuth allows the cert to be used by a TLS client to
@@ -116,6 +141,7 @@ func NewKubeletClientCertificateManager(certDirectory string, nodeName types.Nod
 		CertificateStore:        certificateStore,
 		BootstrapCertificatePEM: certData,
 		BootstrapKeyPEM:         keyData,
+		CertificateExpiration:   certificateExpiration,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize client certificate manager: %v", err)

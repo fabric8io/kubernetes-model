@@ -17,10 +17,10 @@ variable `FOCUS='regex'` where 'regex' is a regular expression matching the
 description of the test you want to run.  For example one of the s2i tests
 (s2i_incremental.go) defines:
 
-	var _ = g.Describe("[builds][Slow] incremental s2i build", func() {
+	var _ = g.Describe("[Feature:Builds][Slow] incremental s2i build", func() {
 
 So you can write a focus regex that includes this test by setting
-`FOCUS='\[builds\]'` or `FOCUS='incremental s2i'`.
+`FOCUS='\[Feature:Builds\]'` or `FOCUS='incremental s2i'`.
 
 Prerequisites
 -------------
@@ -53,7 +53,7 @@ $ export KUBECONFIG=${KUBECONFIG-$HOME/.kube/config}
 Then, for example:
 ```console
 $ make build-extended-test
-$ FOCUS='\[builds\]' TEST_ONLY=1 test/extended/core.sh
+$ FOCUS='\[Feature:Builds\]' TEST_ONLY=1 test/extended/core.sh
 ```
 
 By default the Kubernetes test framework will remove the project associated with
@@ -64,7 +64,7 @@ environment variable, set `DELETE_NAMESPACE=false`, and set `PARALLEL_NODES=1`:
 
 ```console
 $ make build-extended-test
-$ FOCUS='\[builds\]' TEST_ONLY=1 SKIP_TEARDOWN=1 DELETE_NAMESPACE=false PARALLEL_NODES=1 test/extended/core.sh
+$ FOCUS='\[Feature:Builds\]' TEST_ONLY=1 SKIP_TEARDOWN=1 DELETE_NAMESPACE=false PARALLEL_NODES=1 test/extended/core.sh
 ```
 
 Test labels
@@ -196,7 +196,7 @@ The test suite should be organized into lower-level Ginkgo describe(s) container
 var _ = g.Describe("[default] STI build", func() {
 	defer GinkgoRecover()
 	var (
-		stiBuildFixture = filepath.Join("testdata", "test-build.json")
+		stiBuildFixture = filepath.Join("testdata", "test-build.yaml")
 		oc              = exutil.NewCLI("build-sti", kubeConfigPath())
 	)
 

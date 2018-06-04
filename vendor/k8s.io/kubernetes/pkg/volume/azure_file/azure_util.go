@@ -18,11 +18,22 @@ package azure_file
 
 import (
 	"fmt"
+	"strings"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/volume"
+)
+
+const (
+	fileMode        = "file_mode"
+	dirMode         = "dir_mode"
+	gid             = "gid"
+	vers            = "vers"
+	defaultFileMode = "0755"
+	defaultDirMode  = "0755"
+	defaultVers     = "3.0"
 )
 
 // Abstract interface to azure file operations.
@@ -83,4 +94,45 @@ func (s *azureSvc) SetAzureCredentials(host volume.VolumeHost, nameSpace, accoun
 		return "", fmt.Errorf("Couldn't create secret %v", err)
 	}
 	return secretName, err
+}
+
+// check whether mountOptions contain file_mode, dir_mode, vers, gid, if not, append default mode
+func appendDefaultMountOptions(mountOptions []string, fsGroup *int64) []string {
+	fileModeFlag := false
+	dirModeFlag := false
+	versFlag := false
+	gidFlag := false
+
+	for _, mountOption := range mountOptions {
+		if strings.HasPrefix(mountOption, fileMode) {
+			fileModeFlag = true
+		}
+		if strings.HasPrefix(mountOption, dirMode) {
+			dirModeFlag = true
+		}
+		if strings.HasPrefix(mountOption, vers) {
+			versFlag = true
+		}
+		if strings.HasPrefix(mountOption, gid) {
+			gidFlag = true
+		}
+	}
+
+	allMountOptions := mountOptions
+	if !fileModeFlag {
+		allMountOptions = append(allMountOptions, fmt.Sprintf("%s=%s", fileMode, defaultFileMode))
+	}
+
+	if !dirModeFlag {
+		allMountOptions = append(allMountOptions, fmt.Sprintf("%s=%s", dirMode, defaultDirMode))
+	}
+
+	if !versFlag {
+		allMountOptions = append(allMountOptions, fmt.Sprintf("%s=%s", vers, defaultVers))
+	}
+
+	if !gidFlag && fsGroup != nil {
+		allMountOptions = append(allMountOptions, fmt.Sprintf("%s=%d", gid, *fsGroup))
+	}
+	return allMountOptions
 }

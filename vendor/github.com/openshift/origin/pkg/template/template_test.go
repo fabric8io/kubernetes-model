@@ -12,10 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 
+	templateapiv1 "github.com/openshift/api/template/v1"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
-	templateapiv1 "github.com/openshift/origin/pkg/template/apis/template/v1"
 	"github.com/openshift/origin/pkg/template/generator"
 
 	_ "github.com/openshift/origin/pkg/api/install"
@@ -154,19 +154,19 @@ func TestParameterGenerators(t *testing.T) {
 	for i, test := range tests {
 		processor := NewProcessor(test.generators)
 		template := templateapi.Template{Parameters: []templateapi.Parameter{test.parameter}}
-		err := processor.GenerateParameterValues(&template)
-		if err != nil && test.shouldPass {
-			t.Errorf("test[%v]: Unexpected error %v", i, err)
+		errs := processor.GenerateParameterValues(&template)
+		if errs != nil && test.shouldPass {
+			t.Errorf("test[%v]: Unexpected error %v", i, errs)
 		}
-		if err == nil && !test.shouldPass {
+		if errs == nil && !test.shouldPass {
 			t.Errorf("test[%v]: Expected error", i)
 		}
-		if err != nil {
-			if test.errType != err.Type {
-				t.Errorf("test[%v]: Unexpected error type: Expected: %s, got %s", i, test.errType, err.Type)
+		if errs != nil {
+			if test.errType != errs[0].Type {
+				t.Errorf("test[%v]: Unexpected error type: Expected: %s, got %s", i, test.errType, errs[0].Type)
 			}
-			if test.fieldPath != err.Field {
-				t.Errorf("test[%v]: Unexpected error type: Expected: %s, got %s", i, test.fieldPath, err.Field)
+			if test.fieldPath != errs[0].Field {
+				t.Errorf("test[%v]: Unexpected error type: Expected: %s, got %s", i, test.fieldPath, errs[0].Field)
 			}
 			continue
 		}
@@ -179,7 +179,7 @@ func TestParameterGenerators(t *testing.T) {
 
 func TestProcessValue(t *testing.T) {
 	var template templateapi.Template
-	if err := runtime.DecodeInto(kapi.Codecs.UniversalDecoder(), []byte(`{
+	if err := runtime.DecodeInto(legacyscheme.Codecs.UniversalDecoder(), []byte(`{
 		"kind":"Template", "apiVersion":"v1",
 		"objects": [
 			{
@@ -228,7 +228,7 @@ func TestProcessValue(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("unexpected error: %v", errs)
 	}
-	result, err := runtime.Encode(kapi.Codecs.LegacyCodec(templateapiv1.SchemeGroupVersion), &template)
+	result, err := runtime.Encode(legacyscheme.Codecs.LegacyCodec(templateapiv1.SchemeGroupVersion), &template)
 	if err != nil {
 		t.Fatalf("unexpected error during encoding Config: %#v", err)
 	}
@@ -339,11 +339,53 @@ func TestEvaluateLabels(t *testing.T) {
 			}`,
 			Labels: map[string]string{"key2": "v3"},
 		},
+		"parameterised labels": {
+			Input: `{
+				"kind":"Template", "apiVersion":"v1",
+				"objects": [
+					{
+						"kind": "Service", "apiVersion": "v1",
+						"metadata": {"labels": {"key1": "v1", "key2": "v2"}}
+					}
+				],
+				"parameters": [
+					{
+						"name": "KEY",
+						"value": "key"
+					},
+					{
+						"name": "VALUE",
+						"value": "value"
+					}
+				]
+			}`,
+			Output: `{
+				"kind":"Template","apiVersion":"template.openshift.io/v1","metadata":{"creationTimestamp":null},
+				"objects":[
+					{
+						"apiVersion":"v1","kind":"Service","metadata":{
+						"labels":{"key":"value","key1":"v1","key2":"v2"}}
+					}
+				],
+				"parameters":[
+					{
+						"name":"KEY",
+						"value":"key"
+					},
+					{
+						"name":"VALUE",
+						"value":"value"
+					}
+				],
+				"labels":{"key":"value"}
+			}`,
+			Labels: map[string]string{"${KEY}": "${VALUE}"},
+		},
 	}
 
 	for k, testCase := range testCases {
 		var template templateapi.Template
-		if err := runtime.DecodeInto(kapi.Codecs.UniversalDecoder(), []byte(testCase.Input), &template); err != nil {
+		if err := runtime.DecodeInto(legacyscheme.Codecs.UniversalDecoder(), []byte(testCase.Input), &template); err != nil {
 			t.Errorf("%s: unexpected error: %v", k, err)
 			continue
 		}
@@ -361,7 +403,7 @@ func TestEvaluateLabels(t *testing.T) {
 			t.Errorf("%s: unexpected error: %v", k, errs)
 			continue
 		}
-		result, err := runtime.Encode(kapi.Codecs.LegacyCodec(templateapiv1.SchemeGroupVersion), &template)
+		result, err := runtime.Encode(legacyscheme.Codecs.LegacyCodec(templateapiv1.SchemeGroupVersion), &template)
 		if err != nil {
 			t.Errorf("%s: unexpected error: %v", k, err)
 			continue
@@ -379,12 +421,12 @@ func TestEvaluateLabels(t *testing.T) {
 func TestProcessTemplateParameters(t *testing.T) {
 	var template, expectedTemplate templateapi.Template
 	jsonData, _ := ioutil.ReadFile("../../test/templates/testdata/guestbook.json")
-	if err := runtime.DecodeInto(kapi.Codecs.UniversalDecoder(), jsonData, &template); err != nil {
+	if err := runtime.DecodeInto(legacyscheme.Codecs.UniversalDecoder(), jsonData, &template); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	expectedData, _ := ioutil.ReadFile("../../test/templates/testdata/guestbook_list.json")
-	if err := runtime.DecodeInto(kapi.Codecs.UniversalDecoder(), expectedData, &expectedTemplate); err != nil {
+	if err := runtime.DecodeInto(legacyscheme.Codecs.UniversalDecoder(), expectedData, &expectedTemplate); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -401,11 +443,11 @@ func TestProcessTemplateParameters(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("unexpected error: %v", errs)
 	}
-	result, err := runtime.Encode(kapi.Codecs.LegacyCodec(templateapiv1.SchemeGroupVersion), &template)
+	result, err := runtime.Encode(legacyscheme.Codecs.LegacyCodec(templateapiv1.SchemeGroupVersion), &template)
 	if err != nil {
 		t.Fatalf("unexpected error during encoding Config: %#v", err)
 	}
-	exp, _ := runtime.Encode(kapi.Codecs.LegacyCodec(templateapiv1.SchemeGroupVersion), &expectedTemplate)
+	exp, _ := runtime.Encode(legacyscheme.Codecs.LegacyCodec(templateapiv1.SchemeGroupVersion), &expectedTemplate)
 
 	if string(result) != string(exp) {
 		t.Errorf("unexpected output: %s", diff.StringDiff(string(exp), string(result)))

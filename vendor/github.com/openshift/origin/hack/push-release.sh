@@ -16,12 +16,17 @@ if [[ -n "${tag}" ]]; then
       echo "error: There must be exactly one tag pointing to HEAD to use OS_PUSH_TAG=HEAD"
       exit 1
     fi
-    tag=":$( git tag --points-at HEAD)"
+    tag=":$( git tag --points-at HEAD )"
   else
     tag=":${tag}"
   fi
 else
-  tag=":latest"
+  os::build::version::get_vars
+  if [[ "$( git rev-parse --abbrev-ref HEAD )" == "master" ]]; then
+    tag=":latest,:v${OS_GIT_MAJOR}.${OS_GIT_MINOR%+},:v${OS_GIT_MAJOR}.${OS_GIT_MINOR%+}.${OS_GIT_PATCH}"
+  else
+    tag=":v${OS_GIT_MAJOR}.${OS_GIT_MINOR%+},:v${OS_GIT_MAJOR}.${OS_GIT_MINOR%+}.${OS_GIT_PATCH}"
+  fi
 fi
 
 # Source tag
@@ -34,27 +39,9 @@ if [[ -z "${source_tag}" ]]; then
   fi
 fi
 
-images=(
-  openshift/origin
-  openshift/origin-base
-  openshift/origin-pod
-  openshift/origin-deployer
-  openshift/origin-docker-builder
-  openshift/origin-docker-registry
-  openshift/origin-keepalived-ipfailover
-  openshift/origin-sti-builder
-  openshift/origin-haproxy-router
-  openshift/origin-f5-router
-  openshift/origin-egress-router
-  openshift/origin-egress-http-proxy
-  openshift/origin-recycler
-  openshift/origin-gitserver
-  openshift/origin-cluster-capacity
-  openshift/origin-service-catalog
-  openshift/hello-openshift
-  openshift/openvswitch
-  openshift/node
-)
+images=( "${OS_ALL_IMAGES[@]}" )
+
+OS_PUSH_BASE_REPO="${OS_PUSH_BASE_REPO:-openshift/}"
 
 PUSH_OPTS=""
 if docker push --help | grep -q force; then
@@ -65,10 +52,10 @@ fi
 if [[ "${tag}" != ":latest" ]]; then
   if [[ -z "${OS_PUSH_LOCAL-}" ]]; then
     for image in "${images[@]}"; do
-      docker pull "${OS_PUSH_BASE_REGISTRY-}${image}:${source_tag}"
+      docker pull "${OS_PUSH_BASE_REGISTRY-}openshift/${image}:${source_tag}"
     done
   else
-    os::log::warning "Pushing local :${source_tag} images to ${OS_PUSH_BASE_REGISTRY-}*${tag}"
+    os::log::warning "Pushing local :${source_tag} images to ${OS_PUSH_BASE_REGISTRY-}${OS_PUSH_BASE_REPO}*${tag}"
     if [[ -z "${OS_PUSH_ALWAYS:-}" ]]; then
       echo "  CTRL+C to cancel, or any other key to continue"
       read
@@ -76,16 +63,20 @@ if [[ "${tag}" != ":latest" ]]; then
   fi
 fi
 
+IFS=',' read -r -a tags <<< "$tag"
 if [[ "${OS_PUSH_BASE_REGISTRY-}" != "" || "${tag}" != "" ]]; then
   for image in "${images[@]}"; do
-    os::log::info "Tagging ${image}:${source_tag} as ${OS_PUSH_BASE_REGISTRY-}${image}${tag}..."
-    docker tag "${image}:${source_tag}" "${OS_PUSH_BASE_REGISTRY-}${image}${tag}"
+    for tag in "${tags[@]}"; do
+      docker tag "openshift/${image}:${source_tag}" "${OS_PUSH_BASE_REGISTRY-}${OS_PUSH_BASE_REPO}${image}${tag}"
+    done
   done
 fi
 
 for image in "${images[@]}"; do
-  os::log::info "Pushing ${OS_PUSH_BASE_REGISTRY-}${image}${tag}..."
-  docker push ${PUSH_OPTS} "${OS_PUSH_BASE_REGISTRY-}${image}${tag}"
+  for tag in "${tags[@]}"; do
+    os::log::info "Pushing ${OS_PUSH_BASE_REGISTRY-}${OS_PUSH_BASE_REPO}${image}${tag}..."
+    docker push ${PUSH_OPTS} "${OS_PUSH_BASE_REGISTRY-}${OS_PUSH_BASE_REPO}${image}${tag}"
+  done
 done
 
 ret=$?; ENDTIME=$(date +%s); echo "$0 took $(($ENDTIME - $STARTTIME)) seconds"; exit "$ret"

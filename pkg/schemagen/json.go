@@ -22,23 +22,23 @@ type JSONSchema struct {
 	Definitions map[string]JSONPropertyDescriptor `json:"definitions"`
 	JSONDescriptor
 	*JSONObjectDescriptor
-	Resources  map[string]*JSONObjectDescriptor   `json:"resources,omitempty"`
+	Resources map[string]*JSONObjectDescriptor `json:"resources,omitempty"`
 }
 
 type JSONDescriptor struct {
-	Type        string        `json:"type"`
-	Description string        `json:"description"`
-	Default     string        `json:"default,omitempty"`
-	Required    bool          `json:"required,omitempty"`
-	Minimum     float32       `json:"minimum,omitempty"`
-	Maximum     float32       `json:"maximum,omitempty"`
-	MinItems    int           `json:"minItems,omitempty"`
-	MaxItems    int           `json:"maxItems,omitempty"`
-	MinLength   int           `json:"minLength,omitempty"`
-	MaxLength   int           `json:"maxLength,omitempty"`
-	Pattern     string        `json:"pattern,omitempty"`
-	Enum        []interface{} `json:"enum,omitempty"`
-	JavaOmitEmpty	bool	  `json:"javaOmitEmpty,omitempty"`
+	Type          string        `json:"type"`
+	Description   string        `json:"description"`
+	Default       string        `json:"default,omitempty"`
+	Required      bool          `json:"required,omitempty"`
+	Minimum       float32       `json:"minimum,omitempty"`
+	Maximum       float32       `json:"maximum,omitempty"`
+	MinItems      int           `json:"minItems,omitempty"`
+	MaxItems      int           `json:"maxItems,omitempty"`
+	MinLength     int           `json:"minLength,omitempty"`
+	MaxLength     int           `json:"maxLength,omitempty"`
+	Pattern       string        `json:"pattern,omitempty"`
+	Enum          []interface{} `json:"enum,omitempty"`
+	JavaOmitEmpty bool          `json:"javaOmitEmpty,omitempty"`
 }
 
 type JSONObjectDescriptor struct {

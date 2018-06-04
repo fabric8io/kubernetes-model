@@ -10,24 +10,22 @@ import (
 
 	"github.com/spf13/cobra"
 
+	extensions "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
-	kapi "k8s.io/kubernetes/pkg/api"
-	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
-	kextensionsclient "k8s.io/kubernetes/pkg/client/clientset_generated/clientset/typed/extensions/v1beta1"
+	kextensionsclient "k8s.io/client-go/kubernetes/typed/extensions/v1beta1"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 
-	osclient "github.com/openshift/origin/pkg/client"
-	cmdutil "github.com/openshift/origin/pkg/cmd/util"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
-	deployclient "github.com/openshift/origin/pkg/deploy/generated/internalclientset/typed/apps/internalversion"
+	appsv1client "github.com/openshift/client-go/apps/clientset/versioned/typed/apps/v1"
+	appsmanualclient "github.com/openshift/origin/pkg/apps/client/v1"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 	unidlingapi "github.com/openshift/origin/pkg/unidling/api"
 	utilunidling "github.com/openshift/origin/pkg/unidling/util"
 	utilerrors "github.com/openshift/origin/pkg/util/errors"
@@ -47,7 +45,7 @@ var (
 
 	idleExample = templates.Examples(`
 		# Idle the scalable controllers associated with the services listed in to-idle.txt
-	  $ %[1]s idle --resource-names-file to-idle.txt`)
+		$ %[1]s idle --resource-names-file to-idle.txt`)
 )
 
 // NewCmdIdle implements the OpenShift cli idle command
@@ -66,7 +64,7 @@ func NewCmdIdle(fullName string, f *clientcmd.Factory, out, errOut io.Writer) *c
 		Run: func(cmd *cobra.Command, args []string) {
 			kcmdutil.CheckErr(o.Complete(f, cmd, args))
 			err := o.RunIdle(f)
-			if err == cmdutil.ErrExit {
+			if err == kcmdutil.ErrExit {
 				os.Exit(1)
 			}
 			kcmdutil.CheckErr(err)
@@ -115,7 +113,8 @@ func (o *IdleOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, args []
 		return fmt.Errorf("resource names, selectors, and the all flag may not be be specified if a filename is specified")
 	}
 
-	o.svcBuilder = f.NewBuilder(true).
+	o.svcBuilder = f.NewBuilder().
+		Internal().
 		ContinueOnError().
 		NamespaceParam(namespace).DefaultNamespace().AllNamespaces(o.allNamespaces).
 		Flatten().
@@ -130,7 +129,7 @@ func (o *IdleOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, args []
 	} else {
 		// NB: this is a bit weird because the resource builder will complain if we use ResourceTypes and ResourceNames when len(args) > 0
 		if o.selector != "" {
-			o.svcBuilder.SelectorParam(o.selector).ResourceTypes("endpoints")
+			o.svcBuilder.LabelSelectorParam(o.selector).ResourceTypes("endpoints")
 		}
 
 		o.svcBuilder.ResourceNames("endpoints", args...)
@@ -185,11 +184,21 @@ type idleUpdateInfo struct {
 	scaleRefs map[unidlingapi.CrossGroupObjectReference]struct{}
 }
 
+// controllerRef contains the small subset of info
+// that we need to compare controllers (like ObjectReference,
+// or OwnerReference, but with comparable and with just what we need).
+type controllerRef struct {
+	Name      string
+	Namespace string
+	Kind      string
+	Group     string
+}
+
 // calculateIdlableAnnotationsByService calculates the list of objects involved in the idling process from a list of services in a file.
 // Using the list of services, it figures out the associated scalable objects, and returns a map from the endpoints object for the services to
 // the list of scalable resources associated with that endpoints object, as well as a map from CrossGroupObjectReferences to scale to 0 to the
 // name of the associated service.
-func (o *IdleOptions) calculateIdlableAnnotationsByService(f *clientcmd.Factory) (map[types.NamespacedName]idleUpdateInfo, map[unidlingapi.CrossGroupObjectReference]types.NamespacedName, error) {
+func (o *IdleOptions) calculateIdlableAnnotationsByService(f *clientcmd.Factory) (map[types.NamespacedName]idleUpdateInfo, map[namespacedCrossGroupObjectReference]types.NamespacedName, error) {
 	// load our set of services
 	client, err := f.ClientSet()
 	if err != nil {
@@ -213,9 +222,9 @@ func (o *IdleOptions) calculateIdlableAnnotationsByService(f *clientcmd.Factory)
 		return pod, nil
 	}
 
-	controllersLoaded := make(map[kapi.ObjectReference]runtime.Object)
+	controllersLoaded := make(map[namespacedOwnerReference]metav1.Object)
 	helpers := make(map[schema.GroupKind]*resource.Helper)
-	getController := func(ref kapi.ObjectReference) (runtime.Object, error) {
+	getController := func(ref namespacedOwnerReference) (metav1.Object, error) {
 		if controller, ok := controllersLoaded[ref]; ok {
 			return controller, nil
 		}
@@ -242,20 +251,24 @@ func (o *IdleOptions) calculateIdlableAnnotationsByService(f *clientcmd.Factory)
 		}
 
 		var controller runtime.Object
-		controller, err = helper.Get(ref.Namespace, ref.Name, false)
+		controller, err = helper.Get(ref.namespace, ref.Name, false)
 		if err != nil {
 			return nil, err
 		}
 
-		controllersLoaded[ref] = controller
+		controllerMeta, err := meta.Accessor(controller)
+		if err != nil {
+			return nil, err
+		}
 
-		return controller, nil
+		controllersLoaded[ref] = controllerMeta
+
+		return controllerMeta, nil
 	}
 
-	targetScaleRefs := make(map[unidlingapi.CrossGroupObjectReference]types.NamespacedName)
+	targetScaleRefs := make(map[namespacedCrossGroupObjectReference]types.NamespacedName)
 	endpointsInfo := make(map[types.NamespacedName]idleUpdateInfo)
 
-	decoder := f.Decoder(true)
 	err = o.svcBuilder.Do().Visit(func(info *resource.Info, err error) error {
 		if err != nil {
 			return err
@@ -270,18 +283,21 @@ func (o *IdleOptions) calculateIdlableAnnotationsByService(f *clientcmd.Factory)
 			Namespace: endpoints.Namespace,
 			Name:      endpoints.Name,
 		}
-		scaleRefs, err := findScalableResourcesForEndpoints(endpoints, decoder, getPod, getController)
+		scaleRefs, err := findScalableResourcesForEndpoints(endpoints, getPod, getController)
 		if err != nil {
 			return fmt.Errorf("unable to calculate scalable resources for service %s/%s: %v", endpoints.Namespace, endpoints.Name, err)
 		}
 
+		nonNamespacedScaleRefs := make(map[unidlingapi.CrossGroupObjectReference]struct{}, len(scaleRefs))
+
 		for ref := range scaleRefs {
+			nonNamespacedScaleRefs[ref.CrossGroupObjectReference] = struct{}{}
 			targetScaleRefs[ref] = endpointsName
 		}
 
 		idleInfo := idleUpdateInfo{
 			obj:       endpoints,
-			scaleRefs: scaleRefs,
+			scaleRefs: nonNamespacedScaleRefs,
 		}
 
 		endpointsInfo[endpointsName] = idleInfo
@@ -292,41 +308,7 @@ func (o *IdleOptions) calculateIdlableAnnotationsByService(f *clientcmd.Factory)
 	return endpointsInfo, targetScaleRefs, err
 }
 
-// getControllerRef returns a subresource reference to the owning controller of the given object.
-// It will use both the CreatedByAnnotation from Kubernetes, as well as the DeploymentConfigAnnotation
-// from Origin to look this up.  If neither are found, it will return nil.
-func getControllerRef(obj runtime.Object, decoder runtime.Decoder) (*kapi.ObjectReference, error) {
-	objMeta, err := meta.Accessor(obj)
-	if err != nil {
-		return nil, err
-	}
-
-	annotations := objMeta.GetAnnotations()
-
-	creatorRefRaw, creatorListed := annotations[kapi.CreatedByAnnotation]
-	if !creatorListed {
-		// if we don't have a creator listed, try the openshift-specific Deployment annotation
-		dcName, dcNameListed := annotations[deployapi.DeploymentConfigAnnotation]
-		if !dcNameListed {
-			return nil, nil
-		}
-
-		return &kapi.ObjectReference{
-			Name:      dcName,
-			Namespace: objMeta.GetNamespace(),
-			Kind:      "DeploymentConfig",
-		}, nil
-	}
-
-	serializedRef := &kapi.SerializedReference{}
-	if err := runtime.DecodeInto(decoder, []byte(creatorRefRaw), serializedRef); err != nil {
-		return nil, fmt.Errorf("could not decoded pod's creator reference: %v", err)
-	}
-
-	return &serializedRef.Reference, nil
-}
-
-func makeCrossGroupObjRef(ref *kapi.ObjectReference) (unidlingapi.CrossGroupObjectReference, error) {
+func makeCrossGroupObjRef(ref *metav1.OwnerReference) (unidlingapi.CrossGroupObjectReference, error) {
 	gv, err := schema.ParseGroupVersion(ref.APIVersion)
 	if err != nil {
 		return unidlingapi.CrossGroupObjectReference{}, err
@@ -339,11 +321,40 @@ func makeCrossGroupObjRef(ref *kapi.ObjectReference) (unidlingapi.CrossGroupObje
 	}, nil
 }
 
+// namespacedOwnerReference is an OwnerReference with Namespace info,
+// so we differentiate different objects across namespaces.
+type namespacedOwnerReference struct {
+	metav1.OwnerReference
+	namespace string
+}
+
+// namespacedCrossGroupObjectReference is a CrossGroupObjectReference
+// with namespace information attached, so that we can track relevant
+// objects in different namespaces with the same name
+type namespacedCrossGroupObjectReference struct {
+	unidlingapi.CrossGroupObjectReference
+	namespace string
+}
+
+// normalizedNSOwnerRef converts an OwnerReference into an namespacedOwnerReference,
+// and ensure that it's comparable to other owner references (clearing pointer fields, etc)
+func normalizedNSOwnerRef(namespace string, ownerRef *metav1.OwnerReference) namespacedOwnerReference {
+	ref := namespacedOwnerReference{
+		namespace:      namespace,
+		OwnerReference: *ownerRef,
+	}
+
+	ref.Controller = nil
+	ref.BlockOwnerDeletion = nil
+
+	return ref
+}
+
 // findScalableResourcesForEndpoints takes an Endpoints object and looks for the associated
 // scalable objects by checking each address in each subset to see if it has a pod
 // reference, and the following that pod reference to find the owning controller,
 // and returning the unique set of controllers found this way.
-func findScalableResourcesForEndpoints(endpoints *kapi.Endpoints, decoder runtime.Decoder, getPod func(kapi.ObjectReference) (*kapi.Pod, error), getController func(kapi.ObjectReference) (runtime.Object, error)) (map[unidlingapi.CrossGroupObjectReference]struct{}, error) {
+func findScalableResourcesForEndpoints(endpoints *kapi.Endpoints, getPod func(kapi.ObjectReference) (*kapi.Pod, error), getController func(namespacedOwnerReference) (metav1.Object, error)) (map[namespacedCrossGroupObjectReference]struct{}, error) {
 	// To find all RCs and DCs for an endpoint, we first figure out which pods are pointed to by that endpoint...
 	podRefs := map[kapi.ObjectReference]*kapi.Pod{}
 	for _, subset := range endpoints.Subsets {
@@ -362,20 +373,18 @@ func findScalableResourcesForEndpoints(endpoints *kapi.Endpoints, decoder runtim
 	}
 
 	// ... then, for each pod, we check the controller, and find the set of unique controllers...
-	immediateControllerRefs := make(map[kapi.ObjectReference]struct{})
+	immediateControllerRefs := make(map[namespacedOwnerReference]struct{})
 	for _, pod := range podRefs {
-		controllerRef, err := getControllerRef(pod, decoder)
-		if err != nil {
-			return nil, fmt.Errorf("unable to find controller for pod %s/%s: %v", pod.Namespace, pod.Name, err)
-		} else if controllerRef == nil {
+		controllerRef := metav1.GetControllerOf(pod)
+		ref := normalizedNSOwnerRef(pod.Namespace, controllerRef)
+		if controllerRef == nil {
 			return nil, fmt.Errorf("unable to find controller for pod %s/%s: no creator reference listed", pod.Namespace, pod.Name)
 		}
-
-		immediateControllerRefs[*controllerRef] = struct{}{}
+		immediateControllerRefs[ref] = struct{}{}
 	}
 
 	// ... finally, for each controller, we load it, and see if there is a corresponding owner (to cover cases like DCs, Deployments, etc)
-	controllerRefs := make(map[unidlingapi.CrossGroupObjectReference]struct{})
+	controllerRefs := make(map[namespacedCrossGroupObjectReference]struct{})
 	for controllerRef := range immediateControllerRefs {
 		controller, err := getController(controllerRef)
 		if utilerrors.TolerateNotFoundError(err) != nil {
@@ -383,16 +392,12 @@ func findScalableResourcesForEndpoints(endpoints *kapi.Endpoints, decoder runtim
 		}
 
 		if controller != nil {
-			var parentControllerRef *kapi.ObjectReference
-			parentControllerRef, err = getControllerRef(controller, decoder)
-			if err != nil {
-				return nil, fmt.Errorf("unable to load the creator of %s %q: %v", controllerRef.Kind, controllerRef.Name, err)
-			}
-
+			var parentControllerRef *metav1.OwnerReference
+			parentControllerRef = metav1.GetControllerOf(controller)
 			var crossGroupObjRef unidlingapi.CrossGroupObjectReference
 			if parentControllerRef == nil {
 				// if this is just a plain RC, use it
-				crossGroupObjRef, err = makeCrossGroupObjRef(&controllerRef)
+				crossGroupObjRef, err = makeCrossGroupObjRef(&controllerRef.OwnerReference)
 			} else {
 				crossGroupObjRef, err = makeCrossGroupObjRef(parentControllerRef)
 			}
@@ -400,7 +405,10 @@ func findScalableResourcesForEndpoints(endpoints *kapi.Endpoints, decoder runtim
 			if err != nil {
 				return nil, fmt.Errorf("unable to load the creator of %s %q: %v", controllerRef.Kind, controllerRef.Name, err)
 			}
-			controllerRefs[crossGroupObjRef] = struct{}{}
+			controllerRefs[namespacedCrossGroupObjectReference{
+				CrossGroupObjectReference: crossGroupObjRef,
+				namespace:                 controllerRef.namespace,
+			}] = struct{}{}
 		}
 	}
 
@@ -411,7 +419,7 @@ func findScalableResourcesForEndpoints(endpoints *kapi.Endpoints, decoder runtim
 // and annotations from an existing object.  It merges the scales and references found in the existing annotations
 // with the new data (using the new scale in case of conflict if present and not 0, and the old scale otherwise),
 // and returns a slice of RecordedScaleReferences suitable for using as the new annotation value.
-func pairScalesWithScaleRefs(serviceName types.NamespacedName, annotations map[string]string, rawScaleRefs map[unidlingapi.CrossGroupObjectReference]struct{}, scales map[unidlingapi.CrossGroupObjectReference]int32) ([]unidlingapi.RecordedScaleReference, error) {
+func pairScalesWithScaleRefs(serviceName types.NamespacedName, annotations map[string]string, rawScaleRefs map[unidlingapi.CrossGroupObjectReference]struct{}, scales map[namespacedCrossGroupObjectReference]int32) ([]unidlingapi.RecordedScaleReference, error) {
 	oldTargetsRaw, hasOldTargets := annotations[unidlingapi.UnidleTargetAnnotation]
 
 	scaleRefs := make([]unidlingapi.RecordedScaleReference, 0, len(rawScaleRefs))
@@ -439,8 +447,12 @@ func pairScalesWithScaleRefs(serviceName types.NamespacedName, annotations map[s
 		// figure out which new targets were already present...
 		for _, newScaleRef := range scaleRefs {
 			if oldTargetInd, ok := oldTargetsSet[newScaleRef.CrossGroupObjectReference]; ok {
-				if newScale, ok := scales[newScaleRef.CrossGroupObjectReference]; !ok || newScale == 0 {
-					scales[newScaleRef.CrossGroupObjectReference] = oldTargets[oldTargetInd].Replicas
+				namespacedScaleRef := namespacedCrossGroupObjectReference{
+					CrossGroupObjectReference: newScaleRef.CrossGroupObjectReference,
+					namespace:                 serviceName.Namespace,
+				}
+				if newScale, ok := scales[namespacedScaleRef]; !ok || newScale == 0 {
+					scales[namespacedScaleRef] = oldTargets[oldTargetInd].Replicas
 				}
 				delete(oldTargetsSet, newScaleRef.CrossGroupObjectReference)
 			}
@@ -454,7 +466,11 @@ func pairScalesWithScaleRefs(serviceName types.NamespacedName, annotations map[s
 
 	for i := range scaleRefs {
 		scaleRef := &scaleRefs[i]
-		newScale, ok := scales[scaleRef.CrossGroupObjectReference]
+		namespacedScaleRef := namespacedCrossGroupObjectReference{
+			CrossGroupObjectReference: scaleRef.CrossGroupObjectReference,
+			namespace:                 serviceName.Namespace,
+		}
+		newScale, ok := scales[namespacedScaleRef]
 		if !ok || newScale == 0 {
 			newScale = 1
 			if scaleRef.Replicas != 0 {
@@ -535,32 +551,42 @@ func (o *IdleOptions) RunIdle(f *clientcmd.Factory) error {
 		fmt.Fprintf(o.errOut, "warning: continuing on for valid scalable resources, but an error occurred while finding scalable resources to idle: %v", err)
 	}
 
-	oclient, kclient, err := f.Clients()
+	kclient, err := f.ClientSet()
+	if err != nil {
+		return err
+	}
+	appClient, err := f.OpenshiftInternalAppsClient()
+	if err != nil {
+		return err
+	}
+	clientConfig, err := f.ClientConfig()
+	if err != nil {
+		return err
+	}
+	appsV1Client, err := appsv1client.NewForConfig(clientConfig)
 	if err != nil {
 		return err
 	}
 
-	externalKubeExtensionClient := kextensionsclient.New(kclient.Core().RESTClient())
-	delegScaleGetter := osclient.NewDelegatingScaleNamespacer(oclient, externalKubeExtensionClient)
-	dcGetter := deployclient.New(oclient.RESTClient)
-
-	scaleAnnotater := utilunidling.NewScaleAnnotater(delegScaleGetter, dcGetter, kclient.Core(), func(currentReplicas int32, annotations map[string]string) {
+	externalKubeExtensionClient := kextensionsclient.New(kclient.Extensions().RESTClient())
+	delegScaleGetter := appsmanualclient.NewDelegatingScaleNamespacer(appsV1Client, externalKubeExtensionClient)
+	scaleAnnotater := utilunidling.NewScaleAnnotater(delegScaleGetter, appClient.Apps(), kclient.Core(), func(currentReplicas int32, annotations map[string]string) {
 		annotations[unidlingapi.IdledAtAnnotation] = nowTime.UTC().Format(time.RFC3339)
 		annotations[unidlingapi.PreviousScaleAnnotation] = fmt.Sprintf("%v", currentReplicas)
 	})
 
-	replicas := make(map[unidlingapi.CrossGroupObjectReference]int32, len(byScalable))
-	toScale := make(map[unidlingapi.CrossGroupObjectReference]scaleInfo)
+	replicas := make(map[namespacedCrossGroupObjectReference]int32, len(byScalable))
+	toScale := make(map[namespacedCrossGroupObjectReference]scaleInfo)
 
 	mapper, typer := f.Object()
 
 	// first, collect the scale info
 	for scaleRef, svcName := range byScalable {
-		obj, scale, err := scaleAnnotater.GetObjectWithScale(svcName.Namespace, scaleRef)
+		obj, scale, err := scaleAnnotater.GetObjectWithScale(svcName.Namespace, scaleRef.CrossGroupObjectReference)
 		if err != nil {
 			fmt.Fprintf(o.errOut, "error: unable to get scale for %s %s/%s, not marking that scalable as idled: %v\n", scaleRef.Kind, svcName.Namespace, scaleRef.Name, err)
 			svcInfo := byService[svcName]
-			delete(svcInfo.scaleRefs, scaleRef)
+			delete(svcInfo.scaleRefs, scaleRef.CrossGroupObjectReference)
 			hadError = true
 			continue
 		}
@@ -646,8 +672,8 @@ func (o *IdleOptions) RunIdle(f *clientcmd.Factory) error {
 	for scaleRef, info := range toScale {
 		if !o.dryRun {
 			info.scale.Spec.Replicas = 0
-			scaleUpdater := utilunidling.NewScaleUpdater(f.JSONEncoder(), info.namespace, dcGetter, kclient.Core())
-			if err := scaleAnnotater.UpdateObjectScale(scaleUpdater, info.namespace, scaleRef, info.obj, info.scale); err != nil {
+			scaleUpdater := utilunidling.NewScaleUpdater(f.JSONEncoder(), info.namespace, appClient.Apps(), kclient.Core())
+			if err := scaleAnnotater.UpdateObjectScale(scaleUpdater, info.namespace, scaleRef.CrossGroupObjectReference, info.obj, info.scale); err != nil {
 				fmt.Fprintf(o.errOut, "error: unable to scale %s %s/%s to 0, but still listed as target for unidling: %v\n", scaleRef.Kind, info.namespace, scaleRef.Name, err)
 				hadError = true
 				continue
@@ -658,7 +684,7 @@ func (o *IdleOptions) RunIdle(f *clientcmd.Factory) error {
 	}
 
 	if hadError {
-		return cmdutil.ErrExit
+		return kcmdutil.ErrExit
 	}
 
 	return nil

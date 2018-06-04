@@ -15,21 +15,21 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
-	"github.com/openshift/origin/pkg/auth/ldaputil"
-	"github.com/openshift/origin/pkg/auth/ldaputil/ldapclient"
-	osclient "github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/server/api"
-	configapilatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
-	"github.com/openshift/origin/pkg/cmd/server/api/validation"
+	"github.com/openshift/origin/pkg/cmd/server/apis/config"
+	configapilatest "github.com/openshift/origin/pkg/cmd/server/apis/config/latest"
+	"github.com/openshift/origin/pkg/cmd/server/apis/config/validation"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oauthserver/ldaputil"
+	"github.com/openshift/origin/pkg/oauthserver/ldaputil/ldapclient"
 	"github.com/openshift/origin/pkg/oc/admin/groups/sync"
 	"github.com/openshift/origin/pkg/oc/admin/groups/sync/interfaces"
 	"github.com/openshift/origin/pkg/oc/admin/groups/sync/syncerror"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
+	usertypedclient "github.com/openshift/origin/pkg/user/generated/internalclientset/typed/user/internalversion"
 )
 
 const SyncRecommendedName = "sync"
@@ -84,7 +84,7 @@ type SyncOptions struct {
 	Source GroupSyncSource
 
 	// Config is the LDAP sync config read from file
-	Config *api.LDAPSyncConfig
+	Config *config.LDAPSyncConfig
 
 	// Whitelist are the names of OpenShift group or LDAP group UIDs to use for syncing
 	Whitelist []string
@@ -95,8 +95,8 @@ type SyncOptions struct {
 	// Confirm determines whether or not to write to OpenShift
 	Confirm bool
 
-	// GroupsInterface is the interface used to interact with OpenShift Group objects
-	GroupInterface osclient.GroupInterface
+	// GroupInterface is the interface used to interact with OpenShift Group objects
+	GroupInterface usertypedclient.GroupInterface
 
 	// Stderr is the writer to write warnings and errors to
 	Stderr io.Writer
@@ -143,11 +143,11 @@ func NewCmdSync(name, fullName string, f *clientcmd.Factory, out io.Writer) *cob
 		Example: fmt.Sprintf(syncExamples, fullName),
 		Run: func(c *cobra.Command, args []string) {
 			if err := options.Complete(typeArg, whitelistFile, blacklistFile, configFile, args, f); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(c, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(c, err.Error()))
 			}
 
 			if err := options.Validate(); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(c, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(c, err.Error()))
 			}
 
 			err := options.Run(c, f)
@@ -195,12 +195,18 @@ func (o *SyncOptions) Complete(typeArg, whitelistFile, blacklistFile, configFile
 	}
 
 	var err error
+
+	o.Config, err = decodeSyncConfigFromFile(configFile)
+	if err != nil {
+		return err
+	}
+
 	if o.Source == GroupSyncSourceOpenShift {
-		o.Whitelist, err = buildOpenShiftGroupNameList(args, whitelistFile)
+		o.Whitelist, err = buildOpenShiftGroupNameList(args, whitelistFile, o.Config.LDAPGroupUIDToOpenShiftGroupNameMapping)
 		if err != nil {
 			return err
 		}
-		o.Blacklist, err = buildOpenShiftGroupNameList([]string{}, blacklistFile)
+		o.Blacklist, err = buildOpenShiftGroupNameList([]string{}, blacklistFile, o.Config.LDAPGroupUIDToOpenShiftGroupNameMapping)
 		if err != nil {
 			return err
 		}
@@ -215,28 +221,38 @@ func (o *SyncOptions) Complete(typeArg, whitelistFile, blacklistFile, configFile
 		}
 	}
 
-	o.Config, err = decodeSyncConfigFromFile(configFile)
+	userClient, err := f.OpenshiftInternalUserClient()
 	if err != nil {
 		return err
 	}
-
-	osClient, _, err := f.Clients()
-	if err != nil {
-		return err
-	}
-	o.GroupInterface = osClient.Groups()
+	o.GroupInterface = userClient.User().Groups()
 
 	return nil
 }
 
 // buildOpenShiftGroupNameList builds a list of OpenShift names from file and args
-func buildOpenShiftGroupNameList(args []string, file string) ([]string, error) {
+// nameMapping is used to override the OpenShift names built from file and args
+func buildOpenShiftGroupNameList(args []string, file string, nameMapping map[string]string) ([]string, error) {
 	rawList, err := buildNameList(args, file)
 	if err != nil {
 		return nil, err
 	}
 
-	return openshiftGroupNamesOnlyList(rawList)
+	namesList, err := openshiftGroupNamesOnlyList(rawList)
+	if err != nil {
+		return nil, err
+	}
+
+	// override items in namesList if present in mapping
+	if len(nameMapping) > 0 {
+		for i, name := range namesList {
+			if nameOverride, ok := nameMapping[name]; ok {
+				namesList[i] = nameOverride
+			}
+		}
+	}
+
+	return namesList, nil
 }
 
 // buildNameLists builds a list from file and args
@@ -258,8 +274,8 @@ func buildNameList(args []string, file string) ([]string, error) {
 	return list, nil
 }
 
-func decodeSyncConfigFromFile(configFile string) (*api.LDAPSyncConfig, error) {
-	var config api.LDAPSyncConfig
+func decodeSyncConfigFromFile(configFile string) (*config.LDAPSyncConfig, error) {
+	var config config.LDAPSyncConfig
 	yamlConfig, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("could not read file %s: %v", configFile, err)
@@ -338,7 +354,7 @@ func (o *SyncOptions) Validate() error {
 // Run creates the GroupSyncer specified and runs it to sync groups
 // the arguments are only here because its the only way to get the printer we need
 func (o *SyncOptions) Run(cmd *cobra.Command, f *clientcmd.Factory) error {
-	bindPassword, err := api.ResolveStringValue(o.Config.BindPassword)
+	bindPassword, err := config.ResolveStringValue(o.Config.BindPassword)
 	if err != nil {
 		return err
 	}
@@ -418,7 +434,7 @@ func (o *SyncOptions) Run(cmd *cobra.Command, f *clientcmd.Factory) error {
 	return kerrs.NewAggregate(syncErrors)
 }
 
-func buildSyncBuilder(clientConfig ldapclient.Config, syncConfig *api.LDAPSyncConfig, errorHandler syncerror.Handler) (SyncBuilder, error) {
+func buildSyncBuilder(clientConfig ldapclient.Config, syncConfig *config.LDAPSyncConfig, errorHandler syncerror.Handler) (SyncBuilder, error) {
 	switch {
 	case syncConfig.RFC2307Config != nil:
 		return &RFC2307Builder{ClientConfig: clientConfig, Config: syncConfig.RFC2307Config, ErrorHandler: errorHandler}, nil
@@ -486,7 +502,7 @@ func (o *SyncOptions) GetBlacklist() []string {
 	return o.Blacklist
 }
 
-func (o *SyncOptions) GetClient() osclient.GroupInterface {
+func (o *SyncOptions) GetClient() usertypedclient.GroupInterface {
 	return o.GroupInterface
 }
 

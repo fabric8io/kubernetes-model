@@ -8,15 +8,15 @@ import (
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	kextensions "k8s.io/kubernetes/pkg/apis/extensions"
 
-	"github.com/openshift/origin/pkg/ingress/admission/api"
+	"github.com/openshift/origin/pkg/ingress/admission/apis/ingressadmission"
 )
 
 type fakeAuthorizer struct {
-	allow bool
+	allow authorizer.Decision
 	err   error
 }
 
-func (a *fakeAuthorizer) Authorize(authorizer.Attributes) (bool, string, error) {
+func (a *fakeAuthorizer) Authorize(authorizer.Attributes) (authorizer.Decision, string, error) {
 	return a.allow, "", a.err
 }
 
@@ -25,12 +25,12 @@ func TestAdmission(t *testing.T) {
 	var oldIngress *kextensions.Ingress
 
 	tests := []struct {
-		config           *api.IngressAdmissionConfig
+		config           *ingressadmission.IngressAdmissionConfig
 		testName         string
 		oldHost, newHost string
 		op               admission.Operation
 		admit            bool
-		allow            bool
+		allow            authorizer.Decision
 	}{
 		{
 			admit:    true,
@@ -63,7 +63,7 @@ func TestAdmission(t *testing.T) {
 		},
 		{
 			admit:    true,
-			allow:    true,
+			allow:    authorizer.DecisionAllow,
 			config:   emptyConfig(),
 			op:       admission.Update,
 			newHost:  "foo.com",
@@ -95,7 +95,7 @@ func TestAdmission(t *testing.T) {
 		},
 		{
 			admit:    false,
-			allow:    false,
+			allow:    authorizer.DecisionNoOpinion,
 			config:   emptyConfig(),
 			op:       admission.Create,
 			newHost:  "foo.com",
@@ -103,7 +103,7 @@ func TestAdmission(t *testing.T) {
 		},
 		{
 			admit:    true,
-			allow:    true,
+			allow:    authorizer.DecisionAllow,
 			config:   emptyConfig(),
 			op:       admission.Create,
 			newHost:  "foo.com",
@@ -157,18 +157,18 @@ func TestAdmission(t *testing.T) {
 
 }
 
-func emptyConfig() *api.IngressAdmissionConfig {
-	return &api.IngressAdmissionConfig{}
+func emptyConfig() *ingressadmission.IngressAdmissionConfig {
+	return &ingressadmission.IngressAdmissionConfig{}
 }
 
-func testConfigUpdateAllow() *api.IngressAdmissionConfig {
-	return &api.IngressAdmissionConfig{
+func testConfigUpdateAllow() *ingressadmission.IngressAdmissionConfig {
+	return &ingressadmission.IngressAdmissionConfig{
 		AllowHostnameChanges: true,
 	}
 }
 
-func testConfigUpdateDeny() *api.IngressAdmissionConfig {
-	return &api.IngressAdmissionConfig{
+func testConfigUpdateDeny() *ingressadmission.IngressAdmissionConfig {
+	return &ingressadmission.IngressAdmissionConfig{
 		AllowHostnameChanges: false,
 	}
 }

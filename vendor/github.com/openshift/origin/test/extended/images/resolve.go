@@ -4,14 +4,14 @@ import (
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 
+	kapiv1 "k8s.io/api/core/v1"
+	kextensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
-	kextensionsv1beta1 "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 
 	exutil "github.com/openshift/origin/test/extended/util"
 )
 
-var _ = g.Describe("[Feature:ImageLookup] Image policy", func() {
+var _ = g.Describe("[Feature:ImageLookup][registry] Image policy", func() {
 	defer g.GinkgoRecover()
 	var oc = exutil.NewCLI("resolve-local-names", exutil.KubeConfigPath())
 	one := int64(0)
@@ -21,7 +21,7 @@ var _ = g.Describe("[Feature:ImageLookup] Image policy", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 		err = oc.Run("set", "image-lookup").Args("busybox").Execute()
 		o.Expect(err).NotTo(o.HaveOccurred())
-		tag, err := oc.Client().ImageStreamTags(oc.Namespace()).Get("busybox", "latest")
+		tag, err := oc.ImageClient().Image().ImageStreamTags(oc.Namespace()).Get("busybox:latest", metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(tag.LookupPolicy.Local).To(o.BeTrue())
 
@@ -73,7 +73,7 @@ var _ = g.Describe("[Feature:ImageLookup] Image policy", func() {
 	g.It("should perform lookup when the pod has the resolve-names annotation", func() {
 		err := oc.Run("import-image").Args("busybox:latest", "--confirm").Execute()
 		o.Expect(err).NotTo(o.HaveOccurred())
-		tag, err := oc.Client().ImageStreamTags(oc.Namespace()).Get("busybox", "latest")
+		tag, err := oc.ImageClient().Image().ImageStreamTags(oc.Namespace()).Get("busybox:latest", metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		// pods should auto replace local references

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2018 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,41 +24,50 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// Bindings returns a BindingInformer.
-	Bindings() BindingInformer
-	// Brokers returns a BrokerInformer.
-	Brokers() BrokerInformer
-	// Instances returns a InstanceInformer.
-	Instances() InstanceInformer
-	// ServiceClasses returns a ServiceClassInformer.
-	ServiceClasses() ServiceClassInformer
+	// ClusterServiceBrokers returns a ClusterServiceBrokerInformer.
+	ClusterServiceBrokers() ClusterServiceBrokerInformer
+	// ClusterServiceClasses returns a ClusterServiceClassInformer.
+	ClusterServiceClasses() ClusterServiceClassInformer
+	// ClusterServicePlans returns a ClusterServicePlanInformer.
+	ClusterServicePlans() ClusterServicePlanInformer
+	// ServiceBindings returns a ServiceBindingInformer.
+	ServiceBindings() ServiceBindingInformer
+	// ServiceInstances returns a ServiceInstanceInformer.
+	ServiceInstances() ServiceInstanceInformer
 }
 
 type version struct {
-	internalinterfaces.SharedInformerFactory
+	factory          internalinterfaces.SharedInformerFactory
+	namespace        string
+	tweakListOptions internalinterfaces.TweakListOptionsFunc
 }
 
 // New returns a new Interface.
-func New(f internalinterfaces.SharedInformerFactory) Interface {
-	return &version{f}
+func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
+	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// Bindings returns a BindingInformer.
-func (v *version) Bindings() BindingInformer {
-	return &bindingInformer{factory: v.SharedInformerFactory}
+// ClusterServiceBrokers returns a ClusterServiceBrokerInformer.
+func (v *version) ClusterServiceBrokers() ClusterServiceBrokerInformer {
+	return &clusterServiceBrokerInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
-// Brokers returns a BrokerInformer.
-func (v *version) Brokers() BrokerInformer {
-	return &brokerInformer{factory: v.SharedInformerFactory}
+// ClusterServiceClasses returns a ClusterServiceClassInformer.
+func (v *version) ClusterServiceClasses() ClusterServiceClassInformer {
+	return &clusterServiceClassInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
-// Instances returns a InstanceInformer.
-func (v *version) Instances() InstanceInformer {
-	return &instanceInformer{factory: v.SharedInformerFactory}
+// ClusterServicePlans returns a ClusterServicePlanInformer.
+func (v *version) ClusterServicePlans() ClusterServicePlanInformer {
+	return &clusterServicePlanInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
-// ServiceClasses returns a ServiceClassInformer.
-func (v *version) ServiceClasses() ServiceClassInformer {
-	return &serviceClassInformer{factory: v.SharedInformerFactory}
+// ServiceBindings returns a ServiceBindingInformer.
+func (v *version) ServiceBindings() ServiceBindingInformer {
+	return &serviceBindingInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// ServiceInstances returns a ServiceInstanceInformer.
+func (v *version) ServiceInstances() ServiceInstanceInformer {
+	return &serviceInstanceInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

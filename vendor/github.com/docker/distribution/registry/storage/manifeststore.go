@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"github.com/docker/distribution"
 	"github.com/docker/distribution/context"
-	"github.com/docker/distribution/digest"
 	"github.com/docker/distribution/manifest"
 	"github.com/docker/distribution/manifest/manifestlist"
 	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/manifest/schema2"
+	"github.com/opencontainers/go-digest"
 )
 
 // A ManifestHandler gets and puts manifests of a particular type.
@@ -123,7 +123,7 @@ func (ms *manifestStore) Put(ctx context.Context, manifest distribution.Manifest
 	return "", fmt.Errorf("unrecognized manifest type %T", manifest)
 }
 
-// Delete removes the revision of the specified manfiest.
+// Delete removes the revision of the specified manifest.
 func (ms *manifestStore) Delete(ctx context.Context, dgst digest.Digest) error {
 	context.GetLogger(ms.ctx).Debug("(*manifestStore).Delete")
 	return ms.blobStore.Delete(ctx, dgst)

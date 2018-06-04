@@ -91,9 +91,8 @@ func (g *schemaGenerator) qualifiedName(t reflect.Type) string {
 		prefix = strings.Replace(prefix, ".", "_", -1)
 		prefix = strings.Replace(prefix, "-", "_", -1)
 		return prefix + "_" + t.Name()
-	} else {
-		return pkgDesc.Prefix + t.Name()
 	}
+	return pkgDesc.Prefix + t.Name()
 }
 
 func (g *schemaGenerator) resourceDetails(t reflect.Type) string {
@@ -149,48 +148,46 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 	//because both classes are different
 
 	if t.Kind() == reflect.Struct && ok {
-	    if g.qualifiedName(t) == "kubernetes_extensions_RunAsUserStrategyOptions" {
-	        return pkgDesc.JavaPackage + "." + "Kubernetes" + t.Name()
-	    } else {
-		    switch t.Name() {
-		    case "Time":
-		       	return "String"
-		    case "RawExtension":
-		    	return "io.fabric8.kubernetes.api.model.HasMetadata"
-		    case "List":
-		    	return pkgDesc.JavaPackage + ".BaseKubernetesList"
-		    default:
-		    	return pkgDesc.JavaPackage + "." + t.Name()
-		    }
+		if g.qualifiedName(t) == "kubernetes_extensions_RunAsUserStrategyOptions" {
+			return pkgDesc.JavaPackage + "." + "Kubernetes" + t.Name()
 		}
-	} else {
-		switch t.Kind() {
-		case reflect.Bool:
-			return "bool"
-		case reflect.Int, reflect.Int8, reflect.Int16,
-			reflect.Int32, reflect.Uint,
-			reflect.Uint8, reflect.Uint16, reflect.Uint32:
-			return "int"
-		case reflect.Int64, reflect.Uint64:
-			return "Long"
-		case reflect.Float32, reflect.Float64, reflect.Complex64,
-			reflect.Complex128:
-			return "double"
-		case reflect.String:
+		switch t.Name() {
+		case "Time":
 			return "String"
-		case reflect.Array, reflect.Slice:
-			return g.javaTypeArrayList(t.Elem())
-		case reflect.Map:
-			return "java.util.Map<String," + g.javaTypeWrapPrimitive(t.Elem()) + ">"
+		case "RawExtension":
+			return "io.fabric8.kubernetes.api.model.HasMetadata"
+		case "List":
+			return pkgDesc.JavaPackage + ".BaseKubernetesList"
 		default:
-			if t.Name() == "Time" {
-				return "String"
-			}
-			if len(t.Name()) == 0 && t.NumField() == 0 {
-				return "Object"
-			}
-			return t.Name()
+			return pkgDesc.JavaPackage + "." + t.Name()
 		}
+	}
+	switch t.Kind() {
+	case reflect.Bool:
+		return "bool"
+	case reflect.Int, reflect.Int8, reflect.Int16,
+		reflect.Int32, reflect.Uint,
+		reflect.Uint8, reflect.Uint16, reflect.Uint32:
+		return "int"
+	case reflect.Int64, reflect.Uint64:
+		return "Long"
+	case reflect.Float32, reflect.Float64, reflect.Complex64,
+		reflect.Complex128:
+		return "double"
+	case reflect.String:
+		return "String"
+	case reflect.Array, reflect.Slice:
+		return g.javaTypeArrayList(t.Elem())
+	case reflect.Map:
+		return "java.util.Map<String," + g.javaTypeWrapPrimitive(t.Elem()) + ">"
+	default:
+		if t.Name() == "Time" {
+			return "String"
+		}
+		if len(t.Name()) == 0 && t.NumField() == 0 {
+			return "Object"
+		}
+		return t.Name()
 	}
 }
 
@@ -251,8 +248,8 @@ func (g *schemaGenerator) generate(t reflect.Type) (*JSONSchema, error) {
 			for DockerImageData which will be of Raw Extension Java Type and the problem of marshalling
 			get Resolved. This will be applied to DockerMetadata only and all the other will refer to
 			original RawExtension which is of HasMetadata Java Type.*/
-			if name == "k8s_io_apimachinery_pkg_runtime_RawExtension" {
-				dockermetadata_name := "k8s_io_apimachinery_pkg_runtime_ImageRawExtension"
+			if name == "kubernetes_apimachinery_pkg_runtime_RawExtension" {
+				dockermetadata_name := "kubernetes_apimachinery_pkg_runtime_ImageRawExtension"
 				dockermetadata_resource := "imagerawextension"
 				dockermetadata_value := JSONPropertyDescriptor{
 					JSONDescriptor: &JSONDescriptor{
@@ -337,17 +334,16 @@ func (g *schemaGenerator) getPropertyDescriptor(t reflect.Type, desc string, omi
 					Description: desc,
 				},
 			}
-		} else {
-			return JSONPropertyDescriptor{
-				JSONDescriptor: &JSONDescriptor{
-					Type:        "array",
-					Description: desc,
-					JavaOmitEmpty: omitEmpty,
-				},
-				JSONArrayDescriptor: &JSONArrayDescriptor{
-					Items: g.getPropertyDescriptor(t.Elem(), desc, false),
-				},
-			}
+		}
+		return JSONPropertyDescriptor{
+			JSONDescriptor: &JSONDescriptor{
+				Type:          "array",
+				Description:   desc,
+				JavaOmitEmpty: omitEmpty,
+			},
+			JSONArrayDescriptor: &JSONArrayDescriptor{
+				Items: g.getPropertyDescriptor(t.Elem(), desc, false),
+			},
 		}
 	case reflect.Map:
 		return JSONPropertyDescriptor{
@@ -401,7 +397,7 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 		if t.Name() == "Image" && name == "dockerImageMetadata" {
 			prop := JSONPropertyDescriptor{
 				JSONReferenceDescriptor: &JSONReferenceDescriptor{
-					Reference: "#/definitions/k8s_io_apimachinery_pkg_runtime_ImageRawExtension",
+					Reference: "#/definitions/kubernetes_apimachinery_pkg_runtime_ImageRawExtension",
 				},
 				JavaTypeDescriptor: &JavaTypeDescriptor{
 					JavaType: "io.fabric8.kubernetes.api.model.runtime.RawExtension",
@@ -439,23 +435,23 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 					apiVersion := filepath.Base(path)
 					apiGroup := filepath.Base(strings.TrimSuffix(path, apiVersion))
 
- 					pkgDesc, ok := g.packages[path]
+					pkgDesc, ok := g.packages[path]
 					if ok && pkgDesc.ApiGroup != "" {
 						apiGroup = pkgDesc.ApiGroup
 					}
 
 					if apiGroup != "api" {
 						groupPostfix := ""
-						if strings.HasPrefix(path, "github.com/openshift/origin/pkg/") {
+						if strings.HasPrefix(path, "github.com/openshift/") {
 							groupPostfix = ".openshift.io"
 						}
 
 						//Added a special case for SecurityContextConstraints and SecurityContextConstraintsList
 						//Because its fetching "security.openshift.io/v1"
 						//and "v1" is working with kubernetes-client
-						 
+
 						if t.Name() != "SecurityContextConstraints" && t.Name() != "SecurityContextConstraintsList" {
-						    apiVersion = apiGroup + groupPostfix + "/" + apiVersion
+							apiVersion = apiGroup + groupPostfix + "/" + apiVersion
 						}
 					}
 					v = JSONPropertyDescriptor{
@@ -481,6 +477,14 @@ func (g *schemaGenerator) getStructProperties(t reflect.Type) map[string]JSONPro
 }
 
 func (g *schemaGenerator) generateObjectDescriptor(t reflect.Type) *JSONObjectDescriptor {
+	// Added special case for JSONSchemaProps becuase it has
+	// already a field by name additionalProperty
+
+	if t.Name() == "JSONSchemaProps" {
+		desc := JSONObjectDescriptor{AdditionalProperties: false}
+		desc.Properties = g.getStructProperties(t)
+		return &desc
+	}
 	desc := JSONObjectDescriptor{AdditionalProperties: true}
 	desc.Properties = g.getStructProperties(t)
 	return &desc

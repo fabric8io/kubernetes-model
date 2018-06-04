@@ -17,11 +17,6 @@ os::log::system::start
 
 os::util::ensure::iptables_privileges_exist
 
-# Allow setting $JUNIT_REPORT to toggle output behavior
-if [[ -n "${JUNIT_REPORT:-}" ]]; then
-    export JUNIT_REPORT_OUTPUT="${LOG_DIR}/raw_test_output.log"
-fi
-
 # Always keep containers' raw output for simplicity
 junit_gssapi_output="${LOG_DIR}/raw_test_output_gssapi.log"
 
@@ -50,13 +45,8 @@ backend='https://openshift.default.svc.cluster.local:443'
 
 oauth_patch="$(sed "s/HOST_NAME/${host}/" "${test_data_location}/config/oauth_config.json")"
 cp "${SERVER_CONFIG_DIR}/master/master-config.yaml" "${SERVER_CONFIG_DIR}/master/master-config.tmp.yaml"
-openshift ex config patch "${SERVER_CONFIG_DIR}/master/master-config.tmp.yaml" --patch="${oauth_patch}" > "${SERVER_CONFIG_DIR}/master/master-config.yaml"
+oc ex config patch "${SERVER_CONFIG_DIR}/master/master-config.tmp.yaml" --patch="${oauth_patch}" > "${SERVER_CONFIG_DIR}/master/master-config.yaml"
 os::start::server
-
-# Allow setting $JUNIT_REPORT to toggle output behavior
-if [[ -n "${JUNIT_REPORT:-}" ]]; then
-	export JUNIT_REPORT_OUTPUT="${LOG_DIR}/raw_test_output.log"
-fi
 
 export KUBECONFIG="${ADMIN_KUBECONFIG}"
 
@@ -86,15 +76,15 @@ for os_image in "${os_images[@]}"; do
             os::cmd::expect_success 'cp ../../scripts/test-wrapper.sh .'
             os::cmd::expect_success 'cp ../../scripts/gssapi-tests.sh .'
             os::cmd::expect_success 'cp ../../config/kubeconfig .'
-            os::cmd::expect_success "docker build --build-arg REALM='${realm}' --build-arg HOST='${host}' -t '${project_name}/${os_image}-gssapi-base:latest' ."
+            os::cmd::expect_success "docker build --build-arg REALM='${realm}' --build-arg HOST='${host}' -t 'docker.io/${project_name}/${os_image}-gssapi-base:latest' ."
         popd > /dev/null
 
         pushd kerberos > /dev/null
-            os::cmd::expect_success "docker build -t '${project_name}/${os_image}-gssapi-kerberos:latest' ."
+            os::cmd::expect_success "docker build -t 'docker.io/${project_name}/${os_image}-gssapi-kerberos:latest' ."
         popd > /dev/null
 
         pushd kerberos_configured > /dev/null
-            os::cmd::expect_success "docker build -t '${project_name}/${os_image}-gssapi-kerberos-configured:latest' ."
+            os::cmd::expect_success "docker build -t 'docker.io/${project_name}/${os_image}-gssapi-kerberos-configured:latest' ."
         popd > /dev/null
 
     popd > /dev/null
@@ -116,11 +106,11 @@ function run_gssapi_tests() {
     local server_config="${2}"
     local container_exit_code_jsonpath='{.status.containerStatuses[0].state.terminated.exitCode}'
     local pod_log_location="${LOG_DIR}/${image_name}-${server_config}.log"
-    oc run "${image_name}"                                  \
-            --image="${project_name}/${image_name}"         \
-            --generator=run-pod/v1 --restart=Never --attach \
-            --env=SERVER="${server_config}"                 \
-            1> "${pod_log_location}"                        \
+    oc run "${image_name}"                                    \
+            --image="docker.io/${project_name}/${image_name}" \
+            --generator=run-pod/v1 --restart=Never --attach   \
+            --env=SERVER="${server_config}"                   \
+            1> "${pod_log_location}"                          \
             2>> "${junit_gssapi_output}"
     # Lots of checks to really make sure that the tests ran successfully
     os::cmd::expect_success_and_text "cat ${pod_log_location}" 'SUCCESS'

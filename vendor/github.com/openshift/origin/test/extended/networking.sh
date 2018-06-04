@@ -16,7 +16,7 @@ export SHELLOPTS
 #
 # The EmptyDir test is a canary; it will fail if mount propagation is
 # not properly configured on the host.
-NETWORKING_E2E_FOCUS="${NETWORKING_E2E_FOCUS:-etworking|Feature:OSNetworkPolicy|EmptyDir volumes should support \(root,0644,tmpfs\)}"
+NETWORKING_E2E_FOCUS="${NETWORKING_E2E_FOCUS:-etworking|Services should be able to create a functioning NodePort service|Feature:OSNetworkPolicy|EmptyDir volumes should support \(root,0644,tmpfs\)}"
 NETWORKING_E2E_SKIP="${NETWORKING_E2E_SKIP:-}"
 
 DEFAULT_SKIP_LIST=(
@@ -368,9 +368,9 @@ else
 
   # Allow setting $JUNIT_REPORT to toggle output behavior
   if [[ -n "${JUNIT_REPORT:-}" ]]; then
-    export JUNIT_REPORT_OUTPUT="${LOG_DIR}/raw_test_output.log"
     # the Ginkgo tests also generate jUnit but expect different envars
-    export TEST_REPORT_DIR="${ARTIFACT_DIR}"
+    export TEST_REPORT_DIR="${ARTIFACT_DIR}/junit"
+    mkdir -p $TEST_REPORT_DIR
   fi
 
   os::log::system::start

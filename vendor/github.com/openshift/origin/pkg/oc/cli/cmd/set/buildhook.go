@@ -14,8 +14,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	cmdutil "github.com/openshift/origin/pkg/cmd/util"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 var (
@@ -95,7 +94,7 @@ func NewCmdBuildHook(fullName string, f *clientcmd.Factory, out, errOut io.Write
 			kcmdutil.CheckErr(options.Validate())
 			if err := options.Run(); err != nil {
 				// TODO: move me to kcmdutil
-				if err == cmdutil.ErrExit {
+				if err == kcmdutil.ErrExit {
 					os.Exit(1)
 				}
 				kcmdutil.CheckErr(err)
@@ -127,7 +126,7 @@ func (o *BuildHookOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, ar
 		o.Command = args[i:]
 	}
 	if len(o.Filenames) == 0 && len(args) < 1 {
-		return kcmdutil.UsageError(cmd, "one or more build configs must be specified as <name> or <resource>/<name>")
+		return kcmdutil.UsageErrorf(cmd, "one or more build configs must be specified as <name> or <resource>/<name>")
 	}
 
 	cmdNamespace, explicit, err := f.DefaultNamespace()
@@ -138,17 +137,19 @@ func (o *BuildHookOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, ar
 	o.Cmd = cmd
 
 	mapper, _ := f.Object()
-	o.Builder = f.NewBuilder(!o.Local).
+	o.Builder = f.NewBuilder().
+		Internal().
+		LocalParam(o.Local).
 		ContinueOnError().
 		NamespaceParam(cmdNamespace).DefaultNamespace().
 		FilenameParam(explicit, &resource.FilenameOptions{Recursive: false, Filenames: o.Filenames}).
-		SelectorParam(o.Selector).
+		LabelSelectorParam(o.Selector).
 		ResourceNames("buildconfigs", resources...).
 		Flatten()
 
 	if !o.Local {
 		o.Builder = o.Builder.
-			SelectorParam(o.Selector).
+			LabelSelectorParam(o.Selector).
 			ResourceNames("buildconfigs", resources...)
 		if o.All {
 			o.Builder.ResourceTypes("buildconfigs").SelectAllParam(o.All)
@@ -246,7 +247,7 @@ func (o *BuildHookOptions) Run() error {
 		kcmdutil.PrintSuccess(o.Mapper, o.ShortOutput, o.Out, info.Mapping.Resource, info.Name, false, "updated")
 	}
 	if failed {
-		return cmdutil.ErrExit
+		return kcmdutil.ErrExit
 	}
 	return nil
 }

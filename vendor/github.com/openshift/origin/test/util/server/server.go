@@ -17,33 +17,33 @@ import (
 
 	"github.com/golang/glog"
 
-	etcdclient "github.com/coreos/etcd/client"
 	etcdclientv3 "github.com/coreos/etcd/clientv3"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	knet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/wait"
+	kubeclient "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
-	"github.com/openshift/origin/pkg/client"
+	authorizationclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset"
 	"github.com/openshift/origin/pkg/cmd/server/admin"
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
 	"github.com/openshift/origin/pkg/cmd/server/etcd"
-	kubernetes "github.com/openshift/origin/pkg/cmd/server/kubernetes/node"
 	"github.com/openshift/origin/pkg/cmd/server/start"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	utilflags "github.com/openshift/origin/pkg/cmd/util/flags"
 	newproject "github.com/openshift/origin/pkg/oc/admin/project"
+	projectclient "github.com/openshift/origin/pkg/project/generated/internalclientset/typed/project/internalversion"
 	"github.com/openshift/origin/test/util"
 
 	// install all APIs
 
 	_ "github.com/openshift/origin/pkg/api/install"
 	"github.com/openshift/origin/pkg/cmd/server/crypto"
-	_ "k8s.io/kubernetes/pkg/api/install"
+	_ "k8s.io/kubernetes/pkg/apis/core/install"
 	_ "k8s.io/kubernetes/pkg/apis/extensions/install"
 )
 
@@ -112,7 +112,7 @@ func FindAvailableBindAddress(lowPort, highPort int) (string, error) {
 	return "", fmt.Errorf("Could not find available port in the range %d-%d", lowPort, highPort)
 }
 
-func setupStartOptions(startEtcd, useDefaultPort bool) (*start.MasterArgs, *start.NodeArgs, *start.ListenArg, *start.ImageFormatArgs, *start.KubeConnectionArgs) {
+func setupStartOptions(useDefaultPort bool) (*start.MasterArgs, *start.NodeArgs, *start.ListenArg, *start.ImageFormatArgs, *start.KubeConnectionArgs) {
 	masterArgs, nodeArgs, listenArg, imageFormatArgs, kubeConnectionArgs := start.GetAllInOneArgs()
 
 	basedir := util.GetBaseDir()
@@ -154,11 +154,6 @@ func setupStartOptions(startEtcd, useDefaultPort bool) (*start.MasterArgs, *star
 		nodeArgs.ListenArg.ListenAddr.Set(nodeAddr)
 	}
 
-	if !startEtcd {
-		masterArgs.EtcdAddr.Provided = true
-		masterArgs.EtcdAddr.Set(util.GetEtcdURL())
-	}
-
 	dnsAddr := os.Getenv("OS_DNS_ADDR")
 	if len(dnsAddr) == 0 {
 		if addr, err := FindAvailableBindAddress(10000, 29999); err != nil {
@@ -173,12 +168,12 @@ func setupStartOptions(startEtcd, useDefaultPort bool) (*start.MasterArgs, *star
 }
 
 func DefaultMasterOptions() (*configapi.MasterConfig, error) {
-	return DefaultMasterOptionsWithTweaks(true, false)
+	return DefaultMasterOptionsWithTweaks(false)
 }
 
-func DefaultMasterOptionsWithTweaks(startEtcd, useDefaultPort bool) (*configapi.MasterConfig, error) {
+func DefaultMasterOptionsWithTweaks(useDefaultPort bool) (*configapi.MasterConfig, error) {
 	startOptions := start.MasterOptions{}
-	startOptions.MasterArgs, _, _, _, _ = setupStartOptions(startEtcd, useDefaultPort)
+	startOptions.MasterArgs, _, _, _, _ = setupStartOptions(useDefaultPort)
 	startOptions.Complete()
 	// reset, since Complete alters the default
 	startOptions.MasterArgs.ConfigDir.Default(path.Join(util.GetBaseDir(), "openshift.local.config", "master"))
@@ -190,6 +185,10 @@ func DefaultMasterOptionsWithTweaks(startEtcd, useDefaultPort bool) (*configapi.
 	masterConfig, err := startOptions.MasterArgs.BuildSerializeableMasterConfig()
 	if err != nil {
 		return nil, err
+	}
+
+	if masterConfig.AdmissionConfig.PluginConfig == nil {
+		masterConfig.AdmissionConfig.PluginConfig = make(map[string]*configapi.AdmissionPluginConfig)
 	}
 
 	if masterConfig.EtcdConfig != nil {
@@ -208,12 +207,14 @@ func DefaultMasterOptionsWithTweaks(startEtcd, useDefaultPort bool) (*configapi.
 		masterConfig.EtcdClientInfo.URLs = []string{"https://" + masterConfig.EtcdConfig.Address}
 	}
 
-	masterConfig.DisableOpenAPI = true
 	masterConfig.ImagePolicyConfig.ScheduledImageImportMinimumIntervalSeconds = 1
 	allowedRegistries := append(
 		*configapi.DefaultAllowedRegistriesForImport,
 		configapi.RegistryLocation{DomainName: "127.0.0.1:*"},
 	)
+	for r := range util.GetAdditionalAllowedRegistries() {
+		allowedRegistries = append(allowedRegistries, configapi.RegistryLocation{DomainName: r})
+	}
 	masterConfig.ImagePolicyConfig.AllowedRegistriesForImport = &allowedRegistries
 
 	// force strict handling of service account secret references by default, so that all our examples and controllers will handle it.
@@ -292,7 +293,7 @@ func CreateNodeCerts(nodeArgs *start.NodeArgs, masterURL string) error {
 
 func DefaultAllInOneOptions() (*configapi.MasterConfig, *configapi.NodeConfig, *utilflags.ComponentFlag, error) {
 	startOptions := start.AllInOneOptions{MasterOptions: &start.MasterOptions{}, NodeArgs: &start.NodeArgs{}}
-	startOptions.MasterOptions.MasterArgs, startOptions.NodeArgs, _, _, _ = setupStartOptions(true, false)
+	startOptions.MasterOptions.MasterArgs, startOptions.NodeArgs, _, _, _ = setupStartOptions(false)
 	startOptions.NodeArgs.AllowDisabledDocker = true
 	startOptions.NodeArgs.Components.Disable("plugins", "proxy", "dns")
 	startOptions.ServiceNetworkCIDR = start.NewDefaultNetworkArgs().ServiceNetworkCIDR
@@ -314,8 +315,6 @@ func DefaultAllInOneOptions() (*configapi.MasterConfig, *configapi.NodeConfig, *
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
-	masterConfig.DisableOpenAPI = true
 
 	if masterConfig.EtcdConfig != nil {
 		addr, err := FindAvailableBindAddress(10000, 29999)
@@ -373,24 +372,20 @@ func StartTestAllInOne() (*configapi.MasterConfig, *configapi.NodeConfig, string
 	return master, node, adminKubeConfigFile, err
 }
 
-func MasterEtcdClients(config *configapi.MasterConfig) (etcdclient.Client, *etcdclientv3.Client, error) {
-	etcd2, err := etcd.MakeEtcdClient(config.EtcdClientInfo)
-	if err != nil {
-		return nil, nil, err
-	}
+func MasterEtcdClients(config *configapi.MasterConfig) (*etcdclientv3.Client, error) {
 	etcd3, err := etcd.MakeEtcdClientV3(config.EtcdClientInfo)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return etcd2, etcd3, nil
+	return etcd3, nil
 }
 
 func CleanupMasterEtcd(t *testing.T, config *configapi.MasterConfig) {
-	etcd2, etcd3, err := MasterEtcdClients(config)
+	etcd3, err := MasterEtcdClients(config)
 	if err != nil {
 		t.Logf("Unable to get etcd client available for master: %v", err)
 	}
-	util.DumpEtcdOnFailure(t, etcd2, etcd3)
+	dumpEtcdOnFailure(t, etcd3)
 	if config.EtcdConfig != nil {
 		if len(config.EtcdConfig.StorageDir) > 0 {
 			if err := os.RemoveAll(config.EtcdConfig.StorageDir); err != nil {
@@ -400,18 +395,8 @@ func CleanupMasterEtcd(t *testing.T, config *configapi.MasterConfig) {
 	}
 }
 
-type TestOptions struct {
-	EnableControllers bool
-}
-
-func DefaultTestOptions() TestOptions {
-	return TestOptions{EnableControllers: true}
-}
-
 func StartConfiguredNode(nodeConfig *configapi.NodeConfig, components *utilflags.ComponentFlag) error {
 	guardNode()
-	kubernetes.SetFakeCadvisorInterfaceForIntegrationTest()
-	kubernetes.SetFakeContainerManagerInterfaceForIntegrationTest()
 
 	_, nodePort, err := net.SplitHostPort(nodeConfig.ServingInfo.BindAddress)
 	if err != nil {
@@ -431,21 +416,25 @@ func StartConfiguredNode(nodeConfig *configapi.NodeConfig, components *utilflags
 }
 
 func StartConfiguredMaster(masterConfig *configapi.MasterConfig) (string, error) {
-	return StartConfiguredMasterWithOptions(masterConfig, DefaultTestOptions())
+	return StartConfiguredMasterWithOptions(masterConfig)
 }
 
 func StartConfiguredMasterAPI(masterConfig *configapi.MasterConfig) (string, error) {
-	options := DefaultTestOptions()
-	options.EnableControllers = false
-	return StartConfiguredMasterWithOptions(masterConfig, options)
+	// we need to unconditionally start this controller for rbac permissions to work
+	if masterConfig.KubernetesMasterConfig.ControllerArguments == nil {
+		masterConfig.KubernetesMasterConfig.ControllerArguments = map[string][]string{}
+	}
+	masterConfig.KubernetesMasterConfig.ControllerArguments["controllers"] = append(masterConfig.KubernetesMasterConfig.ControllerArguments["controllers"], "serviceaccount-token", "clusterrole-aggregation")
+
+	return StartConfiguredMasterWithOptions(masterConfig)
 }
 
-func StartConfiguredMasterWithOptions(masterConfig *configapi.MasterConfig, testOptions TestOptions) (string, error) {
+func StartConfiguredMasterWithOptions(masterConfig *configapi.MasterConfig) (string, error) {
 	guardMaster()
 	if masterConfig.EtcdConfig != nil && len(masterConfig.EtcdConfig.StorageDir) > 0 {
 		os.RemoveAll(masterConfig.EtcdConfig.StorageDir)
 	}
-	if err := start.NewMaster(masterConfig, testOptions.EnableControllers, true).Start(); err != nil {
+	if err := start.NewMaster(masterConfig, true /* always needed for cluster role aggregation */, true).Start(); err != nil {
 		return "", err
 	}
 	adminKubeConfigFile := util.KubeConfigPath()
@@ -464,9 +453,9 @@ func StartConfiguredMasterWithOptions(masterConfig *configapi.MasterConfig, test
 	}
 
 	var healthzResponse string
-	err = wait.Poll(100*time.Millisecond, 10*time.Second, func() (bool, error) {
+	err = wait.Poll(time.Second, time.Minute, func() (bool, error) {
 		var healthy bool
-		healthy, healthzResponse, err = IsServerHealthy(*masterURL)
+		healthy, healthzResponse, err = IsServerHealthy(*masterURL, masterConfig.OAuthConfig != nil)
 		if err != nil {
 			return false, err
 		}
@@ -479,17 +468,68 @@ func StartConfiguredMasterWithOptions(masterConfig *configapi.MasterConfig, test
 		return "", err
 	}
 
+	// wait until the cluster roles have been aggregated
+	clusterAdminClientConfig, err := util.GetClusterAdminClientConfig(adminKubeConfigFile)
+	if err != nil {
+		return "", err
+	}
+	err = wait.Poll(time.Second, time.Minute, func() (bool, error) {
+		kubeClient, err := kubeclient.NewForConfig(clusterAdminClientConfig)
+		if err != nil {
+			return false, err
+		}
+		admin, err := kubeClient.RbacV1().ClusterRoles().Get("admin", metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		if len(admin.Rules) == 0 {
+			return false, nil
+		}
+		edit, err := kubeClient.RbacV1().ClusterRoles().Get("edit", metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		if len(edit.Rules) == 0 {
+			return false, nil
+		}
+		view, err := kubeClient.RbacV1().ClusterRoles().Get("view", metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		if len(view.Rules) == 0 {
+			return false, nil
+		}
+
+		return true, nil
+	})
+	if err == wait.ErrWaitTimeout {
+		return "", fmt.Errorf("server did not become healthy: %v", healthzResponse)
+	}
+	if err != nil {
+		return "", err
+	}
+
 	return adminKubeConfigFile, nil
 }
 
-func IsServerHealthy(url url.URL) (bool, string, error) {
+func IsServerHealthy(url url.URL, checkOAuth bool) (bool, string, error) {
+	healthy, healthzResponse, err := isServerPathHealthy(url, "/healthz", http.StatusOK)
+	if err != nil || !healthy || !checkOAuth {
+		return healthy, healthzResponse, err
+	}
+	// As a special case, check this endpoint as well since the OAuth server is not part of the /healthz check
+	// Whenever the OAuth server gets split out, it would have its own /healthz and post start hooks to handle this
+	return isServerPathHealthy(url, "/oauth/token/request", http.StatusFound)
+}
+
+func isServerPathHealthy(url url.URL, path string, code int) (bool, string, error) {
 	transport := knet.SetTransportDefaults(&http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
 		},
 	})
 
-	url.Path = "/healthz"
+	url.Path = path
 	req, err := http.NewRequest("GET", url.String(), nil)
 	req.Header.Set("Accept", "text/html")
 	resp, err := transport.RoundTrip(req)
@@ -499,7 +539,7 @@ func IsServerHealthy(url url.URL) (bool, string, error) {
 	defer resp.Body.Close()
 	content, _ := ioutil.ReadAll(resp.Body)
 
-	return resp.StatusCode == http.StatusOK, string(content), nil
+	return resp.StatusCode == code, string(content), nil
 }
 
 // StartTestMaster starts up a test master and returns back the startOptions so you can get clients and certs
@@ -597,18 +637,30 @@ func WaitForServiceAccounts(clientset kclientset.Interface, namespace string, ac
 
 // CreateNewProject creates a new project using the clusterAdminClient, then gets a token for the adminUser and returns
 // back a client for the admin user
-func CreateNewProject(clusterAdminClient *client.Client, clientConfig restclient.Config, projectName, adminUser string) (*client.Client, error) {
+func CreateNewProject(clientConfig *restclient.Config, projectName, adminUser string) (kclientset.Interface, *restclient.Config, error) {
+	projectClient, err := projectclient.NewForConfig(clientConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	authorizationClient, err := authorizationclient.NewForConfig(clientConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	authorizationInterface := authorizationClient.Authorization()
+
 	newProjectOptions := &newproject.NewProjectOptions{
-		Client:      clusterAdminClient,
-		ProjectName: projectName,
-		AdminRole:   bootstrappolicy.AdminRoleName,
-		AdminUser:   adminUser,
+		ProjectClient:     projectClient,
+		RoleBindingClient: authorizationInterface,
+		SARClient:         authorizationInterface.SubjectAccessReviews(),
+		ProjectName:       projectName,
+		AdminRole:         bootstrappolicy.AdminRoleName,
+		AdminUser:         adminUser,
 	}
 
 	if err := newProjectOptions.Run(false); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	client, _, _, err := util.GetClientForUser(clientConfig, adminUser)
-	return client, err
+	kubeClient, config, err := util.GetClientForUser(clientConfig, adminUser)
+	return kubeClient, config, err
 }

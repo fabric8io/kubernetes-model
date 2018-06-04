@@ -9,7 +9,7 @@ import (
 
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 )
 
 func TestFormatImageStreamTags(t *testing.T) {
@@ -49,6 +49,7 @@ func TestFormatImageStreamTags(t *testing.T) {
 					},
 					Reference: true,
 				},
+				"spec5": {},
 			},
 		},
 		Status: imageapi.ImageStreamStatus{
@@ -118,9 +119,10 @@ func TestFormatImageStreamTags(t *testing.T) {
 	t.Logf("\n%s", actual)
 
 	for _, s := range []string{
-		"pushed image",
+		"no spec tag",
+		"tag without source image",
 		"Unique Images:\t3",
-		"Tags:\t\t5",
+		"Tags:\t\t6",
 		"* registry:5000/foo/bar@sha256:4bd26",
 		"registry:5000/foo/bar@sha256:062b80",
 		"tagged from foo/bar:latest",

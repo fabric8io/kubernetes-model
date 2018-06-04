@@ -5,7 +5,6 @@ import (
 
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
-	kauthorizer "k8s.io/apiserver/pkg/authorization/authorizer"
 	rbaclisters "k8s.io/kubernetes/pkg/client/listers/rbac/internalversion"
 	authorizerrbac "k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac"
 
@@ -14,25 +13,24 @@ import (
 )
 
 type scopeAuthorizer struct {
-	delegate          kauthorizer.Authorizer
 	clusterRoleGetter rbaclisters.ClusterRoleLister
 
 	forbiddenMessageMaker defaultauthorizer.ForbiddenMessageMaker
 }
 
-func NewAuthorizer(delegate kauthorizer.Authorizer, clusterRoleGetter rbaclisters.ClusterRoleLister, forbiddenMessageMaker defaultauthorizer.ForbiddenMessageMaker) authorizer.Authorizer {
-	return &scopeAuthorizer{delegate: delegate, clusterRoleGetter: clusterRoleGetter, forbiddenMessageMaker: forbiddenMessageMaker}
+func NewAuthorizer(clusterRoleGetter rbaclisters.ClusterRoleLister, forbiddenMessageMaker defaultauthorizer.ForbiddenMessageMaker) authorizer.Authorizer {
+	return &scopeAuthorizer{clusterRoleGetter: clusterRoleGetter, forbiddenMessageMaker: forbiddenMessageMaker}
 }
 
-func (a *scopeAuthorizer) Authorize(attributes authorizer.Attributes) (bool, string, error) {
+func (a *scopeAuthorizer) Authorize(attributes authorizer.Attributes) (authorizer.Decision, string, error) {
 	user := attributes.GetUser()
 	if user == nil {
-		return false, "", fmt.Errorf("user missing from context")
+		return authorizer.DecisionNoOpinion, "", fmt.Errorf("user missing from context")
 	}
 
 	scopes := user.GetExtra()[authorizationapi.ScopesKey]
 	if len(scopes) == 0 {
-		return a.delegate.Authorize(attributes)
+		return authorizer.DecisionNoOpinion, "", nil
 	}
 
 	nonFatalErrors := []error{}
@@ -45,7 +43,7 @@ func (a *scopeAuthorizer) Authorize(attributes authorizer.Attributes) (bool, str
 
 	// check rules against attributes
 	if authorizerrbac.RulesAllow(attributes, rules...) {
-		return a.delegate.Authorize(attributes)
+		return authorizer.DecisionNoOpinion, "", nil
 	}
 
 	denyReason, err := a.forbiddenMessageMaker.MakeMessage(attributes)
@@ -53,5 +51,6 @@ func (a *scopeAuthorizer) Authorize(attributes authorizer.Attributes) (bool, str
 		denyReason = err.Error()
 	}
 
-	return false, fmt.Sprintf("scopes %v prevent this action; %v", scopes, denyReason), kerrors.NewAggregate(nonFatalErrors)
+	// the scope prevent this.  We need to authoritatively deny
+	return authorizer.DecisionDeny, fmt.Sprintf("scopes %v prevent this action; %v", scopes, denyReason), kerrors.NewAggregate(nonFatalErrors)
 }

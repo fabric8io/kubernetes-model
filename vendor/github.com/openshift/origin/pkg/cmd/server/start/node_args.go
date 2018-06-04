@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/url"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -18,8 +17,8 @@ import (
 	"k8s.io/kubernetes/pkg/master/ports"
 
 	"github.com/openshift/origin/pkg/cmd/server/admin"
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	configapiv1 "github.com/openshift/origin/pkg/cmd/server/api/v1"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
+	configapiv1 "github.com/openshift/origin/pkg/cmd/server/apis/config/v1"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	utilflags "github.com/openshift/origin/pkg/cmd/util/flags"
 )
@@ -53,11 +52,19 @@ type NodeArgs struct {
 	// Components is the set of enabled components.
 	Components *utilflags.ComponentFlag
 
+	// WriteFlagsOnly will print flags to run the Kubelet from the provided arguments rather than launching
+	// the Kubelet itself.
+	WriteFlagsOnly bool
+
 	// NodeName is the hostname to identify this node with the master.
 	NodeName string
 
 	// Bootstrap is true if the node should rely on the server to set initial configuration.
 	Bootstrap bool
+	// BootstrapConfigName is the name of a config map to read node-config.yaml from.
+	BootstrapConfigName string
+	// BootstrapConfigNamespace is the namespace the config map for bootstrap config is expected to load from.
+	BootstrapConfigNamespace string
 
 	MasterCertDir string
 	ConfigDir     flag.StringFlag
@@ -65,6 +72,8 @@ type NodeArgs struct {
 	AllowDisabledDocker bool
 	// VolumeDir is the volume storage directory.
 	VolumeDir string
+	// VolumeDirProvided is set to true if the user has specified this flag.
+	VolumeDirProvided bool
 
 	DefaultKubernetesURL *url.URL
 	ClusterDomain        string
@@ -129,6 +138,9 @@ func NewDefaultNodeArgs() *NodeArgs {
 
 		NodeName: hostname,
 
+		BootstrapConfigName:      "",
+		BootstrapConfigNamespace: "openshift-node",
+
 		MasterCertDir: "openshift.local.config/master",
 
 		ClusterDomain: cmdutil.Env("OPENSHIFT_DNS_DOMAIN", "cluster.local"),
@@ -151,6 +163,11 @@ func (args NodeArgs) Validate() error {
 	}
 	if addr, _ := args.KubeConnectionArgs.GetKubernetesAddress(args.DefaultKubernetesURL); addr == nil {
 		return errors.New("--kubeconfig must be set to provide API server connection information")
+	}
+	if len(args.BootstrapConfigName) > 0 {
+		if len(args.BootstrapConfigNamespace) == 0 {
+			return errors.New("--bootstrap-config-namespace must be specified")
+		}
 	}
 	return nil
 }
@@ -234,10 +251,12 @@ func (args NodeArgs) MergeSerializeableNodeConfig(config *configapi.NodeConfig) 
 	if len(args.NodeName) > 0 {
 		config.NodeName = args.NodeName
 	}
-
-	config.ServingInfo.BindAddress = net.JoinHostPort(args.ListenArg.ListenAddr.Host, strconv.Itoa(ports.KubeletPort))
-
-	config.VolumeDirectory = args.VolumeDir
+	if args.ListenArg.ListenAddr.Provided {
+		config.ServingInfo.BindAddress = net.JoinHostPort(args.ListenArg.ListenAddr.Host, strconv.Itoa(ports.KubeletPort))
+	}
+	if args.VolumeDirProvided {
+		config.VolumeDirectory = args.VolumeDir
+	}
 	config.AllowDisabledDocker = args.AllowDisabledDocker
 	return nil
 }
@@ -308,14 +327,4 @@ func defaultHostname() (string, error) {
 		return "", fmt.Errorf("Couldn't determine hostname: %v", err)
 	}
 	return strings.ToLower(strings.TrimSpace(string(fqdn))), nil
-}
-
-var invalidNameCharactersRegexp = regexp.MustCompile("[^-a-z0-9]")
-
-func safeSecretName(s string) string {
-	// Remove everything except [-0-9a-z]
-	s = invalidNameCharactersRegexp.ReplaceAllString(strings.ToLower(s), "-")
-	// Remove leading and trailing hyphen(s) that may be introduced by the previous step
-	s = strings.Trim(s, "-")
-	return s
 }

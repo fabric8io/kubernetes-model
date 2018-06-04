@@ -2,13 +2,14 @@ package rsync
 
 import (
 	"io"
+	"net/http"
 
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
-	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/transport/spdy"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 // portForwarder starts port forwarding to a given pod
@@ -33,10 +34,9 @@ func (f *portForwarder) ForwardPorts(ports []string, stopChan <-chan struct{}) e
 		Name(f.PodName).
 		SubResource("portforward")
 
-	dialer, err := remotecommand.NewExecutor(f.Config, "POST", req.URL())
-	if err != nil {
-		return err
-	}
+	transport, upgrader, err := spdy.RoundTripperFor(f.Config)
+	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, "POST", req.URL())
+
 	// TODO: Make os.Stdout/Stderr configurable
 	readyChan := make(chan struct{})
 	fw, err := portforward.New(dialer, ports, stopChan, readyChan, f.Out, f.ErrOut)

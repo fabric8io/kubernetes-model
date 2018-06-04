@@ -13,18 +13,19 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
+	"k8s.io/api/core/v1"
 	kapierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/v1"
-	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
-	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
+	clientset "k8s.io/client-go/kubernetes"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/client/conditions"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 
 	exutil "github.com/openshift/origin/test/extended/util"
 )
+
+const waitForPrometheusStartSeconds = 240
 
 var _ = g.Describe("[Feature:Prometheus][Conformance] Prometheus", func() {
 	defer g.GinkgoRecover()
@@ -36,41 +37,7 @@ var _ = g.Describe("[Feature:Prometheus][Conformance] Prometheus", func() {
 	)
 
 	g.BeforeEach(func() {
-		ns = oc.KubeFramework().Namespace.Name
-		host = "prometheus.kube-system.svc"
-		statsPort = 443
-		mustCreate := false
-		if _, err := oc.AdminKubeClient().Extensions().Deployments("kube-system").Get("prometheus", metav1.GetOptions{}); err != nil {
-			if !kapierrs.IsNotFound(err) {
-				o.Expect(err).NotTo(o.HaveOccurred())
-			}
-			mustCreate = true
-		}
-
-		if mustCreate {
-			e2e.Logf("Installing Prometheus onto the cluster for testing")
-			configPath := exutil.FixturePath("..", "..", "examples", "prometheus", "prometheus.yaml")
-			stdout, _, err := oc.WithoutNamespace().Run("process").Args("-f", configPath).Outputs()
-			o.Expect(err).NotTo(o.HaveOccurred())
-			err = oc.WithoutNamespace().AsAdmin().Run("create").Args("-f", "-").InputString(stdout).Execute()
-			o.Expect(err).NotTo(o.HaveOccurred())
-			e2e.WaitForDeploymentStatus(oc.AdminKubeClient(), &extensions.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "prometheus", Namespace: "kube-system"}})
-		}
-
-		waitForServiceAccountInNamespace(oc.AdminKubeClient(), "kube-system", "prometheus", 2*time.Minute)
-		secrets, err := oc.AdminKubeClient().Core().Secrets("kube-system").List(metav1.ListOptions{})
-		o.Expect(err).NotTo(o.HaveOccurred())
-		for _, secret := range secrets.Items {
-			if secret.Type != v1.SecretTypeServiceAccountToken {
-				continue
-			}
-			if !strings.HasPrefix(secret.Name, "prometheus-") {
-				continue
-			}
-			bearerToken = string(secret.Data[v1.ServiceAccountTokenKey])
-			break
-		}
-		o.Expect(bearerToken).ToNot(o.BeEmpty())
+		ns, host, bearerToken, statsPort = bringUpPrometheusFromTemplate(oc)
 	})
 
 	g.Describe("when installed to the cluster", func() {
@@ -83,27 +50,38 @@ var _ = g.Describe("[Feature:Prometheus][Conformance] Prometheus", func() {
 			g.By("checking the unsecured metrics path")
 			success := false
 			var metrics map[string]*dto.MetricFamily
-			for i := 0; i < 30; i++ {
+			for i := 0; i < waitForPrometheusStartSeconds; i++ {
 				results, err := getInsecureURLViaPod(ns, execPodName, fmt.Sprintf("https://%s:%d/metrics", host, statsPort))
 				if err != nil {
 					e2e.Logf("unable to get unsecured metrics: %v", err)
 					continue
 				}
-				//e2e.Logf("Metrics:\n%s", results)
 
 				p := expfmt.TextParser{}
 				metrics, err = p.TextToMetricFamilies(bytes.NewBufferString(results))
 				o.Expect(err).NotTo(o.HaveOccurred())
-
+				// original field in 2.0.0-beta
 				counts := findCountersWithLabels(metrics["tsdb_samples_appended_total"], labels{})
-				if len(counts) == 0 || counts[0] == 0 {
-					time.Sleep(time.Second)
-					continue
+				if len(counts) != 0 && counts[0] > 0 {
+					success = true
+					break
 				}
-				success = true
-				break
+				// 2.0.0-rc.0
+				counts = findCountersWithLabels(metrics["tsdb_head_samples_appended_total"], labels{})
+				if len(counts) != 0 && counts[0] > 0 {
+					success = true
+					break
+				}
+				// 2.0.0-rc.2
+				counts = findCountersWithLabels(metrics["prometheus_tsdb_head_samples_appended_total"], labels{})
+				if len(counts) != 0 && counts[0] > 0 {
+					success = true
+					break
+				}
+				time.Sleep(time.Second)
+				continue
 			}
-			o.Expect(success).To(o.BeTrue(), fmt.Sprintf("Did not find tsdb_samples_appended_total in:\n%#v,", metrics))
+			o.Expect(success).To(o.BeTrue(), fmt.Sprintf("Did not find tsdb_samples_appended_total, tsdb_head_samples_appended_total, or prometheus_tsdb_head_samples_appended_total in:\n%#v,", metrics))
 
 			g.By("verifying the oauth-proxy reports a 403 on the root URL")
 			err := expectURLStatusCodeExec(ns, execPodName, fmt.Sprintf("https://%s:%d", host, statsPort), 403)
@@ -116,7 +94,7 @@ var _ = g.Describe("[Feature:Prometheus][Conformance] Prometheus", func() {
 			g.By("verifying a service account token is able to access the Prometheus API")
 			// expect all endpoints within 60 seconds
 			var lastErrs []error
-			for i := 0; i < 60; i++ {
+			for i := 0; i < 120; i++ {
 				contents, err := getBearerTokenURLViaPod(ns, execPodName, fmt.Sprintf("https://%s:%d/api/v1/targets", host, statsPort), bearerToken)
 				o.Expect(err).NotTo(o.HaveOccurred())
 
@@ -313,4 +291,58 @@ func waitForServiceAccountInNamespace(c clientset.Interface, ns, serviceAccountN
 	}
 	_, err = watch.Until(timeout, w, conditions.ServiceAccountHasSecrets)
 	return err
+}
+
+func bringUpPrometheusFromTemplate(oc *exutil.CLI) (ns, host, bearerToken string, statsPort int) {
+	ns = oc.KubeFramework().Namespace.Name
+	host = "prometheus.kube-system.svc"
+	statsPort = 443
+	mustCreate := false
+	if _, err := oc.AdminKubeClient().Apps().StatefulSets("kube-system").Get("prometheus", metav1.GetOptions{}); err != nil {
+		if !kapierrs.IsNotFound(err) {
+			o.Expect(err).NotTo(o.HaveOccurred())
+		}
+		mustCreate = true
+	}
+
+	if mustCreate {
+		e2e.Logf("Installing Prometheus onto the cluster for testing")
+		configPath := exutil.FixturePath("..", "..", "examples", "prometheus", "prometheus.yaml")
+		stdout, _, err := oc.WithoutNamespace().Run("process").Args("-f", configPath).Outputs()
+		o.Expect(err).NotTo(o.HaveOccurred())
+		err = oc.WithoutNamespace().AsAdmin().Run("create").Args("-f", "-").InputString(stdout).Execute()
+		// rather than parse the oc err output from valid situations like the object already exist, just logging
+		// the error and continue ... if something else is up, it will be caught later down the line
+		if err != nil {
+			fmt.Fprintf(g.GinkgoWriter, "test continuing, but create on the prometheus template resulted in: %#v", err)
+		}
+		tester := e2e.NewStatefulSetTester(oc.AdminKubeClient())
+		ss, err := oc.AdminKubeClient().AppsV1beta1().StatefulSets("kube-system").Get("prometheus", metav1.GetOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
+		tester.WaitForRunningAndReady(1, ss)
+	}
+
+	waitForServiceAccountInNamespace(oc.AdminKubeClient(), "kube-system", "prometheus", 2*time.Minute)
+	for i := 0; i < 30; i++ {
+		secrets, err := oc.AdminKubeClient().Core().Secrets("kube-system").List(metav1.ListOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
+		for _, secret := range secrets.Items {
+			if secret.Type != v1.SecretTypeServiceAccountToken {
+				continue
+			}
+			if !strings.HasPrefix(secret.Name, "prometheus-") {
+				continue
+			}
+			bearerToken = string(secret.Data[v1.ServiceAccountTokenKey])
+			break
+		}
+		if len(bearerToken) == 0 {
+			e2e.Logf("Waiting for prometheus service account secret to show up")
+			time.Sleep(time.Second)
+			continue
+		}
+	}
+	o.Expect(bearerToken).ToNot(o.BeEmpty())
+
+	return
 }

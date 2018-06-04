@@ -39,8 +39,8 @@ func NewProcessor(generators map[string]Generator) *Processor {
 func (p *Processor) Process(template *templateapi.Template) field.ErrorList {
 	templateErrors := field.ErrorList{}
 
-	if fieldError := p.GenerateParameterValues(template); fieldError != nil {
-		return append(templateErrors, fieldError)
+	if errs := p.GenerateParameterValues(template); len(errs) > 0 {
+		return append(templateErrors, errs...)
 	}
 
 	// Place parameters into a map for efficient lookup
@@ -52,6 +52,18 @@ func (p *Processor) Process(template *templateapi.Template) field.ErrorList {
 	// Perform parameter substitution on the template's user message. This can be used to
 	// instruct a user on next steps for the template.
 	template.Message, _ = p.EvaluateParameterSubstitution(paramMap, template.Message)
+
+	// Substitute parameters in ObjectLabels - must be done before the template
+	// objects themselves are iterated.
+	for k, v := range template.ObjectLabels {
+		newk, _ := p.EvaluateParameterSubstitution(paramMap, k)
+		v, _ = p.EvaluateParameterSubstitution(paramMap, v)
+		template.ObjectLabels[newk] = v
+
+		if newk != k {
+			delete(template.ObjectLabels, k)
+		}
+	}
 
 	itemPath := field.NewPath("item")
 	for i, item := range template.Objects {
@@ -193,7 +205,9 @@ func (p *Processor) SubstituteParameters(params map[string]templateapi.Parameter
 // "0x[A-F0-9]{4}"  | "0xB3AF"
 // "[a-zA-Z0-9]{8}" | "hW4yQU5i"
 // If an error occurs, the parameter that caused the error is returned along with the error message.
-func (p *Processor) GenerateParameterValues(t *templateapi.Template) *field.Error {
+func (p *Processor) GenerateParameterValues(t *templateapi.Template) field.ErrorList {
+	var errs field.ErrorList
+
 	for i := range t.Parameters {
 		param := &t.Parameters[i]
 		if len(param.Value) > 0 {
@@ -204,26 +218,31 @@ func (p *Processor) GenerateParameterValues(t *templateapi.Template) *field.Erro
 			generator, ok := p.Generators[param.Generate]
 			if !ok {
 				err := fmt.Errorf("Unknown generator name '%v' for parameter %s", param.Generate, param.Name)
-				return field.Invalid(templatePath, param.Generate, err.Error())
+				errs = append(errs, field.Invalid(templatePath, param.Generate, err.Error()))
+				continue
 			}
 			if generator == nil {
 				err := fmt.Errorf("template.parameters[%v]: Invalid '%v' generator for parameter %s", i, param.Generate, param.Name)
-				return field.Invalid(templatePath, param, err.Error())
+				errs = append(errs, field.Invalid(templatePath, param, err.Error()))
+				continue
 			}
 			value, err := generator.GenerateValue(param.From)
 			if err != nil {
-				return field.Invalid(templatePath, param, err.Error())
+				errs = append(errs, field.Invalid(templatePath, param, err.Error()))
+				continue
 			}
 			param.Value, ok = value.(string)
 			if !ok {
 				err := fmt.Errorf("template.parameters[%v]: Unable to convert the generated value '%#v' to string for parameter %s", i, value, param.Name)
-				return field.Invalid(templatePath, param, err.Error())
+				errs = append(errs, field.Invalid(templatePath, param, err.Error()))
+				continue
 			}
 		}
 		if len(param.Value) == 0 && param.Required {
 			err := fmt.Errorf("template.parameters[%v]: parameter %s is required and must be specified", i, param.Name)
-			return field.Required(templatePath, err.Error())
+			errs = append(errs, field.Required(templatePath, err.Error()))
 		}
 	}
-	return nil
+
+	return errs
 }

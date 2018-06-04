@@ -1,12 +1,13 @@
 package docker
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 
 	"github.com/golang/glog"
 
-	"github.com/openshift/origin/pkg/cmd/util/prefixwriter"
+	"github.com/openshift/origin/pkg/oc/util/prefixwriter"
 )
 
 const (
@@ -98,4 +99,21 @@ func (t *taskWriter) Write(p []byte) (n int, err error) {
 		t.w.Write([]byte("\n"))
 	}
 	return t.w.Write(p)
+}
+
+// ToError provides a way to return the pretty error output from a task without special casing
+// the code to only work in a narrow case while running the command.
+func (p *TaskPrinter) ToError(err error) error {
+	buf := &bytes.Buffer{}
+	fmt.Fprintf(buf, "FAIL\n")
+	PrintError(err, prefixwriter.New(taskIndent, buf))
+	return taskError{message: buf.String()}
+}
+
+type taskError struct {
+	message string
+}
+
+func (e taskError) Error() string {
+	return e.message
 }

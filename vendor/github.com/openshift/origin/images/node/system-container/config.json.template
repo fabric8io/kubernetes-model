@@ -414,10 +414,11 @@
         },
         {
 	    "type": "bind",
-	    "source": "/var/lib/docker",
-	    "destination": "/var/lib/docker",
+	    "source": "/var/lib/docker/containers",
+	    "destination": "/var/lib/docker/containers",
 	    "options": [
 		"bind",
+                "slave",
 		"rw",
 		"mode=755"
 	    ]
@@ -490,6 +491,7 @@
 		"size=65536k"
 	    ]
 	}
+        $ADDTL_MOUNTS
     ],
     "hooks": {},
     "linux": {
@@ -497,12 +499,7 @@
 	"resources": {
 	    "devices": [
 		{
-		    "allow": false,
-		    "access": "rwm"
-		},
-		{
 		    "allow": true,
-		    "type": "b",
 		    "access": "rwm"
 		}
 	    ]

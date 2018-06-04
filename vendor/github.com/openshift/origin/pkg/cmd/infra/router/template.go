@@ -1,6 +1,7 @@
 package router
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -17,12 +18,19 @@ import (
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/apiserver/pkg/authentication/authenticatorfactory"
+	"k8s.io/apiserver/pkg/authorization/authorizer"
+	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
+	"k8s.io/apiserver/pkg/server/healthz"
+	authenticationclient "k8s.io/client-go/kubernetes/typed/authentication/v1beta1"
+	authorizationclient "k8s.io/client-go/kubernetes/typed/authorization/v1beta1"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
+	clientcmd "github.com/openshift/origin/pkg/client/cmd"
+	"github.com/openshift/origin/pkg/cmd/server/crypto"
 	"github.com/openshift/origin/pkg/cmd/util"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	ocmd "github.com/openshift/origin/pkg/oc/cli/cmd"
+	cmdversion "github.com/openshift/origin/pkg/cmd/version"
 	projectinternalclientset "github.com/openshift/origin/pkg/project/generated/internalclientset"
 	routeinternalclientset "github.com/openshift/origin/pkg/route/generated/internalclientset"
 	"github.com/openshift/origin/pkg/router"
@@ -81,6 +89,12 @@ type TemplateRouter struct {
 	MetricsType              string
 }
 
+// isTrue here has the same logic as the function within package pkg/router/template
+func isTrue(s string) bool {
+	v, _ := strconv.ParseBool(s)
+	return v
+}
+
 // reloadInterval returns how often to run the router reloads. The interval
 // value is based on an environment variable or the default.
 func reloadInterval() time.Duration {
@@ -104,11 +118,11 @@ func (o *TemplateRouter) Bind(flag *pflag.FlagSet) {
 	flag.StringVar(&o.TemplateFile, "template", util.Env("TEMPLATE_FILE", ""), "The path to the template file to use")
 	flag.StringVar(&o.ReloadScript, "reload", util.Env("RELOAD_SCRIPT", ""), "The path to the reload script to use")
 	flag.DurationVar(&o.ReloadInterval, "interval", reloadInterval(), "Controls how often router reloads are invoked. Mutiple router reload requests are coalesced for the duration of this interval since the last reload time.")
-	flag.BoolVar(&o.ExtendedValidation, "extended-validation", util.Env("EXTENDED_VALIDATION", "true") == "true", "If set, then an additional extended validation step is performed on all routes admitted in by this router. Defaults to true and enables the extended validation checks.")
-	flag.BoolVar(&o.BindPortsAfterSync, "bind-ports-after-sync", util.Env("ROUTER_BIND_PORTS_AFTER_SYNC", "") == "true", "Bind ports only after route state has been synchronized")
+	flag.BoolVar(&o.ExtendedValidation, "extended-validation", isTrue(util.Env("EXTENDED_VALIDATION", "true")), "If set, then an additional extended validation step is performed on all routes admitted in by this router. Defaults to true and enables the extended validation checks.")
+	flag.BoolVar(&o.BindPortsAfterSync, "bind-ports-after-sync", isTrue(util.Env("ROUTER_BIND_PORTS_AFTER_SYNC", "")), "Bind ports only after route state has been synchronized")
 	flag.StringVar(&o.MaxConnections, "max-connections", util.Env("ROUTER_MAX_CONNECTIONS", ""), "Specifies the maximum number of concurrent connections.")
 	flag.StringVar(&o.Ciphers, "ciphers", util.Env("ROUTER_CIPHERS", ""), "Specifies the cipher suites to use. You can choose a predefined cipher set ('modern', 'intermediate', or 'old') or specify exact cipher suites by passing a : separated list.")
-	flag.BoolVar(&o.StrictSNI, "strict-sni", util.Env("ROUTER_STRICT_SNI", "") == "true", "Use strict-sni bind processing (do not use default cert).")
+	flag.BoolVar(&o.StrictSNI, "strict-sni", isTrue(util.Env("ROUTER_STRICT_SNI", "")), "Use strict-sni bind processing (do not use default cert).")
 	flag.StringVar(&o.MetricsType, "metrics-type", util.Env("ROUTER_METRICS_TYPE", ""), "Specifies the type of metrics to gather. Supports 'haproxy'.")
 }
 
@@ -152,7 +166,7 @@ func NewCommandTemplateRouter(name string) *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(ocmd.NewCmdVersion(name, nil, os.Stdout, ocmd.VersionOptions{}))
+	cmd.AddCommand(cmdversion.NewCmdVersion(name, version.Get(), os.Stdout))
 
 	flag := cmd.Flags()
 	options.Config.Bind(flag)
@@ -247,10 +261,7 @@ func (o *TemplateRouterOptions) Run() error {
 
 	statsPort := o.StatsPort
 	switch {
-	case o.MetricsType == "haproxy":
-		if len(o.StatsUsername) == 0 || len(o.StatsPassword) == 0 {
-			glog.Warningf("Metrics were requested but no username or password has been provided - the metrics endpoint will not be accessible to prevent accidental security breaches")
-		}
+	case o.MetricsType == "haproxy" && statsPort != 0:
 		// Exposed to allow tuning in production if this becomes an issue
 		var timeout time.Duration
 		if t := util.Env("ROUTER_METRICS_HAPROXY_TIMEOUT", ""); len(t) > 0 {
@@ -313,10 +324,61 @@ func (o *TemplateRouterOptions) Run() error {
 			return fmt.Errorf("ROUTER_METRICS_READY_HTTP_URL must be a valid URL or empty: %v", err)
 		}
 		check := metrics.HTTPBackendAvailable(u)
-		if useProxy := util.Env("ROUTER_USE_PROXY_PROTOCOL", ""); useProxy == "true" || useProxy == "TRUE" {
+		if isTrue(util.Env("ROUTER_USE_PROXY_PROTOCOL", "")) {
 			check = metrics.ProxyProtocolHTTPBackendAvailable(u)
 		}
-		metrics.Listen(o.ListenAddr, o.StatsUsername, o.StatsPassword, check)
+
+		kubeconfig := o.Config.KubeConfig()
+		client, err := authorizationclient.NewForConfig(kubeconfig)
+		if err != nil {
+			return err
+		}
+		authz, err := authorizerfactory.DelegatingAuthorizerConfig{
+			SubjectAccessReviewClient: client.SubjectAccessReviews(),
+			AllowCacheTTL:             2 * time.Minute,
+			DenyCacheTTL:              5 * time.Second,
+		}.New()
+		if err != nil {
+			return err
+		}
+		tokenClient, err := authenticationclient.NewForConfig(kubeconfig)
+		if err != nil {
+			return err
+		}
+		authn, _, err := authenticatorfactory.DelegatingAuthenticatorConfig{
+			Anonymous:               true,
+			TokenAccessReviewClient: tokenClient.TokenReviews(),
+			CacheTTL:                10 * time.Second,
+			ClientCAFile:            util.Env("ROUTER_METRICS_AUTHENTICATOR_CA_FILE", ""),
+		}.New()
+		if err != nil {
+			return err
+		}
+		l := metrics.Listener{
+			Addr:          o.ListenAddr,
+			Username:      o.StatsUsername,
+			Password:      o.StatsPassword,
+			Authenticator: authn,
+			Authorizer:    authz,
+			Record: authorizer.AttributesRecord{
+				ResourceRequest: true,
+				APIGroup:        "route.openshift.io",
+				Resource:        "routers",
+				Name:            o.RouterName,
+			},
+			Checks: []healthz.HealthzChecker{check},
+		}
+		if certFile := util.Env("ROUTER_METRICS_TLS_CERT_FILE", ""); len(certFile) > 0 {
+			certificate, err := tls.LoadX509KeyPair(certFile, util.Env("ROUTER_METRICS_TLS_KEY_FILE", ""))
+			if err != nil {
+				return err
+			}
+			l.TLSConfig = crypto.SecureTLSConfig(&tls.Config{
+				Certificates: []tls.Certificate{certificate},
+				ClientAuth:   tls.RequestClientCert,
+			})
+		}
+		l.Listen()
 	}
 
 	pluginCfg := templateplugin.TemplatePluginConfig{
@@ -340,7 +402,7 @@ func (o *TemplateRouterOptions) Run() error {
 		StrictSNI:                o.StrictSNI,
 	}
 
-	_, kc, err := o.Config.Clients()
+	kc, err := o.Config.Clients()
 	if err != nil {
 		return err
 	}
@@ -359,7 +421,7 @@ func (o *TemplateRouterOptions) Run() error {
 		return err
 	}
 
-	statusPlugin := controller.NewStatusAdmitter(templatePlugin, routeclient, o.RouterName, o.RouterCanonicalHostname)
+	statusPlugin := controller.NewStatusAdmitter(templatePlugin, routeclient.Route(), o.RouterName, o.RouterCanonicalHostname)
 	var nextPlugin router.Plugin = statusPlugin
 	if o.ExtendedValidation {
 		nextPlugin = controller.NewExtendedValidator(nextPlugin, controller.RejectionRecorder(statusPlugin))
@@ -367,7 +429,7 @@ func (o *TemplateRouterOptions) Run() error {
 	uniqueHostPlugin := controller.NewUniqueHost(nextPlugin, o.RouteSelectionFunc(), o.RouterSelection.DisableNamespaceOwnershipCheck, controller.RejectionRecorder(statusPlugin))
 	plugin := controller.NewHostAdmitter(uniqueHostPlugin, o.RouteAdmissionFunc(), o.AllowWildcardRoutes, o.RouterSelection.DisableNamespaceOwnershipCheck, controller.RejectionRecorder(statusPlugin))
 
-	factory := o.RouterSelection.NewFactory(routeclient, projectclient.Projects(), kc)
+	factory := o.RouterSelection.NewFactory(routeclient, projectclient.Project().Projects(), kc)
 	controller := factory.Create(plugin, false, o.EnableIngress)
 	controller.Run()
 

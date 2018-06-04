@@ -2,42 +2,68 @@ package admission
 
 import (
 	"k8s.io/apiserver/pkg/admission"
+	"k8s.io/apiserver/pkg/admission/initializer"
 	kauthorizer "k8s.io/apiserver/pkg/authorization/authorizer"
 	restclient "k8s.io/client-go/rest"
 	kinternalinformers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
 	kubeapiserveradmission "k8s.io/kubernetes/pkg/kubeapiserver/admission"
 	"k8s.io/kubernetes/pkg/quota"
 
-	"github.com/openshift/origin/pkg/client"
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
+	authorizationclient "github.com/openshift/client-go/authorization/clientset/versioned"
+	buildclient "github.com/openshift/client-go/build/clientset/versioned"
+	userclient "github.com/openshift/client-go/user/clientset/versioned"
+	userinformer "github.com/openshift/client-go/user/informers/externalversions"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset"
 	"github.com/openshift/origin/pkg/project/cache"
 	"github.com/openshift/origin/pkg/quota/controller/clusterquotamapping"
 	quotainformer "github.com/openshift/origin/pkg/quota/generated/informers/internalversion/quota/internalversion"
+	quotaclient "github.com/openshift/origin/pkg/quota/generated/internalclientset"
 	securityinformer "github.com/openshift/origin/pkg/security/generated/informers/internalversion"
-	userinformer "github.com/openshift/origin/pkg/user/generated/informers/internalversion"
+	templateclient "github.com/openshift/origin/pkg/template/generated/internalclientset"
 )
 
 type PluginInitializer struct {
-	OpenshiftClient              client.Interface
-	ProjectCache                 *cache.ProjectCache
-	OriginQuotaRegistry          quota.Registry
-	Authorizer                   kauthorizer.Authorizer
-	JenkinsPipelineConfig        configapi.JenkinsPipelineConfig
-	RESTClientConfig             restclient.Config
-	Informers                    kinternalinformers.SharedInformerFactory
-	ClusterResourceQuotaInformer quotainformer.ClusterResourceQuotaInformer
-	ClusterQuotaMapper           clusterquotamapping.ClusterQuotaMapper
-	DefaultRegistryFn            imageapi.DefaultRegistryFunc
-	SecurityInformers            securityinformer.SharedInformerFactory
-	UserInformers                userinformer.SharedInformerFactory
+	OpenshiftInternalAuthorizationClient authorizationclient.Interface
+	OpenshiftInternalBuildClient         buildclient.Interface
+	OpenshiftInternalImageClient         imageclient.Interface
+	OpenshiftInternalQuotaClient         quotaclient.Interface
+	OpenshiftInternalTemplateClient      templateclient.Interface
+	OpenshiftInternalUserClient          userclient.Interface
+	ProjectCache                         *cache.ProjectCache
+	OriginQuotaRegistry                  quota.Registry
+	Authorizer                           kauthorizer.Authorizer
+	JenkinsPipelineConfig                configapi.JenkinsPipelineConfig
+	RESTClientConfig                     restclient.Config
+	Informers                            kinternalinformers.SharedInformerFactory
+	ClusterResourceQuotaInformer         quotainformer.ClusterResourceQuotaInformer
+	ClusterQuotaMapper                   clusterquotamapping.ClusterQuotaMapper
+	RegistryHostnameRetriever            imageapi.RegistryHostnameRetriever
+	SecurityInformers                    securityinformer.SharedInformerFactory
+	UserInformers                        userinformer.SharedInformerFactory
 }
 
 // Initialize will check the initialization interfaces implemented by each plugin
 // and provide the appropriate initialization data
 func (i *PluginInitializer) Initialize(plugin admission.Interface) {
-	if wantsOpenshiftClient, ok := plugin.(WantsOpenshiftClient); ok {
-		wantsOpenshiftClient.SetOpenshiftClient(i.OpenshiftClient)
+	if wantsOpenshiftAuthorizationClient, ok := plugin.(WantsOpenshiftInternalAuthorizationClient); ok {
+		wantsOpenshiftAuthorizationClient.SetOpenshiftInternalAuthorizationClient(i.OpenshiftInternalAuthorizationClient)
+	}
+	if wantsOpenshiftBuildClient, ok := plugin.(WantsOpenshiftInternalBuildClient); ok {
+		wantsOpenshiftBuildClient.SetOpenshiftInternalBuildClient(i.OpenshiftInternalBuildClient)
+	}
+	if wantsOpenshiftImageClient, ok := plugin.(WantsOpenshiftInternalImageClient); ok {
+		wantsOpenshiftImageClient.SetOpenshiftInternalImageClient(i.OpenshiftInternalImageClient)
+	}
+	if wantsOpenshiftQuotaClient, ok := plugin.(WantsOpenshiftInternalQuotaClient); ok {
+		wantsOpenshiftQuotaClient.SetOpenshiftInternalQuotaClient(i.OpenshiftInternalQuotaClient)
+	}
+	if WantsOpenshiftInternalTemplateClient, ok := plugin.(WantsOpenshiftInternalTemplateClient); ok {
+		WantsOpenshiftInternalTemplateClient.SetOpenshiftInternalTemplateClient(i.OpenshiftInternalTemplateClient)
+	}
+	if WantsOpenshiftInternalUserClient, ok := plugin.(WantsOpenshiftInternalUserClient); ok {
+		WantsOpenshiftInternalUserClient.SetOpenshiftInternalUserClient(i.OpenshiftInternalUserClient)
 	}
 	if wantsProjectCache, ok := plugin.(WantsProjectCache); ok {
 		wantsProjectCache.SetProjectCache(i.ProjectCache)
@@ -48,7 +74,7 @@ func (i *PluginInitializer) Initialize(plugin admission.Interface) {
 	if wantsAuthorizer, ok := plugin.(WantsAuthorizer); ok {
 		wantsAuthorizer.SetAuthorizer(i.Authorizer)
 	}
-	if kubeWantsAuthorizer, ok := plugin.(kubeapiserveradmission.WantsAuthorizer); ok {
+	if kubeWantsAuthorizer, ok := plugin.(initializer.WantsAuthorizer); ok {
 		kubeWantsAuthorizer.SetAuthorizer(i.Authorizer)
 	}
 	if wantsJenkinsPipelineConfig, ok := plugin.(WantsJenkinsPipelineConfig); ok {
@@ -70,7 +96,7 @@ func (i *PluginInitializer) Initialize(plugin admission.Interface) {
 		wantsSecurityInformer.SetSecurityInformers(i.SecurityInformers)
 	}
 	if wantsDefaultRegistryFunc, ok := plugin.(WantsDefaultRegistryFunc); ok {
-		wantsDefaultRegistryFunc.SetDefaultRegistryFunc(i.DefaultRegistryFn)
+		wantsDefaultRegistryFunc.SetDefaultRegistryFunc(i.RegistryHostnameRetriever.InternalRegistryHostname)
 	}
 	if wantsUserInformer, ok := plugin.(WantsUserInformer); ok {
 		wantsUserInformer.SetUserInformer(i.UserInformers)
@@ -81,8 +107,8 @@ func (i *PluginInitializer) Initialize(plugin admission.Interface) {
 // the Validator interface.
 func Validate(plugins []admission.Interface) error {
 	for _, plugin := range plugins {
-		if validater, ok := plugin.(admission.Validator); ok {
-			err := validater.Validate()
+		if validater, ok := plugin.(admission.InitializationValidator); ok {
+			err := validater.ValidateInitialization()
 			if err != nil {
 				return err
 			}

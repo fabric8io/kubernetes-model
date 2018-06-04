@@ -32,7 +32,20 @@ SRC_DIRS       = $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*.go \
                    -exec dirname {} \\; | sort | uniq")
 TEST_DIRS     ?= $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*_test.go \
                    -exec dirname {} \\; | sort | uniq")
+# Either the tag name, e.g. v1.2.3 or the commit hash for untagged commits, e.g. abc123
 VERSION       ?= $(shell git describe --always --abbrev=7 --dirty)
+# Either the tag name, e.g. v1.2.3 or a combination of the closest tag combined with the commit hash, e.g. v1.2.3-2-gabc123
+TAG_VERSION   ?= $(shell git describe --tags --abbrev=7 --dirty)
+BUILD_LDFLAGS  = $(shell build/version.sh $(ROOT) $(SC_PKG))
+GIT_BRANCH    ?= $(shell git rev-parse --abbrev-ref HEAD)
+
+# Only skip the verification of external href's if we're not on 'master'
+SKIP_HTTP=-x
+SKIP_COMMENT=" (Skipping external hrefs)"
+ifeq ($(GIT_BRANCH),master)
+SKIP_HTTP=
+SKIP_COMMENT=" (Checking external hrefs)"
+endif
 
 # Run stat against /dev/null and check if it has any stdout output.
 # If stdout is blank, we are detecting bsd-stat because stat it has
@@ -43,52 +56,49 @@ else
 STAT           = stat -c '%Y %n'
 endif
 
-NEWEST_GO_FILE = $(shell find $(SRC_DIRS) -name \*.go -exec $(STAT) {} \; \
-                   | sort -r | head -n 1 | sed "s/.* //")
 TYPES_FILES    = $(shell find pkg/apis -name types.go)
-GO_VERSION     = 1.8
+GO_VERSION    ?= 1.9
 
 ALL_ARCH=amd64 arm arm64 ppc64le s390x
+ALL_CLIENT_PLATFORM=darwin linux windows
 
-PLATFORM?=linux
-ARCH?=amd64
+PLATFORM ?= linux
+# This is the current platform, so that we can build a native client binary by default
+CLIENT_PLATFORM?=$(shell uname -s | tr A-Z a-z)
+ARCH     ?= amd64
 
-# TODO: Consider using busybox instead of debian
-ifeq ($(ARCH),amd64)
-	BASEIMAGE?=debian:jessie
-else ifeq ($(ARCH),arm)
-	BASEIMAGE?=arm32v7/debian:jessie
-else ifeq ($(ARCH),arm64)
-	BASEIMAGE?=arm64v8/debian:jessie
-else ifeq ($(ARCH),ppc64le)
-	BASEIMAGE?=ppc64le/debian:jessie
-else ifeq ($(ARCH),s390x)
-	BASEIMAGE?=s390x/debian:jessie
+ifeq ($(PLATFORM),windows)
+FILE_EXT=.exe
 else
-$(error Unsupported platform to compile for)
+FILE_EXT=
 endif
 
+# TODO: Consider using busybox instead of debian
+BASEIMAGE?=gcr.io/google-containers/debian-base-$(ARCH):0.2
+
 GO_BUILD       = env GOOS=$(PLATFORM) GOARCH=$(ARCH) go build -i $(GOFLAGS) \
-                   -ldflags "-X $(SC_PKG)/pkg.VERSION=$(VERSION)"
+                   -ldflags "-X $(SC_PKG)/pkg.VERSION=$(VERSION) $(BUILD_LDFLAGS)"
 BASE_PATH      = $(ROOT:/src/github.com/kubernetes-incubator/service-catalog/=)
 export GOPATH  = $(BASE_PATH):$(ROOT)/vendor
 
 MUTABLE_TAG                      ?= canary
-APISERVER_IMAGE                   = $(REGISTRY)apiserver-$(ARCH):$(VERSION)
-APISERVER_MUTABLE_IMAGE           = $(REGISTRY)apiserver-$(ARCH):$(MUTABLE_TAG)
-CONTROLLER_MANAGER_IMAGE          = $(REGISTRY)controller-manager-$(ARCH):$(VERSION)
-CONTROLLER_MANAGER_MUTABLE_IMAGE  = $(REGISTRY)controller-manager-$(ARCH):$(MUTABLE_TAG)
+SERVICE_CATALOG_IMAGE             = $(REGISTRY)service-catalog-$(ARCH):$(VERSION)
+SERVICE_CATALOG_MUTABLE_IMAGE     = $(REGISTRY)service-catalog-$(ARCH):$(MUTABLE_TAG)
 USER_BROKER_IMAGE                 = $(REGISTRY)user-broker-$(ARCH):$(VERSION)
 USER_BROKER_MUTABLE_IMAGE         = $(REGISTRY)user-broker-$(ARCH):$(MUTABLE_TAG)
 
-# precheck to avoid kubernetes-incubator/service-catalog#361
-$(if $(realpath vendor/k8s.io/kubernetes/vendor), \
-	$(error the vendor directory exists in the kubernetes \
-		vendored source and must be flattened. \
-		run 'glide i -v'))
-
 ifdef UNIT_TESTS
 	UNIT_TEST_FLAGS=-run $(UNIT_TESTS) -v
+endif
+
+ifdef INT_TESTS
+	INT_TEST_FLAGS=--test.run=$(INT_TESTS)
+endif
+
+ifdef TEST_LOG_LEVEL
+	UNIT_TEST_FLAGS+=-v
+	UNIT_TEST_LOG_FLAGS=-args --alsologtostderr --v=$(TEST_LOG_LEVEL)
+	INT_TEST_FLAGS+=--alsologtostderr --v=$(TEST_LOG_LEVEL)
 endif
 
 ifdef NO_DOCKER
@@ -96,34 +106,30 @@ ifdef NO_DOCKER
 	scBuildImageTarget =
 else
 	# Mount .pkg as pkg so that we save our cached "go build" output files
-	DOCKER_CMD = docker run --rm -v $(PWD):/go/src/$(SC_PKG) \
-	  -v $(PWD)/.pkg:/go/pkg scbuildimage
+	DOCKER_CMD = docker run --security-opt label:disable --rm -v $(PWD):/go/src/$(SC_PKG) \
+	  -v $(PWD)/.pkg:/go/pkg --env AZURE_STORAGE_CONNECTION_STRING scbuildimage
 	scBuildImageTarget = .scBuildImage
 endif
 
-NON_VENDOR_DIRS = $(shell $(DOCKER_CMD) glide nv)
-
 # This section builds the output binaries.
 # Some will have dedicated targets to make it easier to type, for example
-# "apiserver" instead of "bin/apiserver".
+# "service-catalog" instead of "bin/service-catalog".
 #########################################################################
 build: .init .generate_files \
-       $(BINDIR)/controller-manager $(BINDIR)/apiserver \
-       $(BINDIR)/user-broker
+	$(BINDIR)/service-catalog \
+	$(BINDIR)/user-broker
 
+.PHONY: $(BINDIR)/user-broker
 user-broker: $(BINDIR)/user-broker
 $(BINDIR)/user-broker: .init contrib/cmd/user-broker \
-	  $(shell find contrib/cmd/user-broker -type f)
+	  $(shell find contrib/cmd/user-broker -type f) \
+	  $(shell find contrib/pkg/broker -type f)
 	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(SC_PKG)/contrib/cmd/user-broker
 
-# We'll rebuild apiserver if any go file has changed (ie. NEWEST_GO_FILE)
-apiserver: $(BINDIR)/apiserver
-$(BINDIR)/apiserver: .init .generate_files cmd/apiserver $(NEWEST_GO_FILE)
-	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(SC_PKG)/cmd/apiserver
-
-controller-manager: $(BINDIR)/controller-manager
-$(BINDIR)/controller-manager: .init .generate_files cmd/controller-manager $(NEWEST_GO_FILE)
-	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(SC_PKG)/cmd/controller-manager
+.PHONY: $(BINDIR)/service-catalog
+service-catalog: $(BINDIR)/service-catalog
+$(BINDIR)/service-catalog: .init .generate_files cmd/service-catalog 
+	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(SC_PKG)/cmd/service-catalog
 
 # This section contains the code generation stuff
 #################################################
@@ -137,65 +143,36 @@ $(BINDIR)/controller-manager: .init .generate_files cmd/controller-manager $(NEW
 	touch $@
 
 $(BINDIR)/defaulter-gen: .init
-	$(DOCKER_CMD) go build -o $@ $(SC_PKG)/vendor/k8s.io/kubernetes/cmd/libs/go2idl/defaulter-gen
+	$(DOCKER_CMD) go build -o $@ $(SC_PKG)/vendor/k8s.io/code-generator/cmd/defaulter-gen
 
 $(BINDIR)/deepcopy-gen: .init
-	$(DOCKER_CMD) go build -o $@ $(SC_PKG)/vendor/k8s.io/kubernetes/cmd/libs/go2idl/deepcopy-gen
+	$(DOCKER_CMD) go build -o $@ $(SC_PKG)/vendor/k8s.io/code-generator/cmd/deepcopy-gen
 
 $(BINDIR)/conversion-gen: .init
-	$(DOCKER_CMD) go build -o $@ $(SC_PKG)/vendor/k8s.io/kubernetes/cmd/libs/go2idl/conversion-gen
+	$(DOCKER_CMD) go build -o $@ $(SC_PKG)/vendor/k8s.io/code-generator/cmd/conversion-gen
 
 $(BINDIR)/client-gen: .init
-	$(DOCKER_CMD) go build -o $@ $(SC_PKG)/vendor/k8s.io/kubernetes/cmd/libs/go2idl/client-gen
+	$(DOCKER_CMD) go build -o $@ $(SC_PKG)/vendor/k8s.io/code-generator/cmd/client-gen
 
 $(BINDIR)/lister-gen: .init
-	$(DOCKER_CMD) go build -o $@ $(SC_PKG)/vendor/k8s.io/kubernetes/cmd/libs/go2idl/lister-gen
+	$(DOCKER_CMD) go build -o $@ $(SC_PKG)/vendor/k8s.io/code-generator/cmd/lister-gen
 
 $(BINDIR)/informer-gen: .init
-	$(DOCKER_CMD) go build -o $@ $(SC_PKG)/vendor/k8s.io/kubernetes/cmd/libs/go2idl/informer-gen
+	$(DOCKER_CMD) go build -o $@ $(SC_PKG)/vendor/k8s.io/code-generator/cmd/informer-gen
 
-$(BINDIR)/openapi-gen: vendor/k8s.io/kubernetes/cmd/libs/go2idl/openapi-gen
+$(BINDIR)/openapi-gen: vendor/k8s.io/code-generator/cmd/openapi-gen
 	$(DOCKER_CMD) go build -o $@ $(SC_PKG)/$^
 
+.PHONY: $(BINDIR)/e2e.test
 $(BINDIR)/e2e.test: .init
 	$(DOCKER_CMD) go test -c -o $@ $(SC_PKG)/test/e2e
 
 # Regenerate all files if the gen exes changed or any "types.go" files changed
 .generate_files: .init .generate_exes $(TYPES_FILES)
-	# Generate defaults
-	$(DOCKER_CMD) $(BINDIR)/defaulter-gen \
-		--v 1 --logtostderr \
-		--go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt" \
-		--input-dirs "$(SC_PKG)/pkg/apis/servicecatalog" \
-		--input-dirs "$(SC_PKG)/pkg/apis/servicecatalog/v1alpha1" \
-	  	--extra-peer-dirs "$(SC_PKG)/pkg/apis/servicecatalog" \
-		--extra-peer-dirs "$(SC_PKG)/pkg/apis/servicecatalog/v1alpha1" \
-		--output-file-base "zz_generated.defaults"
-	# Generate deep copies
-	$(DOCKER_CMD) $(BINDIR)/deepcopy-gen \
-		--v 1 --logtostderr \
-		--go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt" \
-		--input-dirs "$(SC_PKG)/pkg/apis/servicecatalog" \
-		--input-dirs "$(SC_PKG)/pkg/apis/servicecatalog/v1alpha1" \
-		--bounding-dirs "github.com/kubernetes-incubator/service-catalog" \
-		--output-file-base zz_generated.deepcopy
-	# Generate conversions
-	$(DOCKER_CMD) $(BINDIR)/conversion-gen \
-		--v 1 --logtostderr \
-		--go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt" \
-		--input-dirs "$(SC_PKG)/pkg/apis/servicecatalog" \
-		--input-dirs "$(SC_PKG)/pkg/apis/servicecatalog/v1alpha1" \
-		--output-file-base zz_generated.conversion
+	# generate apiserver deps
+	$(DOCKER_CMD) $(BUILD_DIR)/update-apiserver-gen.sh
 	# generate all pkg/client contents
 	$(DOCKER_CMD) $(BUILD_DIR)/update-client-gen.sh
-	# generate openapi
-	$(DOCKER_CMD) $(BINDIR)/openapi-gen \
-		--v 1 --logtostderr \
-		--go-header-file "vendor/github.com/kubernetes/repo-infra/verify/boilerplate/boilerplate.go.txt" \
-		--input-dirs "github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog/v1alpha1,k8s.io/client-go/pkg/api/v1,k8s.io/apimachinery/pkg/apis/meta/v1" \
-		--output-package "github.com/kubernetes-incubator/service-catalog/pkg/openapi"
-	# generate codec
-	$(DOCKER_CMD) $(BUILD_DIR)/update-codecgen.sh
 	touch $@
 
 # Some prereq stuff
@@ -211,12 +188,13 @@ $(BINDIR)/e2e.test: .init
 
 # Util targets
 ##############
-.PHONY: verify verify-client-gen
-verify: .init .generate_files verify-client-gen
+.PHONY: verify verify-generated verify-client-gen verify-docs
+verify: .init .generate_files verify-generated verify-client-gen verify-docs verify-vendor
 	@echo Running gofmt:
-	@$(DOCKER_CMD) gofmt -l -s $(TOP_TEST_DIRS) $(TOP_SRC_DIRS) &> .out || true
-	@bash -c '[ "`cat .out`" == "" ] || \
-	  (echo -e "\n*** Please 'gofmt' the following:" ; cat .out ; echo ; false)'
+	@$(DOCKER_CMD) gofmt -l -s $(TOP_TEST_DIRS) $(TOP_SRC_DIRS)>.out 2>&1||true
+	@[ ! -s .out ] || \
+	  (echo && echo "*** Please 'gofmt' the following:" && \
+	  cat .out && echo && rm .out && false)
 	@rm .out
 	@#
 	@echo Running golint and go vet:
@@ -224,23 +202,31 @@ verify: .init .generate_files verify-client-gen
 	@# observes conventions from upstream that will not pass lint checks).
 	@$(DOCKER_CMD) sh -c \
 	  'for i in $$(find $(TOP_SRC_DIRS) -name *.go \
+	    | grep -v ^pkg/kubernetes/ \
 	    | grep -v generated \
 	    | grep -v ^pkg/client/ \
-	    | grep -v v1alpha1/defaults.go); \
+	    | grep -v v1beta1/defaults.go); \
 	  do \
 	   golint --set_exit_status $$i || exit 1; \
 	  done'
 	@#
-	$(DOCKER_CMD) go vet $(NON_VENDOR_DIRS)
+	$(DOCKER_CMD) go vet $(SC_PKG)/...
 	@echo Running repo-infra verify scripts
-	@$(DOCKER_CMD) vendor/github.com/kubernetes/repo-infra/verify/verify-boilerplate.sh --rootdir=. | grep -v generated > .out 2>&1 || true
-	@bash -c '[ "`cat .out`" == "" ] || (cat .out ; false)'
+	@$(DOCKER_CMD) vendor/github.com/kubernetes/repo-infra/verify/verify-boilerplate.sh --rootdir=. | grep -v generated | grep -v .pkg > .out 2>&1 || true
+	@[ ! -s .out ] || (cat .out && rm .out && false)
 	@rm .out
 	@#
-	@echo Running href checker:
-	@$(DOCKER_CMD) verify-links.sh .
 	@echo Running errexit checker:
 	@$(DOCKER_CMD) build/verify-errexit.sh
+	@echo Running tag verification:
+	@$(DOCKER_CMD) build/verify-tags.sh
+
+verify-docs: .init
+	@echo Running href checker$(SKIP_COMMENT):
+	@$(DOCKER_CMD) verify-links.sh -s .pkg -t $(SKIP_HTTP) .
+
+verify-generated: .init .generate_files
+	$(DOCKER_CMD) $(BUILD_DIR)/update-apiserver-gen.sh --verify-only
 
 verify-client-gen: .init .generate_files
 	$(DOCKER_CMD) $(BUILD_DIR)/verify-client-gen.sh
@@ -252,6 +238,7 @@ coverage: .init
 	$(DOCKER_CMD) contrib/hack/coverage.sh --html "$(COVERAGE)" \
 	  $(addprefix ./,$(TEST_DIRS))
 
+.PHONY: test test-unit test-integration test-e2e
 test: .init build test-unit test-integration
 
 # this target checks to see if the go binary is installed on the host
@@ -262,7 +249,7 @@ check-go:
 	  exit 1; \
 	fi
 
-# this target uses the host-local go installation to test 
+# this target uses the host-local go installation to test
 .PHONY: test-unit-native
 test-unit-native: check-go
 	go test $(addprefix ${SC_PKG}/,${TEST_DIRS})
@@ -270,29 +257,34 @@ test-unit-native: check-go
 test-unit: .init build
 	@echo Running tests:
 	$(DOCKER_CMD) go test -race $(UNIT_TEST_FLAGS) \
-	  $(addprefix $(SC_PKG)/,$(TEST_DIRS))
+	  $(addprefix $(SC_PKG)/,$(TEST_DIRS)) $(UNIT_TEST_LOG_FLAGS)
 
-test-integration: .init $(scBuildImageTarget) build
+build-integration: .generate_files
+	$(DOCKER_CMD) go test -race github.com/kubernetes-incubator/service-catalog/test/integration/... -c
+
+test-integration: .init $(scBuildImageTarget) build build-integration
 	# test kubectl
 	contrib/hack/setup-kubectl.sh
 	contrib/hack/test-apiserver.sh
 	# golang integration tests
-	$(DOCKER_CMD) test/integration.sh
+	$(DOCKER_CMD) test/integration.sh $(INT_TEST_FLAGS)
 
-clean-e2e:
-	rm -f $(BINDIR)/e2e.test
+clean-e2e: .init $(scBuildImageTarget)
+	$(DOCKER_CMD) rm -f $(BINDIR)/e2e.test
 
-test-e2e: .generate_files $(BINDIR)/e2e.test
+build-e2e: .generate_files $(BINDIR)/e2e.test
+
+test-e2e: build-e2e
 	$(BINDIR)/e2e.test
 
 clean: clean-bin clean-build-image clean-generated clean-coverage
 
-clean-bin:
-	rm -rf $(BINDIR)
+clean-bin: .init $(scBuildImageTarget)
+	$(DOCKER_CMD) rm -rf $(BINDIR)
 	rm -f .generate_exes
 
-clean-build-image:
-	rm -rf .pkg
+clean-build-image: .init $(scBuildImageTarget)
+	$(DOCKER_CMD) rm -rf .pkg
 	rm -f .scBuildImage
 	docker rmi -f scbuildimage > /dev/null 2>&1 || true
 
@@ -311,21 +303,24 @@ clean-generated:
 	git checkout -- pkg/openapi/openapi_generated.go
 
 # purge-generated removes generated files from the filesystem.
-purge-generated:
-	find $(TOP_SRC_DIRS) -name zz_generated* -exec rm {} \;
-	find $(TOP_SRC_DIRS) -type d -name *_generated -exec rm -rf {} \;
-	rm -f pkg/openapi/openapi_generated.go
-	echo 'package v1alpha1' > pkg/apis/servicecatalog/v1alpha1/types.generated.go
+purge-generated: .init $(scBuildImageTarget)
+	find $(TOP_SRC_DIRS) -name zz_generated* -exec $(DOCKER_CMD) rm {} \;
+	find $(TOP_SRC_DIRS) -depth -type d -name *_generated \
+	  -exec $(DOCKER_CMD) rm -rf {} \;
+	$(DOCKER_CMD) rm -f pkg/openapi/openapi_generated.go
+	echo 'package v1beta1' > pkg/apis/servicecatalog/v1beta1/types.generated.go
+	rm -f .generate_files
 
 clean-coverage:
 	rm -f $(COVERAGE)
 
 # Building Docker Images for our executables
 ############################################
-images: user-broker-image controller-manager-image apiserver-image
+images: user-broker-image service-catalog-image
 
 images-all: $(addprefix arch-image-,$(ALL_ARCH))
 arch-image-%:
+	$(MAKE) ARCH=$* build
 	$(MAKE) ARCH=$* images
 
 define build-and-tag # (service, image, mutable_image, prefix)
@@ -337,6 +332,7 @@ define build-and-tag # (service, image, mutable_image, prefix)
 	# -i.bak is required for cross-platform compat: https://stackoverflow.com/questions/5694228/sed-in-place-flag-that-works-both-on-mac-bsd-and-linux
 	sed -i.bak "s|BASEIMAGE|$(BASEIMAGE)|g" $(tmp_build_path)/Dockerfile
 	rm $(tmp_build_path)/Dockerfile.bak
+	docker run --rm --privileged multiarch/qemu-user-static:register --reset
 	docker build -t $(2) $(tmp_build_path)
 	docker tag $(2) $(3)
 	rm -rf $(tmp_build_path)
@@ -349,24 +345,17 @@ ifeq ($(ARCH),amd64)
 	docker tag $(USER_BROKER_MUTABLE_IMAGE) $(REGISTRY)user-broker:$(MUTABLE_TAG)
 endif
 
-apiserver-image: build/apiserver/Dockerfile $(BINDIR)/apiserver
-	$(call build-and-tag,"apiserver",$(APISERVER_IMAGE),$(APISERVER_MUTABLE_IMAGE))
+service-catalog-image: build/service-catalog/Dockerfile $(BINDIR)/service-catalog
+	$(call build-and-tag,"service-catalog",$(SERVICE_CATALOG_IMAGE),$(SERVICE_CATALOG_MUTABLE_IMAGE))
 ifeq ($(ARCH),amd64)
-	docker tag $(APISERVER_IMAGE) $(REGISTRY)apiserver:$(VERSION)
-	docker tag $(APISERVER_MUTABLE_IMAGE) $(REGISTRY)apiserver:$(MUTABLE_TAG)
-endif
-
-controller-manager-image: build/controller-manager/Dockerfile $(BINDIR)/controller-manager
-	$(call build-and-tag,"controller-manager",$(CONTROLLER_MANAGER_IMAGE),$(CONTROLLER_MANAGER_MUTABLE_IMAGE))
-ifeq ($(ARCH),amd64)
-	docker tag $(CONTROLLER_MANAGER_IMAGE) $(REGISTRY)controller-manager:$(VERSION)
-	docker tag $(CONTROLLER_MANAGER_MUTABLE_IMAGE) $(REGISTRY)controller-manager:$(MUTABLE_TAG)
+	docker tag $(SERVICE_CATALOG_IMAGE) $(REGISTRY)service-catalog:$(VERSION)
+	docker tag $(SERVICE_CATALOG_MUTABLE_IMAGE) $(REGISTRY)service-catalog:$(MUTABLE_TAG)
 endif
 
 
 # Push our Docker Images to a registry
 ######################################
-push: user-broker-push controller-manager-push apiserver-push
+push: user-broker-push service-catalog-push
 
 user-broker-push: user-broker-image
 	docker push $(USER_BROKER_IMAGE)
@@ -376,23 +365,50 @@ ifeq ($(ARCH),amd64)
 	docker push $(REGISTRY)user-broker:$(MUTABLE_TAG)
 endif
 
-controller-manager-push: controller-manager-image
-	docker push $(CONTROLLER_MANAGER_IMAGE)
-	docker push $(CONTROLLER_MANAGER_MUTABLE_IMAGE)
+service-catalog-push: service-catalog-image
+	docker push $(SERVICE_CATALOG_IMAGE)
+	docker push $(SERVICE_CATALOG_MUTABLE_IMAGE)
 ifeq ($(ARCH),amd64)
-	docker push $(REGISTRY)controller-manager:$(VERSION)
-	docker push $(REGISTRY)controller-manager:$(MUTABLE_TAG)
-endif
-
-apiserver-push: apiserver-image
-	docker push $(APISERVER_IMAGE)
-	docker push $(APISERVER_MUTABLE_IMAGE)
-ifeq ($(ARCH),amd64)
-	docker push $(REGISTRY)apiserver:$(VERSION)
-	docker push $(REGISTRY)apiserver:$(MUTABLE_TAG)
+	docker push $(REGISTRY)service-catalog:$(VERSION)
+	docker push $(REGISTRY)service-catalog:$(MUTABLE_TAG)
 endif
 
 
 release-push: $(addprefix release-push-,$(ALL_ARCH))
 release-push-%:
+	$(MAKE) ARCH=$* build
 	$(MAKE) ARCH=$* push
+
+# svcat kubectl plugin
+############################
+.PHONY: $(BINDIR)/svcat/$(TAG_VERSION)/$(PLATFORM)/$(ARCH)/svcat$(FILE_EXT)
+svcat:
+	# Compile a native binary for local dev/test
+	$(MAKE) svcat-for-$(CLIENT_PLATFORM)
+	cp $(BINDIR)/svcat/$(TAG_VERSION)/$(CLIENT_PLATFORM)/$(ARCH)/svcat$(FILE_EXT) $(BINDIR)/svcat/
+
+svcat-all: $(addprefix svcat-for-,$(ALL_CLIENT_PLATFORM))
+
+svcat-for-%:
+	$(MAKE) PLATFORM=$* VERSION=$(TAG_VERSION) svcat-xbuild
+
+svcat-xbuild: $(BINDIR)/svcat/$(TAG_VERSION)/$(PLATFORM)/$(ARCH)/svcat$(FILE_EXT)
+$(BINDIR)/svcat/$(TAG_VERSION)/$(PLATFORM)/$(ARCH)/svcat$(FILE_EXT): .init .generate_files
+	$(DOCKER_CMD) $(GO_BUILD) -o $@ $(SC_PKG)/cmd/svcat
+
+svcat-publish: clean-bin svcat-all
+	# Download the latest client with https://download.svcat.sh/cli/latest/darwin/amd64/svcat
+	# Download an older client with  https://download.svcat.sh/cli/VERSION/darwin/amd64/svcat
+	cp -R $(BINDIR)/svcat/$(TAG_VERSION) $(BINDIR)/svcat/$(MUTABLE_TAG)
+	# AZURE_STORAGE_CONNECTION_STRING will be used for auth in the following command
+	$(DOCKER_CMD) az storage blob upload-batch -d cli -s $(BINDIR)/svcat
+
+# Dependency management via dep (https://golang.github.io/dep)
+.PHONY: verify-vendor test-dep
+verify-vendor: .init
+	# Verify that vendor/ is in sync with Gopkg.lock
+	$(DOCKER_CMD) $(BUILD_DIR)/verify-vendor.sh
+
+test-dep: .init
+	# Test that a downstream consumer of our client library can use dep
+	$(DOCKER_CMD) test/test-dep.sh

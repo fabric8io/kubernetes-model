@@ -8,14 +8,14 @@ import (
 	"github.com/spf13/cobra"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/apimachinery/pkg/runtime"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	"github.com/openshift/origin/pkg/security/legacyclient"
-	uservalidation "github.com/openshift/origin/pkg/user/apis/user/validation"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
+	securitytypedclient "github.com/openshift/origin/pkg/security/generated/internalclientset/typed/security/internalversion"
 )
 
 const (
@@ -36,10 +36,17 @@ var (
 
 type SCCModificationOptions struct {
 	SCCName      string
-	SCCInterface legacyclient.SecurityContextConstraintInterface
+	SCCInterface securitytypedclient.SecurityContextConstraintsInterface
 
 	DefaultSubjectNamespace string
 	Subjects                []kapi.ObjectReference
+
+	IsGroup bool
+	DryRun  bool
+	Output  string
+
+	PrintObj func(runtime.Object) error
+	Out      io.Writer
 }
 
 func NewCmdAddSCCToGroup(name, fullName string, f *clientcmd.Factory, out io.Writer) *cobra.Command {
@@ -50,8 +57,8 @@ func NewCmdAddSCCToGroup(name, fullName string, f *clientcmd.Factory, out io.Wri
 		Short: "Add groups to a security context constraint",
 		Long:  `Add groups to a security context constraint`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := options.CompleteGroups(f, args); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+			if err := options.CompleteGroups(f, cmd, args, out); err != nil {
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 
 			if err := options.AddSCC(); err != nil {
@@ -60,6 +67,8 @@ func NewCmdAddSCCToGroup(name, fullName string, f *clientcmd.Factory, out io.Wri
 		},
 	}
 
+	kcmdutil.AddDryRunFlag(cmd)
+	kcmdutil.AddPrinterFlags(cmd)
 	return cmd
 }
 
@@ -73,8 +82,8 @@ func NewCmdAddSCCToUser(name, fullName string, f *clientcmd.Factory, out io.Writ
 		Long:    `Add users or serviceaccount to a security context constraint`,
 		Example: fmt.Sprintf(addSCCToUserExample, fullName),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := options.CompleteUsers(f, args, saNames); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+			if err := options.CompleteUsers(f, cmd, args, saNames, out); err != nil {
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 
 			if err := options.AddSCC(); err != nil {
@@ -85,6 +94,8 @@ func NewCmdAddSCCToUser(name, fullName string, f *clientcmd.Factory, out io.Writ
 
 	cmd.Flags().StringSliceVarP(&saNames, "serviceaccount", "z", saNames, "service account in the current namespace to use as a user")
 
+	kcmdutil.AddDryRunFlag(cmd)
+	kcmdutil.AddPrinterFlags(cmd)
 	return cmd
 }
 
@@ -96,8 +107,8 @@ func NewCmdRemoveSCCFromGroup(name, fullName string, f *clientcmd.Factory, out i
 		Short: "Remove group from scc",
 		Long:  `Remove group from scc`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := options.CompleteGroups(f, args); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+			if err := options.CompleteGroups(f, cmd, args, out); err != nil {
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 
 			if err := options.RemoveSCC(); err != nil {
@@ -106,6 +117,8 @@ func NewCmdRemoveSCCFromGroup(name, fullName string, f *clientcmd.Factory, out i
 		},
 	}
 
+	kcmdutil.AddDryRunFlag(cmd)
+	kcmdutil.AddPrinterFlags(cmd)
 	return cmd
 }
 
@@ -118,8 +131,8 @@ func NewCmdRemoveSCCFromUser(name, fullName string, f *clientcmd.Factory, out io
 		Short: "Remove user from scc",
 		Long:  `Remove user from scc`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := options.CompleteUsers(f, args, saNames); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+			if err := options.CompleteUsers(f, cmd, args, saNames, out); err != nil {
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 
 			if err := options.RemoveSCC(); err != nil {
@@ -130,26 +143,38 @@ func NewCmdRemoveSCCFromUser(name, fullName string, f *clientcmd.Factory, out io
 
 	cmd.Flags().StringSliceVarP(&saNames, "serviceaccount", "z", saNames, "service account in the current namespace to use as a user")
 
+	kcmdutil.AddDryRunFlag(cmd)
+	kcmdutil.AddPrinterFlags(cmd)
 	return cmd
 }
 
-func (o *SCCModificationOptions) CompleteUsers(f *clientcmd.Factory, args []string, saNames []string) error {
+func (o *SCCModificationOptions) CompleteUsers(f *clientcmd.Factory, cmd *cobra.Command, args []string, saNames []string, out io.Writer) error {
 	if len(args) < 1 {
 		return errors.New("you must specify a scc")
 	}
 
+	o.Out = out
 	o.SCCName = args[0]
-	o.Subjects = authorizationapi.BuildSubjects(args[1:], []string{}, uservalidation.ValidateUserName, uservalidation.ValidateGroupName)
+	o.Subjects = authorizationapi.BuildSubjects(args[1:], []string{})
 
 	if (len(o.Subjects) == 0) && (len(saNames) == 0) {
 		return errors.New("you must specify at least one user or service account")
 	}
 
-	_, kc, err := f.Clients()
+	o.DryRun = kcmdutil.GetFlagBool(cmd, "dry-run")
+	o.Output = kcmdutil.GetFlagString(cmd, "output")
+
+	mapper, _ := f.Object()
+
+	o.PrintObj = func(obj runtime.Object) error {
+		return f.PrintObject(cmd, false, mapper, obj, out)
+	}
+
+	securityClient, err := f.OpenshiftInternalSecurityClient()
 	if err != nil {
 		return err
 	}
-	o.SCCInterface = legacyclient.NewFromClient(kc.Core().RESTClient())
+	o.SCCInterface = securityClient.Security().SecurityContextConstraints()
 
 	o.DefaultSubjectNamespace, _, err = f.DefaultNamespace()
 	if err != nil {
@@ -163,19 +188,31 @@ func (o *SCCModificationOptions) CompleteUsers(f *clientcmd.Factory, args []stri
 	return nil
 }
 
-func (o *SCCModificationOptions) CompleteGroups(f *clientcmd.Factory, args []string) error {
+func (o *SCCModificationOptions) CompleteGroups(f *clientcmd.Factory, cmd *cobra.Command, args []string, out io.Writer) error {
 	if len(args) < 2 {
 		return errors.New("you must specify at least two arguments: <scc> <group> [group]...")
 	}
 
-	o.SCCName = args[0]
-	o.Subjects = authorizationapi.BuildSubjects([]string{}, args[1:], uservalidation.ValidateUserName, uservalidation.ValidateGroupName)
+	o.Out = out
+	o.Output = kcmdutil.GetFlagString(cmd, "output")
 
-	_, kc, err := f.Clients()
+	mapper, _ := f.Object()
+
+	o.PrintObj = func(obj runtime.Object) error {
+		return f.PrintObject(cmd, false, mapper, obj, out)
+	}
+
+	o.IsGroup = true
+	o.SCCName = args[0]
+	o.Subjects = authorizationapi.BuildSubjects([]string{}, args[1:])
+
+	o.DryRun = kcmdutil.GetFlagBool(cmd, "dry-run")
+
+	securityClient, err := f.OpenshiftInternalSecurityClient()
 	if err != nil {
 		return err
 	}
-	o.SCCInterface = legacyclient.NewFromClient(kc.Core().RESTClient())
+	o.SCCInterface = securityClient.Security().SecurityContextConstraints()
 
 	o.DefaultSubjectNamespace, _, err = f.DefaultNamespace()
 	if err != nil {
@@ -198,11 +235,21 @@ func (o *SCCModificationOptions) AddSCC() error {
 	scc.Users = append(scc.Users, usersToAdd...)
 	scc.Groups = append(scc.Groups, groupsToAdd...)
 
+	if len(o.Output) > 0 && o.PrintObj != nil {
+		return o.PrintObj(scc)
+	}
+
+	if o.DryRun {
+		printSuccess(o.SCCName, true, o.IsGroup, users, groups, o.DryRun, o.Out)
+		return nil
+	}
+
 	_, err = o.SCCInterface.Update(scc)
 	if err != nil {
 		return err
 	}
 
+	printSuccess(o.SCCName, true, o.IsGroup, users, groups, o.DryRun, o.Out)
 	return nil
 }
 
@@ -219,11 +266,21 @@ func (o *SCCModificationOptions) RemoveSCC() error {
 	scc.Users = remainingUsers
 	scc.Groups = remainingGroups
 
+	if len(o.Output) > 0 && o.PrintObj != nil {
+		return o.PrintObj(scc)
+	}
+
+	if o.DryRun {
+		printSuccess(o.SCCName, false, o.IsGroup, users, groups, o.DryRun, o.Out)
+		return nil
+	}
+
 	_, err = o.SCCInterface.Update(scc)
 	if err != nil {
 		return err
 	}
 
+	printSuccess(o.SCCName, false, o.IsGroup, users, groups, o.DryRun, o.Out)
 	return nil
 }
 
@@ -247,4 +304,28 @@ func singleDiff(lhsSlice, rhsSlice []string) (lhsOnly []string) {
 	}
 
 	return lhsOnly
+}
+
+// prints affirmative output
+func printSuccess(scc string, didAdd bool, isGroup bool, usersToAdd, groupsToAdd []string, dryRun bool, out io.Writer) {
+	verb := "removed from"
+	allTargets := fmt.Sprintf("%q", usersToAdd)
+	dryRunText := ""
+
+	if isGroup {
+		allTargets = fmt.Sprintf("%q", groupsToAdd)
+	}
+	if didAdd {
+		verb = "added to"
+	}
+	if isGroup {
+		verb += " groups"
+	}
+
+	msg := "scc %q %s: %s%s"
+	if dryRun {
+		dryRunText = " (dry run)"
+	}
+
+	fmt.Fprintf(out, msg+"\n", scc, verb, allTargets, dryRunText)
 }

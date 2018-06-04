@@ -1,9 +1,9 @@
 package cli
 
 import (
-	"github.com/openshift/origin/pkg/auth/ldaputil"
-	"github.com/openshift/origin/pkg/auth/ldaputil/ldapclient"
-	"github.com/openshift/origin/pkg/cmd/server/api"
+	"github.com/openshift/origin/pkg/cmd/server/apis/config"
+	"github.com/openshift/origin/pkg/oauthserver/ldaputil"
+	"github.com/openshift/origin/pkg/oauthserver/ldaputil/ldapclient"
 	"github.com/openshift/origin/pkg/oc/admin/groups/sync"
 	"github.com/openshift/origin/pkg/oc/admin/groups/sync/interfaces"
 	"github.com/openshift/origin/pkg/oc/admin/groups/sync/rfc2307"
@@ -15,7 +15,7 @@ var _ PruneBuilder = &RFC2307Builder{}
 
 type RFC2307Builder struct {
 	ClientConfig ldapclient.Config
-	Config       *api.RFC2307Config
+	Config       *config.RFC2307Config
 
 	rfc2307LDAPInterface *rfc2307.LDAPInterface
 

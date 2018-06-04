@@ -12,14 +12,17 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	loginutil "github.com/openshift/origin/pkg/oc/cli/cmd/login/util"
 	"github.com/openshift/origin/pkg/oc/cli/describe"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 	dotutil "github.com/openshift/origin/pkg/util/dot"
 )
 
 // StatusRecommendedName is the recommended command name.
 const StatusRecommendedName = "status"
+
+// ExposeRecommendedName is the recommended command name to expose app.
+const ExposeRecommendedName = "expose"
 
 var (
 	statusLong = templates.LongDesc(`
@@ -74,7 +77,7 @@ func NewCmdStatus(name, baseCLIName, fullName string, f *clientcmd.Factory, out 
 			kcmdutil.CheckErr(err)
 
 			if err := opts.Validate(); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 
 			err = opts.RunStatus()
@@ -92,14 +95,34 @@ func NewCmdStatus(name, baseCLIName, fullName string, f *clientcmd.Factory, out 
 // Complete completes the options for the Openshift cli status command.
 func (o *StatusOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, baseCLIName string, args []string, out io.Writer) error {
 	if len(args) > 0 {
-		return kcmdutil.UsageError(cmd, "no arguments should be provided")
+		return kcmdutil.UsageErrorf(cmd, "no arguments should be provided")
 	}
 
 	o.logsCommandName = fmt.Sprintf("%s logs", cmd.Parent().CommandPath())
 	o.securityPolicyCommandFormat = "oc adm policy add-scc-to-user anyuid -n %s -z %s"
 	o.setProbeCommandName = fmt.Sprintf("%s set probe", cmd.Parent().CommandPath())
 
-	client, kclientset, err := f.Clients()
+	kclientset, err := f.ClientSet()
+	if err != nil {
+		return err
+	}
+	projectClient, err := f.OpenshiftInternalProjectClient()
+	if err != nil {
+		return err
+	}
+	buildClient, err := f.OpenshiftInternalBuildClient()
+	if err != nil {
+		return err
+	}
+	imageClient, err := f.OpenshiftInternalImageClient()
+	if err != nil {
+		return err
+	}
+	appsClient, err := f.OpenshiftInternalAppsClient()
+	if err != nil {
+		return err
+	}
+	routeClient, err := f.OpenshiftInternalRouteClient()
 	if err != nil {
 		return err
 	}
@@ -137,10 +160,14 @@ func (o *StatusOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, baseC
 	canRequestProjects, _ := loginutil.CanRequestProjects(config, o.namespace)
 
 	o.describer = &describe.ProjectStatusDescriber{
-		K:       kclientset,
-		C:       client,
-		Server:  config.Host,
-		Suggest: o.verbose,
+		KubeClient:    kclientset,
+		ProjectClient: projectClient.Project(),
+		BuildClient:   buildClient.Build(),
+		ImageClient:   imageClient.Image(),
+		AppsClient:    appsClient.Apps(),
+		RouteClient:   routeClient.Route(),
+		Suggest:       o.verbose,
+		Server:        config.Host,
 
 		CommandBaseName:    baseCLIName,
 		RequestedNamespace: nsFlag,

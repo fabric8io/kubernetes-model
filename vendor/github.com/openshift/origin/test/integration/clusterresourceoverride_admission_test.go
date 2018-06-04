@@ -3,19 +3,18 @@ package integration
 import (
 	"testing"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
-	"github.com/openshift/origin/pkg/cmd/server/api"
+	"github.com/openshift/origin/pkg/cmd/server/apis/config"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
-	overrideapi "github.com/openshift/origin/pkg/quota/admission/clusterresourceoverride/api"
+	overrideapi "github.com/openshift/origin/pkg/quota/admission/apis/clusterresourceoverride"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 
-	_ "github.com/openshift/origin/pkg/quota/admission/clusterresourceoverride/api/install"
+	_ "github.com/openshift/origin/pkg/quota/admission/apis/clusterresourceoverride/install"
 )
 
 func TestClusterResourceOverridePluginWithNoLimits(t *testing.T) {
@@ -96,12 +95,27 @@ func TestClusterResourceOverridePluginWithLimits(t *testing.T) {
 		t.Errorf("limit-with-default: CPU req did not match expected 250 mcore: %v", cpu)
 	}
 
-	// set it up so that the overrides create resources that fail validation
-	_, err = podHandler.Create(testClusterResourceOverridePod("limit-with-default-fail", "128Mi", "1"))
-	if err == nil {
-		t.Errorf("limit-with-default-fail: expected to be forbidden")
-	} else if !apierrors.IsForbidden(err) {
-		t.Errorf("limit-with-default-fail: unexpected error: %v", err)
+	// CRO admission plugin now ensures that a limit does not fall
+	// below the minimum across all containers in the namespace
+	// and validation should never fail. Create a POD that would
+	// ordinarily fail validation checks but notice that it a)
+	// doesn't fail and b) the CPU limits and requests are clamped
+	// to the floor of CPU and Memory respectively.
+	podCreated, err = podHandler.Create(testClusterResourceOverridePod("limit-with-min-floor-cpu", "128Mi", "1"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if memory := podCreated.Spec.Containers[0].Resources.Limits.Memory(); memory.Cmp(resource.MustParse("128Mi")) != 0 {
+		t.Errorf("limit-with-min-floor-cpu: Memory limit did not match default 128Mi: %v", memory)
+	}
+	if memory := podCreated.Spec.Containers[0].Resources.Requests.Memory(); memory.Cmp(resource.MustParse("128Mi")) != 0 {
+		t.Errorf("limit-with-min-floor-cpu: Memory req did not match expected 128Mi: %v", memory)
+	}
+	if cpu := podCreated.Spec.Containers[0].Resources.Limits.Cpu(); cpu.Cmp(resource.MustParse("200m")) != 0 {
+		t.Errorf("limit-with-min-floor-cpu: CPU limit did not match expected 200 mcore: %v", cpu)
+	}
+	if cpu := podCreated.Spec.Containers[0].Resources.Requests.Cpu(); cpu.Cmp(resource.MustParse("200m")) != 0 {
+		t.Errorf("limit-with-min-floor-cpu: CPU req did not match expected 200 mcore: %v", cpu)
 	}
 }
 
@@ -112,15 +126,14 @@ func setupClusterResourceOverrideTest(t *testing.T, pluginConfig *overrideapi.Cl
 	}
 	// fill in possibly-empty config values
 	if masterConfig.KubernetesMasterConfig == nil {
-		masterConfig.KubernetesMasterConfig = &api.KubernetesMasterConfig{}
+		masterConfig.KubernetesMasterConfig = &config.KubernetesMasterConfig{}
 	}
-	kubeMaster := masterConfig.KubernetesMasterConfig
-	if kubeMaster.AdmissionConfig.PluginConfig == nil {
-		kubeMaster.AdmissionConfig.PluginConfig = map[string]api.AdmissionPluginConfig{}
+	if masterConfig.AdmissionConfig.PluginConfig == nil {
+		masterConfig.AdmissionConfig.PluginConfig = map[string]*config.AdmissionPluginConfig{}
 	}
 	// set our config as desired
-	kubeMaster.AdmissionConfig.PluginConfig[overrideapi.PluginName] =
-		api.AdmissionPluginConfig{Configuration: pluginConfig}
+	masterConfig.AdmissionConfig.PluginConfig[overrideapi.PluginName] =
+		&config.AdmissionPluginConfig{Configuration: pluginConfig}
 
 	// start up a server and return useful clients to that server
 	clusterAdminKubeConfig, err := testserver.StartConfiguredMaster(masterConfig)
@@ -131,16 +144,12 @@ func setupClusterResourceOverrideTest(t *testing.T, pluginConfig *overrideapi.Cl
 	if err != nil {
 		t.Fatal(err)
 	}
-	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
 	// need to create a project and return client for project admin
 	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, testutil.Namespace(), "peon")
+	_, _, err = testserver.CreateNewProject(clusterAdminClientConfig, testutil.Namespace(), "peon")
 	if err != nil {
 		t.Fatal(err)
 	}

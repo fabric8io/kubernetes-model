@@ -6,16 +6,20 @@ import (
 	"io"
 	"strings"
 
+	"github.com/openshift/api/authorization/v1"
 	"github.com/spf13/cobra"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	"k8s.io/kubernetes/pkg/printers"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	oauthorizationtypedclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset/typed/authorization/internalversion"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 const WhoCanRecommendedName = "who-can"
@@ -23,11 +27,15 @@ const WhoCanRecommendedName = "who-can"
 type whoCanOptions struct {
 	allNamespaces    bool
 	bindingNamespace string
-	client           *client.Client
+	client           oauthorizationtypedclient.AuthorizationInterface
 
 	verb         string
 	resource     schema.GroupVersionResource
 	resourceName string
+
+	output   string
+	out      io.Writer
+	printObj func(runtime.Object) error
 }
 
 // NewCmdWhoCan implements the OpenShift cli who-can command
@@ -39,37 +47,49 @@ func NewCmdWhoCan(name, fullName string, f *clientcmd.Factory, out io.Writer) *c
 		Short: "List who can perform the specified action on a resource",
 		Long:  "List who can perform the specified action on a resource",
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := options.complete(f, args); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+			if err := options.complete(f, cmd, args, out); err != nil {
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
-
-			var err error
-			options.client, _, err = f.Clients()
-			kcmdutil.CheckErr(err)
-
-			options.bindingNamespace, _, err = f.DefaultNamespace()
-			kcmdutil.CheckErr(err)
 
 			kcmdutil.CheckErr(options.run())
 		},
 	}
 
 	cmd.Flags().BoolVar(&options.allNamespaces, "all-namespaces", options.allNamespaces, "If true, list who can perform the specified action in all namespaces.")
+	kcmdutil.AddPrinterFlags(cmd)
 
 	return cmd
 }
 
-func (o *whoCanOptions) complete(f *clientcmd.Factory, args []string) error {
+func (o *whoCanOptions) complete(f *clientcmd.Factory, cmd *cobra.Command, args []string, out io.Writer) error {
+	mapper, _ := f.Object()
+
+	o.out = out
+	o.output = kcmdutil.GetFlagString(cmd, "output")
+	o.printObj = func(obj runtime.Object) error {
+		return f.PrintObject(cmd, false, mapper, obj, out)
+	}
+
 	switch len(args) {
 	case 3:
 		o.resourceName = args[2]
 		fallthrough
 	case 2:
-		restMapper, _ := f.Object()
 		o.verb = args[0]
-		o.resource = resourceFor(restMapper, args[1])
+		o.resource = resourceFor(mapper, args[1])
 	default:
 		return errors.New("you must specify two or three arguments: verb, resource, and optional resourceName")
+	}
+
+	authorizationClient, err := f.OpenshiftInternalAuthorizationClient()
+	if err != nil {
+		return err
+	}
+	o.client = authorizationClient.Authorization()
+
+	o.bindingNamespace, _, err = f.DefaultNamespace()
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -110,6 +130,31 @@ func (o *whoCanOptions) run() error {
 
 	if err != nil {
 		return err
+	}
+
+	if len(o.output) > 0 {
+		// the printing stack is hosed.  Directly get the printer we need.
+		printableResponse := &v1.ResourceAccessReviewResponse{}
+		if err := legacyscheme.Scheme.Convert(resourceAccessReviewResponse, printableResponse, nil); err != nil {
+			return err
+		}
+		switch o.output {
+		case "json":
+			printer := printers.JSONPrinter{}
+			if err := printer.PrintObj(printableResponse, o.out); err != nil {
+				return err
+			}
+			return nil
+		case "yaml":
+			printer := printers.YAMLPrinter{}
+			if err := printer.PrintObj(printableResponse, o.out); err != nil {
+				return err
+			}
+			return nil
+		default:
+			return fmt.Errorf("invalid output format %q, only yaml|json supported", o.output)
+
+		}
 	}
 
 	if resourceAccessReviewResponse.Namespace == metav1.NamespaceAll {

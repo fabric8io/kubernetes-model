@@ -18,13 +18,14 @@ spec:
         app: {{ template "fullname" . }}-apiserver
         chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
         release: "{{ .Release.Name }}"
+        releaseRevision: "{{ .Release.Revision }}"
         heritage: "{{ .Release.Service }}"
     spec:
       serviceAccountName: "{{ .Values.apiserver.serviceAccount }}"
       containers:
       - name: apiserver
-        image: {{ .Values.apiserver.image }}
-        imagePullPolicy: {{ .Values.apiserver.imagePullPolicy }}
+        image: {{ .Values.image }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
         resources:
           requests:
             cpu: 100m
@@ -33,12 +34,13 @@ spec:
             cpu: 100m
             memory: 30Mi
         args:
+        - apiserver
         {{ if .Values.apiserver.audit.activated -}}
         - --audit-log-path
         - {{ .Values.apiserver.audit.logPath }}
         {{- end}}
         - --admission-control
-        - "KubernetesNamespaceLifecycle,DefaultServicePlan"
+        - "KubernetesNamespaceLifecycle,DefaultServicePlan,ServiceBindingsLifecycle,ServicePlanChangeValidator,BrokerAuthSarCheck"
         - --secure-port
         - "8443"
         - --storage-type
@@ -46,9 +48,6 @@ spec:
         {{- if eq .Values.apiserver.storage.type "etcd" }}
         - --etcd-servers
         - {{ .Values.apiserver.storage.etcd.servers }}
-        {{- else if eq .Values.apiserver.storage.type "tpr" }}
-        - --global-namespace
-        - {{ .Values.apiserver.storage.tpr.globalNamespace }}
         {{- end }}
         - -v
         - "{{ .Values.apiserver.verbosity }}"
@@ -57,6 +56,13 @@ spec:
         {{- end }}
         {{- if not .Values.apiserver.auth.enabled }}
         - --disable-auth
+        {{- end }}
+        {{- if .Values.originatingIdentityEnabled }}
+        - --feature-gates
+        - OriginatingIdentity=true
+        {{- end }}
+        {{- if .Values.apiserver.serveOpenAPISpec }}
+        - --serve-openapi-spec
         {{- end }}
         ports:
         - containerPort: 8443
@@ -91,10 +97,10 @@ spec:
         resources:
           requests:
             cpu: 100m
-            memory: 20Mi
+            memory: 30Mi
           limits:
             cpu: 100m
-            memory: 30Mi
+            memory: 40Mi
         env:
         - name: ETCD_DATA_DIR
           value: /etcd-data-dir
@@ -141,7 +147,12 @@ spec:
           - key: requestheader-ca.crt
             path: requestheader-ca.crt
           {{- end }}
-      {{- if eq .Values.apiserver.storage.type "etcd" }}
+      {{- if and (eq .Values.apiserver.storage.type "etcd") .Values.apiserver.storage.etcd.useEmbedded }}
       - name: etcd-data-dir
+      {{- if .Values.apiserver.storage.etcd.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ .Values.apiserver.storage.etcd.persistence.existingClaim | default (printf "%s-%s" (include "fullname" .) "etcd") }}
+      {{- else }}
         emptyDir: {}
+      {{- end }}
       {{- end }}

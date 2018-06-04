@@ -9,33 +9,30 @@ import (
 	"github.com/golang/glog"
 	jsschema "github.com/lestrrat/go-jsschema"
 
+	templateapiv1 "github.com/openshift/api/template/v1"
 	oapi "github.com/openshift/origin/pkg/api"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 	"github.com/openshift/origin/pkg/templateservicebroker/openservicebroker/api"
 )
 
 const (
-	//TODO - when https://github.com/kubernetes-incubator/service-catalog/pull/939 sufficiently progresses, this block should be removed
-	requesterUsernameTitle       = "Template service broker: requester username"
-	requesterUsernameDescription = "OpenShift user requesting provision/bind"
-
 	noDescriptionProvided = "No description provided."
 )
 
 // Map OpenShift template annotations to open service broker metadata field
 // community standards.
 var annotationMap = map[string]string{
-	oapi.OpenShiftDisplayName:                 api.ServiceMetadataDisplayName,
-	templateapi.IconClassAnnotation:           templateapi.ServiceMetadataIconClass,
-	templateapi.LongDescriptionAnnotation:     api.ServiceMetadataLongDescription,
-	templateapi.ProviderDisplayNameAnnotation: api.ServiceMetadataProviderDisplayName,
-	templateapi.DocumentationURLAnnotation:    api.ServiceMetadataDocumentationURL,
-	templateapi.SupportURLAnnotation:          api.ServiceMetadataSupportURL,
+	oapi.OpenShiftDisplayName:                   api.ServiceMetadataDisplayName,
+	oapi.OpenShiftLongDescriptionAnnotation:     api.ServiceMetadataLongDescription,
+	oapi.OpenShiftProviderDisplayNameAnnotation: api.ServiceMetadataProviderDisplayName,
+	oapi.OpenShiftDocumentationURLAnnotation:    api.ServiceMetadataDocumentationURL,
+	oapi.OpenShiftSupportURLAnnotation:          api.ServiceMetadataSupportURL,
+	templateapi.IconClassAnnotation:             templateapi.ServiceMetadataIconClass,
 }
 
 // serviceFromTemplate populates an open service broker service response from
 // an OpenShift template.
-func serviceFromTemplate(template *templateapi.Template) *api.Service {
+func serviceFromTemplate(template *templateapiv1.Template) *api.Service {
 	metadata := make(map[string]interface{})
 	for srcname, dstname := range annotationMap {
 		if value, ok := template.Annotations[srcname]; ok {
@@ -43,16 +40,8 @@ func serviceFromTemplate(template *templateapi.Template) *api.Service {
 		}
 	}
 
-	//TODO - when https://github.com/kubernetes-incubator/service-catalog/pull/939 sufficiently progresses, this block should be replaced
-	// with the commented out block immediately following it ... note we no longer require the param, in case the new approach is used
-	properties := map[string]*jsschema.Schema{
-		templateapi.RequesterUsernameParameterKey: {
-			Title:       requesterUsernameTitle,
-			Description: requesterUsernameDescription,
-			Type:        []jsschema.PrimitiveType{jsschema.StringType},
-		},
-	}
-	//properties := map[string]*jsschema.Schema{}
+	properties := map[string]*jsschema.Schema{}
+	paramOrdering := []string{}
 	required := []string{}
 	for _, param := range template.Parameters {
 		properties[param.Name] = &jsschema.Schema{
@@ -64,14 +53,17 @@ func serviceFromTemplate(template *templateapi.Template) *api.Service {
 		if param.Required && param.Generate == "" {
 			required = append(required, param.Name)
 		}
+		paramOrdering = append(paramOrdering, param.Name)
 	}
+
+	bindable := strings.ToLower(template.Annotations[templateapi.BindableAnnotation]) != "false"
 
 	plan := api.Plan{
 		ID:          string(template.UID), // TODO: this should be a unique value
 		Name:        "default",
 		Description: "Default plan",
 		Free:        true,
-		Bindable:    true,
+		Bindable:    bindable,
 		Schemas: api.Schema{
 			ServiceInstance: api.ServiceInstances{
 				Create: map[string]*jsschema.Schema{
@@ -86,19 +78,23 @@ func serviceFromTemplate(template *templateapi.Template) *api.Service {
 			ServiceBinding: api.ServiceBindings{
 				Create: map[string]*jsschema.Schema{
 					"parameters": {
-						SchemaRef: jsschema.SchemaURL,
-						Type:      []jsschema.PrimitiveType{jsschema.ObjectType},
-						Properties: map[string]*jsschema.Schema{
-							//TODO - when https://github.com/kubernetes-incubator/service-catalog/pull/939 sufficiently progresses, remove this prop
-							templateapi.RequesterUsernameParameterKey: {
-								Title:       requesterUsernameTitle,
-								Description: requesterUsernameDescription,
-								Type:        []jsschema.PrimitiveType{jsschema.StringType},
-							},
-						},
-						Required: []string{},
+						SchemaRef:  jsschema.SchemaURL,
+						Type:       []jsschema.PrimitiveType{jsschema.ObjectType},
+						Properties: map[string]*jsschema.Schema{},
+						Required:   []string{},
 					},
 				},
+			},
+		},
+	}
+
+	// This metadata ensures the template parameters are displayed in the
+	// service catalog in the same order as they are defined in the template.
+	plan.Metadata = make(map[string]interface{})
+	plan.Metadata["schemas"] = api.ParameterSchemas{
+		ServiceInstance: api.ParameterSchema{
+			Create: api.OpenShiftMetadata{
+				OpenShiftFormDefinition: paramOrdering,
 			},
 		},
 	}
@@ -113,7 +109,7 @@ func serviceFromTemplate(template *templateapi.Template) *api.Service {
 		ID:          string(template.UID),
 		Description: description,
 		Tags:        strings.Split(template.Annotations["tags"], ","),
-		Bindable:    true,
+		Bindable:    bindable,
 		Metadata:    metadata,
 		Plans:       []api.Plan{plan},
 	}

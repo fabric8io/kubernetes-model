@@ -3,18 +3,24 @@ package strategyrestrictions
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/admission"
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapihelper "k8s.io/kubernetes/pkg/api/helper"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	kapihelper "k8s.io/kubernetes/pkg/apis/core/helper"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	authorizationclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/authorization/internalversion"
+	kubeadmission "k8s.io/kubernetes/pkg/kubeapiserver/admission"
 	rbacregistry "k8s.io/kubernetes/pkg/registry/rbac"
 
+	buildclient "github.com/openshift/client-go/build/clientset/versioned"
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
+	"github.com/openshift/origin/pkg/authorization/util"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	"github.com/openshift/origin/pkg/client"
 	oadmission "github.com/openshift/origin/pkg/cmd/server/admission"
+	"k8s.io/kubernetes/pkg/apis/authorization"
 )
 
 func Register(plugins *admission.Plugins) {
@@ -26,10 +32,12 @@ func Register(plugins *admission.Plugins) {
 
 type buildByStrategy struct {
 	*admission.Handler
-	client client.Interface
+	sarClient   authorizationclient.SubjectAccessReviewInterface
+	buildClient buildclient.Interface
 }
 
-var _ = oadmission.WantsOpenshiftClient(&buildByStrategy{})
+var _ = kubeadmission.WantsInternalKubeClientSet(&buildByStrategy{})
+var _ = oadmission.WantsOpenshiftInternalBuildClient(&buildByStrategy{})
 
 // NewBuildByStrategy returns an admission control for builds that checks
 // on policy based on the build strategy type
@@ -69,13 +77,20 @@ func (a *buildByStrategy) Admit(attr admission.Attributes) error {
 	}
 }
 
-func (a *buildByStrategy) SetOpenshiftClient(c client.Interface) {
-	a.client = c
+func (a *buildByStrategy) SetInternalKubeClientSet(c internalclientset.Interface) {
+	a.sarClient = c.Authorization().SubjectAccessReviews()
 }
 
-func (a *buildByStrategy) Validate() error {
-	if a.client == nil {
-		return fmt.Errorf("BuildByStrategy needs an Openshift client")
+func (a *buildByStrategy) SetOpenshiftInternalBuildClient(c buildclient.Interface) {
+	a.buildClient = c
+}
+
+func (a *buildByStrategy) ValidateInitialization() error {
+	if a.buildClient == nil {
+		return fmt.Errorf("BuildByStrategy needs an Openshift buildClient")
+	}
+	if a.sarClient == nil {
+		return fmt.Errorf("BuildByStrategy needs an Openshift sarClient")
 	}
 	return nil
 }
@@ -110,17 +125,26 @@ func (a *buildByStrategy) checkBuildAuthorization(build *buildapi.Build, attr ad
 	if err != nil {
 		return admission.NewForbidden(attr, err)
 	}
-	subjectAccessReview := authorizationapi.AddUserToLSAR(attr.GetUserInfo(),
-		&authorizationapi.LocalSubjectAccessReview{
-			Action: authorizationapi.Action{
-				Verb:         "create",
-				Group:        resource.Group,
-				Resource:     resource.Resource,
-				Content:      build,
-				ResourceName: resourceName(build.ObjectMeta),
+	subresource := ""
+	tokens := strings.SplitN(resource.Resource, "/", 2)
+	resourceType := tokens[0]
+	if len(tokens) == 2 {
+		subresource = tokens[1]
+	}
+
+	sar := util.AddUserToSAR(attr.GetUserInfo(), &authorization.SubjectAccessReview{
+		Spec: authorization.SubjectAccessReviewSpec{
+			ResourceAttributes: &authorization.ResourceAttributes{
+				Namespace:   attr.GetNamespace(),
+				Verb:        "create",
+				Group:       resource.Group,
+				Resource:    resourceType,
+				Subresource: subresource,
+				Name:        resourceName(build.ObjectMeta),
 			},
-		})
-	return a.checkAccess(strategy, subjectAccessReview, attr)
+		},
+	})
+	return a.checkAccess(strategy, sar, attr)
 }
 
 func (a *buildByStrategy) checkBuildConfigAuthorization(buildConfig *buildapi.BuildConfig, attr admission.Attributes) error {
@@ -129,64 +153,81 @@ func (a *buildByStrategy) checkBuildConfigAuthorization(buildConfig *buildapi.Bu
 	if err != nil {
 		return admission.NewForbidden(attr, err)
 	}
-	subjectAccessReview := authorizationapi.AddUserToLSAR(attr.GetUserInfo(),
-		&authorizationapi.LocalSubjectAccessReview{
-			Action: authorizationapi.Action{
-				Verb:         "create",
-				Group:        resource.Group,
-				Resource:     resource.Resource,
-				Content:      buildConfig,
-				ResourceName: resourceName(buildConfig.ObjectMeta),
+	subresource := ""
+	tokens := strings.SplitN(resource.Resource, "/", 2)
+	resourceType := tokens[0]
+	if len(tokens) == 2 {
+		subresource = tokens[1]
+	}
+
+	sar := util.AddUserToSAR(attr.GetUserInfo(), &authorization.SubjectAccessReview{
+		Spec: authorization.SubjectAccessReviewSpec{
+			ResourceAttributes: &authorization.ResourceAttributes{
+				Namespace:   attr.GetNamespace(),
+				Verb:        "create",
+				Group:       resource.Group,
+				Resource:    resourceType,
+				Subresource: subresource,
+				Name:        resourceName(buildConfig.ObjectMeta),
 			},
-		})
-	return a.checkAccess(strategy, subjectAccessReview, attr)
+		},
+	})
+	return a.checkAccess(strategy, sar, attr)
 }
 
 func (a *buildByStrategy) checkBuildRequestAuthorization(req *buildapi.BuildRequest, attr admission.Attributes) error {
 	gr := attr.GetResource().GroupResource()
 	switch {
 	case buildapi.IsResourceOrLegacy("builds", gr):
-		build, err := a.client.Builds(attr.GetNamespace()).Get(req.Name, metav1.GetOptions{})
+		build, err := a.buildClient.Build().Builds(attr.GetNamespace()).Get(req.Name, metav1.GetOptions{})
 		if err != nil {
 			return admission.NewForbidden(attr, err)
 		}
-		return a.checkBuildAuthorization(build, attr)
+		internalBuild := &buildapi.Build{}
+		if err := legacyscheme.Scheme.Convert(build, internalBuild, nil); err != nil {
+			return admission.NewForbidden(attr, err)
+		}
+		return a.checkBuildAuthorization(internalBuild, attr)
 	case buildapi.IsResourceOrLegacy("buildconfigs", gr):
-		build, err := a.client.BuildConfigs(attr.GetNamespace()).Get(req.Name, metav1.GetOptions{})
+		buildConfig, err := a.buildClient.Build().BuildConfigs(attr.GetNamespace()).Get(req.Name, metav1.GetOptions{})
 		if err != nil {
 			return admission.NewForbidden(attr, err)
 		}
-		return a.checkBuildConfigAuthorization(build, attr)
+		internalBuildConfig := &buildapi.BuildConfig{}
+		if err := legacyscheme.Scheme.Convert(buildConfig, internalBuildConfig, nil); err != nil {
+			return admission.NewForbidden(attr, err)
+		}
+		return a.checkBuildConfigAuthorization(internalBuildConfig, attr)
 	default:
 		return admission.NewForbidden(attr, fmt.Errorf("Unknown resource type %s for BuildRequest", attr.GetResource()))
 	}
 }
 
-func (a *buildByStrategy) checkAccess(strategy buildapi.BuildStrategy, subjectAccessReview *authorizationapi.LocalSubjectAccessReview, attr admission.Attributes) error {
-	resp, err := a.client.LocalSubjectAccessReviews(attr.GetNamespace()).Create(subjectAccessReview)
+func (a *buildByStrategy) checkAccess(strategy buildapi.BuildStrategy, subjectAccessReview *authorization.SubjectAccessReview, attr admission.Attributes) error {
+	resp, err := a.sarClient.Create(subjectAccessReview)
 	if err != nil {
 		return admission.NewForbidden(attr, err)
 	}
-	// If not allowed, try to check against the legacy resource
-	// FIXME: Remove this when the legacy API is deprecated
-	if !resp.Allowed {
-		obj, err := kapi.Scheme.DeepCopy(subjectAccessReview)
-		if err != nil {
-			return admission.NewForbidden(attr, err)
-		}
-		legacySar := obj.(*authorizationapi.LocalSubjectAccessReview)
-		legacySar.Action.Group = ""
-		resp, err := a.client.LocalSubjectAccessReviews(attr.GetNamespace()).Create(legacySar)
-		if err != nil {
-			return admission.NewForbidden(attr, err)
-		}
-		if !resp.Allowed {
-			return notAllowed(strategy, attr)
-		}
+	if !resp.Status.Allowed {
+		return notAllowed(strategy, attr)
 	}
 	return nil
 }
 
 func notAllowed(strategy buildapi.BuildStrategy, attr admission.Attributes) error {
-	return admission.NewForbidden(attr, fmt.Errorf("build strategy %s is not allowed", buildapi.StrategyType(strategy)))
+	return admission.NewForbidden(attr, fmt.Errorf("build strategy %s is not allowed", strategyTypeString(strategy)))
+}
+
+func strategyTypeString(strategy buildapi.BuildStrategy) string {
+	switch {
+	case strategy.DockerStrategy != nil:
+		return "Docker"
+	case strategy.CustomStrategy != nil:
+		return "Custom"
+	case strategy.SourceStrategy != nil:
+		return "Source"
+	case strategy.JenkinsPipelineStrategy != nil:
+		return "JenkinsPipeline"
+	}
+	return ""
 }

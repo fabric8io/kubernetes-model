@@ -3,30 +3,36 @@ package imagestreamimport
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
 	gocontext "golang.org/x/net/context"
 
+	corev1 "k8s.io/api/core/v1"
 	kapierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapihelper "k8s.io/kubernetes/pkg/api/helper"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	authorizationapi "k8s.io/kubernetes/pkg/apis/authorization"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
+	kapihelper "k8s.io/kubernetes/pkg/apis/core/helper"
+	authorizationclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/authorization/internalversion"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/client"
-	serverapi "github.com/openshift/origin/pkg/cmd/server/api"
-	"github.com/openshift/origin/pkg/dockerregistry"
+	imageapiv1 "github.com/openshift/api/image/v1"
+	imageclientv1 "github.com/openshift/client-go/image/clientset/versioned/typed/image/v1"
+	authorizationutil "github.com/openshift/origin/pkg/authorization/util"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
-	imageapiv1 "github.com/openshift/origin/pkg/image/apis/image/v1"
+	"github.com/openshift/origin/pkg/image/apis/image/validation/whitelist"
 	"github.com/openshift/origin/pkg/image/importer"
+	"github.com/openshift/origin/pkg/image/importer/dockerv1client"
 	"github.com/openshift/origin/pkg/image/registry/imagestream"
+	"github.com/openshift/origin/pkg/image/registryclient"
+	"github.com/openshift/origin/pkg/image/util"
 	quotautil "github.com/openshift/origin/pkg/quota/util"
 )
 
@@ -35,7 +41,7 @@ type ImporterFunc func(r importer.RepositoryRetriever) importer.Interface
 
 // ImporterDockerRegistryFunc returns an instance of a docker client that should be used per invocation of import,
 // may be nil if no legacy import capability is required.
-type ImporterDockerRegistryFunc func() dockerregistry.Client
+type ImporterDockerRegistryFunc func() dockerv1client.Client
 
 // REST implements the RESTStorage interface for ImageStreamImport
 type REST struct {
@@ -43,12 +49,12 @@ type REST struct {
 	streams           imagestream.Registry
 	internalStreams   rest.CreaterUpdater
 	images            rest.Creater
-	secrets           client.ImageStreamSecretsNamespacer
+	isV1Client        imageclientv1.ImageStreamsGetter
 	transport         http.RoundTripper
 	insecureTransport http.RoundTripper
 	clientFn          ImporterDockerRegistryFunc
 	strategy          *strategy
-	sarClient         client.SubjectAccessReviewInterface
+	sarClient         authorizationclient.SubjectAccessReviewInterface
 }
 
 var _ rest.Creater = &REST{}
@@ -57,23 +63,23 @@ var _ rest.Creater = &REST{}
 // if v1 Docker Registry importing is not required. Insecure transport is optional, and both transports should not
 // include client certs unless you wish to allow the entire cluster to import using those certs.
 func NewREST(importFn ImporterFunc, streams imagestream.Registry, internalStreams rest.CreaterUpdater,
-	images rest.Creater, secrets client.ImageStreamSecretsNamespacer,
+	images rest.Creater,
+	isV1Client imageclientv1.ImageStreamsGetter,
 	transport, insecureTransport http.RoundTripper,
 	clientFn ImporterDockerRegistryFunc,
-	allowedImportRegistries *serverapi.AllowedRegistries,
-	registryFn imageapi.DefaultRegistryFunc,
-	sarClient client.SubjectAccessReviewInterface,
+	registryWhitelister whitelist.RegistryWhitelister,
+	sarClient authorizationclient.SubjectAccessReviewInterface,
 ) *REST {
 	return &REST{
 		importFn:          importFn,
 		streams:           streams,
 		internalStreams:   internalStreams,
 		images:            images,
-		secrets:           secrets,
+		isV1Client:        isV1Client,
 		transport:         transport,
 		insecureTransport: insecureTransport,
 		clientFn:          clientFn,
-		strategy:          NewStrategy(allowedImportRegistries, registryFn),
+		strategy:          NewStrategy(registryWhitelister),
 		sarClient:         sarClient,
 	}
 }
@@ -83,7 +89,7 @@ func (r *REST) New() runtime.Object {
 	return &imageapi.ImageStreamImport{}
 }
 
-func (r *REST) Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runtime.Object, error) {
+func (r *REST) Create(ctx apirequest.Context, obj runtime.Object, createValidation rest.ValidateObjectFunc, _ bool) (runtime.Object, error) {
 	isi, ok := obj.(*imageapi.ImageStreamImport)
 	if !ok {
 		return nil, kapierrors.NewBadRequest(fmt.Sprintf("obj is not an ImageStreamImport: %#v", obj))
@@ -92,6 +98,9 @@ func (r *REST) Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runti
 	inputMeta := isi.ObjectMeta
 
 	if err := rest.BeforeCreate(r.strategy, ctx, obj); err != nil {
+		return nil, err
+	}
+	if err := createValidation(obj.DeepCopyObject()); err != nil {
 		return nil, err
 	}
 
@@ -103,33 +112,35 @@ func (r *REST) Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runti
 	if !ok {
 		return nil, kapierrors.NewBadRequest("unable to get user from context")
 	}
-	isCreateImage, err := r.sarClient.Create(authorizationapi.AddUserToSAR(user,
-		&authorizationapi.SubjectAccessReview{
-			Action: authorizationapi.Action{
+	createImageSAR := authorizationutil.AddUserToSAR(user, &authorizationapi.SubjectAccessReview{
+		Spec: authorizationapi.SubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationapi.ResourceAttributes{
 				Verb:     "create",
 				Group:    imageapi.GroupName,
 				Resource: "images",
 			},
 		},
-	))
+	})
+	isCreateImage, err := r.sarClient.Create(createImageSAR)
 	if err != nil {
 		return nil, err
 	}
 
-	isCreateImageStreamMapping, err := r.sarClient.Create(authorizationapi.AddUserToSAR(user,
-		&authorizationapi.SubjectAccessReview{
-			Action: authorizationapi.Action{
+	createImageStreamMappingSAR := authorizationutil.AddUserToSAR(user, &authorizationapi.SubjectAccessReview{
+		Spec: authorizationapi.SubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationapi.ResourceAttributes{
 				Verb:     "create",
 				Group:    imageapi.GroupName,
 				Resource: "imagestreammapping",
 			},
 		},
-	))
+	})
+	isCreateImageStreamMapping, err := r.sarClient.Create(createImageStreamMappingSAR)
 	if err != nil {
 		return nil, err
 	}
 
-	if !isCreateImage.Allowed && !isCreateImageStreamMapping.Allowed {
+	if !isCreateImage.Status.Allowed && !isCreateImageStreamMapping.Status.Allowed {
 		if errs := r.strategy.ValidateAllowedRegistries(isi); len(errs) != 0 {
 			return nil, kapierrors.NewInvalid(imageapi.Kind("ImageStreamImport"), isi.Name, errs)
 		}
@@ -144,45 +155,6 @@ func (r *REST) Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runti
 		if client := r.clientFn(); client != nil {
 			ctx = apirequest.WithValue(ctx, importer.ContextKeyV1RegistryClient, client)
 		}
-	}
-
-	// only load secrets if we need them
-	credentials := importer.NewLazyCredentialsForSecrets(func() ([]kapi.Secret, error) {
-		secrets, err := r.secrets.ImageStreamSecrets(namespace).Secrets(isi.Name, metav1.ListOptions{})
-		if err != nil {
-			return nil, err
-		}
-		return secrets.Items, nil
-	})
-	importCtx := importer.NewContext(r.transport, r.insecureTransport).WithCredentials(credentials)
-	imports := r.importFn(importCtx)
-	if err := imports.Import(ctx.(gocontext.Context), isi); err != nil {
-		return nil, kapierrors.NewInternalError(err)
-	}
-
-	// if we encountered an error loading credentials and any images could not be retrieved with an access
-	// related error, modify the message.
-	// TODO: set a status cause
-	if err := credentials.Err(); err != nil {
-		for i, image := range isi.Status.Images {
-			switch image.Status.Reason {
-			case metav1.StatusReasonUnauthorized, metav1.StatusReasonForbidden:
-				isi.Status.Images[i].Status.Message = fmt.Sprintf("Unable to load secrets for this image: %v; (%s)", err, image.Status.Message)
-			}
-		}
-		if r := isi.Status.Repository; r != nil {
-			switch r.Status.Reason {
-			case metav1.StatusReasonUnauthorized, metav1.StatusReasonForbidden:
-				r.Status.Message = fmt.Sprintf("Unable to load secrets for this repository: %v; (%s)", err, r.Status.Message)
-			}
-		}
-	}
-
-	// TODO: perform the transformation of the image stream and return it with the ISI if import is false
-	//   so that clients can see what the resulting object would look like.
-	if !isi.Spec.Import {
-		clearManifests(isi)
-		return isi, nil
 	}
 
 	create := false
@@ -214,6 +186,73 @@ func (r *REST) Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runti
 		}
 	}
 
+	// only load secrets if we need them
+	credentials := importer.NewLazyCredentialsForSecrets(func() ([]corev1.Secret, error) {
+		secrets, err := r.isV1Client.ImageStreams(namespace).Secrets(isi.Name, metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return secrets.Items, nil
+	})
+	importCtx := registryclient.NewContext(r.transport, r.insecureTransport).WithCredentials(credentials)
+	imports := r.importFn(importCtx)
+	if err := imports.Import(ctx.(gocontext.Context), isi, stream); err != nil {
+		return nil, kapierrors.NewInternalError(err)
+	}
+
+	// check imported images status. If we get authentication error (401), try import same image without authentication.
+	// Docker registry gives 401 on public images if you have wrong secret in your secret list.
+	// this block was introduced by PR #18012
+	// TODO: remove this blocks when smarter auth client gets done with retries
+	var imageStatus []metav1.Status
+	importFailed := false
+	for _, image := range isi.Status.Images {
+		//cache all imports status
+		imageStatus = append(imageStatus, image.Status)
+		if image.Status.Reason == metav1.StatusReasonUnauthorized && strings.Contains(strings.ToLower(image.Status.Message), "username or password") {
+			importFailed = true
+		}
+	}
+	// try import IS without auth if it failed before
+	if importFailed {
+		importCtx := registryclient.NewContext(r.transport, r.insecureTransport).WithCredentials(nil)
+		imports := r.importFn(importCtx)
+		if err := imports.Import(ctx.(gocontext.Context), isi, stream); err != nil {
+			return nil, kapierrors.NewInternalError(err)
+		}
+	}
+	//cycle through status and set old messages so not to confuse users
+	for key, image := range isi.Status.Images {
+		if image.Status.Reason == metav1.StatusReasonUnauthorized {
+			isi.Status.Images[key].Status = imageStatus[key]
+		}
+	}
+
+	// if we encountered an error loading credentials and any images could not be retrieved with an access
+	// related error, modify the message.
+	// TODO: set a status cause
+	if err := credentials.Err(); err != nil {
+		for i, image := range isi.Status.Images {
+			switch image.Status.Reason {
+			case metav1.StatusReasonUnauthorized, metav1.StatusReasonForbidden:
+				isi.Status.Images[i].Status.Message = fmt.Sprintf("Unable to load secrets for this image: %v; (%s)", err, image.Status.Message)
+			}
+		}
+		if r := isi.Status.Repository; r != nil {
+			switch r.Status.Reason {
+			case metav1.StatusReasonUnauthorized, metav1.StatusReasonForbidden:
+				r.Status.Message = fmt.Sprintf("Unable to load secrets for this repository: %v; (%s)", err, r.Status.Message)
+			}
+		}
+	}
+
+	// TODO: perform the transformation of the image stream and return it with the ISI if import is false
+	//   so that clients can see what the resulting object would look like.
+	if !isi.Spec.Import {
+		clearManifests(isi)
+		return isi, nil
+	}
+
 	if stream.Annotations == nil {
 		stream.Annotations = make(map[string]string)
 	}
@@ -221,10 +260,7 @@ func (r *REST) Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runti
 	_, hasAnnotation := stream.Annotations[imageapi.DockerImageRepositoryCheckAnnotation]
 	nextGeneration := stream.Generation + 1
 
-	original, err := kapi.Scheme.DeepCopy(stream)
-	if err != nil {
-		return nil, err
-	}
+	original := stream.DeepCopy()
 
 	// walk the retrieved images, ensuring each one exists in etcd
 	importedImages := make(map[string]error)
@@ -295,12 +331,12 @@ func (r *REST) Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runti
 
 	// ensure defaulting is applied by round trip converting
 	// TODO: convert to using versioned types.
-	external, err := kapi.Scheme.ConvertToVersion(stream, imageapiv1.SchemeGroupVersion)
+	external, err := legacyscheme.Scheme.ConvertToVersion(stream, imageapiv1.SchemeGroupVersion)
 	if err != nil {
 		return nil, err
 	}
-	kapi.Scheme.Default(external)
-	internal, err := kapi.Scheme.ConvertToVersion(external, imageapi.SchemeGroupVersion)
+	legacyscheme.Scheme.Default(external)
+	internal, err := legacyscheme.Scheme.ConvertToVersion(external, imageapi.SchemeGroupVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -312,17 +348,17 @@ func (r *REST) Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runti
 	if create {
 		stream.Annotations[imageapi.DockerImageRepositoryCheckAnnotation] = now.UTC().Format(time.RFC3339)
 		glog.V(4).Infof("create new stream: %#v", stream)
-		obj, err = r.internalStreams.Create(ctx, stream, false)
+		obj, err = r.internalStreams.Create(ctx, stream, rest.ValidateAllObjectFunc, false)
 	} else {
 		if hasAnnotation && !hasChanges {
 			glog.V(4).Infof("stream did not change: %#v", stream)
-			obj, err = original.(*imageapi.ImageStream), nil
+			obj, err = original, nil
 		} else {
 			if glog.V(4) {
 				glog.V(4).Infof("updating stream %s", diff.ObjectDiff(original, stream))
 			}
 			stream.Annotations[imageapi.DockerImageRepositoryCheckAnnotation] = now.UTC().Format(time.RFC3339)
-			obj, _, err = r.internalStreams.Update(ctx, stream.Name, rest.DefaultUpdatedObjectInfo(stream, kapi.Scheme))
+			obj, _, err = r.internalStreams.Update(ctx, stream.Name, rest.DefaultUpdatedObjectInfo(stream), rest.ValidateAllObjectFunc, rest.ValidateAllObjectUpdateFunc)
 		}
 	}
 
@@ -330,10 +366,10 @@ func (r *REST) Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runti
 		// if we have am admission limit error then record the conditions on the original stream.  Quota errors
 		// will be recorded by the importer.
 		if quotautil.IsErrorLimitExceeded(err) {
-			originalStream := original.(*imageapi.ImageStream)
+			originalStream := original
 			recordLimitExceededStatus(originalStream, stream, err, now, nextGeneration)
 			var limitErr error
-			obj, _, limitErr = r.internalStreams.Update(ctx, stream.Name, rest.DefaultUpdatedObjectInfo(originalStream, kapi.Scheme))
+			obj, _, limitErr = r.internalStreams.Update(ctx, stream.Name, rest.DefaultUpdatedObjectInfo(originalStream), rest.ValidateAllObjectFunc, rest.ValidateAllObjectUpdateFunc)
 			if limitErr != nil {
 				utilruntime.HandleError(fmt.Errorf("failed to record limit exceeded status in image stream %s/%s: %v", stream.Namespace, stream.Name, limitErr))
 			}
@@ -468,11 +504,11 @@ func (r *REST) importSuccessful(
 		return nil, false
 	}
 
-	updated, err := r.images.Create(ctx, image, false)
+	updated, err := r.images.Create(ctx, image, rest.ValidateAllObjectFunc, false)
 	switch {
 	case kapierrors.IsAlreadyExists(err):
-		if err := imageapi.ImageWithMetadata(image); err != nil {
-			glog.V(4).Infof("Unable to update image metadata during image import when image already exists %q: err", image.Name, err)
+		if err := util.ImageWithMetadata(image); err != nil {
+			glog.V(4).Infof("Unable to update image metadata during image import when image already exists %q: %v", image.Name, err)
 		}
 		updated = image
 		fallthrough
@@ -522,8 +558,4 @@ func newImportFailedCondition(err error, gen int64, now metav1.Time) imageapi.Ta
 		c.Reason, c.Message = string(s.Reason), s.Message
 	}
 	return c
-}
-
-func invalidStatus(kind, position string, errs ...*field.Error) metav1.Status {
-	return kapierrors.NewInvalid(imageapi.Kind(kind), position, errs).ErrStatus
 }

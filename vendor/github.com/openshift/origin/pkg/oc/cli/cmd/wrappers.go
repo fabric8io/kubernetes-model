@@ -2,23 +2,28 @@ package cmd
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+
 	kvalidation "k8s.io/apimachinery/pkg/util/validation"
 	kclientcmd "k8s.io/client-go/tools/clientcmd"
 	kcmd "k8s.io/kubernetes/pkg/kubectl/cmd"
 	kcmdauth "k8s.io/kubernetes/pkg/kubectl/cmd/auth"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/config"
+	"k8s.io/kubernetes/pkg/kubectl/cmd/resource"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	cmdconfig "github.com/openshift/origin/pkg/client/config"
+	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	"github.com/openshift/origin/pkg/oc/cli/cmd/create"
-	cmdconfig "github.com/openshift/origin/pkg/oc/cli/config"
 	"github.com/openshift/origin/pkg/oc/cli/describe"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 func adjustCmdExamples(cmd *cobra.Command, parentName string, name string) {
@@ -63,7 +68,7 @@ var (
 
 // NewCmdGet is a wrapper for the Kubernetes cli get command
 func NewCmdGet(fullName string, f *clientcmd.Factory, out, errOut io.Writer) *cobra.Command {
-	cmd := kcmd.NewCmdGet(f, out, errOut)
+	cmd := resource.NewCmdGet(f, out, errOut)
 	cmd.Long = fmt.Sprintf(getLong, fullName)
 	cmd.Example = fmt.Sprintf(getExample, fullName)
 	cmd.SuggestFor = []string{"list"}
@@ -193,6 +198,7 @@ func NewCmdCreate(parentName string, f *clientcmd.Factory, out, errOut io.Writer
 	cmd.AddCommand(create.NewCmdCreateIdentity(create.IdentityRecommendedName, parentName+" create "+create.IdentityRecommendedName, f, out))
 	cmd.AddCommand(create.NewCmdCreateUserIdentityMapping(create.UserIdentityMappingRecommendedName, parentName+" create "+create.UserIdentityMappingRecommendedName, f, out))
 	cmd.AddCommand(create.NewCmdCreateImageStream(create.ImageStreamRecommendedName, parentName+" create "+create.ImageStreamRecommendedName, f, out))
+	cmd.AddCommand(create.NewCmdCreateImageStreamTag(create.ImageStreamTagRecommendedName, parentName+" create "+create.ImageStreamTagRecommendedName, f, out))
 
 	adjustCmdExamples(cmd, parentName, "create")
 
@@ -224,7 +230,7 @@ var (
 	  * zsh completions are only supported in versions of zsh >= 5.2`)
 )
 
-func NewCmdCompletion(fullName string, f *clientcmd.Factory, out io.Writer) *cobra.Command {
+func NewCmdCompletion(fullName string, out io.Writer) *cobra.Command {
 	cmdHelpName := fullName
 
 	if strings.HasSuffix(fullName, "completion") {
@@ -234,7 +240,32 @@ func NewCmdCompletion(fullName string, f *clientcmd.Factory, out io.Writer) *cob
 	cmd := kcmd.NewCmdCompletion(out, "\n")
 	cmd.Long = fmt.Sprintf(completionLong, cmdHelpName)
 	cmd.Example = fmt.Sprintf(completionExample, cmdHelpName, cmdHelpName, cmdHelpName, cmdHelpName)
+	// mark all statically included flags as hidden to prevent them appearing in completions
+	cmd.PreRun = func(c *cobra.Command, _ []string) {
+		pflag.CommandLine.VisitAll(func(flag *pflag.Flag) {
+			flag.Hidden = true
+		})
+		hideGlobalFlags(c.Root(), flag.CommandLine)
+	}
 	return cmd
+}
+
+// hideGlobalFlags marks any flag that is in the global flag set as
+// hidden to prevent completion from varying by platform due to conditional
+// includes. This means that some completions will not be possible unless
+// they are registered in cobra instead of being added to flag.CommandLine.
+func hideGlobalFlags(c *cobra.Command, fs *flag.FlagSet) {
+	fs.VisitAll(func(flag *flag.Flag) {
+		if f := c.PersistentFlags().Lookup(flag.Name); f != nil {
+			f.Hidden = true
+		}
+		if f := c.LocalFlags().Lookup(flag.Name); f != nil {
+			f.Hidden = true
+		}
+	})
+	for _, child := range c.Commands() {
+		hideGlobalFlags(child, fs)
+	}
 }
 
 var (
@@ -449,7 +480,6 @@ func NewCmdRun(fullName string, f *clientcmd.Factory, in io.Reader, out, errout 
 	cmd := kcmd.NewCmdRunWithOptions(f, opts, in, out, errout)
 	cmd.Long = runLong
 	cmd.Example = fmt.Sprintf(runExample, fullName)
-	cmd.SuggestFor = []string{"image"}
 	cmd.Flags().Set("generator", "")
 	cmd.Flag("generator").Usage = "The name of the API generator to use.  Default is 'deploymentconfig/v1' if --restart=Always, otherwise the default is 'run-pod/v1'."
 	cmd.Flag("generator").DefValue = ""
@@ -578,7 +608,7 @@ var (
 
 // NewCmdApply is a wrapper for the Kubernetes cli apply command
 func NewCmdApply(fullName string, f *clientcmd.Factory, out, errOut io.Writer) *cobra.Command {
-	cmd := kcmd.NewCmdApply(f, out, errOut)
+	cmd := kcmd.NewCmdApply(fullName, f, out, errOut)
 	cmd.Long = applyLong
 	cmd.Example = fmt.Sprintf(applyExample, fullName)
 	return cmd
@@ -754,7 +784,7 @@ func NewCmdCp(fullName string, f *clientcmd.Factory, in io.Reader, out, errout i
 }
 
 func NewCmdAuth(fullName string, f *clientcmd.Factory, out, errout io.Writer) *cobra.Command {
-	cmd := kcmdauth.NewCmdAuth(f, out, errout)
+	cmd := cmdutil.ReplaceCommandName("kubectl", fullName, templates.Normalize(kcmdauth.NewCmdAuth(f, out, errout)))
 	return cmd
 }
 

@@ -11,14 +11,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 	kprinters "k8s.io/kubernetes/pkg/printers"
 
-	cmdutil "github.com/openshift/origin/pkg/cmd/util"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 )
 
@@ -61,7 +60,7 @@ func NewCmdExport(fullName string, f *clientcmd.Factory, in io.Reader, out io.Wr
 		Example: fmt.Sprintf(exportExample, fullName),
 		Run: func(cmd *cobra.Command, args []string) {
 			err := RunExport(f, exporter, in, out, cmd, args, filenames)
-			if err == cmdutil.ErrExit {
+			if err == kcmdutil.ErrExit {
 				os.Exit(1)
 			}
 			kcmdutil.CheckErr(err)
@@ -87,7 +86,7 @@ func RunExport(f *clientcmd.Factory, exporter Exporter, in io.Reader, out io.Wri
 	asTemplate := kcmdutil.GetFlagString(cmd, "as-template")
 	raw := kcmdutil.GetFlagBool(cmd, "raw")
 	if exact && raw {
-		return kcmdutil.UsageError(cmd, "--exact and --raw may not both be specified")
+		return kcmdutil.UsageErrorf(cmd, "--exact and --raw may not both be specified")
 	}
 
 	clientConfig, err := f.ClientConfig()
@@ -111,11 +110,11 @@ func RunExport(f *clientcmd.Factory, exporter Exporter, in io.Reader, out io.Wri
 		return err
 	}
 
-	mapper, typer := f.Object()
-	b := f.NewBuilder(true).
+	b := f.NewBuilder().
+		Unstructured().
 		NamespaceParam(cmdNamespace).DefaultNamespace().AllNamespaces(allNamespaces).
 		FilenameParam(explicit, &resource.FilenameOptions{Recursive: false, Filenames: filenames}).
-		SelectorParam(selector).
+		LabelSelectorParam(selector).
 		ResourceTypeOrNameArgs(true, args...).
 		Flatten()
 
@@ -133,12 +132,44 @@ func RunExport(f *clientcmd.Factory, exporter Exporter, in io.Reader, out io.Wri
 		newInfos := []*resource.Info{}
 		errs := []error{}
 		for _, info := range infos {
+			converted := false
+
+			// convert unstructured object to runtime.Object
+			data, err := runtime.Encode(legacyscheme.Codecs.LegacyCodec(), info.Object)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			decoded, err := runtime.Decode(f.Decoder(true), data)
+			if err == nil {
+				// ignore error, if any, in order to allow resources
+				// not known by the client to still be exported
+				info.Object = decoded
+				converted = true
+			}
+
 			if err := exporter.Export(info.Object, exact); err != nil {
 				if err == ErrExportOmit {
 					continue
 				}
 				errs = append(errs, err)
 			}
+
+			// if an unstructured resource was successfully converted by the universal decoder,
+			// re-convert that object once again into its external version.
+			// If object cannot be converted to an external version, ignore error and proceed with
+			// internal version.
+			if converted {
+				if data, err = runtime.Encode(legacyscheme.Codecs.LegacyCodec(outputVersion), info.Object); err == nil {
+					external, err := runtime.Decode(f.Decoder(false), data)
+					if err != nil {
+						errs = append(errs, fmt.Errorf("error: failed to convert resource to external version: %v", err))
+						continue
+					}
+					info.Object = external
+				}
+			}
+
 			newInfos = append(newInfos, info)
 		}
 		if len(errs) > 0 {
@@ -149,7 +180,7 @@ func RunExport(f *clientcmd.Factory, exporter Exporter, in io.Reader, out io.Wri
 
 	var result runtime.Object
 	if len(asTemplate) > 0 {
-		objects, err := resource.AsVersionedObjects(infos, outputVersion, kapi.Codecs.LegacyCodec(outputVersion))
+		objects, err := clientcmd.AsVersionedObjects(infos, outputVersion, legacyscheme.Codecs.LegacyCodec(outputVersion))
 		if err != nil {
 			return err
 		}
@@ -157,12 +188,12 @@ func RunExport(f *clientcmd.Factory, exporter Exporter, in io.Reader, out io.Wri
 			Objects: objects,
 		}
 		template.Name = asTemplate
-		result, err = kapi.Scheme.ConvertToVersion(template, outputVersion)
+		result, err = legacyscheme.Scheme.ConvertToVersion(template, outputVersion)
 		if err != nil {
 			return err
 		}
 	} else {
-		object, err := resource.AsVersionedObject(infos, !one, outputVersion, kapi.Codecs.LegacyCodec(outputVersion))
+		object, err := clientcmd.AsVersionedObject(infos, !one, outputVersion, legacyscheme.Codecs.LegacyCodec(outputVersion))
 		if err != nil {
 			return err
 		}
@@ -179,13 +210,14 @@ func RunExport(f *clientcmd.Factory, exporter Exporter, in io.Reader, out io.Wri
 		outputFormat = "yaml"
 	}
 	decoders := []runtime.Decoder{f.Decoder(true), unstructured.UnstructuredJSONScheme}
+	printOpts := kcmdutil.ExtractCmdPrintOptions(cmd, false)
+	printOpts.OutputFormatType = outputFormat
+	printOpts.OutputFormatArgument = templateFile
+	printOpts.AllowMissingKeys = kcmdutil.GetFlagBool(cmd, "allow-missing-template-keys")
+
+	mapper, typer := f.Object()
 	p, err := kprinters.GetStandardPrinter(
-		&kprinters.OutputOptions{
-			FmtType:          outputFormat,
-			FmtArg:           templateFile,
-			AllowMissingKeys: kcmdutil.GetFlagBool(cmd, "allow-missing-template-keys"),
-		},
-		kcmdutil.GetFlagBool(cmd, "no-headers"), mapper, typer, kapi.Codecs.LegacyCodec(outputVersion), decoders, kprinters.PrintOptions{})
+		mapper, typer, legacyscheme.Codecs.LegacyCodec(outputVersion), decoders, *printOpts)
 
 	if err != nil {
 		return err

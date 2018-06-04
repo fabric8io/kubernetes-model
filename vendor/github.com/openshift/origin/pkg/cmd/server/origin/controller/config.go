@@ -1,23 +1,36 @@
 package controller
 
 import (
-	"fmt"
-	"io/ioutil"
 	"path"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/util/cert"
-	kapi "k8s.io/kubernetes/pkg/api"
-	kcontroller "k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/pkg/serviceaccount"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	serviceaccountadmission "k8s.io/kubernetes/plugin/pkg/admission/serviceaccount"
 
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	"github.com/openshift/origin/pkg/cmd/server/crypto"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
 	"github.com/openshift/origin/pkg/cmd/util/variable"
 )
+
+func envVars(host string, caData []byte, insecure bool, bearerTokenFile string) []kapi.EnvVar {
+	envvars := []kapi.EnvVar{
+		{Name: "KUBERNETES_MASTER", Value: host},
+		{Name: "OPENSHIFT_MASTER", Value: host},
+	}
+
+	if len(bearerTokenFile) > 0 {
+		envvars = append(envvars, kapi.EnvVar{Name: "BEARER_TOKEN_FILE", Value: bearerTokenFile})
+	}
+
+	if len(caData) > 0 {
+		envvars = append(envvars, kapi.EnvVar{Name: "OPENSHIFT_CA_DATA", Value: string(caData)})
+	} else if insecure {
+		envvars = append(envvars, kapi.EnvVar{Name: "OPENSHIFT_INSECURE", Value: "true"})
+	}
+
+	return envvars
+}
 
 func getOpenShiftClientEnvVars(options configapi.MasterConfig) ([]kapi.EnvVar, error) {
 	_, kclientConfig, err := configapi.GetInternalKubeClient(
@@ -27,7 +40,7 @@ func getOpenShiftClientEnvVars(options configapi.MasterConfig) ([]kapi.EnvVar, e
 	if err != nil {
 		return nil, err
 	}
-	return clientcmd.EnvVars(
+	return envVars(
 		kclientConfig.Host,
 		kclientConfig.CAData,
 		kclientConfig.Insecure,
@@ -38,18 +51,16 @@ func getOpenShiftClientEnvVars(options configapi.MasterConfig) ([]kapi.EnvVar, e
 // OpenshiftControllerConfig is the runtime (non-serializable) config object used to
 // launch the set of openshift (not kube) controllers.
 type OpenshiftControllerConfig struct {
-	ServiceAccountTokenControllerOptions ServiceAccountTokenControllerOptions
-
 	ServiceAccountControllerOptions ServiceAccountControllerOptions
 
 	BuildControllerConfig BuildControllerConfig
 
-	DeployerControllerConfig          DeployerControllerConfig
-	DeploymentConfigControllerConfig  DeploymentConfigControllerConfig
-	DeploymentTriggerControllerConfig DeploymentTriggerControllerConfig
+	DeployerControllerConfig         DeployerControllerConfig
+	DeploymentConfigControllerConfig DeploymentConfigControllerConfig
 
-	ImageTriggerControllerConfig ImageTriggerControllerConfig
-	ImageImportControllerConfig  ImageImportControllerConfig
+	ImageTriggerControllerConfig         ImageTriggerControllerConfig
+	ImageSignatureImportControllerConfig ImageSignatureImportControllerConfig
+	ImageImportControllerConfig          ImageImportControllerConfig
 
 	ServiceServingCertsControllerOptions ServiceServingCertsControllerOptions
 
@@ -58,6 +69,8 @@ type OpenshiftControllerConfig struct {
 	IngressIPControllerConfig IngressIPControllerConfig
 
 	ClusterQuotaReconciliationControllerConfig ClusterQuotaReconciliationControllerConfig
+
+	HorizontalPodAutoscalerControllerConfig HorizontalPodAutoscalerControllerConfig
 }
 
 func (c *OpenshiftControllerConfig) GetControllerInitializers() (map[string]InitFunc, error) {
@@ -74,10 +87,10 @@ func (c *OpenshiftControllerConfig) GetControllerInitializers() (map[string]Init
 
 	ret["openshift.io/deployer"] = c.DeployerControllerConfig.RunController
 	ret["openshift.io/deploymentconfig"] = c.DeploymentConfigControllerConfig.RunController
-	ret["openshift.io/deploymenttrigger"] = c.DeploymentTriggerControllerConfig.RunController
 
 	ret["openshift.io/image-trigger"] = c.ImageTriggerControllerConfig.RunController
 	ret["openshift.io/image-import"] = c.ImageImportControllerConfig.RunController
+	ret["openshift.io/image-signature-import"] = c.ImageSignatureImportControllerConfig.RunController
 
 	ret["openshift.io/templateinstance"] = RunTemplateInstanceController
 
@@ -88,65 +101,16 @@ func (c *OpenshiftControllerConfig) GetControllerInitializers() (map[string]Init
 	ret["openshift.io/resourcequota"] = RunResourceQuotaManager
 	ret["openshift.io/cluster-quota-reconciliation"] = c.ClusterQuotaReconciliationControllerConfig.RunController
 
-	return ret, nil
-}
+	// overrides the Kube HPA controller config, so that we can point it at an HTTPS Heapster
+	// in openshift-infra, and pass it a scale client that knows how to scale DCs
+	ret["openshift.io/horizontalpodautoscaling"] = c.HorizontalPodAutoscalerControllerConfig.RunController
 
-// NewOpenShiftControllerPreStartInitializers returns list of initializers for controllers
-// that needed to be run before any other controller is started.
-// Typically this has to done for the serviceaccount-token controller as it provides
-// tokens to other controllers.
-func (c *OpenshiftControllerConfig) ServiceAccountContentControllerInit() InitFunc {
-	return c.ServiceAccountTokenControllerOptions.RunController
+	return ret, nil
 }
 
 func BuildOpenshiftControllerConfig(options configapi.MasterConfig) (*OpenshiftControllerConfig, error) {
 	var err error
 	ret := &OpenshiftControllerConfig{}
-
-	_, loopbackClientConfig, err := configapi.GetInternalKubeClient(options.MasterClients.OpenShiftLoopbackKubeConfig, options.MasterClients.OpenShiftLoopbackClientConnectionOverrides)
-	if err != nil {
-		return nil, err
-	}
-
-	ret.ServiceAccountTokenControllerOptions = ServiceAccountTokenControllerOptions{
-		RootClientBuilder: kcontroller.SimpleControllerClientBuilder{
-			ClientConfig: loopbackClientConfig,
-		},
-	}
-	if len(options.ServiceAccountConfig.PrivateKeyFile) > 0 {
-		ret.ServiceAccountTokenControllerOptions.PrivateKey, err = serviceaccount.ReadPrivateKey(options.ServiceAccountConfig.PrivateKeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("error reading signing key for Service Account Token Manager: %v", err)
-		}
-	}
-	if len(options.ServiceAccountConfig.MasterCA) > 0 {
-		ret.ServiceAccountTokenControllerOptions.RootCA, err = ioutil.ReadFile(options.ServiceAccountConfig.MasterCA)
-		if err != nil {
-			return nil, fmt.Errorf("error reading master ca file for Service Account Token Manager: %s: %v", options.ServiceAccountConfig.MasterCA, err)
-		}
-		if _, err := cert.ParseCertsPEM(ret.ServiceAccountTokenControllerOptions.RootCA); err != nil {
-			return nil, fmt.Errorf("error parsing master ca file for Service Account Token Manager: %s: %v", options.ServiceAccountConfig.MasterCA, err)
-		}
-	}
-	if options.ControllerConfig.ServiceServingCert.Signer != nil && len(options.ControllerConfig.ServiceServingCert.Signer.CertFile) > 0 {
-		certFile := options.ControllerConfig.ServiceServingCert.Signer.CertFile
-		serviceServingCA, err := ioutil.ReadFile(certFile)
-		if err != nil {
-			return nil, fmt.Errorf("error reading ca file for Service Serving Certificate Signer: %s: %v", certFile, err)
-		}
-		if _, err := crypto.CertsFromPEM(serviceServingCA); err != nil {
-			return nil, fmt.Errorf("error parsing ca file for Service Serving Certificate Signer: %s: %v", certFile, err)
-		}
-
-		// if we have a rootCA bundle add that too.  The rootCA will be used when hitting the default master service, since those are signed
-		// using a different CA by default.  The rootCA's key is more closely guarded than ours and if it is compromised, that power could
-		// be used to change the trusted signers for every pod anyway, so we're already effectively trusting it.
-		if len(ret.ServiceAccountTokenControllerOptions.RootCA) > 0 {
-			ret.ServiceAccountTokenControllerOptions.ServiceServingCA = append(ret.ServiceAccountTokenControllerOptions.ServiceServingCA, ret.ServiceAccountTokenControllerOptions.RootCA...)
-			ret.ServiceAccountTokenControllerOptions.ServiceServingCA = append(ret.ServiceAccountTokenControllerOptions.ServiceServingCA, []byte("\n")...)
-		}
-		ret.ServiceAccountTokenControllerOptions.ServiceServingCA = append(ret.ServiceAccountTokenControllerOptions.ServiceServingCA, serviceServingCA...)
-	}
 
 	ret.ServiceAccountControllerOptions = ServiceAccountControllerOptions{
 		ManagedNames: options.ServiceAccountConfig.ManagedNames,
@@ -154,7 +118,7 @@ func BuildOpenshiftControllerConfig(options configapi.MasterConfig) (*OpenshiftC
 
 	storageVersion := options.EtcdStorageConfig.OpenShiftStorageVersion
 	groupVersion := schema.GroupVersion{Group: "", Version: storageVersion}
-	annotationCodec := kapi.Codecs.LegacyCodec(groupVersion)
+	annotationCodec := legacyscheme.Codecs.LegacyCodec(groupVersion)
 
 	imageTemplate := variable.NewDefaultImageTemplate()
 	imageTemplate.Format = options.ImageConfig.Format
@@ -179,9 +143,6 @@ func BuildOpenshiftControllerConfig(options configapi.MasterConfig) (*OpenshiftC
 	ret.DeploymentConfigControllerConfig = DeploymentConfigControllerConfig{
 		Codec: annotationCodec,
 	}
-	ret.DeploymentTriggerControllerConfig = DeploymentTriggerControllerConfig{
-		Codec: annotationCodec,
-	}
 
 	ret.ImageTriggerControllerConfig = ImageTriggerControllerConfig{
 		HasBuilderEnabled: options.DisabledFeatures.Has(configapi.FeatureBuilder),
@@ -196,6 +157,11 @@ func BuildOpenshiftControllerConfig(options configapi.MasterConfig) (*OpenshiftC
 		ResyncPeriod:                               10 * time.Minute,
 		DisableScheduledImport:                     options.ImagePolicyConfig.DisableScheduledImport,
 		ScheduledImageImportMinimumIntervalSeconds: options.ImagePolicyConfig.ScheduledImageImportMinimumIntervalSeconds,
+	}
+	ret.ImageSignatureImportControllerConfig = ImageSignatureImportControllerConfig{
+		ResyncPeriod:          1 * time.Hour,
+		SignatureFetchTimeout: 1 * time.Minute,
+		SignatureImportLimit:  3,
 	}
 
 	ret.ServiceServingCertsControllerOptions = ServiceServingCertsControllerOptions{
@@ -216,6 +182,11 @@ func BuildOpenshiftControllerConfig(options configapi.MasterConfig) (*OpenshiftC
 	ret.ClusterQuotaReconciliationControllerConfig = ClusterQuotaReconciliationControllerConfig{
 		DefaultResyncPeriod:            5 * time.Minute,
 		DefaultReplenishmentSyncPeriod: 12 * time.Hour,
+	}
+
+	// TODO this goes away with a truly generic autoscaler
+	ret.HorizontalPodAutoscalerControllerConfig = HorizontalPodAutoscalerControllerConfig{
+		HeapsterNamespace: options.PolicyConfig.OpenShiftInfrastructureNamespace,
 	}
 
 	return ret, nil

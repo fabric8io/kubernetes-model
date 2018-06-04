@@ -17,9 +17,9 @@ limitations under the License.
 package deployment
 
 import (
+	"k8s.io/api/core/v1"
+	extensions "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/kubernetes/pkg/api/v1"
-	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/controller/deployment/util"
 )
@@ -63,6 +63,12 @@ func (dc *DeploymentController) rolloutRecreate(d *extensions.Deployment, rsList
 		return err
 	}
 
+	if util.DeploymentComplete(d, &d.Status) {
+		if err := dc.cleanupDeployment(oldRSs, d); err != nil {
+			return err
+		}
+	}
+
 	// Sync deployment status.
 	return dc.syncRolloutStatus(allRSs, newRS, d)
 }
@@ -98,8 +104,19 @@ func oldPodsRunning(newRS *extensions.ReplicaSet, oldRSs []*extensions.ReplicaSe
 		if newRS != nil && newRS.UID == rsUID {
 			continue
 		}
-		if len(podList.Items) > 0 {
-			return true
+		for _, pod := range podList.Items {
+			switch pod.Status.Phase {
+			case v1.PodFailed, v1.PodSucceeded:
+				// Don't count pods in terminal state.
+				continue
+			case v1.PodUnknown:
+				// This happens in situation like when the node is temporarily disconnected from the cluster.
+				// If we can't be sure that the pod is not running, we have to count it.
+				return true
+			default:
+				// Pod is not in terminal phase.
+				return true
+			}
 		}
 	}
 	return false

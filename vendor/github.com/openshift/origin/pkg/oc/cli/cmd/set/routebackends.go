@@ -16,13 +16,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 
-	cmdutil "github.com/openshift/origin/pkg/cmd/util"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 	routeapi "github.com/openshift/origin/pkg/route/apis/route"
 )
 
@@ -114,7 +113,7 @@ func NewCmdRouteBackends(fullName string, f *clientcmd.Factory, out, errOut io.W
 			kcmdutil.CheckErr(options.Validate())
 			err := options.Run()
 			// TODO: move me to kcmdutil
-			if err == cmdutil.ErrExit {
+			if err == kcmdutil.ErrExit {
 				os.Exit(1)
 			}
 			kcmdutil.CheckErr(err)
@@ -162,14 +161,16 @@ func (o *BackendsOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, arg
 	o.Cmd = cmd
 
 	mapper, _ := f.Object()
-	o.Builder = f.NewBuilder(!o.Local).
+	o.Builder = f.NewBuilder().
+		Internal().
+		LocalParam(o.Local).
 		ContinueOnError().
 		NamespaceParam(cmdNamespace).DefaultNamespace().
 		FilenameParam(explicit, &resource.FilenameOptions{Recursive: false, Filenames: o.Filenames}).
 		Flatten()
 	if !o.Local {
 		o.Builder = o.Builder.
-			SelectorParam(o.Selector).
+			LabelSelectorParam(o.Selector).
 			SelectAllParam(o.All).
 			ResourceNames("route", resources...)
 
@@ -257,7 +258,7 @@ func (o *BackendsOptions) Run() error {
 		kcmdutil.PrintSuccess(o.Mapper, o.ShortOutput, o.Out, info.Mapping.Resource, info.Name, false, "updated")
 	}
 	if failed {
-		return cmdutil.ErrExit
+		return kcmdutil.ErrExit
 	}
 	return nil
 }

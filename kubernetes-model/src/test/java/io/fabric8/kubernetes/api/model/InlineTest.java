@@ -24,10 +24,10 @@ public class InlineTest {
 
     @Test
     public void testIntOrString() throws JsonProcessingException {
-        ServicePort port = new ServicePortBuilder().withNewTargetPort(2181).build();
+        ServicePort port = new io.fabric8.kubernetes.api.model.ServicePortBuilder().withNewTargetPort(2181).build();
         assertEquals(2181, port.getTargetPort().getIntVal().intValue());
 
-        port = new ServicePortBuilder().withNewTargetPort("2181").build();
+        port = new io.fabric8.kubernetes.api.model.ServicePortBuilder().withNewTargetPort("2181").build();
         assertEquals("2181", port.getTargetPort().getStrVal());
     }
 }

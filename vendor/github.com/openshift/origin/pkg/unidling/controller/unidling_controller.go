@@ -9,18 +9,19 @@ import (
 	unidlingapi "github.com/openshift/origin/pkg/unidling/api"
 	unidlingutil "github.com/openshift/origin/pkg/unidling/util"
 
-	deployclient "github.com/openshift/origin/pkg/deploy/generated/internalclientset/typed/apps/internalversion"
+	appsclient "github.com/openshift/origin/pkg/apps/generated/internalclientset/typed/apps/internalversion"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
+	kextapi "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	kextclient "k8s.io/client-go/kubernetes/typed/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
-	kextapi "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
-	kextclient "k8s.io/kubernetes/pkg/client/clientset_generated/clientset/typed/extensions/v1beta1"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -71,11 +72,11 @@ type UnidlingController struct {
 	lastFiredCache      *lastFiredCache
 
 	// TODO: remove these once we get the scale-source functionality in the scale endpoints
-	dcNamespacer deployclient.DeploymentConfigsGetter
+	dcNamespacer appsclient.DeploymentConfigsGetter
 	rcNamespacer kcoreclient.ReplicationControllersGetter
 }
 
-func NewUnidlingController(scaleNS kextclient.ScalesGetter, endptsNS kcoreclient.EndpointsGetter, evtNS kcoreclient.EventsGetter, dcNamespacer deployclient.DeploymentConfigsGetter, rcNamespacer kcoreclient.ReplicationControllersGetter, resyncPeriod time.Duration) *UnidlingController {
+func NewUnidlingController(scaleNS kextclient.ScalesGetter, endptsNS kcoreclient.EndpointsGetter, evtNS kcoreclient.EventsGetter, dcNamespacer appsclient.DeploymentConfigsGetter, rcNamespacer kcoreclient.ReplicationControllersGetter, resyncPeriod time.Duration) *UnidlingController {
 	fieldSet := fields.Set{}
 	fieldSet["reason"] = unidlingapi.NeedPodsReason
 	fieldSelector := fieldSet.AsSelector()
@@ -328,7 +329,7 @@ func (c *UnidlingController) handleRequest(info types.NamespacedName, lastFired 
 
 		scale.Spec.Replicas = scalableRef.Replicas
 
-		updater := unidlingutil.NewScaleUpdater(kapi.Codecs.LegacyCodec(kapi.Registry.EnabledVersions()...), info.Namespace, c.dcNamespacer, c.rcNamespacer)
+		updater := unidlingutil.NewScaleUpdater(legacyscheme.Codecs.LegacyCodec(legacyscheme.Registry.EnabledVersions()...), info.Namespace, c.dcNamespacer, c.rcNamespacer)
 		if err = scaleAnnotater.UpdateObjectScale(updater, info.Namespace, scalableRef.CrossGroupObjectReference, obj, scale); err != nil {
 			if errors.IsNotFound(err) {
 				utilruntime.HandleError(fmt.Errorf("%s %q does not exist, removing from list of scalables while unidling service %s/%s: %v", scalableRef.Kind, scalableRef.Name, info.Namespace, info.Name, err))

@@ -10,13 +10,14 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kprinters "k8s.io/kubernetes/pkg/printers"
 
 	"github.com/openshift/origin/pkg/api"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	oauthapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
 	projectapi "github.com/openshift/origin/pkg/project/apis/project"
@@ -28,13 +29,13 @@ import (
 // If you add something to this list, explain why it doesn't need printing.  waaaa is not a valid
 // reason.
 var PrinterCoverageExceptions = []reflect.Type{
-	reflect.TypeOf(&imageapi.DockerImage{}),           // not a top level resource
-	reflect.TypeOf(&imageapi.ImageStreamImport{}),     // normal users don't ever look at these
-	reflect.TypeOf(&buildapi.BuildLog{}),              // just a marker type
-	reflect.TypeOf(&buildapi.BuildLogOptions{}),       // just a marker type
-	reflect.TypeOf(&deployapi.DeploymentRequest{}),    // normal users don't ever look at these
-	reflect.TypeOf(&deployapi.DeploymentLog{}),        // just a marker type
-	reflect.TypeOf(&deployapi.DeploymentLogOptions{}), // just a marker type
+	reflect.TypeOf(&imageapi.DockerImage{}),         // not a top level resource
+	reflect.TypeOf(&imageapi.ImageStreamImport{}),   // normal users don't ever look at these
+	reflect.TypeOf(&buildapi.BuildLog{}),            // just a marker type
+	reflect.TypeOf(&buildapi.BuildLogOptions{}),     // just a marker type
+	reflect.TypeOf(&appsapi.DeploymentRequest{}),    // normal users don't ever look at these
+	reflect.TypeOf(&appsapi.DeploymentLog{}),        // just a marker type
+	reflect.TypeOf(&appsapi.DeploymentLogOptions{}), // just a marker type
 
 	// these resources can't be "GET"ed, so we probably don't need a printer for them
 	reflect.TypeOf(&authorizationapi.SubjectAccessReviewResponse{}),
@@ -60,7 +61,7 @@ var PrinterCoverageExceptions = []reflect.Type{
 // You should never add to this list
 // TODO printers should be added for these types
 var MissingPrinterCoverageExceptions = []reflect.Type{
-	reflect.TypeOf(&deployapi.DeploymentConfigRollback{}),
+	reflect.TypeOf(&appsapi.DeploymentConfigRollback{}),
 	reflect.TypeOf(&imageapi.ImageStreamMapping{}),
 	reflect.TypeOf(&projectapi.ProjectRequest{}),
 }
@@ -69,7 +70,7 @@ func TestPrinterCoverage(t *testing.T) {
 	printer := NewHumanReadablePrinter(nil, nil, kprinters.PrintOptions{})
 
 main:
-	for _, apiType := range kapi.Scheme.KnownTypes(api.SchemeGroupVersion) {
+	for _, apiType := range legacyscheme.Scheme.KnownTypes(api.SchemeGroupVersion) {
 		if !strings.Contains(apiType.PkgPath(), "github.com/openshift/origin") || strings.Contains(apiType.PkgPath(), "github.com/openshift/origin/vendor/") {
 			continue
 		}
@@ -108,6 +109,51 @@ func TestFormatResourceName(t *testing.T) {
 	for _, tt := range tests {
 		if got := formatResourceName(tt.kind, tt.name, true); got != tt.want {
 			t.Errorf("formatResourceName(%q, %q) = %q, want %q", tt.kind, tt.name, got, tt.want)
+		}
+	}
+}
+
+func mockRoleBindingRestriction() []*authorizationapi.RoleBindingRestriction {
+	return []*authorizationapi.RoleBindingRestriction{
+		{
+			ObjectMeta: metav1.ObjectMeta{Name: "match-serviceaccount"},
+			Spec: authorizationapi.RoleBindingRestrictionSpec{
+				ServiceAccountRestriction: &authorizationapi.ServiceAccountRestriction{
+					Namespaces: []string{""},
+				},
+			},
+		},
+	}
+}
+
+func TestPrintRoleBindingRestriction(t *testing.T) {
+	buf := bytes.NewBuffer([]byte{})
+	rbrs := mockRoleBindingRestriction()
+
+	tests := []struct {
+		name        string
+		rbr         *authorizationapi.RoleBindingRestriction
+		expectedOut string
+		expectedErr error
+	}{
+		{
+			name:        "output check",
+			rbr:         rbrs[0],
+			expectedOut: "match-serviceaccount\tServiceAccount\t/*\n",
+		},
+	}
+
+	for _, test := range tests {
+		if err := printRoleBindingRestriction(test.rbr, buf, kprinters.PrintOptions{}); err != test.expectedErr {
+			t.Errorf("error mismatch: expected %v, got %v", test.expectedErr, err)
+			continue
+		}
+		got := buf.String()
+		buf.Reset()
+
+		if !strings.Contains(got, test.expectedOut) {
+			t.Errorf("unexpected output:\n%s\nexpected to contain: %s", got, test.expectedOut)
+			continue
 		}
 	}
 }

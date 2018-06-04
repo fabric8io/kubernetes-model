@@ -5,7 +5,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/storage/names"
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	"github.com/openshift/origin/pkg/image/apis/image/validation"
@@ -16,16 +16,16 @@ type Strategy struct {
 	runtime.ObjectTyper
 	names.NameGenerator
 
-	defaultRegistry imageapi.DefaultRegistry
+	registryHostRetriever imageapi.RegistryHostnameRetriever
 }
 
 // Strategy is the default logic that applies when creating ImageStreamMapping
 // objects via the REST API.
-func NewStrategy(defaultRegistry imageapi.DefaultRegistry) Strategy {
+func NewStrategy(registryHost imageapi.RegistryHostnameRetriever) Strategy {
 	return Strategy{
-		kapi.Scheme,
-		names.SimpleNameGenerator,
-		defaultRegistry,
+		ObjectTyper:           legacyscheme.Scheme,
+		NameGenerator:         names.SimpleNameGenerator,
+		registryHostRetriever: registryHost,
 	}
 }
 
@@ -38,7 +38,7 @@ func (s Strategy) NamespaceScoped() bool {
 func (s Strategy) PrepareForCreate(ctx apirequest.Context, obj runtime.Object) {
 	ism := obj.(*imageapi.ImageStreamMapping)
 	if len(ism.Image.DockerImageReference) == 0 {
-		internalRegistry, ok := s.defaultRegistry.DefaultRegistry()
+		internalRegistry, ok := s.registryHostRetriever.InternalRegistryHostname()
 		if ok {
 			ism.Image.DockerImageReference = imageapi.DockerImageReference{
 				Registry:  internalRegistry,

@@ -10,17 +10,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
-	deployutil "github.com/openshift/origin/pkg/deploy/util"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	appsutil "github.com/openshift/origin/pkg/apps/util"
+	"github.com/openshift/origin/pkg/oc/cli/cmd/set"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 	"github.com/spf13/cobra"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/kubectl/cmd/set"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 )
@@ -73,7 +73,7 @@ func NewCmdRolloutRetry(fullName string, f *clientcmd.Factory, out io.Writer) *c
 
 func (o *RetryOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, out io.Writer, args []string) error {
 	if len(args) == 0 && len(o.FilenameOptions.Filenames) == 0 {
-		return kcmdutil.UsageError(cmd, cmd.Use)
+		return kcmdutil.UsageErrorf(cmd, cmd.Use)
 	}
 
 	o.Mapper, o.Typer = f.Object()
@@ -90,7 +90,8 @@ func (o *RetryOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, out io
 		return err
 	}
 
-	r := f.NewBuilder(true).
+	r := f.NewBuilder().
+		Internal().
 		NamespaceParam(cmdNamespace).DefaultNamespace().
 		FilenameParam(enforceNamespace, &o.FilenameOptions).
 		ResourceTypeOrNameArgs(true, args...).
@@ -114,7 +115,7 @@ func (o RetryOptions) Run() error {
 		return err
 	}
 	for _, info := range o.Infos {
-		config, ok := info.Object.(*deployapi.DeploymentConfig)
+		config, ok := info.Object.(*appsapi.DeploymentConfig)
 		if !ok {
 			allErrs = append(allErrs, kcmdutil.AddSourceToErr("retrying", info.Source, fmt.Errorf("expected deployment configuration, got %T", info.Object)))
 			continue
@@ -128,7 +129,7 @@ func (o RetryOptions) Run() error {
 			continue
 		}
 
-		latestDeploymentName := deployutil.LatestDeploymentNameForConfig(config)
+		latestDeploymentName := appsutil.LatestDeploymentNameForConfig(config)
 		rc, err := o.Clientset.Core().ReplicationControllers(config.Namespace).Get(latestDeploymentName, metav1.GetOptions{})
 		if err != nil {
 			if kerrors.IsNotFound(err) {
@@ -139,9 +140,9 @@ func (o RetryOptions) Run() error {
 			continue
 		}
 
-		if !deployutil.IsFailedDeployment(rc) {
-			message := fmt.Sprintf("rollout #%d is %s; only failed deployments can be retried.\n", config.Status.LatestVersion, strings.ToLower(string(deployutil.DeploymentStatusFor(rc))))
-			if deployutil.IsCompleteDeployment(rc) {
+		if !appsutil.IsFailedDeployment(rc) {
+			message := fmt.Sprintf("rollout #%d is %s; only failed deployments can be retried.\n", config.Status.LatestVersion, strings.ToLower(string(appsutil.DeploymentStatusFor(rc))))
+			if appsutil.IsCompleteDeployment(rc) {
 				message += fmt.Sprintf("You can start a new deployment with 'oc rollout latest dc/%s'.", config.Name)
 			} else {
 				message += fmt.Sprintf("Optionally, you can cancel this deployment with 'oc rollout cancel dc/%s'.", config.Name)
@@ -151,7 +152,7 @@ func (o RetryOptions) Run() error {
 		}
 
 		// Delete the deployer pod as well as the deployment hooks pods, if any
-		pods, err := o.Clientset.Core().Pods(config.Namespace).List(metav1.ListOptions{LabelSelector: deployutil.DeployerPodSelector(latestDeploymentName).String()})
+		pods, err := o.Clientset.Core().Pods(config.Namespace).List(metav1.ListOptions{LabelSelector: appsutil.DeployerPodSelector(latestDeploymentName).String()})
 		if err != nil {
 			allErrs = append(allErrs, kcmdutil.AddSourceToErr("retrying", info.Source, fmt.Errorf("failed to list deployer/hook pods for deployment #%d: %v", config.Status.LatestVersion, err)))
 			continue
@@ -168,11 +169,11 @@ func (o RetryOptions) Run() error {
 			continue
 		}
 
-		patches := set.CalculatePatches([]*resource.Info{{Object: rc, Mapping: mapping}}, o.Encoder, func(*resource.Info) ([]byte, error) {
-			rc.Annotations[deployapi.DeploymentStatusAnnotation] = string(deployapi.DeploymentStatusNew)
-			delete(rc.Annotations, deployapi.DeploymentStatusReasonAnnotation)
-			delete(rc.Annotations, deployapi.DeploymentCancelledAnnotation)
-			return runtime.Encode(o.Encoder, rc)
+		patches := set.CalculatePatches([]*resource.Info{{Object: rc, Mapping: mapping}}, o.Encoder, func(info *resource.Info) (bool, error) {
+			rc.Annotations[appsapi.DeploymentStatusAnnotation] = string(appsapi.DeploymentStatusNew)
+			delete(rc.Annotations, appsapi.DeploymentStatusReasonAnnotation)
+			delete(rc.Annotations, appsapi.DeploymentCancelledAnnotation)
+			return true, nil
 		})
 
 		if len(patches) == 0 {

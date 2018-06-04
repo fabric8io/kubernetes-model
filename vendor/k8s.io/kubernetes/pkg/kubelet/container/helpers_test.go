@@ -22,8 +22,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/kubernetes/pkg/api/v1"
 )
 
 func TestEnvVarsToMap(t *testing.T) {
@@ -245,6 +245,20 @@ func TestHasPrivilegedContainer(t *testing.T) {
 		pod := &v1.Pod{
 			Spec: v1.PodSpec{
 				Containers: []v1.Container{
+					{SecurityContext: v.securityContext},
+				},
+			},
+		}
+		actual := HasPrivilegedContainer(pod)
+		if actual != v.expected {
+			t.Errorf("%s expected %t but got %t", k, v.expected, actual)
+		}
+	}
+	// Test init containers as well.
+	for k, v := range tests {
+		pod := &v1.Pod{
+			Spec: v1.PodSpec{
+				InitContainers: []v1.Container{
 					{SecurityContext: v.securityContext},
 				},
 			},

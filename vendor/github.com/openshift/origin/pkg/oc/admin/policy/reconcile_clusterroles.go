@@ -11,18 +11,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/apis/rbac"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
+	rbacregistryvalidation "k8s.io/kubernetes/pkg/registry/rbac/validation"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/authorization/rulevalidation"
-	"github.com/openshift/origin/pkg/client"
+	authorizationtypedclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset/typed/authorization/internalversion"
+	"github.com/openshift/origin/pkg/authorization/registry/util"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	osutil "github.com/openshift/origin/pkg/cmd/util"
-
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 // ReconcileProtectAnnotation is the name of an annotation which prevents reconciliation if set to "true"
@@ -43,7 +44,7 @@ type ReconcileClusterRolesOptions struct {
 	ErrOut io.Writer
 	Output string
 
-	RoleClient client.ClusterRoleInterface
+	RoleClient authorizationtypedclient.ClusterRoleInterface
 }
 
 var (
@@ -92,13 +93,14 @@ func NewCmdReconcileClusterRoles(name, fullName string, f *clientcmd.Factory, ou
 			}
 
 			if err := o.Validate(); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 
 			if err := o.RunReconcileClusterRoles(cmd, f); err != nil {
 				kcmdutil.CheckErr(err)
 			}
 		},
+		Deprecated: fmt.Sprintf("use 'oc auth reconcile'"),
 	}
 
 	cmd.Flags().BoolVar(&o.Confirmed, "confirm", o.Confirmed, "If true, specify that cluster roles should be modified. Defaults to false, displaying what would be replaced but not actually replacing anything.")
@@ -111,11 +113,11 @@ func NewCmdReconcileClusterRoles(name, fullName string, f *clientcmd.Factory, ou
 }
 
 func (o *ReconcileClusterRolesOptions) Complete(cmd *cobra.Command, f *clientcmd.Factory, args []string) error {
-	oclient, _, err := f.Clients()
+	authorizationClient, err := f.OpenshiftInternalAuthorizationClient()
 	if err != nil {
 		return err
 	}
-	o.RoleClient = oclient.ClusterRoles()
+	o.RoleClient = authorizationClient.Authorization().ClusterRoles()
 
 	o.Output = kcmdutil.GetFlagString(cmd, "output")
 
@@ -184,14 +186,13 @@ func (o *ReconcileClusterRolesOptions) RunReconcileClusterRoles(cmd *cobra.Comma
 
 // ChangedClusterRoles returns the roles that must be created and/or updated to
 // match the recommended bootstrap policy
-func (o *ReconcileClusterRolesOptions) ChangedClusterRoles() ([]*authorizationapi.ClusterRole, []*authorizationapi.ClusterRole, error) {
-	changedRoles := []*authorizationapi.ClusterRole{}
-	skippedRoles := []*authorizationapi.ClusterRole{}
+func (o *ReconcileClusterRolesOptions) ChangedClusterRoles() ([]*rbac.ClusterRole, []*rbac.ClusterRole, error) {
+	changedRoles := []*rbac.ClusterRole{}
+	skippedRoles := []*rbac.ClusterRole{}
 
 	rolesToReconcile := sets.NewString(o.RolesToReconcile...)
 	rolesNotFound := sets.NewString(o.RolesToReconcile...)
-	//TODO: nuke convert from orbit
-	bootstrapClusterRoles := bootstrappolicy.ConvertToOriginClusterRolesOrDie(bootstrappolicy.GetBootstrapClusterRoles())
+	bootstrapClusterRoles := bootstrappolicy.GetBootstrapClusterRoles()
 	for i := range bootstrapClusterRoles {
 		expectedClusterRole := &bootstrapClusterRoles[i]
 		if (len(rolesToReconcile) > 0) && !rolesToReconcile.Has(expectedClusterRole.Name) {
@@ -207,8 +208,12 @@ func (o *ReconcileClusterRolesOptions) ChangedClusterRoles() ([]*authorizationap
 		if err != nil {
 			return nil, nil, err
 		}
+		actualRBACClusterRole, err := util.ClusterRoleToRBAC(actualClusterRole)
+		if err != nil {
+			return nil, nil, err
+		}
 
-		if reconciledClusterRole, needsReconciliation := computeReconciledRole(*expectedClusterRole, *actualClusterRole, o.Union); needsReconciliation {
+		if reconciledClusterRole, needsReconciliation := computeReconciledRole(*expectedClusterRole, *actualRBACClusterRole, o.Union); needsReconciliation {
 			if actualClusterRole.Annotations[ReconcileProtectAnnotation] == "true" {
 				skippedRoles = append(skippedRoles, reconciledClusterRole)
 			} else {
@@ -225,7 +230,7 @@ func (o *ReconcileClusterRolesOptions) ChangedClusterRoles() ([]*authorizationap
 	return changedRoles, skippedRoles, nil
 }
 
-func computeReconciledRole(expected authorizationapi.ClusterRole, actual authorizationapi.ClusterRole, union bool) (*authorizationapi.ClusterRole, bool) {
+func computeReconciledRole(expected rbac.ClusterRole, actual rbac.ClusterRole, union bool) (*rbac.ClusterRole, bool) {
 	existingAnnotationKeys := sets.StringKeySet(actual.Annotations)
 	expectedAnnotationKeys := sets.StringKeySet(expected.Annotations)
 	missingAnnotationKeys := !existingAnnotationKeys.HasAll(expectedAnnotationKeys.List()...)
@@ -238,8 +243,8 @@ func computeReconciledRole(expected authorizationapi.ClusterRole, actual authori
 	expected.Labels = actual.Labels
 	expected.Annotations = mergeAnnotations(expected.Annotations, actual.Annotations)
 
-	_, extraRules := rulevalidation.Covers(expected.Rules, actual.Rules)
-	_, missingRules := rulevalidation.Covers(actual.Rules, expected.Rules)
+	_, extraRules := rbacregistryvalidation.Covers(expected.Rules, actual.Rules)
+	_, missingRules := rbacregistryvalidation.Covers(actual.Rules, expected.Rules)
 
 	// We need to reconcile:
 	// 1. if we're missing rules
@@ -258,7 +263,7 @@ func computeReconciledRole(expected authorizationapi.ClusterRole, actual authori
 }
 
 // ReplaceChangedRoles will reconcile all the changed roles back to the recommended bootstrap policy
-func (o *ReconcileClusterRolesOptions) ReplaceChangedRoles(changedRoles []*authorizationapi.ClusterRole) error {
+func (o *ReconcileClusterRolesOptions) ReplaceChangedRoles(changedRoles []*rbac.ClusterRole) error {
 	errs := []error{}
 	for i := range changedRoles {
 		role, err := o.RoleClient.Get(changedRoles[i].Name, metav1.GetOptions{})
@@ -268,7 +273,12 @@ func (o *ReconcileClusterRolesOptions) ReplaceChangedRoles(changedRoles []*autho
 		}
 
 		if kapierrors.IsNotFound(err) {
-			createdRole, err := o.RoleClient.Create(changedRoles[i])
+			role, err := util.ClusterRoleFromRBAC(changedRoles[i])
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			createdRole, err := o.RoleClient.Create(role)
 			if err != nil {
 				errs = append(errs, err)
 				continue
@@ -278,8 +288,20 @@ func (o *ReconcileClusterRolesOptions) ReplaceChangedRoles(changedRoles []*autho
 			continue
 		}
 
-		role.Rules = changedRoles[i].Rules
-		role.Annotations = mergeAnnotations(changedRoles[i].Annotations, role.Annotations)
+		rbacRole, err := util.ClusterRoleToRBAC(role)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		rbacRole.Rules = changedRoles[i].Rules
+		rbacRole.Annotations = mergeAnnotations(changedRoles[i].Annotations, rbacRole.Annotations)
+
+		role, err = util.ClusterRoleFromRBAC(rbacRole)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
 		updatedRole, err := o.RoleClient.Update(role)
 		if err != nil {
 			errs = append(errs, err)

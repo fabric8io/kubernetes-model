@@ -99,7 +99,7 @@ func NewCommandCreateMasterCerts(commandName string, fullName string, out io.Wri
 		Long:  fmt.Sprintf(masterCertLong, fullName),
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := options.Validate(args); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 
 			if err := options.CreateMasterCerts(); err != nil {
@@ -183,7 +183,10 @@ func (o CreateMasterCertsOptions) CreateMasterCerts() error {
 	if err != nil {
 		return err
 	}
-	getFrontProxySignerCertOptions, err := o.createNewSigner(FrontProxyCAFilePrefix)
+
+	frontProxyOptions := o
+	frontProxyOptions.SignerName = DefaultFrontProxySignerName()
+	getFrontProxySignerCertOptions, err := frontProxyOptions.createNewSigner(FrontProxyCAFilePrefix)
 	if err != nil {
 		return err
 	}
@@ -197,7 +200,7 @@ func (o CreateMasterCertsOptions) CreateMasterCerts() error {
 		func() error { return o.createProxyClientCerts(getSignerCertOptions) },
 		func() error { return o.createServiceAccountKeys() },
 		func() error { return o.createServiceSigningCA(getSignerCertOptions) },
-		func() error { return o.createAggregatorClientCerts(getFrontProxySignerCertOptions) },
+		func() error { return frontProxyOptions.createAggregatorClientCerts(getFrontProxySignerCertOptions) },
 	)
 	return utilerrors.NewAggregate(errs)
 }

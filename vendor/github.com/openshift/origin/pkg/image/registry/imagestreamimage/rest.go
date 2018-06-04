@@ -10,6 +10,7 @@ import (
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	"github.com/openshift/origin/pkg/image/registry/image"
 	"github.com/openshift/origin/pkg/image/registry/imagestream"
+	"github.com/openshift/origin/pkg/image/util"
 )
 
 // REST implements the RESTStorage interface in terms of an image registry and
@@ -22,6 +23,12 @@ type REST struct {
 }
 
 var _ rest.Getter = &REST{}
+var _ rest.ShortNamesProvider = &REST{}
+
+// ShortNames implements the ShortNamesProvider interface. Returns a list of short names for a resource.
+func (r *REST) ShortNames() []string {
+	return []string{"isimage"}
+}
 
 // NewREST returns a new REST.
 func NewREST(imageRegistry image.Registry, imageStreamRegistry imagestream.Registry) *REST {
@@ -70,7 +77,7 @@ func (r *REST) Get(ctx apirequest.Context, id string, options *metav1.GetOptions
 	if err != nil {
 		return nil, err
 	}
-	if err := imageapi.ImageWithMetadata(image); err != nil {
+	if err := util.ImageWithMetadata(image); err != nil {
 		return nil, err
 	}
 	image.DockerImageManifest = ""
@@ -79,7 +86,7 @@ func (r *REST) Get(ctx apirequest.Context, id string, options *metav1.GetOptions
 	isi := imageapi.ImageStreamImage{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:         apirequest.NamespaceValue(ctx),
-			Name:              imageapi.MakeImageStreamImageName(name, imageID),
+			Name:              imageapi.JoinImageStreamImage(name, imageID),
 			CreationTimestamp: image.ObjectMeta.CreationTimestamp,
 			Annotations:       repo.Annotations,
 		},

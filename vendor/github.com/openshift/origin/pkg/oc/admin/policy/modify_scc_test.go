@@ -1,16 +1,17 @@
 package policy
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgotesting "k8s.io/client-go/testing"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
-	"github.com/openshift/origin/pkg/security/legacyclient"
+	securityfakeclient "github.com/openshift/origin/pkg/security/generated/internalclientset/fake"
 )
 
 func TestModifySCC(t *testing.T) {
@@ -118,7 +119,7 @@ func TestModifySCC(t *testing.T) {
 	}
 
 	for tcName, tc := range tests {
-		fakeClient := legacyclient.NewSimpleFake()
+		fakeClient := securityfakeclient.NewSimpleClientset()
 		fakeClient.Fake.PrependReactor("get", "securitycontextconstraints", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 			return true, tc.startingSCC, nil
 		})
@@ -130,9 +131,11 @@ func TestModifySCC(t *testing.T) {
 
 		o := &SCCModificationOptions{
 			SCCName:                 "foo",
-			SCCInterface:            fakeClient,
+			SCCInterface:            fakeClient.Security().SecurityContextConstraints(),
 			DefaultSubjectNamespace: "",
 			Subjects:                tc.subjects,
+
+			Out: &bytes.Buffer{},
 		}
 
 		var err error

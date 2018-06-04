@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
@@ -15,9 +16,8 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
-	kprinters "k8s.io/kubernetes/pkg/printers"
 
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 // MigrateVisitFunc is invoked for each returned object, and may return a
@@ -49,8 +49,10 @@ func AlwaysRequiresMigration(_ *resource.Info) (Reporter, error) {
 	return ReporterBool(true), nil
 }
 
-// NotChanged is a Reporter returned by operations that are guaranteed to be read-only
-var NotChanged = ReporterBool(false)
+// timeStampNow returns the current time in the same format as glog
+func timeStampNow() string {
+	return time.Now().Format("0102 15:04:05.000000")
+}
 
 // ResourceOptions assists in performing migrations on any object that
 // can be retrieved via the API.
@@ -58,6 +60,7 @@ type ResourceOptions struct {
 	In          io.Reader
 	Out, ErrOut io.Writer
 
+	Unstructured  bool
 	AllNamespaces bool
 	Include       []string
 	Filenames     []string
@@ -78,8 +81,6 @@ type ResourceOptions struct {
 }
 
 func (o *ResourceOptions) Bind(c *cobra.Command) {
-	c.Flags().StringVarP(&o.Output, "output", "o", o.Output, "Output the modified objects instead of saving them, valid values are 'yaml' or 'json'")
-	kcmdutil.AddNoHeadersFlags(c)
 	c.Flags().StringSliceVar(&o.Include, "include", o.Include, "Resource types to migrate. Passing --filename will override this flag.")
 	c.Flags().BoolVar(&o.AllNamespaces, "all-namespaces", true, "Migrate objects in all namespaces. Defaults to true.")
 	c.Flags().BoolVar(&o.Confirm, "confirm", false, "If true, all requested objects will be migrated. Defaults to false.")
@@ -87,15 +88,26 @@ func (o *ResourceOptions) Bind(c *cobra.Command) {
 	c.Flags().StringVar(&o.FromKey, "from-key", o.FromKey, "If specified, only migrate items with a key (namespace/name or name) greater than or equal to this value")
 	c.Flags().StringVar(&o.ToKey, "to-key", o.ToKey, "If specified, only migrate items with a key (namespace/name or name) less than this value")
 
+	// kcmdutil.PrinterForCommand needs these flags, however they are useless
+	// here because oc process returns list of heterogeneous objects that is
+	// not suitable for formatting as a table.
+	kcmdutil.AddNonDeprecatedPrinterFlags(c)
+
 	usage := "Filename, directory, or URL to docker-compose.yml file to use"
 	kubectl.AddJsonFilenameFlag(c, &o.Filenames, usage)
 	c.MarkFlagRequired("filename")
 }
 
 func (o *ResourceOptions) Complete(f *clientcmd.Factory, c *cobra.Command) error {
+	// oc adm migrate authorization does not support printing and takes no parameters, so we ignore the error here
+	var flagErr error
+	o.Output, flagErr = c.Flags().GetString("output")
+	if flagErr != nil {
+		glog.V(4).Infof("Error getting output flag: %v", flagErr)
+	}
 	switch {
 	case len(o.Output) > 0:
-		printer, err := f.PrinterForCommand(c, false, nil, kprinters.PrintOptions{})
+		printer, err := f.PrinterForOptions(kcmdutil.ExtractCmdPrintOptions(c, false))
 		if err != nil {
 			return err
 		}
@@ -147,7 +159,7 @@ func (o *ResourceOptions) Complete(f *clientcmd.Factory, c *cobra.Command) error
 		}
 	}
 
-	oclient, _, err := f.Clients()
+	discoveryClient, err := f.DiscoveryClient()
 	if err != nil {
 		return err
 	}
@@ -163,7 +175,7 @@ func (o *ResourceOptions) Complete(f *clientcmd.Factory, c *cobra.Command) error
 			break
 		}
 
-		all, err := clientcmd.FindAllCanonicalResources(oclient.Discovery(), mapper)
+		all, err := clientcmd.FindAllCanonicalResources(discoveryClient, mapper)
 		if err != nil {
 			return fmt.Errorf("could not calculate the list of available resources: %v", err)
 		}
@@ -212,7 +224,7 @@ func (o *ResourceOptions) Complete(f *clientcmd.Factory, c *cobra.Command) error
 		break
 	}
 
-	o.Builder = f.NewBuilder(true).
+	o.Builder = f.NewBuilder().
 		AllNamespaces(allNamespaces).
 		FilenameParam(false, &resource.FilenameOptions{Recursive: false, Filenames: o.Filenames}).
 		ContinueOnError().
@@ -220,6 +232,13 @@ func (o *ResourceOptions) Complete(f *clientcmd.Factory, c *cobra.Command) error
 		RequireObject(true).
 		SelectAllParam(true).
 		Flatten()
+
+	if o.Unstructured {
+		o.Builder = o.Builder.Unstructured()
+	} else {
+		o.Builder = o.Builder.Internal()
+	}
+
 	if !allNamespaces {
 		o.Builder.NamespaceParam(namespace)
 	}
@@ -345,10 +364,13 @@ var ErrUnchanged = fmt.Errorf("migration was not necessary")
 // both status and spec must be changed).
 var ErrRecalculate = fmt.Errorf("recalculate migration")
 
+// MigrateError is an exported alias to error to allow external packages to use ErrRetriable and ErrNotRetriable
+type MigrateError error
+
 // ErrRetriable is a wrapper for an error that a migrator may use to indicate the
 // specific error can be retried.
 type ErrRetriable struct {
-	error
+	MigrateError
 }
 
 func (ErrRetriable) Temporary() bool { return true }
@@ -356,12 +378,14 @@ func (ErrRetriable) Temporary() bool { return true }
 // ErrNotRetriable is a wrapper for an error that a migrator may use to indicate the
 // specific error cannot be retried.
 type ErrNotRetriable struct {
-	error
+	MigrateError
 }
 
 func (ErrNotRetriable) Temporary() bool { return false }
 
-type temporary interface {
+// TemporaryError is a wrapper interface that is used to determine if an error can be retried.
+type TemporaryError interface {
+	error
 	// Temporary should return true if this is a temporary error
 	Temporary() bool
 }
@@ -385,7 +409,6 @@ type migrateTracker struct {
 	dryRun    bool
 
 	found, ignored, unchanged, errors int
-	retries                           int
 
 	resourcesWithErrors sets.String
 }
@@ -398,9 +421,9 @@ func (t *migrateTracker) report(prefix string, info *resource.Info, err error) {
 		ns = "-n " + ns
 	}
 	if err != nil {
-		fmt.Fprintf(t.out, "%-10s %s %s/%s: %v\n", prefix, ns, info.Mapping.Resource, info.Name, err)
+		fmt.Fprintf(t.out, "E%s %-10s %s %s/%s: %v\n", timeStampNow(), prefix, ns, info.Mapping.Resource, info.Name, err)
 	} else {
-		fmt.Fprintf(t.out, "%-10s %s %s/%s\n", prefix, ns, info.Mapping.Resource, info.Name)
+		fmt.Fprintf(t.out, "I%s %-10s %s %s/%s\n", timeStampNow(), prefix, ns, info.Mapping.Resource, info.Name)
 	}
 }
 
@@ -408,8 +431,7 @@ func (t *migrateTracker) report(prefix string, info *resource.Info, err error) {
 // to retries times.
 func (t *migrateTracker) attempt(info *resource.Info, retries int) {
 	t.found++
-	t.retries = retries
-	result, err := t.try(info)
+	result, err := t.try(info, retries)
 	switch {
 	case err != nil:
 		t.resourcesWithErrors.Insert(info.Mapping.Resource)
@@ -438,7 +460,7 @@ func (t *migrateTracker) attempt(info *resource.Info, retries int) {
 
 // try will mutate the info and attempt to save, recalculating if there are any retries left.
 // The result of the attempt or an error will be returned.
-func (t *migrateTracker) try(info *resource.Info) (attemptResult, error) {
+func (t *migrateTracker) try(info *resource.Info, retries int) (attemptResult, error) {
 	reporter, err := t.migrateFn(info)
 	if err != nil {
 		return attemptResultError, err
@@ -455,11 +477,11 @@ func (t *migrateTracker) try(info *resource.Info) (attemptResult, error) {
 				return attemptResultUnchanged, nil
 			}
 			if canRetry(err) {
-				if t.retries > 0 {
+				if retries > 0 {
 					if bool(glog.V(1)) && err != ErrRecalculate {
 						t.report("retry:", info, err)
 					}
-					result, err := t.try(info)
+					result, err := t.try(info, retries-1)
 					switch result {
 					case attemptResultUnchanged, attemptResultIgnore:
 						result = attemptResultSuccess
@@ -475,7 +497,7 @@ func (t *migrateTracker) try(info *resource.Info) (attemptResult, error) {
 
 // canRetry returns true if the provided error indicates a retry is possible.
 func canRetry(err error) bool {
-	if temp, ok := err.(temporary); ok && temp.Temporary() {
+	if temp, ok := err.(TemporaryError); ok && temp.Temporary() {
 		return true
 	}
 	return err == ErrRecalculate
@@ -486,20 +508,53 @@ func canRetry(err error) bool {
 // All other errors are left in their natural state - they will not be retried unless
 // they define a Temporary() method that returns true.
 func DefaultRetriable(info *resource.Info, err error) error {
-	// tolerate the deletion of resources during migration
-	if err == nil || errors.IsNotFound(err) {
-		return nil
-	}
 	switch {
+	case err == nil:
+		return nil
+	case isNotFoundForInfo(info, err):
+		// tolerate the deletion of resources during migration
+		// report unchanged since we did not actually migrate this object
+		return ErrUnchanged
 	case errors.IsMethodNotSupported(err):
 		return ErrNotRetriable{err}
 	case errors.IsConflict(err):
 		if refreshErr := info.Get(); refreshErr != nil {
+			// tolerate the deletion of resources during migration
+			// report unchanged since we did not actually migrate this object
+			if isNotFoundForInfo(info, refreshErr) {
+				return ErrUnchanged
+			}
 			return ErrNotRetriable{err}
 		}
 		return ErrRetriable{err}
 	case errors.IsServerTimeout(err):
 		return ErrRetriable{err}
+	default:
+		return err
 	}
-	return err
+}
+
+// isNotFoundForInfo returns true iff the error is a not found for the specific info object.
+func isNotFoundForInfo(info *resource.Info, err error) bool {
+	if err == nil || !errors.IsNotFound(err) {
+		return false
+	}
+	status, ok := err.(errors.APIStatus)
+	if !ok {
+		return false
+	}
+	details := status.Status().Details
+	if details == nil {
+		return false
+	}
+	// get schema.GroupKind and Resource from the mapping since the actual object may not have type meta filled out
+	gk := info.Mapping.GroupVersionKind.GroupKind()
+	mappingResource := info.Mapping.Resource
+	// based on case-insensitive string comparisons, the error matches info iff
+	// the names match
+	// the error's kind matches the mapping's kind or the mapping's resource
+	// the groups match, but only if both the error and info specify a group
+	return strings.EqualFold(details.Name, info.Name) &&
+		(strings.EqualFold(details.Kind, gk.Kind) || strings.EqualFold(details.Kind, mappingResource)) &&
+		(len(details.Group) == 0 || len(gk.Group) == 0 || strings.EqualFold(details.Group, gk.Group))
 }

@@ -15,9 +15,9 @@ import (
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	buildclient "github.com/openshift/origin/pkg/build/client"
-	"github.com/openshift/origin/pkg/build/prune"
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	buildinternalclient "github.com/openshift/origin/pkg/build/generated/internalclientset"
+	"github.com/openshift/origin/pkg/oc/cli/builds/prune"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 const PruneBuildsRecommendedName = "builds"
@@ -47,8 +47,8 @@ type PruneBuildsOptions struct {
 	KeepFailed      int
 	Namespace       string
 
-	OSClient client.Interface
-	Out      io.Writer
+	BuildClient buildinternalclient.Interface
+	Out         io.Writer
 }
 
 // NewCmdPruneBuilds implements the OpenShift cli prune builds command.
@@ -85,7 +85,7 @@ func NewCmdPruneBuilds(f *clientcmd.Factory, parentName, name string, out io.Wri
 // which can be validated and used for pruning builds.
 func (o *PruneBuildsOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, args []string, out io.Writer) error {
 	if len(args) > 0 {
-		return kcmdutil.UsageError(cmd, "no arguments are allowed to this command")
+		return kcmdutil.UsageErrorf(cmd, "no arguments are allowed to this command")
 	}
 
 	o.Namespace = metav1.NamespaceAll
@@ -98,11 +98,15 @@ func (o *PruneBuildsOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, 
 	}
 	o.Out = out
 
-	osClient, _, err := f.Clients()
+	config, err := f.ClientConfig()
 	if err != nil {
 		return err
 	}
-	o.OSClient = osClient
+	buildClient, err := buildinternalclient.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+	o.BuildClient = buildClient
 
 	return nil
 }
@@ -123,7 +127,7 @@ func (o PruneBuildsOptions) Validate() error {
 
 // Run contains all the necessary functionality for the OpenShift cli prune builds command.
 func (o PruneBuildsOptions) Run() error {
-	buildConfigList, err := o.OSClient.BuildConfigs(o.Namespace).List(metav1.ListOptions{})
+	buildConfigList, err := o.BuildClient.Build().BuildConfigs(o.Namespace).List(metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -132,7 +136,7 @@ func (o PruneBuildsOptions) Run() error {
 		buildConfigs = append(buildConfigs, &buildConfigList.Items[i])
 	}
 
-	buildList, err := o.OSClient.Builds(o.Namespace).List(metav1.ListOptions{})
+	buildList, err := o.BuildClient.Build().Builds(o.Namespace).List(metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -157,7 +161,7 @@ func (o PruneBuildsOptions) Run() error {
 	buildDeleter := &describingBuildDeleter{w: w}
 
 	if o.Confirm {
-		buildDeleter.delegate = buildclient.NewOSClientBuildClient(o.OSClient)
+		buildDeleter.delegate = buildclient.NewClientBuildClient(o.BuildClient)
 	} else {
 		fmt.Fprintln(os.Stderr, "Dry run enabled - no modifications will be made. Add --confirm to remove builds")
 	}

@@ -20,16 +20,16 @@ import (
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 
-	osclient "github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/network"
+	networkapi "github.com/openshift/origin/pkg/network/apis/network"
+	networkclient "github.com/openshift/origin/pkg/network/generated/internalclientset"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 	projectapi "github.com/openshift/origin/pkg/project/apis/project"
-	"github.com/openshift/origin/pkg/sdn"
-	sdnapi "github.com/openshift/origin/pkg/sdn/apis/network"
 )
 
 type ProjectOptions struct {
 	DefaultNamespace string
-	Oclient          *osclient.Client
+	Oclient          networkclient.Interface
 	Kclient          kclientset.Interface
 	Out              io.Writer
 
@@ -49,14 +49,18 @@ func (p *ProjectOptions) Complete(f *clientcmd.Factory, c *cobra.Command, args [
 	if err != nil {
 		return err
 	}
-	oc, kc, err := f.Clients()
+	kc, err := f.ClientSet()
+	if err != nil {
+		return err
+	}
+	networkClient, err := f.OpenshiftInternalNetworkClient()
 	if err != nil {
 		return err
 	}
 
-	p.Builder = f.NewBuilder(true)
+	p.Builder = f.NewBuilder()
 	p.DefaultNamespace = defaultNamespace
-	p.Oclient = oc
+	p.Oclient = networkClient
 	p.Kclient = kc
 	p.Out = out
 	p.RESTClientFactory = f.ClientForMapping
@@ -83,15 +87,15 @@ func (p *ProjectOptions) Validate() error {
 		errList = append(errList, errors.New("must provide --selector=<project_selector> or projects"))
 	}
 
-	clusterNetwork, err := p.Oclient.ClusterNetwork().Get(sdnapi.ClusterNetworkDefault, metav1.GetOptions{})
+	clusterNetwork, err := p.Oclient.Network().ClusterNetworks().Get(networkapi.ClusterNetworkDefault, metav1.GetOptions{})
 	if err != nil {
 		if kapierrors.IsNotFound(err) {
-			errList = append(errList, errors.New("Managing pod network is only supported for openshift multitenant network plugin"))
+			errList = append(errList, errors.New("managing pod network is only supported for openshift multitenant network plugin"))
 		} else {
-			errList = append(errList, errors.New("Failed to fetch current network plugin info"))
+			errList = append(errList, errors.New("failed to fetch current network plugin info"))
 		}
-	} else if !sdn.IsOpenShiftMultitenantNetworkPlugin(clusterNetwork.PluginName) {
-		errList = append(errList, fmt.Errorf("Using plugin: %q, managing pod network is only supported for openshift multitenant network plugin", clusterNetwork.PluginName))
+	} else if !network.IsOpenShiftMultitenantNetworkPlugin(clusterNetwork.PluginName) {
+		errList = append(errList, fmt.Errorf("using plugin: %q, managing pod network is only supported for openshift multitenant network plugin", clusterNetwork.PluginName))
 	}
 
 	return kerrors.NewAggregate(errList)
@@ -104,9 +108,10 @@ func (p *ProjectOptions) GetProjects() ([]*projectapi.Project, error) {
 	}
 
 	r := p.Builder.
+		Internal().
 		ContinueOnError().
 		NamespaceParam(p.DefaultNamespace).
-		SelectorParam(p.Selector).
+		LabelSelectorParam(p.Selector).
 		ResourceTypeOrNameArgs(true, nameArgs...).
 		Flatten().
 		Do()
@@ -135,7 +140,7 @@ func (p *ProjectOptions) GetProjects() ([]*projectapi.Project, error) {
 	}
 
 	if len(projectList) == 0 {
-		return projectList, fmt.Errorf("No projects found")
+		return projectList, fmt.Errorf("no projects found")
 	} else {
 		givenProjectNames := sets.NewString(p.ProjectNames...)
 		foundProjectNames := sets.String{}
@@ -144,24 +149,24 @@ func (p *ProjectOptions) GetProjects() ([]*projectapi.Project, error) {
 		}
 		skippedProjectNames := givenProjectNames.Difference(foundProjectNames)
 		if skippedProjectNames.Len() > 0 {
-			return projectList, fmt.Errorf("Projects %v not found", strings.Join(skippedProjectNames.List(), ", "))
+			return projectList, fmt.Errorf("projects %v not found", strings.Join(skippedProjectNames.List(), ", "))
 		}
 	}
 	return projectList, nil
 }
 
-func (p *ProjectOptions) UpdatePodNetwork(nsName string, action sdn.PodNetworkAction, args string) error {
+func (p *ProjectOptions) UpdatePodNetwork(nsName string, action network.PodNetworkAction, args string) error {
 	// Get corresponding NetNamespace for given namespace
-	netns, err := p.Oclient.NetNamespaces().Get(nsName, metav1.GetOptions{})
+	netns, err := p.Oclient.Network().NetNamespaces().Get(nsName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
 
 	// Apply pod network change intent
-	sdn.SetChangePodNetworkAnnotation(netns, action, args)
+	network.SetChangePodNetworkAnnotation(netns, action, args)
 
 	// Update NetNamespace object
-	_, err = p.Oclient.NetNamespaces().Update(netns)
+	_, err = p.Oclient.Network().NetNamespaces().Update(netns)
 	if err != nil {
 		return err
 	}
@@ -173,12 +178,12 @@ func (p *ProjectOptions) UpdatePodNetwork(nsName string, action sdn.PodNetworkAc
 		Factor:   1.1,
 	}
 	return wait.ExponentialBackoff(backoff, func() (bool, error) {
-		updatedNetNs, err := p.Oclient.NetNamespaces().Get(netns.NetName, metav1.GetOptions{})
+		updatedNetNs, err := p.Oclient.Network().NetNamespaces().Get(netns.NetName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
 
-		if _, _, err = sdn.GetChangePodNetworkAnnotation(updatedNetNs); err == sdn.ErrorPodNetworkAnnotationNotFound {
+		if _, _, err = network.GetChangePodNetworkAnnotation(updatedNetNs); err == network.ErrorPodNetworkAnnotationNotFound {
 			return true, nil
 		}
 		// Pod network change not applied yet

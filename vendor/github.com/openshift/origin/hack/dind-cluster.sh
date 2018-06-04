@@ -62,18 +62,31 @@ source "${OS_ROOT}/images/dind/node/openshift-dind-lib.sh"
 
 function start() {
   local origin_root=$1
-  local config_root=$2
-  local deployed_config_root=$3
-  local cluster_id=$4
-  local network_plugin=$5
-  local wait_for_cluster=$6
-  local node_count=$7
-  local additional_args=$8
+  local ovn_root=$2
+  local config_root=$3
+  local deployed_config_root=$4
+  local cluster_id=$5
+  local network_plugin=$6
+  local container_runtime=$7
+  local wait_for_cluster=$8
+  local node_count=$9
+  local additional_args=${10}
 
   # docker-in-docker's use of volumes is not compatible with SELinux
   check-selinux
 
-  echo "Starting dind cluster '${cluster_id}' with plugin '${network_plugin}'"
+  runtime_endpoint=
+  if [[ "${container_runtime}" = "dockershim" ]]; then
+    # dockershim is default and doesn't need an endpoint path
+    runtime_endpoint=
+  elif [[ "${container_runtime}" = "crio" ]]; then
+    runtime_endpoint="/var/run/crio.sock"
+  else
+    >&2 echo "Invalid container runtime: ${container_runtime}"
+    exit 1
+  fi
+
+  echo "Starting dind cluster '${cluster_id}' with plugin '${network_plugin}' and runtime '${container_runtime}'"
 
   # Error if a cluster is already configured
   check-no-containers "start"
@@ -90,15 +103,31 @@ function start() {
 
   # Initialize the cluster config path
   mkdir -p "${config_root}"
-  echo "OPENSHIFT_NETWORK_PLUGIN=${network_plugin}" > "${config_root}/network-plugin"
-  echo "OPENSHIFT_ADDITIONAL_ARGS='${additional_args}'" > "${config_root}/additional-args"
+  echo "OPENSHIFT_NETWORK_PLUGIN=${network_plugin}" > "${config_root}/dind-env"
+  echo "OPENSHIFT_ADDITIONAL_ARGS='${additional_args}'" >> "${config_root}/dind-env"
   copy-runtime "${origin_root}" "${config_root}/"
+
+  echo "OPENSHIFT_CONTAINER_RUNTIME=${container_runtime}" >> "${config_root}/dind-env"
+  echo "OPENSHIFT_REMOTE_RUNTIME_ENDPOINT=${runtime_endpoint}" >> "${config_root}/dind-env"
+
+  ovn_kubernetes=
+  if [[ -d "${ovn_root}" ]]; then
+    copy-ovn-runtime "${ovn_root}" "${config_root}/"
+    ovn_kubernetes=1
+  fi
+  echo "OPENSHIFT_OVN_KUBERNETES=${ovn_kubernetes}" >> "${config_root}/dind-env"
 
   # Create containers
   start-container "${config_root}" "${deployed_config_root}" "${MASTER_IMAGE}" "${MASTER_NAME}"
   for name in "${NODE_NAMES[@]}"; do
     start-container "${config_root}" "${deployed_config_root}" "${NODE_IMAGE}" "${name}"
   done
+
+  if [[ -n "${ADDITIONAL_NETWORK_INTERFACE}" ]]; then
+    add-network-interface-to-nodes "${config_root}"
+    update-master-config
+    update-node-config
+  fi
 
   local rc_file="dind-${cluster_id}.rc"
   local admin_config
@@ -131,6 +160,72 @@ cluster's rc file to configure the bash environment:
   $ oc get nodes
 "
   fi
+}
+
+function add-network-interface-to-nodes () {
+  config_root=$1
+
+  # Create new bridge
+  sudo brctl addbr "${ADDITIONAL_BRIDGE_NAME}"
+  # Assign IPAM to the bridge
+  sudo ifconfig "${ADDITIONAL_BRIDGE_NAME}" "172.${ADDITIONAL_NETWORK_NUM}.0.1/16"
+  echo "OPENSHIFT_ADDITIONAL_BRIDGE_NAME=${ADDITIONAL_BRIDGE_NAME}" >> "${config_root}/dind-env"
+
+  local netns_path="/var/run/netns"
+  sudo mkdir -p "${netns_path}"
+
+  local num=3
+  for pid in $( ${DOCKER_CMD} ps -q --filter "name=${MASTER_NAME}|${NODE_PREFIX}" | xargs ${DOCKER_CMD} inspect --format '{{.State.Pid}}' ); do
+    # Link container network namespace so that 'ip netns' can recognize
+    sudo ln -s /proc/"${pid}"/ns/net "${netns_path}/ns-${pid}"
+    # Create veth pair
+    sudo ip link add veth1-ns-"${pid}" type veth peer name veth2-ns-"${pid}"
+    # Move one end of the veth pair inside the container
+    sudo ip link set veth1-ns-"${pid}" netns ns-"${pid}"
+    # Rename interface name inside the container
+    sudo ip netns exec ns-"${pid}" ip link set veth1-ns-"${pid}" name "${ADDITIONAL_IFACE_NAME}"
+    # Assign address to the added interface in the container
+    sudo ip netns exec ns-"${pid}" ifconfig "${ADDITIONAL_IFACE_NAME}" "172.${ADDITIONAL_NETWORK_NUM}.0.${num}/24"
+    # Bring up the link connected to the container
+    sudo ip netns exec ns-"${pid}" ip link set "${ADDITIONAL_IFACE_NAME}" up
+    # Move other end of the veth pair to the bridge
+    sudo brctl addif "${ADDITIONAL_BRIDGE_NAME}" veth2-ns-"${pid}"
+    # Bring up the link connected to the bridge
+    sudo ip link set dev veth2-ns-"${pid}" up
+
+    (( num += 1 ))
+  done
+}
+
+function update-master-config() {
+  local config_path="/data/openshift.local.config"
+  local master_config_path="${config_path}/master"
+  local master_config_file="${master_config_path}/master-config.yaml"
+
+  # Remove master config file to trigger master config regeneration
+  #
+  # openshift-generate-master-config.sh script repopulates master config
+  # with certs for both eth0 and eth1 IP addrs.
+  #
+  # openshift-master service executes openshift-generate-master-config.sh
+  # as pre start hook.
+  rm -f "${master_config_file}"
+}
+
+function update-node-config() {
+  local config_path="/data/openshift.local.config"
+  local host="$(hostname)"
+  local node_config_path="${config_path}/node-${host}"
+  local node_config_file="${node_config_path}/node-config.yaml"
+
+  # Remove node config file to trigger node config regeneration
+  #
+  # openshift-generate-node-config.sh script repopulates node config
+  # with certs for both eth0 and eth1 IP addrs.
+  #
+  # openshift-node service executes openshift-generate-node-config.sh
+  # as pre start hook.
+  rm -f "${node_config_file}"
 }
 
 function add-node () {
@@ -209,6 +304,13 @@ function stop() {
 
   echo "Stopping dind cluster '${cluster_id}'"
   sudo echo -n
+
+  # Delete additional bridge if present
+  additional_bridge_name=$(cat ${config_root}/dind-env | grep OPENSHIFT_ADDITIONAL_BRIDGE_NAME | cut -d'=' -f2 || true)
+  if [[ -n "${additional_bridge_name}" ]]; then
+      sudo ip link set "${additional_bridge_name}" down 2> /dev/null || "true"
+      sudo brctl delbr "${additional_bridge_name}" 2> /dev/null || "true"
+  fi
 
   # Delete the containers
   for cid in $( ${DOCKER_CMD} ps -qa --filter "name=${MASTER_NAME}|${NODE_PREFIX}" ); do
@@ -424,18 +526,27 @@ function get-network-plugin() {
   local subnet_plugin="redhat/openshift-ovs-subnet"
   local multitenant_plugin="redhat/openshift-ovs-multitenant"
   local networkpolicy_plugin="redhat/openshift-ovs-networkpolicy"
+  local ovn_plugin="ovn"
   local default_plugin="${multitenant_plugin}"
 
-  if [[ "${plugin}" != "${subnet_plugin}" &&
-          "${plugin}" != "${multitenant_plugin}" &&
-          "${plugin}" != "${networkpolicy_plugin}" &&
-          "${plugin}" != "cni" ]]; then
-    if [[ -n "${plugin}" ]]; then
-      >&2 echo "Invalid network plugin: ${plugin}"
-    fi
-    plugin="${default_plugin}"
+  if [[ "${plugin}" = "subnet" || "${plugin}" = "${subnet_plugin}" ]]; then
+    echo "${subnet_plugin}"
+  elif [[ "${plugin}" = "multitenant" || "${plugin}" = "${multitenant_plugin}" ]]; then
+    echo "${multitenant_plugin}"
+  elif [[ "${plugin}" = "networkpolicy" || "${plugin}" = "${networkpolicy_plugin}" ]]; then
+    echo "${networkpolicy_plugin}"
+  elif [[ "${plugin}" = "ovn" ]]; then
+    echo "${ovn_plugin}"
+  elif [[ "${plugin}" = "cni" ]]; then
+    echo "cni"
+  elif [[ "${plugin}" = "none" ]]; then
+    echo ""
+  elif [[ -n "${plugin}" ]]; then
+    >&2 echo "Invalid network plugin: ${plugin}"
+    exit 1
+  else
+    echo "${default_plugin}"
   fi
-  echo "${plugin}"
 }
 
 function get-docker-ip() {
@@ -455,9 +566,27 @@ function copy-runtime() {
   local target=$2
 
   cp "$(os::util::find::built_binary openshift)" "${target}"
+  cp "$(os::util::find::built_binary oc)" "${target}"
   cp "$(os::util::find::built_binary host-local)" "${target}"
   cp "$(os::util::find::built_binary loopback)" "${target}"
   cp "$(os::util::find::built_binary sdn-cni-plugin)" "${target}/openshift-sdn"
+}
+
+function copy-ovn-runtime() {
+  local ovn_root=$1
+  local target=$2
+
+  local ovn_go_controller_built_binaries_path="${ovn_root}/go-controller/_output/go/bin"
+  cp "${ovn_go_controller_built_binaries_path}/ovnkube" "${target}"
+  cp "${ovn_go_controller_built_binaries_path}/ovn-kube-util" "${target}"
+  cp "${ovn_go_controller_built_binaries_path}/ovn-k8s-overlay" "${target}"
+  cp "${ovn_go_controller_built_binaries_path}/ovn-k8s-cni-overlay" "${target}"
+
+  local ovn_k8s_binaries_path="${ovn_root}/bin"
+  cp "${ovn_k8s_binaries_path}/ovn-k8s-gateway-helper" "${target}"
+
+  local ovn_k8s_python_module_path="${ovn_root}/ovn_k8s"
+  cp -R "${ovn_k8s_python_module_path}" "${target}/"
 }
 
 function wait-for-cluster() {
@@ -563,10 +692,17 @@ NODE_PREFIX="${CLUSTER_ID}-node-"
 NODE_COUNT=2
 NODE_NAMES=()
 
+ADDITIONAL_BRIDGE_NAME="${ADDITIONAL_BRIDGE_NAME:-os-addbr-1}"
+ADDITIONAL_NETWORK_NUM=18
+ADDITIONAL_IFACE_NAME="${ADDITIONAL_IFACE_NAME:-eth1}"
+
 BASE_IMAGE="openshift/dind"
 NODE_IMAGE="openshift/dind-node"
 MASTER_IMAGE="openshift/dind-master"
 ADDITIONAL_ARGS=""
+
+OVN_ROOT="${OVN_ROOT:-}"
+CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-dockershim}"
 
 case "${1:-""}" in
   start)
@@ -575,8 +711,9 @@ case "${1:-""}" in
     WAIT_FOR_CLUSTER=1
     NETWORK_PLUGIN=
     REMOVE_EXISTING_CLUSTER=
+    ADDITIONAL_NETWORK_INTERFACE=
     OPTIND=2
-    while getopts ":bin:rsN:" opt; do
+    while getopts ":abc:in:rsN:" opt; do
       case $opt in
         b)
           BUILD=1
@@ -595,6 +732,12 @@ case "${1:-""}" in
           ;;
         s)
           WAIT_FOR_CLUSTER=
+          ;;
+        c)
+          CONTAINER_RUNTIME="${OPTARG}"
+          ;;
+        a)
+          ADDITIONAL_NETWORK_INTERFACE=1
           ;;
         \?)
           echo "Invalid option: -${OPTARG}" >&2
@@ -631,9 +774,21 @@ case "${1:-""}" in
     fi
 
     NETWORK_PLUGIN="$(get-network-plugin "${NETWORK_PLUGIN}")"
-    start "${OS_ROOT}" "${CONFIG_ROOT}" "${DEPLOYED_CONFIG_ROOT}" \
-          "${CLUSTER_ID}" "${NETWORK_PLUGIN}" "${WAIT_FOR_CLUSTER}" \
-          "${NODE_COUNT}" "${ADDITIONAL_ARGS}"
+
+    # OVN requires CNI network plugin and OVN_ROOT to be set
+    if [[ "${NETWORK_PLUGIN}" = "ovn" ]]; then
+      NETWORK_PLUGIN="cni"
+      if [[ -z "${OVN_ROOT}" ]]; then
+        echo "OVN network plugin requires OVN_ROOT set to ovn-kubernetes checkout"
+        exit 1
+      fi
+    elif [[ -n "${OVN_ROOT}" ]]; then
+      OVN_ROOT=
+    fi
+
+    start "${OS_ROOT}" "${OVN_ROOT}" "${CONFIG_ROOT}" "${DEPLOYED_CONFIG_ROOT}" \
+          "${CLUSTER_ID}" "${NETWORK_PLUGIN}" "${CONTAINER_RUNTIME}" \
+          "${WAIT_FOR_CLUSTER}" "${NODE_COUNT}" "${ADDITIONAL_ARGS}"
     ;;
   add-node)
     WAIT_FOR_CLUSTER=1
@@ -759,11 +914,13 @@ Commands:
 
 start accepts the following options:
 
- -n [net plugin]   the name of the network plugin to deploy
+ -n [net plugin]   the name of the network plugin to deploy (or "none" for none)
  -N                number of nodes in the cluster
  -b                build origin before starting the cluster
+ -c [runtime name] use the specified container runtime instead of dockershim (eg, "crio")
  -i                build container images before starting the cluster
  -r                remove an existing cluster
+ -a                add additional network interface to all nodes in the cluster
  -s                skip waiting for nodes to become ready
 
 Any of the arguments that would be used in creating openshift master can be passed

@@ -10,49 +10,52 @@ import (
 
 	"github.com/cloudflare/cfssl/helpers"
 
+	apiv1 "k8s.io/api/core/v1"
+	extensionsapiv1beta1 "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
 	apiserveroptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	utilconfig "k8s.io/apiserver/pkg/util/flag"
+	pluginwebhook "k8s.io/apiserver/plugin/pkg/audit/webhook"
 	kubeapiserveroptions "k8s.io/kubernetes/cmd/kube-apiserver/app/options"
 	cmapp "k8s.io/kubernetes/cmd/kube-controller-manager/app/options"
-	kapi "k8s.io/kubernetes/pkg/api"
-	apiv1 "k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	"k8s.io/kubernetes/pkg/apis/componentconfig"
-	extensionsapiv1beta1 "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 	kubeoptions "k8s.io/kubernetes/pkg/kubeapiserver/options"
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
-	scheduleroptions "k8s.io/kubernetes/plugin/cmd/kube-scheduler/app/options"
+	schedulerapp "k8s.io/kubernetes/plugin/cmd/kube-scheduler/app"
 
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
 )
 
 var expectedGroupPreferredVersions []string = []string{
 	// keep this sorted:
-	"admission.k8s.io/v1alpha1",
-	"admissionregistration.k8s.io/v1alpha1",
-	"apps/v1beta1,authentication.k8s.io/v1",
+	"admission.k8s.io/v1beta1", // not persisted
+	"admissionregistration.k8s.io/v1beta1",
+	"apps/v1beta1",
+	"authentication.k8s.io/v1",
 	"authorization.k8s.io/v1",
+	"authorization.openshift.io/v1",
 	"autoscaling/v1",
 	"batch/v1",
 	"certificates.k8s.io/v1beta1",
 	"componentconfig/v1alpha1",
+	"events.k8s.io/v1beta1",
 	"extensions/v1beta1",
-	"federation/v1beta1",
 	"imagepolicy.k8s.io/v1alpha1",
 	"networking.k8s.io/v1",
 	"policy/v1beta1",
-	"rbac.authorization.k8s.io/v1beta1",
+	"rbac.authorization.k8s.io/v1",
+	"scheduling.k8s.io/v1alpha1",
 	"settings.k8s.io/v1alpha1",
 	"storage.k8s.io/v1",
-	"user.openshift.io/v1",
 	"v1",
 }
 
 func TestPreferredGroupVersions(t *testing.T) {
-	s := kapi.Registry.AllPreferredGroupVersions()
+	s := legacyscheme.Registry.AllPreferredGroupVersions()
 	expected := strings.Join(expectedGroupPreferredVersions, ",")
 	if s != expected {
 		t.Logf("expected: %#v", expected)
@@ -68,22 +71,26 @@ func TestAPIServerDefaults(t *testing.T) {
 	// If the default changes (new fields are added, or default values change), we want to know
 	// Once we've reacted to the changes appropriately in BuildKubernetesMasterConfig(), update this expected default to match the new upstream defaults
 	expectedDefaults := &kubeapiserveroptions.ServerRunOptions{
-		ServiceNodePortRange: kubeapiserveroptions.DefaultServiceNodePortRange,
+		ServiceNodePortRange: kubeoptions.DefaultServiceNodePortRange,
 		MasterCount:          1,
 		GenericServerRunOptions: &apiserveroptions.ServerRunOptions{
 			MaxRequestsInFlight:         400,
 			MaxMutatingRequestsInFlight: 200,
 			MinRequestTimeout:           1800,
+			RequestTimeout:              time.Duration(60) * time.Second,
 		},
 		Admission: &apiserveroptions.AdmissionOptions{
-			PluginNames: []string{"AlwaysAdmit"},
+			PluginNames:            []string{"AlwaysAdmit"},
+			RecommendedPluginOrder: []string{"NamespaceLifecycle", "Initializers", "MutatingAdmissionWebhook", "ValidatingAdmissionWebhook"}, //ignored
+			DefaultOffPlugins:      []string{"Initializers", "MutatingAdmissionWebhook", "ValidatingAdmissionWebhook"},                       //ignored
 		},
 		Etcd: &apiserveroptions.EtcdOptions{
 			StorageConfig: storagebackend.Config{
 				ServerList: nil,
 				Prefix:     "/registry",
 				DeserializationCacheSize: 0,
-				Copier: kapi.Scheme,
+				Quorum:             true,
+				CompactionInterval: 300000000000, // five minutes
 			},
 			DefaultStorageMediaType: "application/vnd.kubernetes.protobuf",
 			DeleteCollectionWorkers: 1,
@@ -103,7 +110,8 @@ func TestAPIServerDefaults(t *testing.T) {
 			BindAddress: net.ParseIP("127.0.0.1"),
 			BindPort:    8080,
 		},
-		EventTTL: 1 * time.Hour,
+		EndpointReconcilerType: "master-count", //ignored
+		EventTTL:               1 * time.Hour,
 		KubeletConfig: kubeletclient.KubeletClientConfig{
 			Port:         10250,
 			ReadOnlyPort: 10255,
@@ -117,9 +125,22 @@ func TestAPIServerDefaults(t *testing.T) {
 			EnableHttps: true,
 			HTTPTimeout: time.Duration(5) * time.Second,
 		},
+		// we currently overwrite this entire stanza, but we should be trying to collapse onto the upstream
+		// flag or config mechanism for kube.
 		Audit: &apiserveroptions.AuditOptions{
+			LogOptions: apiserveroptions.AuditLogOptions{
+				Format: "json",
+			},
 			WebhookOptions: apiserveroptions.AuditWebhookOptions{
 				Mode: "batch",
+				BatchConfig: pluginwebhook.BatchBackendConfig{
+					BufferSize:     10000,
+					MaxBatchSize:   400,
+					MaxBatchWait:   time.Duration(30000000000),
+					ThrottleQPS:    10,
+					ThrottleBurst:  15,
+					InitialBackoff: time.Duration(10000000000),
+				},
 			},
 		},
 		Features: &apiserveroptions.FeatureOptions{
@@ -127,7 +148,6 @@ func TestAPIServerDefaults(t *testing.T) {
 		},
 		Authentication: &kubeoptions.BuiltInAuthenticationOptions{
 			Anonymous:      &kubeoptions.AnonymousAuthenticationOptions{Allow: true},
-			AnyToken:       &kubeoptions.AnyTokenAuthenticationOptions{},
 			BootstrapToken: &kubeoptions.BootstrapTokenAuthenticationOptions{},
 			ClientCert:     &apiserveroptions.ClientCertAuthenticationOptions{},
 			Keystone:       &kubeoptions.KeystoneAuthenticationOptions{},
@@ -139,6 +159,9 @@ func TestAPIServerDefaults(t *testing.T) {
 			},
 			TokenFile: &kubeoptions.TokenFileAuthenticationOptions{},
 			WebHook:   &kubeoptions.WebHookAuthenticationOptions{CacheTTL: 2 * time.Minute},
+
+			TokenSuccessCacheTTL: 10 * time.Second,
+			TokenFailureCacheTTL: 0,
 		},
 		Authorization: &kubeoptions.BuiltInAuthorizationOptions{
 			Mode: "AlwaysAllow",
@@ -147,8 +170,8 @@ func TestAPIServerDefaults(t *testing.T) {
 		},
 		CloudProvider: &kubeoptions.CloudProviderOptions{},
 		StorageSerialization: &kubeoptions.StorageSerializationOptions{
-			StorageVersions:        kapi.Registry.AllPreferredGroupVersions(),
-			DefaultStorageVersions: kapi.Registry.AllPreferredGroupVersions(),
+			StorageVersions:        legacyscheme.Registry.AllPreferredGroupVersions(),
+			DefaultStorageVersions: legacyscheme.Registry.AllPreferredGroupVersions(),
 		},
 		APIEnablement: &kubeoptions.APIEnablementOptions{
 			RuntimeConfig: utilconfig.ConfigurationMap{},
@@ -210,9 +233,6 @@ func TestCMServerDefaults(t *testing.T) {
 			ConcurrentSATokenSyncs:                          5,
 			ConcurrentServiceSyncs:                          1,
 			ConcurrentGCSyncs:                               20,
-			LookupCacheSizeForRC:                            4096,
-			LookupCacheSizeForRS:                            4096,
-			LookupCacheSizeForDaemonSet:                     1024,
 			ConfigureCloudRoutes:                            true,
 			NodeCIDRMaskSize:                                24,
 			ServiceSyncPeriod:                               metav1.Duration{Duration: 5 * time.Minute},
@@ -230,8 +250,10 @@ func TestCMServerDefaults(t *testing.T) {
 			NodeMonitorPeriod:                               metav1.Duration{Duration: 5 * time.Second},
 			HorizontalPodAutoscalerUpscaleForbiddenWindow:   metav1.Duration{Duration: 3 * time.Minute},
 			HorizontalPodAutoscalerDownscaleForbiddenWindow: metav1.Duration{Duration: 5 * time.Minute},
-			ClusterName:              "kubernetes",
-			TerminatedPodGCThreshold: 12500,
+			HorizontalPodAutoscalerTolerance:                0.1,
+			HorizontalPodAutoscalerUseRESTClients:           true, // we ignore this for now
+			ClusterName:                                     "kubernetes",
+			TerminatedPodGCThreshold:                        12500,
 			VolumeConfiguration: componentconfig.VolumeConfiguration{
 				EnableDynamicProvisioning:  true,
 				EnableHostPathProvisioning: false,
@@ -267,6 +289,7 @@ func TestCMServerDefaults(t *testing.T) {
 				{Group: "authorization.k8s.io", Resource: "subjectaccessreviews"},
 				{Group: "authorization.k8s.io", Resource: "selfsubjectaccessreviews"},
 				{Group: "authorization.k8s.io", Resource: "localsubjectaccessreviews"},
+				{Group: "authorization.k8s.io", Resource: "selfsubjectrulesreviews"},
 				{Group: "apiregistration.k8s.io", Resource: "apiservices"},
 				{Group: "apiextensions.k8s.io", Resource: "customresourcedefinitions"},
 			},
@@ -287,25 +310,32 @@ func TestCMServerDefaults(t *testing.T) {
 }
 
 func TestSchedulerServerDefaults(t *testing.T) {
-	defaults := scheduleroptions.NewSchedulerServer()
+	defaults, err := schedulerapp.NewOptions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := defaults.ReallyApplyDefaults(); err != nil {
+		t.Fatal(err)
+	}
+	if err := defaults.Complete(); err != nil {
+		t.Fatal(err)
+	}
+
+	provider := "DefaultProvider"
 
 	// This is a snapshot of the default config
 	// If the default changes (new fields are added, or default values change), we want to know
 	// Once we've reacted to the changes appropriately in BuildKubernetesMasterConfig(), update this expected default to match the new upstream defaults
-	expectedDefaults := &scheduleroptions.SchedulerServer{
-		KubeSchedulerConfiguration: componentconfig.KubeSchedulerConfiguration{
-			Port:                           10251, // disabled
-			Address:                        "0.0.0.0",
-			AlgorithmProvider:              "DefaultProvider",
-			ContentType:                    "application/vnd.kubernetes.protobuf",
-			KubeAPIQPS:                     50,
-			KubeAPIBurst:                   100,
-			SchedulerName:                  "default-scheduler",
-			HardPodAffinitySymmetricWeight: 1,
-			FailureDomains:                 "kubernetes.io/hostname,failure-domain.beta.kubernetes.io/zone,failure-domain.beta.kubernetes.io/region",
-			LeaderElection: componentconfig.LeaderElectionConfiguration{
+	expectedDefaults := &componentconfig.KubeSchedulerConfiguration{
+		SchedulerName: "default-scheduler",
+		AlgorithmSource: componentconfig.SchedulerAlgorithmSource{
+			Provider: &provider,
+		},
+		HardPodAffinitySymmetricWeight: 1,
+		LeaderElection: componentconfig.KubeSchedulerLeaderElectionConfiguration{
+			LeaderElectionConfiguration: componentconfig.LeaderElectionConfiguration{
 				ResourceLock: "endpoints",
-				LeaderElect:  true,
+				LeaderElect:  false, // we turn this on
 				LeaseDuration: metav1.Duration{
 					Duration: 15 * time.Second,
 				},
@@ -316,14 +346,21 @@ func TestSchedulerServerDefaults(t *testing.T) {
 					Duration: 2 * time.Second,
 				},
 			},
-			LockObjectNamespace:      "kube-system",
-			LockObjectName:           "kube-scheduler",
-			PolicyConfigMapNamespace: "kube-system",
+			LockObjectNamespace: "kube-system",
+			LockObjectName:      "kube-scheduler",
 		},
+		ClientConnection: componentconfig.ClientConnectionConfiguration{
+			ContentType: "application/vnd.kubernetes.protobuf",
+			QPS:         50,
+			Burst:       100,
+		},
+		HealthzBindAddress: "0.0.0.0:0", // we disable this
+		MetricsBindAddress: "0.0.0.0:0",
+		FailureDomains:     "kubernetes.io/hostname,failure-domain.beta.kubernetes.io/zone,failure-domain.beta.kubernetes.io/region",
 	}
 
-	if !reflect.DeepEqual(defaults, expectedDefaults) {
-		t.Logf("expected defaults, actual defaults: \n%s", diff.ObjectReflectDiff(expectedDefaults, defaults))
+	if !reflect.DeepEqual(defaults.GetConfig(), expectedDefaults) {
+		t.Logf("expected defaults, actual defaults: \n%s", diff.ObjectReflectDiff(expectedDefaults, defaults.GetConfig()))
 		t.Errorf("Got different defaults than expected, adjust in BuildKubernetesMasterConfig and update expectedDefaults")
 	}
 }

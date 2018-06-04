@@ -1,36 +1,64 @@
-package v1_test
+package v1
 
 import (
 	"testing"
 
+	kolder "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/conversion/queryparams"
-	knewer "k8s.io/kubernetes/pkg/api"
-	kolder "k8s.io/kubernetes/pkg/api/v1"
+	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	knewer "k8s.io/kubernetes/pkg/apis/core"
 
+	v1 "github.com/openshift/api/build/v1"
+	"github.com/openshift/origin/pkg/api/apihelpers/apitesting"
 	newer "github.com/openshift/origin/pkg/build/apis/build"
-	_ "github.com/openshift/origin/pkg/build/apis/build/install"
-	older "github.com/openshift/origin/pkg/build/apis/build/v1"
-	testutil "github.com/openshift/origin/test/util/api"
 )
 
-var Convert = knewer.Scheme.Convert
+var scheme = runtime.NewScheme()
+var Convert = scheme.Convert
+var codecs = serializer.NewCodecFactory(scheme)
+
+func init() {
+	LegacySchemeBuilder.AddToScheme(scheme)
+	newer.LegacySchemeBuilder.AddToScheme(scheme)
+	SchemeBuilder.AddToScheme(scheme)
+	newer.SchemeBuilder.AddToScheme(scheme)
+}
 
 func TestFieldSelectorConversions(t *testing.T) {
-	testutil.CheckFieldLabelConversions(t, "v1", "Build",
-		// Ensure all currently returned labels are supported
-		newer.BuildToSelectableFields(&newer.Build{}),
+	apitesting.FieldKeyCheck{
+		SchemeBuilder: []func(*runtime.Scheme) error{LegacySchemeBuilder.AddToScheme, newer.LegacySchemeBuilder.AddToScheme},
+		Kind:          LegacySchemeGroupVersion.WithKind("Build"),
 		// Ensure previously supported labels have conversions. DO NOT REMOVE THINGS FROM THIS LIST
-		"name", "status", "podName",
-	)
+		AllowedExternalFieldKeys: []string{"name", "status", "podName"},
+		FieldKeyEvaluatorFn:      newer.BuildFieldSelector,
+	}.Check(t)
+
+	apitesting.FieldKeyCheck{
+		SchemeBuilder: []func(*runtime.Scheme) error{LegacySchemeBuilder.AddToScheme, newer.LegacySchemeBuilder.AddToScheme},
+		Kind:          LegacySchemeGroupVersion.WithKind("BuildConfig"),
+		// Ensure previously supported labels have conversions. DO NOT REMOVE THINGS FROM THIS LIST
+		AllowedExternalFieldKeys: []string{"name"},
+	}.Check(t)
+
+	apitesting.FieldKeyCheck{
+		SchemeBuilder: []func(*runtime.Scheme) error{SchemeBuilder.AddToScheme, newer.SchemeBuilder.AddToScheme},
+		Kind:          SchemeGroupVersion.WithKind("Build"),
+		// Ensure previously supported labels have conversions. DO NOT REMOVE THINGS FROM THIS LIST
+		AllowedExternalFieldKeys: []string{"status", "podName"},
+		FieldKeyEvaluatorFn:      newer.BuildFieldSelector,
+	}.Check(t)
+
 }
 
 func TestBinaryBuildRequestOptions(t *testing.T) {
+
 	r := &newer.BinaryBuildRequestOptions{
 		AsFile: "Dockerfile",
 		Commit: "abcdef",
 	}
-	versioned, err := knewer.Scheme.ConvertToVersion(r, kolder.SchemeGroupVersion)
+	versioned, err := scheme.ConvertToVersion(r, kolder.SchemeGroupVersion)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,8 +66,8 @@ func TestBinaryBuildRequestOptions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded := &older.BinaryBuildRequestOptions{}
-	if err := knewer.Scheme.Convert(&params, decoded, nil); err != nil {
+	decoded := &v1.BinaryBuildRequestOptions{}
+	if err := scheme.Convert(&params, decoded, nil); err != nil {
 		t.Fatal(err)
 	}
 	if decoded.Commit != "abcdef" || decoded.AsFile != "Dockerfile" {
@@ -48,123 +76,123 @@ func TestBinaryBuildRequestOptions(t *testing.T) {
 }
 
 func TestV1APIBuildConfigConversion(t *testing.T) {
-	buildConfigs := []*older.BuildConfig{
+	buildConfigs := []*v1.BuildConfig{
 		{
 			ObjectMeta: metav1.ObjectMeta{Name: "config-id", Namespace: "namespace"},
-			Spec: older.BuildConfigSpec{
-				CommonSpec: older.CommonSpec{
-					Source: older.BuildSource{
-						Type: older.BuildSourceGit,
-						Git: &older.GitBuildSource{
+			Spec: v1.BuildConfigSpec{
+				CommonSpec: v1.CommonSpec{
+					Source: v1.BuildSource{
+						Type: v1.BuildSourceGit,
+						Git: &v1.GitBuildSource{
 							URI: "http://github.com/my/repository",
 						},
 						ContextDir: "context",
 					},
-					Strategy: older.BuildStrategy{
-						Type: older.DockerBuildStrategyType,
-						DockerStrategy: &older.DockerBuildStrategy{
+					Strategy: v1.BuildStrategy{
+						Type: v1.DockerBuildStrategyType,
+						DockerStrategy: &v1.DockerBuildStrategy{
 							From: &kolder.ObjectReference{
 								Kind: "ImageStream",
 								Name: "fromstream",
 							},
 						},
 					},
-					Output: older.BuildOutput{
+					Output: v1.BuildOutput{
 						To: &kolder.ObjectReference{
 							Kind: "ImageStream",
 							Name: "outputstream",
 						},
 					},
 				},
-				Triggers: []older.BuildTriggerPolicy{
+				Triggers: []v1.BuildTriggerPolicy{
 					{
-						Type: older.ImageChangeBuildTriggerTypeDeprecated,
+						Type: v1.ImageChangeBuildTriggerTypeDeprecated,
 					},
 					{
-						Type: older.GitHubWebHookBuildTriggerTypeDeprecated,
+						Type: v1.GitHubWebHookBuildTriggerTypeDeprecated,
 					},
 					{
-						Type: older.GenericWebHookBuildTriggerTypeDeprecated,
+						Type: v1.GenericWebHookBuildTriggerTypeDeprecated,
 					},
 				},
 			},
 		},
 		{
 			ObjectMeta: metav1.ObjectMeta{Name: "config-id", Namespace: "namespace"},
-			Spec: older.BuildConfigSpec{
-				CommonSpec: older.CommonSpec{
-					Source: older.BuildSource{
-						Type: older.BuildSourceGit,
-						Git: &older.GitBuildSource{
+			Spec: v1.BuildConfigSpec{
+				CommonSpec: v1.CommonSpec{
+					Source: v1.BuildSource{
+						Type: v1.BuildSourceGit,
+						Git: &v1.GitBuildSource{
 							URI: "http://github.com/my/repository",
 						},
 						ContextDir: "context",
 					},
-					Strategy: older.BuildStrategy{
-						Type: older.SourceBuildStrategyType,
-						SourceStrategy: &older.SourceBuildStrategy{
+					Strategy: v1.BuildStrategy{
+						Type: v1.SourceBuildStrategyType,
+						SourceStrategy: &v1.SourceBuildStrategy{
 							From: kolder.ObjectReference{
 								Kind: "ImageStream",
 								Name: "fromstream",
 							},
 						},
 					},
-					Output: older.BuildOutput{
+					Output: v1.BuildOutput{
 						To: &kolder.ObjectReference{
 							Kind: "ImageStream",
 							Name: "outputstream",
 						},
 					},
 				},
-				Triggers: []older.BuildTriggerPolicy{
+				Triggers: []v1.BuildTriggerPolicy{
 					{
-						Type: older.ImageChangeBuildTriggerTypeDeprecated,
+						Type: v1.ImageChangeBuildTriggerTypeDeprecated,
 					},
 					{
-						Type: older.GitHubWebHookBuildTriggerTypeDeprecated,
+						Type: v1.GitHubWebHookBuildTriggerTypeDeprecated,
 					},
 					{
-						Type: older.GenericWebHookBuildTriggerTypeDeprecated,
+						Type: v1.GenericWebHookBuildTriggerTypeDeprecated,
 					},
 				},
 			},
 		},
 		{
 			ObjectMeta: metav1.ObjectMeta{Name: "config-id", Namespace: "namespace"},
-			Spec: older.BuildConfigSpec{
-				CommonSpec: older.CommonSpec{
-					Source: older.BuildSource{
-						Type: older.BuildSourceGit,
-						Git: &older.GitBuildSource{
+			Spec: v1.BuildConfigSpec{
+				CommonSpec: v1.CommonSpec{
+					Source: v1.BuildSource{
+						Type: v1.BuildSourceGit,
+						Git: &v1.GitBuildSource{
 							URI: "http://github.com/my/repository",
 						},
 						ContextDir: "context",
 					},
-					Strategy: older.BuildStrategy{
-						Type: older.CustomBuildStrategyType,
-						CustomStrategy: &older.CustomBuildStrategy{
+					Strategy: v1.BuildStrategy{
+						Type: v1.CustomBuildStrategyType,
+						CustomStrategy: &v1.CustomBuildStrategy{
 							From: kolder.ObjectReference{
 								Kind: "ImageStream",
 								Name: "fromstream",
 							},
 						},
 					},
-					Output: older.BuildOutput{
+					Output: v1.BuildOutput{
 						To: &kolder.ObjectReference{
 							Kind: "ImageStream",
 							Name: "outputstream",
 						},
 					},
 				},
-				Triggers: []older.BuildTriggerPolicy{
+				Triggers: []v1.BuildTriggerPolicy{
 					{
-						Type: older.ImageChangeBuildTriggerTypeDeprecated,
+						Type: v1.ImageChangeBuildTriggerTypeDeprecated,
 					},
 					{
-						Type: older.GitHubWebHookBuildTriggerTypeDeprecated,
+						Type: v1.GitHubWebHookBuildTriggerTypeDeprecated,
 					},
 					{
-						Type: older.GenericWebHookBuildTriggerTypeDeprecated,
+						Type: v1.GenericWebHookBuildTriggerTypeDeprecated,
 					},
 				},
 			},
@@ -177,15 +205,15 @@ func TestV1APIBuildConfigConversion(t *testing.T) {
 
 		Convert(bc, &internalbuild, nil)
 		switch bc.Spec.Strategy.Type {
-		case older.SourceBuildStrategyType:
+		case v1.SourceBuildStrategyType:
 			if internalbuild.Spec.Strategy.SourceStrategy.From.Kind != "ImageStreamTag" {
 				t.Errorf("[%d] Expected From Kind %s, got %s", c, "ImageStreamTag", internalbuild.Spec.Strategy.SourceStrategy.From.Kind)
 			}
-		case older.DockerBuildStrategyType:
+		case v1.DockerBuildStrategyType:
 			if internalbuild.Spec.Strategy.DockerStrategy.From.Kind != "ImageStreamTag" {
 				t.Errorf("[%d]Expected From Kind %s, got %s", c, "ImageStreamTag", internalbuild.Spec.Strategy.DockerStrategy.From.Kind)
 			}
-		case older.CustomBuildStrategyType:
+		case v1.CustomBuildStrategyType:
 			if internalbuild.Spec.Strategy.CustomStrategy.From.Kind != "ImageStreamTag" {
 				t.Errorf("[%d]Expected From Kind %s, got %s", c, "ImageStreamTag", internalbuild.Spec.Strategy.CustomStrategy.From.Kind)
 			}
@@ -272,23 +300,23 @@ func TestAPIV1NoSourceBuildConfigConversion(t *testing.T) {
 
 	for c, bc := range buildConfigs {
 
-		var internalbuild older.BuildConfig
+		var internalbuild v1.BuildConfig
 
 		Convert(bc, &internalbuild, nil)
-		if internalbuild.Spec.Source.Type != older.BuildSourceNone {
+		if internalbuild.Spec.Source.Type != v1.BuildSourceNone {
 			t.Errorf("Unexpected source type at index %d: %s", c, internalbuild.Spec.Source.Type)
 		}
 	}
 }
 
 func TestInvalidImageChangeTriggerRemoval(t *testing.T) {
-	buildConfig := older.BuildConfig{
+	buildConfig := v1.BuildConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: "config-id", Namespace: "namespace"},
-		Spec: older.BuildConfigSpec{
-			CommonSpec: older.CommonSpec{
-				Strategy: older.BuildStrategy{
-					Type: older.DockerBuildStrategyType,
-					DockerStrategy: &older.DockerBuildStrategy{
+		Spec: v1.BuildConfigSpec{
+			CommonSpec: v1.CommonSpec{
+				Strategy: v1.BuildStrategy{
+					Type: v1.DockerBuildStrategyType,
+					DockerStrategy: &v1.DockerBuildStrategy{
 						From: &kolder.ObjectReference{
 							Kind: "DockerImage",
 							Name: "fromimage",
@@ -296,14 +324,14 @@ func TestInvalidImageChangeTriggerRemoval(t *testing.T) {
 					},
 				},
 			},
-			Triggers: []older.BuildTriggerPolicy{
+			Triggers: []v1.BuildTriggerPolicy{
 				{
-					Type:        older.ImageChangeBuildTriggerType,
-					ImageChange: &older.ImageChangeTrigger{},
+					Type:        v1.ImageChangeBuildTriggerType,
+					ImageChange: &v1.ImageChangeTrigger{},
 				},
 				{
-					Type: older.ImageChangeBuildTriggerType,
-					ImageChange: &older.ImageChangeTrigger{
+					Type: v1.ImageChangeBuildTriggerType,
+					ImageChange: &v1.ImageChangeTrigger{
 						From: &kolder.ObjectReference{
 							Kind: "ImageStreamTag",
 							Name: "imagestream",
@@ -327,18 +355,18 @@ func TestInvalidImageChangeTriggerRemoval(t *testing.T) {
 }
 
 func TestImageChangeTriggerNilImageChangePointer(t *testing.T) {
-	buildConfig := older.BuildConfig{
+	buildConfig := v1.BuildConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: "config-id", Namespace: "namespace"},
-		Spec: older.BuildConfigSpec{
-			CommonSpec: older.CommonSpec{
-				Strategy: older.BuildStrategy{
-					Type:           older.SourceBuildStrategyType,
-					SourceStrategy: &older.SourceBuildStrategy{},
+		Spec: v1.BuildConfigSpec{
+			CommonSpec: v1.CommonSpec{
+				Strategy: v1.BuildStrategy{
+					Type:           v1.SourceBuildStrategyType,
+					SourceStrategy: &v1.SourceBuildStrategy{},
 				},
 			},
-			Triggers: []older.BuildTriggerPolicy{
+			Triggers: []v1.BuildTriggerPolicy{
 				{
-					Type:        older.ImageChangeBuildTriggerType,
+					Type:        v1.ImageChangeBuildTriggerType,
 					ImageChange: nil,
 				},
 			},

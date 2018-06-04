@@ -22,10 +22,10 @@ import (
 	goruntime "runtime"
 	"testing"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apitesting "k8s.io/kubernetes/pkg/api/testing"
-	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/version"
 
 	"github.com/kubernetes-incubator/cluster-capacity/pkg/framework/store"
@@ -95,7 +95,7 @@ func getTestNode(nodeName string) *v1.Node {
 				v1.ResourceNvidiaGPU: *resource.NewQuantity(0, resource.DecimalSI),
 			},
 			Addresses: []v1.NodeAddress{
-				{Type: v1.NodeLegacyHostIP, Address: "127.0.0.1"},
+				{Type: v1.NodeExternalIP, Address: "127.0.0.1"},
 				{Type: v1.NodeInternalIP, Address: "127.0.0.1"},
 			},
 			Images: []v1.ContainerImage{},

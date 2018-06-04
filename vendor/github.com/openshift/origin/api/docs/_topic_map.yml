@@ -48,6 +48,19 @@
     File: v1.APIGroup
   - Name: v1.APIGroupList
     File: v1.APIGroupList
+- Name: /apis/apps/v1
+  Dir: apis-apps
+  Topics:
+  - Name: v1.ControllerRevision
+    File: v1.ControllerRevision
+  - Name: v1.DaemonSet
+    File: v1.DaemonSet
+  - Name: v1.Deployment
+    File: v1.Deployment
+  - Name: v1.ReplicaSet
+    File: v1.ReplicaSet
+  - Name: v1.StatefulSet
+    File: v1.StatefulSet
 - Name: /apis/apps/v1beta1
   Dir: apis-apps
   Topics:
@@ -57,23 +70,44 @@
     File: v1beta1.Deployment
   - Name: v1beta1.StatefulSet
     File: v1beta1.StatefulSet
+- Name: /apis/apps/v1beta2
+  Dir: apis-apps
+  Topics:
+  - Name: v1beta2.ControllerRevision
+    File: v1beta2.ControllerRevision
+  - Name: v1beta2.DaemonSet
+    File: v1beta2.DaemonSet
+  - Name: v1beta2.Deployment
+    File: v1beta2.Deployment
+  - Name: v1beta2.ReplicaSet
+    File: v1beta2.ReplicaSet
+  - Name: v1beta2.StatefulSet
+    File: v1beta2.StatefulSet
 - Name: /apis/autoscaling/v1
   Dir: apis-autoscaling
   Topics:
   - Name: v1.HorizontalPodAutoscaler
     File: v1.HorizontalPodAutoscaler
+- Name: /apis/autoscaling/v2beta1
+  Dir: apis-autoscaling
+  Topics:
+  - Name: v2beta1.HorizontalPodAutoscaler
+    File: v2beta1.HorizontalPodAutoscaler
 - Name: /apis/batch/v1
   Dir: apis-batch
   Topics:
   - Name: v1.Job
     File: v1.Job
+- Name: /apis/batch/v1beta1
+  Dir: apis-batch
+  Topics:
+  - Name: v1beta1.CronJob
+    File: v1beta1.CronJob
 - Name: /apis/batch/v2alpha1
   Dir: apis-batch
   Topics:
   - Name: v2alpha1.CronJob
     File: v2alpha1.CronJob
-  - Name: v2alpha1.ScheduledJob
-    File: v2alpha1.ScheduledJob
 - Name: /apis/extensions/v1beta1
   Dir: apis-extensions
   Topics:
@@ -89,13 +123,23 @@
     File: v1beta1.PodSecurityPolicy
   - Name: v1beta1.ReplicaSet
     File: v1beta1.ReplicaSet
-  - Name: v1beta1.ThirdPartyResource
-    File: v1beta1.ThirdPartyResource
 - Name: /apis/policy/v1beta1
   Dir: apis-policy
   Topics:
   - Name: v1beta1.PodDisruptionBudget
     File: v1beta1.PodDisruptionBudget
+- Name: /apis/admissionregistration.k8s.io/v1beta1
+  Dir: apis-admissionregistration.k8s.io
+  Topics:
+  - Name: v1beta1.MutatingWebhookConfiguration
+    File: v1beta1.MutatingWebhookConfiguration
+  - Name: v1beta1.ValidatingWebhookConfiguration
+    File: v1beta1.ValidatingWebhookConfiguration
+- Name: /apis/apiregistration.k8s.io/v1beta1
+  Dir: apis-apiregistration.k8s.io
+  Topics:
+  - Name: v1beta1.APIService
+    File: v1beta1.APIService
 - Name: /apis/authentication.k8s.io/v1
   Dir: apis-authentication.k8s.io
   Topics:
@@ -113,6 +157,8 @@
     File: v1.LocalSubjectAccessReview
   - Name: v1.SelfSubjectAccessReview
     File: v1.SelfSubjectAccessReview
+  - Name: v1.SelfSubjectRulesReview
+    File: v1.SelfSubjectRulesReview
   - Name: v1.SubjectAccessReview
     File: v1.SubjectAccessReview
 - Name: /apis/authorization.k8s.io/v1beta1
@@ -122,8 +168,21 @@
     File: v1beta1.LocalSubjectAccessReview
   - Name: v1beta1.SelfSubjectAccessReview
     File: v1beta1.SelfSubjectAccessReview
+  - Name: v1beta1.SelfSubjectRulesReview
+    File: v1beta1.SelfSubjectRulesReview
   - Name: v1beta1.SubjectAccessReview
     File: v1beta1.SubjectAccessReview
+- Name: /apis/rbac.authorization.k8s.io/v1
+  Dir: apis-rbac.authorization.k8s.io
+  Topics:
+  - Name: v1.ClusterRole
+    File: v1.ClusterRole
+  - Name: v1.ClusterRoleBinding
+    File: v1.ClusterRoleBinding
+  - Name: v1.Role
+    File: v1.Role
+  - Name: v1.RoleBinding
+    File: v1.RoleBinding
 - Name: /apis/rbac.authorization.k8s.io/v1beta1
   Dir: apis-rbac.authorization.k8s.io
   Topics:
@@ -140,6 +199,11 @@
   Topics:
   - Name: v1beta1.CertificateSigningRequest
     File: v1beta1.CertificateSigningRequest
+- Name: /apis/events.k8s.io/v1beta1
+  Dir: apis-events.k8s.io
+  Topics:
+  - Name: v1beta1.Event
+    File: v1beta1.Event
 - Name: /apis/networking.k8s.io/v1
   Dir: apis-networking.k8s.io
   Topics:
@@ -300,8 +364,6 @@
     File: v1.ClusterRoleBinding
   - Name: v1.DeploymentConfig
     File: v1.DeploymentConfig
-  - Name: v1.DeploymentConfigRollback
-    File: v1.DeploymentConfigRollback
   - Name: v1.EgressNetworkPolicy
     File: v1.EgressNetworkPolicy
   - Name: v1.Group

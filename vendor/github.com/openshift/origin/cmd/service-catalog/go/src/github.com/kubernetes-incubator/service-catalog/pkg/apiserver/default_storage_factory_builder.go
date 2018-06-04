@@ -21,12 +21,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kubernetes-incubator/service-catalog/pkg/api"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	utilflag "k8s.io/apiserver/pkg/util/flag"
-	"k8s.io/client-go/pkg/api"
 )
 
 // NewStorageFactory builds the DefaultStorageFactory.
@@ -42,7 +42,7 @@ func NewStorageFactory(storageConfig storagebackend.Config, defaultMediaType str
 	if err != nil {
 		return nil, err
 	}
-	return serverstorage.NewDefaultStorageFactory(storageConfig, defaultMediaType, serializer, resourceEncodingConfig, apiResourceConfig), nil
+	return serverstorage.NewDefaultStorageFactory(storageConfig, defaultMediaType, serializer, resourceEncodingConfig, apiResourceConfig, nil), nil
 }
 
 // Merges the given defaultResourceConfig with specifc GroupvVersionResource overrides.

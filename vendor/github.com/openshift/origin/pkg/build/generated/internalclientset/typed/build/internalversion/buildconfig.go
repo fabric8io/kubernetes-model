@@ -26,6 +26,8 @@ type BuildConfigInterface interface {
 	List(opts v1.ListOptions) (*build.BuildConfigList, error)
 	Watch(opts v1.ListOptions) (watch.Interface, error)
 	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *build.BuildConfig, err error)
+	Instantiate(buildConfigName string, buildRequest *build.BuildRequest) (*build.Build, error)
+
 	BuildConfigExpansion
 }
 
@@ -150,6 +152,20 @@ func (c *buildConfigs) Patch(name string, pt types.PatchType, data []byte, subre
 		SubResource(subresources...).
 		Name(name).
 		Body(data).
+		Do().
+		Into(result)
+	return
+}
+
+// Instantiate takes the representation of a buildRequest and creates it.  Returns the server's representation of the buildResource, and an error, if there is any.
+func (c *buildConfigs) Instantiate(buildConfigName string, buildRequest *build.BuildRequest) (result *build.Build, err error) {
+	result = &build.Build{}
+	err = c.client.Post().
+		Namespace(c.ns).
+		Resource("buildconfigs").
+		Name(buildConfigName).
+		SubResource("instantiate").
+		Body(buildRequest).
 		Do().
 		Into(result)
 	return

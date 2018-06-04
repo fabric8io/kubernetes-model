@@ -16,9 +16,8 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
+	"github.com/openshift/origin/pkg/client/config"
 	"github.com/openshift/origin/pkg/cmd/server/crypto"
-	"github.com/openshift/origin/pkg/oc/cli/config"
-	cliconfig "github.com/openshift/origin/pkg/oc/cli/config"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
@@ -79,7 +78,7 @@ func NewCommandCreateKubeConfig(commandName string, fullName string, out io.Writ
 		Long:  createKubeConfigLongDesc,
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := options.Validate(args); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 
 			if _, err := options.CreateKubeConfig(); err != nil {
@@ -161,15 +160,15 @@ func (o CreateKubeConfigOptions) CreateKubeConfig() (*clientcmdapi.Config, error
 	}
 
 	// determine all the nicknames
-	clusterNick, err := cliconfig.GetClusterNicknameFromURL(o.APIServerURL)
+	clusterNick, err := config.GetClusterNicknameFromURL(o.APIServerURL)
 	if err != nil {
 		return nil, err
 	}
-	userNick, err := cliconfig.GetUserNicknameFromCert(clusterNick, certConfig.Certs...)
+	userNick, err := config.GetUserNicknameFromCert(clusterNick, certConfig.Certs...)
 	if err != nil {
 		return nil, err
 	}
-	contextNick := cliconfig.GetContextNickname(o.ContextNamespace, clusterNick, userNick)
+	contextNick := config.GetContextNickname(o.ContextNamespace, clusterNick, userNick)
 
 	credentials := make(map[string]*clientcmdapi.AuthInfo)
 	credentials[userNick] = &clientcmdapi.AuthInfo{
@@ -194,11 +193,11 @@ func (o CreateKubeConfigOptions) CreateKubeConfig() (*clientcmdapi.Config, error
 
 	createPublic := (len(o.PublicAPIServerURL) > 0) && o.APIServerURL != o.PublicAPIServerURL
 	if createPublic {
-		publicClusterNick, err := cliconfig.GetClusterNicknameFromURL(o.PublicAPIServerURL)
+		publicClusterNick, err := config.GetClusterNicknameFromURL(o.PublicAPIServerURL)
 		if err != nil {
 			return nil, err
 		}
-		publicContextNick := cliconfig.GetContextNickname(o.ContextNamespace, publicClusterNick, userNick)
+		publicContextNick := config.GetContextNickname(o.ContextNamespace, publicClusterNick, userNick)
 
 		clusters[publicClusterNick] = &clientcmdapi.Cluster{
 			Server: o.PublicAPIServerURL,

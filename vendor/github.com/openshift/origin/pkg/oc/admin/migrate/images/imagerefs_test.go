@@ -3,17 +3,20 @@ package images
 import (
 	"testing"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapihelper "k8s.io/kubernetes/pkg/api/helper"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	kbatch "k8s.io/kubernetes/pkg/apis/batch"
+	"k8s.io/kubernetes/pkg/apis/core"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
+	kapihelper "k8s.io/kubernetes/pkg/apis/core/helper"
 	kextensions "k8s.io/kubernetes/pkg/apis/extensions"
 
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 func TestImageReferenceMappingsMapReference(t *testing.T) {
@@ -225,8 +228,8 @@ func TestTransform(t *testing.T) {
 					},
 				},
 				{
-					obj: &deployapi.DeploymentConfig{
-						Spec: deployapi.DeploymentConfigSpec{
+					obj: &appsapi.DeploymentConfig{
+						Spec: appsapi.DeploymentConfigSpec{
 							Template: &kapi.PodTemplateSpec{
 								Spec: kapi.PodSpec{
 									Containers: []kapi.Container{
@@ -238,8 +241,8 @@ func TestTransform(t *testing.T) {
 						},
 					},
 					changed: true,
-					expected: &deployapi.DeploymentConfig{
-						Spec: deployapi.DeploymentConfigSpec{
+					expected: &appsapi.DeploymentConfig{
+						Spec: appsapi.DeploymentConfigSpec{
 							Template: &kapi.PodTemplateSpec{
 								Spec: kapi.PodSpec{
 									Containers: []kapi.Container{
@@ -590,10 +593,100 @@ func TestTransform(t *testing.T) {
 				t.Errorf("%d: changed %#v %t", i, reporter, v.changed)
 				continue
 			}
-			if !kapihelper.Semantic.DeepEqual(v.expected, v.obj) {
-				t.Errorf("%d: object: %s", i, diff.ObjectDiff(v.expected, v.obj))
+
+			// for compatibility with our set commands, we round trip internal types, which defaults them
+			expected, err := roundTrip(v.expected)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !kapihelper.Semantic.DeepEqual(expected, v.obj) {
+				t.Errorf("%d: object: %s", i, diff.ObjectDiff(expected, v.obj))
 				continue
 			}
 		}
 	}
+}
+
+func roundTrip(in runtime.Object) (runtime.Object, error) {
+	switch t := in.(type) {
+	case *core.Pod:
+		external := &v1.Pod{}
+		if err := legacyscheme.Scheme.Convert(t, external, nil); err != nil {
+			return nil, err
+		}
+		internal := &core.Pod{}
+		if err := legacyscheme.Scheme.Convert(external, internal, nil); err != nil {
+			return nil, err
+		}
+		return internal, nil
+	case *core.ReplicationController:
+		external := &v1.PodSpec{}
+		if err := legacyscheme.Scheme.Convert(&t.Spec.Template.Spec, external, nil); err != nil {
+			return nil, err
+		}
+		internal := &core.PodSpec{}
+		if err := legacyscheme.Scheme.Convert(external, internal, nil); err != nil {
+			return nil, err
+		}
+		t.Spec.Template.Spec = *internal
+		return t, nil
+	case *kextensions.Deployment:
+		external := &v1.PodSpec{}
+		if err := legacyscheme.Scheme.Convert(&t.Spec.Template.Spec, external, nil); err != nil {
+			return nil, err
+		}
+		internal := &core.PodSpec{}
+		if err := legacyscheme.Scheme.Convert(external, internal, nil); err != nil {
+			return nil, err
+		}
+		t.Spec.Template.Spec = *internal
+		return t, nil
+	case *kextensions.DaemonSet:
+		external := &v1.PodSpec{}
+		if err := legacyscheme.Scheme.Convert(&t.Spec.Template.Spec, external, nil); err != nil {
+			return nil, err
+		}
+		internal := &core.PodSpec{}
+		if err := legacyscheme.Scheme.Convert(external, internal, nil); err != nil {
+			return nil, err
+		}
+		t.Spec.Template.Spec = *internal
+		return t, nil
+	case *kextensions.ReplicaSet:
+		external := &v1.PodSpec{}
+		if err := legacyscheme.Scheme.Convert(&t.Spec.Template.Spec, external, nil); err != nil {
+			return nil, err
+		}
+		internal := &core.PodSpec{}
+		if err := legacyscheme.Scheme.Convert(external, internal, nil); err != nil {
+			return nil, err
+		}
+		t.Spec.Template.Spec = *internal
+		return t, nil
+	case *appsapi.DeploymentConfig:
+		external := &v1.PodSpec{}
+		if err := legacyscheme.Scheme.Convert(&t.Spec.Template.Spec, external, nil); err != nil {
+			return nil, err
+		}
+		internal := &core.PodSpec{}
+		if err := legacyscheme.Scheme.Convert(external, internal, nil); err != nil {
+			return nil, err
+		}
+		t.Spec.Template.Spec = *internal
+		return t, nil
+	case *kbatch.Job:
+		external := &v1.PodSpec{}
+		if err := legacyscheme.Scheme.Convert(&t.Spec.Template.Spec, external, nil); err != nil {
+			return nil, err
+		}
+		internal := &core.PodSpec{}
+		if err := legacyscheme.Scheme.Convert(external, internal, nil); err != nil {
+			return nil, err
+		}
+		t.Spec.Template.Spec = *internal
+		return t, nil
+	default:
+		return in, nil
+	}
+
 }

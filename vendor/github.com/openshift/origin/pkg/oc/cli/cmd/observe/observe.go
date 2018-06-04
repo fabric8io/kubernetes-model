@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
@@ -36,7 +35,7 @@ import (
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 	"github.com/openshift/origin/pkg/util/proc"
 )
 
@@ -181,7 +180,7 @@ func NewCmdObserve(fullName string, f *clientcmd.Factory, out, errOut io.Writer)
 			}
 
 			if err := options.Validate(args); err != nil {
-				cmdutil.CheckErr(cmdutil.UsageError(cmd, err.Error()))
+				cmdutil.CheckErr(cmdutil.UsageErrorf(cmd, err.Error()))
 			}
 
 			if err := options.Run(); err != nil {
@@ -212,7 +211,7 @@ func NewCmdObserve(fullName string, f *clientcmd.Factory, out, errOut io.Writer)
 	// control observe program behavior
 	cmd.Flags().BoolVar(&options.once, "once", false, "If true, exit with a status code 0 after all current objects have been processed.")
 	cmd.Flags().DurationVar(&options.exitAfterPeriod, "exit-after", 0, "Exit with status code 0 after the provided duration, optional.")
-	cmd.Flags().DurationVar(&options.resyncPeriod, "resync-period", 0, "When non-zero, periodically reprocess every item from the server as a Sync event. Use to ensure external systems are kept up to date. Requires --names")
+	cmd.Flags().DurationVar(&options.resyncPeriod, "resync-period", 0, "When non-zero, periodically reprocess every item from the server as a Sync event. Use to ensure external systems are kept up to date.")
 	cmd.Flags().BoolVar(&options.printMetricsOnExit, "print-metrics-on-exit", false, "If true, on exit write all metrics to stdout.")
 	cmd.Flags().StringVar(&options.listenAddr, "listen-addr", options.listenAddr, "The name of an interface to listen on to expose metrics and health checking.")
 
@@ -378,7 +377,7 @@ func (o *ObserveOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, args
 			return outputNames, nil
 		}
 		o.knownObjects = o.argumentStore
-	case len(o.deleteCommand) > 0:
+	case len(o.deleteCommand) > 0, o.resyncPeriod > 0:
 		o.knownObjects = o.argumentStore
 	}
 
@@ -441,10 +440,12 @@ func (o *ObserveOptions) Run() error {
 	}
 
 	defer o.dumpMetrics()
+	stopChan := make(chan struct{})
+	defer close(stopChan)
 
 	// start the reflector
 	reflector := cache.NewNamedReflector("observer", lw, nil, store, o.resyncPeriod)
-	reflector.Run()
+	go reflector.Run(stopChan)
 
 	if o.once {
 		// wait until the reflector reports it has completed the initial list and the
@@ -773,19 +774,11 @@ type restListWatcher struct {
 }
 
 func (lw restListWatcher) List(opt metav1.ListOptions) (runtime.Object, error) {
-	labelSelector, err := labels.Parse(opt.LabelSelector)
-	if err != nil {
-		return nil, err
-	}
-	return lw.Helper.List(lw.namespace, "", labelSelector, false)
+	return lw.Helper.List(lw.namespace, "", false, &opt)
 }
 
 func (lw restListWatcher) Watch(opt metav1.ListOptions) (watch.Interface, error) {
-	labelSelector, err := labels.Parse(opt.LabelSelector)
-	if err != nil {
-		return nil, err
-	}
-	return lw.Helper.Watch(lw.namespace, opt.ResourceVersion, "", labelSelector)
+	return lw.Helper.Watch(lw.namespace, opt.ResourceVersion, &opt)
 }
 
 type JSONPathColumnPrinter struct {

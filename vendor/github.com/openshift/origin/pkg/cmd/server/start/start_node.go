@@ -5,28 +5,37 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+	kubeletapp "k8s.io/kubernetes/cmd/kubelet/app"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
+	"k8s.io/kubernetes/pkg/master/ports"
 
 	"github.com/openshift/origin/pkg/cmd/server/admin"
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	configapilatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
-	"github.com/openshift/origin/pkg/cmd/server/api/validation"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
+	configapilatest "github.com/openshift/origin/pkg/cmd/server/apis/config/latest"
+	"github.com/openshift/origin/pkg/cmd/server/apis/config/validation"
 	"github.com/openshift/origin/pkg/cmd/server/crypto"
-	kubernetes "github.com/openshift/origin/pkg/cmd/server/kubernetes/node"
+	"github.com/openshift/origin/pkg/cmd/server/kubernetes/network"
+	networkoptions "github.com/openshift/origin/pkg/cmd/server/kubernetes/network/options"
+	"github.com/openshift/origin/pkg/cmd/server/kubernetes/node"
+	nodeoptions "github.com/openshift/origin/pkg/cmd/server/kubernetes/node/options"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
-	"github.com/openshift/origin/pkg/cmd/util/docker"
 	utilflags "github.com/openshift/origin/pkg/cmd/util/flags"
-	"github.com/openshift/origin/pkg/sdn"
 	"github.com/openshift/origin/pkg/version"
 )
 
@@ -46,7 +55,16 @@ var nodeLong = templates.LongDesc(`
 	    %[1]s start node --config=<node-config>
 
 	will start a node with given configuration file. The node will run in the
-	foreground until you terminate the process.`)
+	foreground until you terminate the process.
+	
+	The --bootstrap-config-name flag instructs the node to use the provided 
+	kubeconfig file to contact the master and request a client cert (its identity) and
+	a serving cert, and then downloads node-config.yaml from the named config map. 
+	If no config map exists in the openshift-node namespace the node will exit with
+	an error. In this mode --config will be location of the downloaded config. 
+	Turning	on bootstrapping will always use certificate rotation by default at the
+	master's preferred rotation interval.
+	`)
 
 // NewCommandStartNode provides a CLI handler for 'start node' command
 func NewCommandStartNode(basename string, out, errout io.Writer) (*cobra.Command, *NodeOptions) {
@@ -75,7 +93,8 @@ func NewCommandStartNode(basename string, out, errout io.Writer) (*cobra.Command
 	BindImageFormatArgs(options.NodeArgs.ImageFormatArgs, flags, "")
 	BindKubeConnectionArgs(options.NodeArgs.KubeConnectionArgs, flags, "")
 
-	flags.BoolVar(&options.NodeArgs.Bootstrap, "bootstrap", false, "Use the provided .kubeconfig file to perform initial node setup (experimental).")
+	flags.BoolVar(&options.NodeArgs.WriteFlagsOnly, "write-flags", false, "When this is specified only the arguments necessary to start the Kubelet will be output.")
+	flags.StringVar(&options.NodeArgs.BootstrapConfigName, "bootstrap-config-name", options.NodeArgs.BootstrapConfigName, "On startup, the node will request a client cert from the master and get its config from this config map in the openshift-node namespace (experimental).")
 
 	// autocompletion hints
 	cmd.MarkFlagFilename("config", "yaml", "yml")
@@ -110,8 +129,10 @@ func NewCommandStartNetwork(basename string, out, errout io.Writer) (*cobra.Comm
 	flags.StringVar(&options.ConfigFile, "config", "", "Location of the node configuration file to run from. When running from a configuration file, all other command-line arguments are ignored.")
 
 	options.NodeArgs = NewDefaultNodeArgs()
+	options.NodeArgs.ListenArg.ListenAddr.DefaultPort = ports.ProxyHealthzPort
 	options.NodeArgs.Components = NewNetworkComponentFlag()
 	BindNodeNetworkArgs(options.NodeArgs, flags, "")
+	BindListenArg(options.NodeArgs.ListenArg, flags, "")
 	BindImageFormatArgs(options.NodeArgs.ImageFormatArgs, flags, "")
 	BindKubeConnectionArgs(options.NodeArgs.KubeConnectionArgs, flags, "")
 
@@ -122,7 +143,7 @@ func NewCommandStartNetwork(basename string, out, errout io.Writer) (*cobra.Comm
 }
 
 func (options *NodeOptions) Run(c *cobra.Command, errout io.Writer, args []string) {
-	kcmdutil.CheckErr(options.Complete())
+	kcmdutil.CheckErr(options.Complete(c))
 	kcmdutil.CheckErr(options.Validate(args))
 
 	startProfiler()
@@ -154,21 +175,34 @@ func (o NodeOptions) Validate(args []string) error {
 		if o.IsRunFromConfig() {
 			return errors.New("--config may not be set if you're only writing the config")
 		}
+		if o.NodeArgs.WriteFlagsOnly {
+			return errors.New("--write-config and --write-flags are mutually exclusive")
+		}
 	}
 
 	// if we are starting up using a config file, run no validations here
-	if o.NodeArgs.Bootstrap && !o.IsRunFromConfig() {
-		if err := o.NodeArgs.Validate(); err != nil {
-			return err
+	if len(o.NodeArgs.BootstrapConfigName) > 0 {
+		if o.NodeArgs.WriteFlagsOnly {
+			return errors.New("--write-flags is mutually exclusive with --bootstrap-config-name")
+		}
+		if !o.IsRunFromConfig() {
+			if err := o.NodeArgs.Validate(); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
-func (o NodeOptions) Complete() error {
+func (o NodeOptions) Complete(cmd *cobra.Command) error {
 	o.NodeArgs.NodeName = strings.ToLower(o.NodeArgs.NodeName)
-
+	if len(o.ConfigFile) > 0 {
+		o.NodeArgs.ConfigDir.Default(filepath.Dir(o.ConfigFile))
+	}
+	if flag := cmd.Flags().Lookup("volume-dir"); flag != nil {
+		o.NodeArgs.VolumeDirProvided = flag.Changed
+	}
 	return nil
 }
 
@@ -178,7 +212,7 @@ func (o NodeOptions) StartNode() error {
 		return err
 	}
 
-	if o.IsWriteConfigOnly() {
+	if o.NodeArgs.WriteFlagsOnly || o.IsWriteConfigOnly() {
 		return nil
 	}
 
@@ -197,7 +231,34 @@ func (o NodeOptions) RunNode() error {
 		return err
 	}
 
-	validationResults := validation.ValidateNodeConfig(nodeConfig, nil)
+	// allow listen address to be overriden
+	if addr := o.NodeArgs.ListenArg.ListenAddr; addr.Provided {
+		nodeConfig.ServingInfo.BindAddress = addr.HostPort(o.NodeArgs.ListenArg.ListenAddr.DefaultPort)
+	}
+	// do a local resolution of node config DNS IP, supports bootstrapping cases
+	if nodeConfig.DNSIP == "0.0.0.0" {
+		glog.V(4).Infof("Defaulting to the DNSIP config to the node's IP")
+		nodeConfig.DNSIP = nodeConfig.NodeIP
+		// TODO: the Kubelet should do this defaulting (to the IP it recognizes)
+		if len(nodeConfig.DNSIP) == 0 {
+			if ip, err := cmdutil.DefaultLocalIP4(); err == nil {
+				nodeConfig.DNSIP = ip.String()
+			}
+		}
+	}
+
+	var validationResults validation.ValidationResults
+	switch {
+	case o.NodeArgs.Components.Calculated().Equal(NewNetworkComponentFlag().Calculated()):
+		if len(nodeConfig.NodeName) == 0 {
+			nodeConfig.NodeName = o.NodeArgs.NodeName
+		}
+		nodeConfig.MasterKubeConfig = o.NodeArgs.KubeConnectionArgs.ClientConfigLoadingRules.ExplicitPath
+		validationResults = validation.ValidateInClusterNodeConfig(nodeConfig, nil)
+	default:
+		validationResults = validation.ValidateNodeConfig(nodeConfig, nil)
+	}
+
 	if len(validationResults.Warnings) != 0 {
 		for _, warning := range validationResults.Warnings {
 			glog.Warningf("Warning: %v, node start will continue.", warning)
@@ -209,6 +270,7 @@ func (o NodeOptions) RunNode() error {
 	}
 
 	if err := ValidateRuntime(nodeConfig, o.NodeArgs.Components); err != nil {
+		glog.V(4).Infof("Unable to validate runtime configuration: %v", err)
 		return err
 	}
 
@@ -216,11 +278,11 @@ func (o NodeOptions) RunNode() error {
 		return nil
 	}
 
-	if err := StartNode(*nodeConfig, o.NodeArgs.Components); err != nil {
-		return err
+	if o.NodeArgs.WriteFlagsOnly {
+		return WriteKubeletFlags(*nodeConfig)
 	}
 
-	return nil
+	return StartNode(*nodeConfig, o.NodeArgs.Components)
 }
 
 // resolveNodeConfig creates a new configuration on disk by reading from the master, reads
@@ -229,15 +291,11 @@ func (o NodeOptions) RunNode() error {
 // a string for messages indicating which config file contains the config.
 func (o NodeOptions) resolveNodeConfig() (*configapi.NodeConfig, string, error) {
 	switch {
-	case o.NodeArgs.Bootstrap:
+	case len(o.NodeArgs.BootstrapConfigName) > 0:
 		glog.V(2).Infof("Bootstrapping from master configuration")
 
-		hostnames, err := o.NodeArgs.GetServerCertHostnames()
-		if err != nil {
-			return nil, "", err
-		}
 		nodeConfigDir := o.NodeArgs.ConfigDir.Value()
-		if err := o.loadBootstrap(hostnames.List(), nodeConfigDir); err != nil {
+		if err := o.loadBootstrap(nodeConfigDir); err != nil {
 			return nil, "", err
 		}
 		configFile := o.ConfigFile
@@ -258,7 +316,10 @@ func (o NodeOptions) resolveNodeConfig() (*configapi.NodeConfig, string, error) 
 		if err != nil {
 			return nil, "", err
 		}
-		cfg, err := o.NodeArgs.BuildSerializeableNodeConfig()
+		cfg, err := configapilatest.ReadAndResolveNodeConfig(configFile)
+		if err != nil {
+			return nil, "", err
+		}
 		return cfg, configFile, err
 	}
 }
@@ -308,6 +369,10 @@ func (o NodeOptions) createNodeConfig() (string, error) {
 		APIServerURL:     masterAddr.String(),
 		APIServerCAFiles: []string{admin.DefaultCABundleFile(o.NodeArgs.MasterCertDir)},
 
+		KubeletArguments: map[string][]string{
+			"fail-swap-on": {"false"},
+		},
+
 		NodeClientCAFile: getSignerOptions.CertFile,
 		ExpireDays:       o.ExpireDays,
 		Output:           cmdutil.NewGLogWriterV(3),
@@ -327,54 +392,147 @@ func (o NodeOptions) IsRunFromConfig() bool {
 	return (len(o.ConfigFile) > 0)
 }
 
-func StartNode(nodeConfig configapi.NodeConfig, components *utilflags.ComponentFlag) error {
-	config, err := kubernetes.BuildKubernetesNodeConfig(nodeConfig, components.Enabled(ComponentProxy), components.Enabled(ComponentDNS) && len(nodeConfig.DNSBindAddress) > 0)
+// execKubelet attempts to call execve() for the kubelet with the configuration defined
+// in server passed as flags.
+func execKubelet(kubeletArgs []string) error {
+	path := "kubelet"
+	kubeletPath, err := exec.LookPath(path)
 	if err != nil {
 		return err
 	}
+	// convert current settings to flags
+	args := append([]string{kubeletPath}, kubeletArgs...)
+	for i := glog.Level(10); i > 0; i-- {
+		if glog.V(i) {
+			args = append(args, fmt.Sprintf("--v=%d", i))
+			break
+		}
+	}
+	for i, s := range os.Args {
+		if s == "--vmodule" {
+			if i+1 < len(os.Args) {
+				args = append(args, fmt.Sprintf("--vmodule=", os.Args[i+1]))
+				break
+			}
+		}
+		if strings.HasPrefix(s, "--vmodule=") {
+			args = append(args, s)
+			break
+		}
+	}
+	// execve the child process, replacing this process
+	glog.V(3).Infof("Exec %s %s", kubeletPath, strings.Join(args, " "))
+	return syscall.Exec(kubeletPath, args, os.Environ())
+}
 
-	if sdn.IsOpenShiftNetworkPlugin(config.KubeletServer.NetworkPluginName) {
-		// TODO: SDN plugin depends on the Kubelet registering as a Node and doesn't retry cleanly,
-		// and Kubelet also can't start the PodSync loop until the SDN plugin has loaded.
-		if components.Enabled(ComponentKubelet) != components.Enabled(ComponentPlugins) {
-			return fmt.Errorf("the SDN plugin must be run in the same process as the kubelet")
+// safeArgRegexp matches only characters that are known safe. DO NOT add to this list
+// without fully considering whether that new character can be used to break shell escaping
+// rules.
+var safeArgRegexp = regexp.MustCompile(`^[\da-zA-Z\-=_\.,/\:]+$`)
+
+// shellEscapeArg quotes an argument if it contains characters that my cause a shell
+// interpreter to split the single argument into multiple.
+func shellEscapeArg(s string) string {
+	if safeArgRegexp.MatchString(s) {
+		return s
+	}
+	return strconv.Quote(s)
+}
+
+// WriteKubeletFlags writes the correct set of flags to start a Kubelet from the provided node config to
+// stdout, instead of launching anything.
+func WriteKubeletFlags(nodeConfig configapi.NodeConfig) error {
+	kubeletArgs, err := nodeoptions.ComputeKubeletFlags(nodeConfig.KubeletArguments, nodeConfig)
+	if err != nil {
+		return fmt.Errorf("cannot create kubelet args: %v", err)
+	}
+	if err := nodeoptions.CheckFlags(kubeletArgs); err != nil {
+		return err
+	}
+	var outputArgs []string
+	for _, s := range kubeletArgs {
+		outputArgs = append(outputArgs, shellEscapeArg(s))
+	}
+	fmt.Println(strings.Join(outputArgs, " "))
+	return nil
+}
+
+// StartNode launches the node processes.
+func StartNode(nodeConfig configapi.NodeConfig, components *utilflags.ComponentFlag) error {
+	kubeletArgs, err := nodeoptions.ComputeKubeletFlags(nodeConfig.KubeletArguments, nodeConfig)
+	if err != nil {
+		return fmt.Errorf("cannot create kubelet args: %v", err)
+	}
+	if err := nodeoptions.CheckFlags(kubeletArgs); err != nil {
+		return err
+	}
+
+	// as a step towards decomposing OpenShift into Kubernetes components, perform an execve
+	// to launch the Kubelet instead of loading in-process
+	if components.Calculated().Equal(sets.NewString(ComponentKubelet)) {
+		if err := execKubelet(kubeletArgs); err != nil {
+			utilruntime.HandleError(fmt.Errorf("Unable to call exec on kubelet, continuing with normal startup: %v", err))
 		}
 	}
 
 	if components.Enabled(ComponentKubelet) {
-		glog.Infof("Starting node %s (%s)", config.KubeletServer.HostnameOverride, version.Get().String())
+		glog.Infof("Starting node %s (%s)", nodeConfig.NodeName, version.Get().String())
+
+		// TODO this is a best effort check at the moment that should either move to kubelet or be removed entirely
+		node.EnsureKubeletAccess()
+		// TODO perform this "ensure" in ansible and skip it entirely.
+		node.EnsureVolumeDir(nodeConfig.VolumeDirectory)
+		// TODO accept an --openshift-config in our fork.  This overwrites the volume creation patch for the node.
+		kubeletapp.ProbeVolumePlugins = node.PatchUpstreamVolumePluginsForLocalQuota(nodeConfig)
+
+		go func() {
+			glog.Fatal(runKubeletInProcess(kubeletArgs))
+		}()
+
 	} else {
-		glog.Infof("Starting node networking %s (%s)", config.KubeletServer.HostnameOverride, version.Get().String())
+		glog.Infof("Starting node networking %s (%s)", nodeConfig.NodeName, version.Get().String())
 	}
 
-	_, kubeClientConfig, err := configapi.GetInternalKubeClient(nodeConfig.MasterKubeConfig, nodeConfig.MasterClientConnectionOverrides)
+	proxyConfig, err := networkoptions.Build(nodeConfig)
 	if err != nil {
+		glog.V(4).Infof("Unable to build network options: %v", err)
 		return err
 	}
-	glog.Infof("Connecting to API server %s", kubeClientConfig.Host)
-
-	// preconditions
-	if components.Enabled(ComponentKubelet) {
-		config.EnsureKubeletAccess()
-		config.EnsureVolumeDir()
-		config.EnsureDocker(docker.NewHelper())
-		config.EnsureLocalQuota(nodeConfig) // must be performed after EnsureVolumeDir
+	clusterDomain := nodeConfig.DNSDomain
+	if len(nodeConfig.KubeletArguments["cluster-domain"]) > 0 {
+		clusterDomain = nodeConfig.KubeletArguments["cluster-domain"][0]
+	}
+	networkConfig, err := network.New(nodeConfig, clusterDomain, proxyConfig, components.Enabled(ComponentProxy), components.Enabled(ComponentDNS) && len(nodeConfig.DNSBindAddress) > 0)
+	if err != nil {
+		glog.V(4).Infof("Unable to initialize network configuration: %v", err)
+		return err
 	}
 
-	if components.Enabled(ComponentKubelet) {
-		config.RunKubelet()
-	}
 	if components.Enabled(ComponentPlugins) {
-		config.RunPlugin()
+		networkConfig.RunSDN()
 	}
 	if components.Enabled(ComponentProxy) {
-		config.RunProxy()
+		networkConfig.RunProxy()
 	}
-	if components.Enabled(ComponentDNS) && config.DNSServer != nil {
-		config.RunDNS()
+	if components.Enabled(ComponentDNS) && networkConfig.DNSServer != nil {
+		networkConfig.RunDNS()
 	}
 
-	config.InternalKubeInformers.Start(wait.NeverStop)
+	networkConfig.InternalKubeInformers.Start(wait.NeverStop)
+	if networkConfig.InternalNetworkInformers != nil {
+		networkConfig.InternalNetworkInformers.Start(wait.NeverStop)
+	}
 
+	return nil
+}
+
+// runKubeletInProcess runs the kubelet command using the provide args
+func runKubeletInProcess(kubeletArgs []string) error {
+	cmd := kubeletapp.NewKubeletCommand()
+	if err := cmd.ParseFlags(kubeletArgs); err != nil {
+		return err
+	}
+	glog.Infof("kubelet %v", kubeletArgs)
+	cmd.Run(nil, nil)
 	return nil
 }

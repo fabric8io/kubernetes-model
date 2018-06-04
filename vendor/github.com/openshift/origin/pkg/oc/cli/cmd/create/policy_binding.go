@@ -12,8 +12,8 @@ import (
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	authorizationclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset/typed/authorization/internalversion"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 const PolicyBindingRecommendedName = "policybinding"
@@ -30,7 +30,7 @@ type CreatePolicyBindingOptions struct {
 	BindingNamespace string
 	PolicyNamespace  string
 
-	BindingClient client.PolicyBindingsNamespacer
+	BindingClient authorizationclient.PolicyBindingsGetter
 
 	Mapper       meta.RESTMapper
 	OutputFormat string
@@ -54,6 +54,7 @@ func NewCmdCreatePolicyBinding(name, fullName string, f *clientcmd.Factory, out 
 			cmdutil.CheckErr(o.Validate())
 			cmdutil.CheckErr(o.Run())
 		},
+		Deprecated: fmt.Sprintf("will not work against 3.7 or later servers. Use (Cluster)RoleBindings instead."),
 	}
 	cmdutil.AddOutputFlagsForMutation(cmd)
 	return cmd
@@ -71,16 +72,20 @@ func (o *CreatePolicyBindingOptions) Complete(cmd *cobra.Command, f *clientcmd.F
 	}
 	o.BindingNamespace = namespace
 
-	client, _, err := f.Clients()
+	discovery, err := f.DiscoveryClient()
 	if err != nil {
 		return err
 	}
 
-	if err := clientcmd.Gate(client, "", "3.7.0"); err != nil {
+	if err := clientcmd.LegacyPolicyResourceGate(discovery); err != nil {
+		return err
+	}
+	client, err := f.OpenshiftInternalAuthorizationClient()
+	if err != nil {
 		return err
 	}
 
-	o.BindingClient = client
+	o.BindingClient = client.Authorization()
 
 	o.Mapper, _ = f.Object()
 	o.OutputFormat = cmdutil.GetFlagString(cmd, "output")

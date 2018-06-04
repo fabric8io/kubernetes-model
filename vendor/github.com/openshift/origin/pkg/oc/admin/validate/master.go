@@ -13,9 +13,9 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
-	configapilatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
+	configapilatest "github.com/openshift/origin/pkg/cmd/server/apis/config/latest"
 
-	"github.com/openshift/origin/pkg/cmd/server/api/validation"
+	"github.com/openshift/origin/pkg/cmd/server/apis/config/validation"
 )
 
 const (
@@ -56,7 +56,7 @@ func NewCommandValidateMasterConfig(name, fullName string, out io.Writer) *cobra
 		Deprecated: validateMasterConfigDeprecationMessage,
 		Run: func(c *cobra.Command, args []string) {
 			if err := options.Complete(args); err != nil {
-				cmdutil.CheckErr(cmdutil.UsageError(c, err.Error()))
+				cmdutil.CheckErr(cmdutil.UsageErrorf(c, err.Error()))
 			}
 
 			ok, err := options.Run()
@@ -164,11 +164,4 @@ func toString(v interface{}) string {
 		value = missingValue
 	}
 	return value
-}
-
-// prettyPrintGenericError prints the contents of the generic error into the buffer of a tabwriter.Writer.
-// The writer must be Flush()ed after calling this to write the buffered data.
-func prettyPrintGenericError(err error, writer *tabwriter.Writer) error {
-	_, printError := fmt.Fprintf(writer, "\t\t\t%s\n", err.Error())
-	return printError
 }

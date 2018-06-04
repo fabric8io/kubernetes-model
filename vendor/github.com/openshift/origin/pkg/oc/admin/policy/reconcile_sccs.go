@@ -12,18 +12,17 @@ import (
 	kapierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapihelper "k8s.io/kubernetes/pkg/api/helper"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
+	kapihelper "k8s.io/kubernetes/pkg/apis/core/helper"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
-
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
-	"github.com/openshift/origin/pkg/security/legacyclient"
+	securitytypedclient "github.com/openshift/origin/pkg/security/generated/internalclientset/typed/security/internalversion"
 )
 
 // ReconcileSCCRecommendedName is the recommended command name
@@ -43,7 +42,7 @@ type ReconcileSCCOptions struct {
 	Out    io.Writer
 	Output string
 
-	SCCClient legacyclient.SecurityContextConstraintInterface
+	SCCClient securitytypedclient.SecurityContextConstraintsInterface
 	NSClient  kcoreclient.NamespaceInterface
 }
 
@@ -95,7 +94,7 @@ func NewCmdReconcileSCC(name, fullName string, f *clientcmd.Factory, out io.Writ
 				kcmdutil.CheckErr(err)
 			}
 			if err := o.Validate(); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 			if err := o.RunReconcileSCCs(cmd, f); err != nil {
 				kcmdutil.CheckErr(err)
@@ -114,14 +113,18 @@ func NewCmdReconcileSCC(name, fullName string, f *clientcmd.Factory, out io.Writ
 
 func (o *ReconcileSCCOptions) Complete(cmd *cobra.Command, f *clientcmd.Factory, args []string) error {
 	if len(args) != 0 {
-		return kcmdutil.UsageError(cmd, "no arguments are allowed")
+		return kcmdutil.UsageErrorf(cmd, "no arguments are allowed")
 	}
 
-	_, kClient, err := f.Clients()
+	kClient, err := f.ClientSet()
 	if err != nil {
 		return err
 	}
-	o.SCCClient = legacyclient.NewFromClient(kClient.Core().RESTClient())
+	securityClient, err := f.OpenshiftInternalSecurityClient()
+	if err != nil {
+		return err
+	}
+	o.SCCClient = securityClient.Security().SecurityContextConstraints()
 	o.NSClient = kClient.Core().Namespaces()
 	o.Output = kcmdutil.GetFlagString(cmd, "output")
 

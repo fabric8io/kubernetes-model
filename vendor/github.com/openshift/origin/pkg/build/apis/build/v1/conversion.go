@@ -4,14 +4,13 @@ import (
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	oapi "github.com/openshift/origin/pkg/api"
-	"github.com/openshift/origin/pkg/api/legacy"
+	"github.com/openshift/api/build/v1"
+	"github.com/openshift/origin/pkg/api/apihelpers"
 	newer "github.com/openshift/origin/pkg/build/apis/build"
-	buildutil "github.com/openshift/origin/pkg/build/util"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 )
 
-func Convert_v1_BuildConfig_To_build_BuildConfig(in *BuildConfig, out *newer.BuildConfig, s conversion.Scope) error {
+func Convert_v1_BuildConfig_To_build_BuildConfig(in *v1.BuildConfig, out *newer.BuildConfig, s conversion.Scope) error {
 	if err := autoConvert_v1_BuildConfig_To_build_BuildConfig(in, out, s); err != nil {
 		return err
 	}
@@ -20,7 +19,7 @@ func Convert_v1_BuildConfig_To_build_BuildConfig(in *BuildConfig, out *newer.Bui
 	// Strip off any default imagechange triggers where the buildconfig's
 	// "from" is not an ImageStreamTag, because those triggers
 	// will never be invoked.
-	imageRef := buildutil.GetInputReference(out.Spec.Strategy)
+	imageRef := newer.GetInputReference(out.Spec.Strategy)
 	hasIST := imageRef != nil && imageRef.Kind == "ImageStreamTag"
 	for _, trigger := range out.Spec.Triggers {
 		if trigger.Type != newer.ImageChangeBuildTriggerType {
@@ -36,7 +35,7 @@ func Convert_v1_BuildConfig_To_build_BuildConfig(in *BuildConfig, out *newer.Bui
 	return nil
 }
 
-func Convert_v1_SourceBuildStrategy_To_build_SourceBuildStrategy(in *SourceBuildStrategy, out *newer.SourceBuildStrategy, s conversion.Scope) error {
+func Convert_v1_SourceBuildStrategy_To_build_SourceBuildStrategy(in *v1.SourceBuildStrategy, out *newer.SourceBuildStrategy, s conversion.Scope) error {
 	if err := autoConvert_v1_SourceBuildStrategy_To_build_SourceBuildStrategy(in, out, s); err != nil {
 		return err
 	}
@@ -48,7 +47,7 @@ func Convert_v1_SourceBuildStrategy_To_build_SourceBuildStrategy(in *SourceBuild
 	return nil
 }
 
-func Convert_v1_DockerBuildStrategy_To_build_DockerBuildStrategy(in *DockerBuildStrategy, out *newer.DockerBuildStrategy, s conversion.Scope) error {
+func Convert_v1_DockerBuildStrategy_To_build_DockerBuildStrategy(in *v1.DockerBuildStrategy, out *newer.DockerBuildStrategy, s conversion.Scope) error {
 	if err := autoConvert_v1_DockerBuildStrategy_To_build_DockerBuildStrategy(in, out, s); err != nil {
 		return err
 	}
@@ -62,7 +61,7 @@ func Convert_v1_DockerBuildStrategy_To_build_DockerBuildStrategy(in *DockerBuild
 	return nil
 }
 
-func Convert_v1_CustomBuildStrategy_To_build_CustomBuildStrategy(in *CustomBuildStrategy, out *newer.CustomBuildStrategy, s conversion.Scope) error {
+func Convert_v1_CustomBuildStrategy_To_build_CustomBuildStrategy(in *v1.CustomBuildStrategy, out *newer.CustomBuildStrategy, s conversion.Scope) error {
 	if err := autoConvert_v1_CustomBuildStrategy_To_build_CustomBuildStrategy(in, out, s); err != nil {
 		return err
 	}
@@ -74,7 +73,7 @@ func Convert_v1_CustomBuildStrategy_To_build_CustomBuildStrategy(in *CustomBuild
 	return nil
 }
 
-func Convert_v1_BuildOutput_To_build_BuildOutput(in *BuildOutput, out *newer.BuildOutput, s conversion.Scope) error {
+func Convert_v1_BuildOutput_To_build_BuildOutput(in *v1.BuildOutput, out *newer.BuildOutput, s conversion.Scope) error {
 	if err := autoConvert_v1_BuildOutput_To_build_BuildOutput(in, out, s); err != nil {
 		return err
 	}
@@ -85,31 +84,31 @@ func Convert_v1_BuildOutput_To_build_BuildOutput(in *BuildOutput, out *newer.Bui
 	return nil
 }
 
-func Convert_v1_BuildTriggerPolicy_To_build_BuildTriggerPolicy(in *BuildTriggerPolicy, out *newer.BuildTriggerPolicy, s conversion.Scope) error {
+func Convert_v1_BuildTriggerPolicy_To_build_BuildTriggerPolicy(in *v1.BuildTriggerPolicy, out *newer.BuildTriggerPolicy, s conversion.Scope) error {
 	if err := autoConvert_v1_BuildTriggerPolicy_To_build_BuildTriggerPolicy(in, out, s); err != nil {
 		return err
 	}
 
 	switch in.Type {
-	case ImageChangeBuildTriggerTypeDeprecated:
+	case v1.ImageChangeBuildTriggerTypeDeprecated:
 		out.Type = newer.ImageChangeBuildTriggerType
-	case GenericWebHookBuildTriggerTypeDeprecated:
+	case v1.GenericWebHookBuildTriggerTypeDeprecated:
 		out.Type = newer.GenericWebHookBuildTriggerType
-	case GitHubWebHookBuildTriggerTypeDeprecated:
+	case v1.GitHubWebHookBuildTriggerTypeDeprecated:
 		out.Type = newer.GitHubWebHookBuildTriggerType
 	}
 	return nil
 }
 
-func Convert_build_SourceRevision_To_v1_SourceRevision(in *newer.SourceRevision, out *SourceRevision, s conversion.Scope) error {
+func Convert_build_SourceRevision_To_v1_SourceRevision(in *newer.SourceRevision, out *v1.SourceRevision, s conversion.Scope) error {
 	if err := autoConvert_build_SourceRevision_To_v1_SourceRevision(in, out, s); err != nil {
 		return err
 	}
-	out.Type = BuildSourceGit
+	out.Type = v1.BuildSourceGit
 	return nil
 }
 
-func Convert_build_BuildSource_To_v1_BuildSource(in *newer.BuildSource, out *BuildSource, s conversion.Scope) error {
+func Convert_build_BuildSource_To_v1_BuildSource(in *newer.BuildSource, out *v1.BuildSource, s conversion.Scope) error {
 	if err := autoConvert_build_BuildSource_To_v1_BuildSource(in, out, s); err != nil {
 		return err
 	}
@@ -117,34 +116,34 @@ func Convert_build_BuildSource_To_v1_BuildSource(in *newer.BuildSource, out *Bui
 	// It is legal for a buildsource to have both a git+dockerfile source, but in v1 that was represented
 	// as type git.
 	case in.Git != nil:
-		out.Type = BuildSourceGit
+		out.Type = v1.BuildSourceGit
 	// It is legal for a buildsource to have both a binary+dockerfile source, but in v1 that was represented
 	// as type binary.
 	case in.Binary != nil:
-		out.Type = BuildSourceBinary
+		out.Type = v1.BuildSourceBinary
 	case in.Dockerfile != nil:
-		out.Type = BuildSourceDockerfile
+		out.Type = v1.BuildSourceDockerfile
 	case len(in.Images) > 0:
-		out.Type = BuildSourceImage
+		out.Type = v1.BuildSourceImage
 	default:
-		out.Type = BuildSourceNone
+		out.Type = v1.BuildSourceNone
 	}
 	return nil
 }
 
-func Convert_build_BuildStrategy_To_v1_BuildStrategy(in *newer.BuildStrategy, out *BuildStrategy, s conversion.Scope) error {
+func Convert_build_BuildStrategy_To_v1_BuildStrategy(in *newer.BuildStrategy, out *v1.BuildStrategy, s conversion.Scope) error {
 	if err := autoConvert_build_BuildStrategy_To_v1_BuildStrategy(in, out, s); err != nil {
 		return err
 	}
 	switch {
 	case in.SourceStrategy != nil:
-		out.Type = SourceBuildStrategyType
+		out.Type = v1.SourceBuildStrategyType
 	case in.DockerStrategy != nil:
-		out.Type = DockerBuildStrategyType
+		out.Type = v1.DockerBuildStrategyType
 	case in.CustomStrategy != nil:
-		out.Type = CustomBuildStrategyType
+		out.Type = v1.CustomBuildStrategyType
 	case in.JenkinsPipelineStrategy != nil:
-		out.Type = JenkinsPipelineBuildStrategyType
+		out.Type = v1.JenkinsPipelineBuildStrategyType
 	default:
 		out.Type = ""
 	}
@@ -152,7 +151,7 @@ func Convert_build_BuildStrategy_To_v1_BuildStrategy(in *newer.BuildStrategy, ou
 }
 
 func addConversionFuncs(scheme *runtime.Scheme) error {
-	if err := scheme.AddConversionFuncs(
+	return scheme.AddConversionFuncs(
 		Convert_v1_BuildConfig_To_build_BuildConfig,
 		Convert_build_BuildConfig_To_v1_BuildConfig,
 		Convert_v1_SourceBuildStrategy_To_build_SourceBuildStrategy,
@@ -171,28 +170,42 @@ func addConversionFuncs(scheme *runtime.Scheme) error {
 		Convert_build_BuildSource_To_v1_BuildSource,
 		Convert_v1_BuildStrategy_To_build_BuildStrategy,
 		Convert_build_BuildStrategy_To_v1_BuildStrategy,
-	); err != nil {
+	)
+}
+
+func addLegacyFieldSelectorKeyConversions(scheme *runtime.Scheme) error {
+	if err := scheme.AddFieldLabelConversionFunc(LegacySchemeGroupVersion.String(), "Build", legacyBuildFieldSelectorKeyConversionFunc); err != nil {
 		return err
 	}
-
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "Build",
-		oapi.GetFieldLabelConversionFunc(newer.BuildToSelectableFields(&newer.Build{}), nil),
-	); err != nil {
+	if err := scheme.AddFieldLabelConversionFunc(LegacySchemeGroupVersion.String(), "BuildConfig", apihelpers.LegacyMetaV1FieldSelectorConversionWithName); err != nil {
 		return err
 	}
-
 	return nil
 }
 
-func addLegacyFieldLabelConversions(scheme *runtime.Scheme) error {
-	if err := scheme.AddFieldLabelConversionFunc("v1", "Build",
-		oapi.GetFieldLabelConversionFunc(newer.BuildToSelectableFields(&newer.Build{}), map[string]string{"name": "metadata.name"}),
-	); err != nil {
-		return err
-	}
+func addFieldSelectorKeyConversions(scheme *runtime.Scheme) error {
+	return scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "Build", buildFieldSelectorKeyConversionFunc)
+}
 
-	if err := scheme.AddFieldLabelConversionFunc("v1", "BuildConfig", legacy.LegacyMetaV1FieldSelectorConversionWithName); err != nil {
-		return err
+// because field selectors can vary in support by version they are exposed under, we have one function for each
+// groupVersion we're registering for
+
+func legacyBuildFieldSelectorKeyConversionFunc(label, value string) (internalLabel, internalValue string, err error) {
+	switch label {
+	case "status",
+		"podName":
+		return label, value, nil
+	default:
+		return apihelpers.LegacyMetaV1FieldSelectorConversionWithName(label, value)
 	}
-	return nil
+}
+
+func buildFieldSelectorKeyConversionFunc(label, value string) (internalLabel, internalValue string, err error) {
+	switch label {
+	case "status",
+		"podName":
+		return label, value, nil
+	default:
+		return runtime.DefaultMetaV1FieldSelectorConversion(label, value)
+	}
 }

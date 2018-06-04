@@ -23,13 +23,13 @@ import (
 
 	"github.com/golang/glog"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/admission"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeclientset "k8s.io/client-go/kubernetes"
-	corev1 "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/pkg/api/v1"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
 
 	scadmission "github.com/kubernetes-incubator/service-catalog/pkg/apiserver/admission"
 )
@@ -57,7 +57,7 @@ func Register(plugins *admission.Plugins) {
 type lifecycle struct {
 	*admission.Handler
 	client          kubeclientset.Interface
-	namespaceLister corev1.NamespaceLister
+	namespaceLister listerscorev1.NamespaceLister
 }
 
 type forceLiveLookupEntry struct {
@@ -106,30 +106,30 @@ func (l *lifecycle) Admit(a admission.Attributes) error {
 			exists = true
 		}
 		if exists {
-			glog.V(4).Infof("found %s in cache after waiting", a.GetNamespace())
+			glog.V(4).Infof("found namespace %q in cache after waiting", a.GetNamespace())
 		}
 	}
 
 	// refuse to operate on non-existent namespaces
 	if !exists {
 		// as a last resort, make a call directly to storage
-		namespace, err = l.client.Core().Namespaces().Get(a.GetNamespace(), metav1.GetOptions{})
+		namespace, err = l.client.CoreV1().Namespaces().Get(a.GetNamespace(), metav1.GetOptions{})
 		switch {
 		case errors.IsNotFound(err):
 			return err
 		case err != nil:
 			return errors.NewInternalError(err)
 		}
-		glog.V(4).Infof("found %s via storage lookup", a.GetNamespace())
+		glog.V(4).Infof("found namespace %q via storage lookup", a.GetNamespace())
 	}
 
 	// ensure that we're not trying to create objects in terminating namespaces
 	if a.GetOperation() == admission.Create {
-		if namespace.Status.Phase != v1.NamespaceTerminating {
+		if namespace.Status.Phase != corev1.NamespaceTerminating {
 			return nil
 		}
 
-		return admission.NewForbidden(a, fmt.Errorf("unable to create new content in namespace %s because it is being terminated", a.GetNamespace()))
+		return admission.NewForbidden(a, fmt.Errorf("unable to create new content in namespace %q because it is being terminated", a.GetNamespace()))
 	}
 
 	return nil
@@ -152,7 +152,7 @@ func (l *lifecycle) SetKubeClientSet(client kubeclientset.Interface) {
 	l.client = client
 }
 
-func (l *lifecycle) Validate() error {
+func (l *lifecycle) ValidateInitialization() error {
 	if l.namespaceLister == nil {
 		return fmt.Errorf("missing namespaceLister")
 	}

@@ -1,14 +1,14 @@
 package v1
 
 import (
-	kapihelper "k8s.io/kubernetes/pkg/api/helper"
-
+	"github.com/openshift/api/authorization/v1"
 	internal "github.com/openshift/origin/pkg/authorization/apis/authorization"
+	"k8s.io/apimachinery/pkg/api/equality"
 )
 
-var oldAllowAllPolicyRule = PolicyRule{APIGroups: nil, Verbs: []string{internal.VerbAll}, Resources: []string{internal.ResourceAll}}
+var oldAllowAllPolicyRule = v1.PolicyRule{APIGroups: nil, Verbs: []string{internal.VerbAll}, Resources: []string{internal.ResourceAll}}
 
-func SetDefaults_PolicyRule(obj *PolicyRule) {
+func SetDefaults_PolicyRule(obj *v1.PolicyRule) {
 	if obj == nil {
 		return
 	}
@@ -22,7 +22,7 @@ func SetDefaults_PolicyRule(obj *PolicyRule) {
 		len(obj.NonResourceURLsSlice) == 0 &&
 		// semantic equalities will ignore nil vs empty for other fields as a safety
 		// DO NOT REMOVE THIS CHECK unless you replace it with full equality comparisons
-		kapihelper.Semantic.Equalities.DeepEqual(oldAllowAllPolicyRule, *obj)
+		equality.Semantic.DeepEqual(oldAllowAllPolicyRule, *obj)
 
 	if oldAllowAllRule {
 		obj.APIGroups = []string{internal.APIGroupAll}

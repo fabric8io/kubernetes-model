@@ -6,18 +6,19 @@ import (
 	"github.com/golang/glog"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/kubectl"
 
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/security/legacyclient"
+	authclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset"
+	securitytypedclient "github.com/openshift/origin/pkg/security/generated/internalclientset/typed/security/internalversion"
+	userclient "github.com/openshift/origin/pkg/user/generated/internalclientset"
 )
 
 func NewGroupReaper(
-	groupClient client.GroupsInterface,
-	clusterBindingClient client.ClusterRoleBindingsInterface,
-	bindingClient client.RoleBindingsNamespacer,
-	sccClient legacyclient.SecurityContextConstraintInterface,
+	groupClient userclient.Interface,
+	clusterBindingClient authclient.Interface,
+	bindingClient authclient.Interface,
+	sccClient securitytypedclient.SecurityContextConstraintsInterface,
 ) kubectl.Reaper {
 	return &GroupReaper{
 		groupClient:          groupClient,
@@ -28,10 +29,10 @@ func NewGroupReaper(
 }
 
 type GroupReaper struct {
-	groupClient          client.GroupsInterface
-	clusterBindingClient client.ClusterRoleBindingsInterface
-	bindingClient        client.RoleBindingsNamespacer
-	sccClient            legacyclient.SecurityContextConstraintInterface
+	groupClient          userclient.Interface
+	clusterBindingClient authclient.Interface
+	bindingClient        authclient.Interface
+	sccClient            securitytypedclient.SecurityContextConstraintsInterface
 }
 
 // Stop on a reaper is actually used for deletion.  In this case, we'll delete referencing identities, clusterBindings, and bindings,
@@ -69,7 +70,7 @@ func (r *GroupReaper) Stop(namespace, name string, timeout time.Duration, graceP
 	}
 
 	// Remove the group
-	if err := r.groupClient.Groups().Delete(name); err != nil && !kerrors.IsNotFound(err) {
+	if err := r.groupClient.User().Groups().Delete(name, &metav1.DeleteOptions{}); err != nil && !kerrors.IsNotFound(err) {
 		return err
 	}
 

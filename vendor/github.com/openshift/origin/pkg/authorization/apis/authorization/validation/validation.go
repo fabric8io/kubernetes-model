@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/validation/path"
 	unversionedvalidation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	kvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapihelper "k8s.io/kubernetes/pkg/api/helper"
-	"k8s.io/kubernetes/pkg/api/validation"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/apis/core/validation"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	uservalidation "github.com/openshift/origin/pkg/user/apis/user/validation"
@@ -305,7 +305,7 @@ func validateRoleUpdate(role *authorizationapi.Role, oldRole *authorizationapi.R
 
 func isNewRule(rule authorizationapi.PolicyRule, oldRole *authorizationapi.Role) bool {
 	for _, r := range oldRole.Rules {
-		if r.AttributeRestrictions != nil && kapihelper.Semantic.DeepEqual(rule, r) { // only do expensive comparision against rules that have attribute restrictions
+		if r.AttributeRestrictions != nil && equality.Semantic.DeepEqual(rule, r) { // only do expensive comparision against rules that have attribute restrictions
 			return false
 		}
 	}

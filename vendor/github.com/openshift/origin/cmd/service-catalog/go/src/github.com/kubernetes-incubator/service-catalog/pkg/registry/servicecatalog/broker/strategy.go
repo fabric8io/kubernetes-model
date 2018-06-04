@@ -19,16 +19,16 @@ package broker
 // this was copied from where else and edited to fit our objects
 
 import (
+	"github.com/kubernetes-incubator/service-catalog/pkg/api"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/storage/names"
-	"k8s.io/client-go/pkg/api"
 
 	"github.com/golang/glog"
 	sc "github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog"
-	checksum "github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog/checksum/unversioned"
 	scv "github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog/validation"
 )
 
@@ -71,7 +71,7 @@ var (
 
 // Canonicalize does not transform a broker.
 func (brokerRESTStrategy) Canonicalize(obj runtime.Object) {
-	_, ok := obj.(*sc.Broker)
+	_, ok := obj.(*sc.ClusterServiceBroker)
 	if !ok {
 		glog.Fatal("received a non-broker object to create")
 	}
@@ -82,10 +82,10 @@ func (brokerRESTStrategy) NamespaceScoped() bool {
 	return false
 }
 
-// PrepareForCreate receives a the incoming Broker and clears it's
+// PrepareForCreate receives a the incoming ClusterServiceBroker and clears it's
 // Status. Status is not a user settable field.
 func (brokerRESTStrategy) PrepareForCreate(ctx genericapirequest.Context, obj runtime.Object) {
-	broker, ok := obj.(*sc.Broker)
+	broker, ok := obj.(*sc.ClusterServiceBroker)
 	if !ok {
 		glog.Fatal("received a non-broker object to create")
 	}
@@ -94,14 +94,15 @@ func (brokerRESTStrategy) PrepareForCreate(ctx genericapirequest.Context, obj ru
 	// Creating a brand new object, thus it must have no
 	// status. We can't fail here if they passed a status in, so
 	// we just wipe it clean.
-	broker.Status = sc.BrokerStatus{}
+	broker.Status = sc.ClusterServiceBrokerStatus{}
 	// Fill in the first entry set to "creating"?
-	broker.Status.Conditions = []sc.BrokerCondition{}
+	broker.Status.Conditions = []sc.ServiceBrokerCondition{}
 	broker.Finalizers = []string{sc.FinalizerServiceCatalog}
+	broker.Generation = 1
 }
 
 func (brokerRESTStrategy) Validate(ctx genericapirequest.Context, obj runtime.Object) field.ErrorList {
-	return scv.ValidateBroker(obj.(*sc.Broker))
+	return scv.ValidateClusterServiceBroker(obj.(*sc.ClusterServiceBroker))
 }
 
 func (brokerRESTStrategy) AllowCreateOnUpdate() bool {
@@ -113,68 +114,64 @@ func (brokerRESTStrategy) AllowUnconditionalUpdate() bool {
 }
 
 func (brokerRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context, new, old runtime.Object) {
-	newBroker, ok := new.(*sc.Broker)
+	newClusterServiceBroker, ok := new.(*sc.ClusterServiceBroker)
 	if !ok {
 		glog.Fatal("received a non-broker object to update to")
 	}
-	oldBroker, ok := old.(*sc.Broker)
+	oldClusterServiceBroker, ok := old.(*sc.ClusterServiceBroker)
 	if !ok {
 		glog.Fatal("received a non-broker object to update from")
 	}
 
-	newBroker.Status = oldBroker.Status
+	newClusterServiceBroker.Status = oldClusterServiceBroker.Status
+
+	// Ignore the RelistRequests field when it is the default value
+	if newClusterServiceBroker.Spec.RelistRequests == 0 {
+		newClusterServiceBroker.Spec.RelistRequests = oldClusterServiceBroker.Spec.RelistRequests
+	}
+
+	// Spec updates bump the generation so that we can distinguish between
+	// spec changes and other changes to the object.
+	if !apiequality.Semantic.DeepEqual(oldClusterServiceBroker.Spec, newClusterServiceBroker.Spec) {
+		newClusterServiceBroker.Generation = oldClusterServiceBroker.Generation + 1
+	}
 }
 
 func (brokerRESTStrategy) ValidateUpdate(ctx genericapirequest.Context, new, old runtime.Object) field.ErrorList {
-	newBroker, ok := new.(*sc.Broker)
+	newClusterServiceBroker, ok := new.(*sc.ClusterServiceBroker)
 	if !ok {
 		glog.Fatal("received a non-broker object to validate to")
 	}
-	oldBroker, ok := old.(*sc.Broker)
+	oldClusterServiceBroker, ok := old.(*sc.ClusterServiceBroker)
 	if !ok {
 		glog.Fatal("received a non-broker object to validate from")
 	}
 
-	return scv.ValidateBrokerUpdate(newBroker, oldBroker)
+	return scv.ValidateClusterServiceBrokerUpdate(newClusterServiceBroker, oldClusterServiceBroker)
 }
 
 func (brokerStatusRESTStrategy) PrepareForUpdate(ctx genericapirequest.Context, new, old runtime.Object) {
-	newBroker, ok := new.(*sc.Broker)
+	newClusterServiceBroker, ok := new.(*sc.ClusterServiceBroker)
 	if !ok {
 		glog.Fatal("received a non-broker object to update to")
 	}
-	oldBroker, ok := old.(*sc.Broker)
+	oldClusterServiceBroker, ok := old.(*sc.ClusterServiceBroker)
 	if !ok {
 		glog.Fatal("received a non-broker object to update from")
 	}
 	// status changes are not allowed to update spec
-	newBroker.Spec = oldBroker.Spec
-
-	for _, condition := range newBroker.Status.Conditions {
-		if condition.Type == sc.BrokerConditionReady && condition.Status == sc.ConditionTrue {
-			glog.Infof("Found true ready condition for Broker %v/%v; updating checksum", newBroker.Namespace, newBroker.Name)
-			newBroker.Status.Checksum = func() *string {
-				s := checksum.BrokerSpecChecksum(newBroker.Spec)
-				return &s
-			}()
-			return
-		}
-	}
-
-	// if the ready condition is not true, the value of the checksum should
-	// not change.
-	newBroker.Status.Checksum = oldBroker.Status.Checksum
+	newClusterServiceBroker.Spec = oldClusterServiceBroker.Spec
 }
 
 func (brokerStatusRESTStrategy) ValidateUpdate(ctx genericapirequest.Context, new, old runtime.Object) field.ErrorList {
-	newBroker, ok := new.(*sc.Broker)
+	newClusterServiceBroker, ok := new.(*sc.ClusterServiceBroker)
 	if !ok {
 		glog.Fatal("received a non-broker object to validate to")
 	}
-	oldBroker, ok := old.(*sc.Broker)
+	oldClusterServiceBroker, ok := old.(*sc.ClusterServiceBroker)
 	if !ok {
 		glog.Fatal("received a non-broker object to validate from")
 	}
 
-	return scv.ValidateBrokerStatusUpdate(newBroker, oldBroker)
+	return scv.ValidateClusterServiceBrokerStatusUpdate(newClusterServiceBroker, oldClusterServiceBroker)
 }

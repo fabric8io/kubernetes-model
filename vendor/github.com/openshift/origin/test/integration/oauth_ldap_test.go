@@ -13,12 +13,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	restclient "k8s.io/client-go/rest"
 
-	authapi "github.com/openshift/origin/pkg/auth/api"
-	"github.com/openshift/origin/pkg/client"
 	"github.com/openshift/origin/pkg/cmd/server/admin"
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	configapilatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
-	"github.com/openshift/origin/pkg/cmd/util/tokencmd"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
+	configapilatest "github.com/openshift/origin/pkg/cmd/server/apis/config/latest"
+	authapi "github.com/openshift/origin/pkg/oauthserver/api"
+	"github.com/openshift/origin/pkg/oc/util/tokencmd"
+	userclient "github.com/openshift/origin/pkg/user/generated/internalclientset/typed/user/internalversion"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 
@@ -157,10 +157,6 @@ func TestOAuthLDAP(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
-	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
 
 	// Use the server and CA info
 	anonConfig := restclient.Config{}
@@ -240,12 +236,8 @@ func TestOAuthLDAP(t *testing.T) {
 	// Make sure we can use the token, and it represents who we expect
 	userConfig := anonConfig
 	userConfig.BearerToken = accessToken
-	userClient, err := client.New(&userConfig)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
 
-	user, err := userClient.Users().Get("~", metav1.GetOptions{})
+	user, err := userclient.NewForConfigOrDie(&userConfig).Users().Get("~", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -254,7 +246,7 @@ func TestOAuthLDAP(t *testing.T) {
 	}
 
 	// Make sure the identity got created and contained the mapped attributes
-	identity, err := clusterAdminClient.Identities().Get(fmt.Sprintf("%s:%s", providerName, myUserDN), metav1.GetOptions{})
+	identity, err := userclient.NewForConfigOrDie(clusterAdminClientConfig).Identities().Get(fmt.Sprintf("%s:%s", providerName, myUserDN), metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

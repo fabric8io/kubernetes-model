@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"k8s.io/kubernetes/pkg/api"
+	api "k8s.io/kubernetes/pkg/apis/core"
 
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
 )
@@ -79,6 +79,41 @@ func TestSCCAllowsVolumeType(t *testing.T) {
 		allows := SCCAllowsFSType(v.scc, v.fsType)
 		if v.allows != allows {
 			t.Errorf("%s expected SCCAllowsFSType to return %t but got %t", k, v.allows, allows)
+		}
+	}
+}
+
+func TestEqualStringSlices(t *testing.T) {
+	tests := map[string]struct {
+		arg1           []string
+		arg2           []string
+		expectedResult bool
+	}{
+		"nil equals to nil": {
+			arg1:           nil,
+			arg2:           nil,
+			expectedResult: true,
+		},
+		"equal by size": {
+			arg1:           []string{"1", "1"},
+			arg2:           []string{"1", "1"},
+			expectedResult: true,
+		},
+		"not equal by size": {
+			arg1:           []string{"1"},
+			arg2:           []string{"1", "1"},
+			expectedResult: false,
+		},
+		"not equal by elements": {
+			arg1:           []string{"1", "1"},
+			arg2:           []string{"1", "2"},
+			expectedResult: false,
+		},
+	}
+
+	for k, v := range tests {
+		if result := EqualStringSlices(v.arg1, v.arg2); result != v.expectedResult {
+			t.Errorf("%s expected to return %t but got %t", k, v.expectedResult, result)
 		}
 	}
 }

@@ -9,6 +9,8 @@ import (
 
 var (
 	deadClusterRoles = []rbac.ClusterRole{}
+
+	deadClusterRoleBindings = []rbac.ClusterRoleBinding{}
 )
 
 func addDeadClusterRole(name string) {
@@ -18,17 +20,38 @@ func addDeadClusterRole(name string) {
 		}
 	}
 
-	deadClusterRoles = append(deadClusterRoles,
-		rbac.ClusterRole{
-			ObjectMeta: metav1.ObjectMeta{Name: name},
-		},
-	)
+	deadClusterRole := rbac.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+	}
+	addDefaultMetadata(&deadClusterRole)
+	deadClusterRoles = append(deadClusterRoles, deadClusterRole)
+}
+
+func addDeadClusterRoleBinding(name, roleName string) {
+	for _, existing := range deadClusterRoleBindings {
+		if name == existing.Name {
+			glog.Fatalf("%q was already registered", name)
+		}
+	}
+
+	deadClusterRoleBinding := rbac.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		RoleRef:    rbac.RoleRef{APIGroup: rbac.GroupName, Kind: "ClusterRole", Name: roleName},
+	}
+	addDefaultMetadata(&deadClusterRoleBinding)
+	deadClusterRoleBindings = append(deadClusterRoleBindings, deadClusterRoleBinding)
 }
 
 // GetDeadClusterRoles returns cluster roles which should no longer have any permissions.
 // These are enumerated so that a reconcile that tightens permissions will properly.
 func GetDeadClusterRoles() []rbac.ClusterRole {
 	return deadClusterRoles
+}
+
+// GetDeadClusterRoleBindings returns cluster role bindings which should no longer have any subjects.
+// These are enumerated so that a reconcile that tightens permissions will properly remove them.
+func GetDeadClusterRoleBindings() []rbac.ClusterRoleBinding {
+	return deadClusterRoleBindings
 }
 
 func init() {
@@ -50,4 +73,7 @@ func init() {
 	addDeadClusterRole("system:build-controller")
 	addDeadClusterRole("system:deploymentconfig-controller")
 	addDeadClusterRole("system:deployment-controller")
+
+	// this was replaced by the node authorizer
+	addDeadClusterRoleBinding("system:nodes", "system:node")
 }

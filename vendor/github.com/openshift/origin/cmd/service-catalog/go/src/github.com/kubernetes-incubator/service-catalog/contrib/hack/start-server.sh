@@ -43,8 +43,8 @@ docker run -d --name apiserver \
 	--privileged \
 	--net container:etcd-svc-cat \
 	scbuildimage \
-	bin/apiserver -v 10 --etcd-servers http://localhost:2379 \
-		--storage-type=etcd --disable-auth
+	bin/service-catalog apiserver -v 10 --etcd-servers http://localhost:2379 \
+		--storage-type=etcd --disable-auth --feature-gates "PodPreset=true"
 
 # Wait for apiserver to be up and running
 echo Waiting for API Server to be available...
@@ -52,12 +52,12 @@ count=0
 D_HOST=${DOCKER_HOST:-localhost}
 D_HOST=${D_HOST#*//}   # remove leading proto://
 D_HOST=${D_HOST%:*}    # remove trailing port #
-while ! curl --cacert ${ROOT}/.var/run/kubernetes-service-catalog/apiserver.crt https://${D_HOST}:${PORT} > /dev/null 2>&1 ; do
+while ! wget --ca-certificate ${ROOT}/.var/run/kubernetes-service-catalog/apiserver.crt https://${D_HOST}:${PORT} > /dev/null 2>&1 ; do
 	sleep 1
 	(( count++ )) || true
 	if [ "${count}" == "30" ]; then
 		echo "Timed-out waiting for API Server"
-		(set -x ; curl --cacert ${ROOT}/.var/run/kubernetes-service-catalog/apiserver.crt https://${D_HOST}:${PORT})
+		(set -x ; wget --ca-certificate ${ROOT}/.var/run/kubernetes-service-catalog/apiserver.crt https://${D_HOST}:${PORT})
 		(set -x ; docker ps)
 		(set -x ; docker logs apiserver)
 		exit 1
