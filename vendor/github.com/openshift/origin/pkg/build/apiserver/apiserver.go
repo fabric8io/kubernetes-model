@@ -5,17 +5,16 @@ import (
 	"sync"
 
 	"k8s.io/apimachinery/pkg/apimachinery/registered"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	kclientsetexternal "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
-	kclientsetexternal "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 	kclientsetinternal "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
 
-	buildapiv1 "github.com/openshift/origin/pkg/build/apis/build/v1"
+	buildapiv1 "github.com/openshift/api/build/v1"
 	buildclientset "github.com/openshift/origin/pkg/build/generated/internalclientset"
 	buildgenerator "github.com/openshift/origin/pkg/build/generator"
 	buildetcd "github.com/openshift/origin/pkg/build/registry/build/etcd"
@@ -32,9 +31,7 @@ import (
 	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset"
 )
 
-type BuildServerConfig struct {
-	GenericConfig *genericapiserver.Config
-
+type ExtraConfig struct {
 	CoreAPIServerClientConfig *restclient.Config
 	KubeletClientConfig       *kubeletclient.KubeletClientConfig
 
@@ -48,30 +45,39 @@ type BuildServerConfig struct {
 	v1StorageErr  error
 }
 
+type BuildServerConfig struct {
+	GenericConfig *genericapiserver.RecommendedConfig
+	ExtraConfig   ExtraConfig
+}
+
 // BuildServer contains state for a Kubernetes cluster master/api server.
 type BuildServer struct {
 	GenericAPIServer *genericapiserver.GenericAPIServer
 }
 
 type completedConfig struct {
-	*BuildServerConfig
+	GenericConfig genericapiserver.CompletedConfig
+	ExtraConfig   *ExtraConfig
+}
+
+type CompletedConfig struct {
+	// Embed a private pointer that cannot be instantiated outside of this package.
+	*completedConfig
 }
 
 // Complete fills in any fields not set that are required to have valid data. It's mutating the receiver.
 func (c *BuildServerConfig) Complete() completedConfig {
-	c.GenericConfig.Complete()
+	cfg := completedConfig{
+		c.GenericConfig.Complete(),
+		&c.ExtraConfig,
+	}
 
-	return completedConfig{c}
-}
-
-// SkipComplete provides a way to construct a server instance without config completion.
-func (c *BuildServerConfig) SkipComplete() completedConfig {
-	return completedConfig{c}
+	return cfg
 }
 
 // New returns a new instance of BuildServer from the given config.
 func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*BuildServer, error) {
-	genericServer, err := c.BuildServerConfig.GenericConfig.SkipComplete().New("build.openshift.io-apiserver", delegationTarget) // completion is done in Complete, no need for a second time
+	genericServer, err := c.GenericConfig.New("build.openshift.io-apiserver", delegationTarget)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +91,8 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		return nil, err
 	}
 
-	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(buildapiv1.GroupName, c.Registry, c.Scheme, metav1.ParameterCodec, c.Codecs)
+	parameterCodec := runtime.NewParameterCodec(c.ExtraConfig.Scheme)
+	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(buildapiv1.GroupName, c.ExtraConfig.Registry, c.ExtraConfig.Scheme, parameterCodec, c.ExtraConfig.Codecs)
 	apiGroupInfo.GroupMeta.GroupVersion = buildapiv1.SchemeGroupVersion
 	apiGroupInfo.VersionedResourcesStorageMap[buildapiv1.SchemeGroupVersion.Version] = v1Storage
 	if err := s.GenericAPIServer.InstallAPIGroup(&apiGroupInfo); err != nil {
@@ -95,20 +102,20 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	return s, nil
 }
 
-func (c *BuildServerConfig) V1RESTStorage() (map[string]rest.Storage, error) {
-	c.makeV1Storage.Do(func() {
-		c.v1Storage, c.v1StorageErr = c.newV1RESTStorage()
+func (c *completedConfig) V1RESTStorage() (map[string]rest.Storage, error) {
+	c.ExtraConfig.makeV1Storage.Do(func() {
+		c.ExtraConfig.v1Storage, c.ExtraConfig.v1StorageErr = c.newV1RESTStorage()
 	})
 
-	return c.v1Storage, c.v1StorageErr
+	return c.ExtraConfig.v1Storage, c.ExtraConfig.v1StorageErr
 }
 
-func (c *BuildServerConfig) newV1RESTStorage() (map[string]rest.Storage, error) {
-	kubeInternalClient, err := kclientsetinternal.NewForConfig(c.CoreAPIServerClientConfig)
+func (c *completedConfig) newV1RESTStorage() (map[string]rest.Storage, error) {
+	kubeInternalClient, err := kclientsetinternal.NewForConfig(c.ExtraConfig.CoreAPIServerClientConfig)
 	if err != nil {
 		return nil, err
 	}
-	kubeExternalClient, err := kclientsetexternal.NewForConfig(c.CoreAPIServerClientConfig)
+	kubeExternalClient, err := kclientsetexternal.NewForConfig(c.ExtraConfig.CoreAPIServerClientConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -116,11 +123,11 @@ func (c *BuildServerConfig) newV1RESTStorage() (map[string]rest.Storage, error) 
 	if err != nil {
 		return nil, err
 	}
-	imageClient, err := imageclient.NewForConfig(c.CoreAPIServerClientConfig)
+	imageClient, err := imageclient.NewForConfig(c.ExtraConfig.CoreAPIServerClientConfig)
 	if err != nil {
 		return nil, err
 	}
-	nodeConnectionInfoGetter, err := kubeletclient.NewNodeConnectionInfoGetter(kubeExternalClient.CoreV1().Nodes(), *c.KubeletClientConfig)
+	nodeConnectionInfoGetter, err := kubeletclient.NewNodeConnectionInfoGetter(kubeExternalClient.CoreV1().Nodes(), *c.ExtraConfig.KubeletClientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unable to configure the node connection info getter: %v", err)
 	}
@@ -146,6 +153,7 @@ func (c *BuildServerConfig) newV1RESTStorage() (map[string]rest.Storage, error) 
 	}
 	buildConfigWebHooks := buildconfigregistry.NewWebHookREST(
 		buildClient.Build(),
+		kubeInternalClient.Core(),
 		// We use the buildapiv1 schemegroup to encode the Build that gets
 		// returned. As such, we need to make sure that the GroupVersion we use
 		// is the same API version that the storage is going to be used for.
@@ -161,12 +169,12 @@ func (c *BuildServerConfig) newV1RESTStorage() (map[string]rest.Storage, error) 
 	v1Storage := map[string]rest.Storage{}
 	v1Storage["builds"] = buildStorage
 	v1Storage["builds/clone"] = buildclone.NewStorage(buildGenerator)
-	v1Storage["builds/log"] = buildlogregistry.NewREST(buildStorage, buildStorage, kubeInternalClient.Core(), nodeConnectionInfoGetter)
+	v1Storage["builds/log"] = buildlogregistry.NewREST(buildClient.Build(), kubeInternalClient.Core(), nodeConnectionInfoGetter)
 	v1Storage["builds/details"] = buildDetailsStorage
 
 	v1Storage["buildConfigs"] = buildConfigStorage
 	v1Storage["buildConfigs/webhooks"] = buildConfigWebHooks
 	v1Storage["buildConfigs/instantiate"] = buildconfiginstantiate.NewStorage(buildGenerator)
-	v1Storage["buildConfigs/instantiatebinary"] = buildconfiginstantiate.NewBinaryStorage(buildGenerator, buildStorage, kubeInternalClient.Core(), nodeConnectionInfoGetter)
+	v1Storage["buildConfigs/instantiatebinary"] = buildconfiginstantiate.NewBinaryStorage(buildGenerator, buildClient.Build(), kubeInternalClient.Core(), nodeConnectionInfoGetter)
 	return v1Storage, nil
 }

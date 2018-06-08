@@ -8,14 +8,14 @@ import (
 	"github.com/spf13/cobra"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	uservalidation "github.com/openshift/origin/pkg/user/apis/user/validation"
+	oauthorizationtypedclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset/typed/authorization/internalversion"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 const (
@@ -25,12 +25,16 @@ const (
 
 type RemoveFromProjectOptions struct {
 	BindingNamespace string
-	Client           client.Interface
+	Client           oauthorizationtypedclient.RoleBindingsGetter
 
 	Groups []string
 	Users  []string
 
-	Out io.Writer
+	DryRun bool
+
+	PrintObject func(runtime.Object) error
+	Output      string
+	Out         io.Writer
 }
 
 // NewCmdRemoveGroupFromProject implements the OpenShift cli remove-group command
@@ -42,8 +46,12 @@ func NewCmdRemoveGroupFromProject(name, fullName string, f *clientcmd.Factory, o
 		Short: "Remove group from the current project",
 		Long:  `Remove group from the current project`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := options.Complete(f, args, &options.Groups, "group"); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+			if err := options.Complete(f, cmd, args, &options.Groups, "group"); err != nil {
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
+			}
+
+			if err := options.Validate(f, cmd, args); err != nil {
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 
 			if err := options.Run(); err != nil {
@@ -52,6 +60,8 @@ func NewCmdRemoveGroupFromProject(name, fullName string, f *clientcmd.Factory, o
 		},
 	}
 
+	kcmdutil.AddOutputFlags(cmd)
+	kcmdutil.AddDryRunFlag(cmd)
 	return cmd
 }
 
@@ -64,8 +74,12 @@ func NewCmdRemoveUserFromProject(name, fullName string, f *clientcmd.Factory, ou
 		Short: "Remove user from the current project",
 		Long:  `Remove user from the current project`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := options.Complete(f, args, &options.Users, "user"); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+			if err := options.Complete(f, cmd, args, &options.Users, "user"); err != nil {
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
+			}
+
+			if err := options.Validate(f, cmd, args); err != nil {
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 
 			if err := options.Run(); err != nil {
@@ -74,22 +88,42 @@ func NewCmdRemoveUserFromProject(name, fullName string, f *clientcmd.Factory, ou
 		},
 	}
 
+	kcmdutil.AddPrinterFlags(cmd)
+	kcmdutil.AddDryRunFlag(cmd)
 	return cmd
 }
 
-func (o *RemoveFromProjectOptions) Complete(f *clientcmd.Factory, args []string, target *[]string, targetName string) error {
+func (o *RemoveFromProjectOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, args []string, target *[]string, targetName string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("you must specify at least one argument: <%s> [%s]...", targetName, targetName)
 	}
 
+	o.Output = kcmdutil.GetFlagString(cmd, "output")
+	o.DryRun = kcmdutil.GetFlagBool(cmd, "dry-run")
+
 	*target = append(*target, args...)
 
-	var err error
-	if o.Client, _, err = f.Clients(); err != nil {
+	authorizationClient, err := f.OpenshiftInternalAuthorizationClient()
+	if err != nil {
 		return err
 	}
+	o.Client = authorizationClient.Authorization()
 	if o.BindingNamespace, _, err = f.DefaultNamespace(); err != nil {
 		return err
+	}
+
+	mapper, _ := f.Object()
+
+	o.PrintObject = func(obj runtime.Object) error {
+		return f.PrintObject(cmd, false, mapper, obj, o.Out)
+	}
+
+	return nil
+}
+
+func (o *RemoveFromProjectOptions) Validate(f *clientcmd.Factory, cmd *cobra.Command, args []string) error {
+	if len(o.Output) > 0 && o.Output != "yaml" && o.Output != "json" {
+		return fmt.Errorf("invalid output format %q, only yaml|json supported", o.Output)
 	}
 
 	return nil
@@ -107,8 +141,20 @@ func (o *RemoveFromProjectOptions) Run() error {
 	groupsRemoved := sets.String{}
 	sasRemoved := sets.String{}
 	othersRemoved := sets.String{}
+	dryRunText := ""
+	if o.DryRun {
+		dryRunText = " (dry run)"
+	}
 
-	subjectsToRemove := authorizationapi.BuildSubjects(o.Users, o.Groups, uservalidation.ValidateUserName, uservalidation.ValidateGroupName)
+	updatedBindings := &authorizationapi.RoleBindingList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "List",
+			APIVersion: "v1",
+		},
+		ListMeta: metav1.ListMeta{},
+	}
+
+	subjectsToRemove := authorizationapi.BuildSubjects(o.Users, o.Groups)
 
 	for _, currBinding := range roleBindings.Items {
 		originalSubjects := make([]kapi.ObjectReference, len(currBinding.Subjects))
@@ -116,7 +162,7 @@ func (o *RemoveFromProjectOptions) Run() error {
 		oldUsers, oldGroups, oldSAs, oldOthers := authorizationapi.SubjectsStrings(currBinding.Namespace, originalSubjects)
 		oldUsersSet, oldGroupsSet, oldSAsSet, oldOtherSet := sets.NewString(oldUsers...), sets.NewString(oldGroups...), sets.NewString(oldSAs...), sets.NewString(oldOthers...)
 
-		currBinding.Subjects = removeSubjects(currBinding.Subjects, subjectsToRemove)
+		currBinding.Subjects, _ = removeSubjects(currBinding.Subjects, subjectsToRemove)
 		newUsers, newGroups, newSAs, newOthers := authorizationapi.SubjectsStrings(currBinding.Namespace, currBinding.Subjects)
 		newUsersSet, newGroupsSet, newSAsSet, newOtherSet := sets.NewString(newUsers...), sets.NewString(newGroups...), sets.NewString(newSAs...), sets.NewString(newOthers...)
 
@@ -124,9 +170,20 @@ func (o *RemoveFromProjectOptions) Run() error {
 			continue
 		}
 
-		_, err = o.Client.RoleBindings(o.BindingNamespace).Update(&currBinding)
-		if err != nil {
-			return err
+		if len(o.Output) > 0 {
+			updatedBindings.Items = append(updatedBindings.Items, currBinding)
+			continue
+		}
+
+		if !o.DryRun {
+			if len(currBinding.Subjects) > 0 {
+				_, err = o.Client.RoleBindings(o.BindingNamespace).Update(&currBinding)
+			} else {
+				err = o.Client.RoleBindings(o.BindingNamespace).Delete(currBinding.Name, &metav1.DeleteOptions{})
+			}
+			if err != nil {
+				return err
+			}
 		}
 
 		roleDisplayName := fmt.Sprintf("%s/%s", currBinding.RoleRef.Namespace, currBinding.RoleRef.Name)
@@ -135,28 +192,32 @@ func (o *RemoveFromProjectOptions) Run() error {
 		}
 
 		if diff := oldUsersSet.Difference(newUsersSet); len(diff) != 0 {
-			fmt.Fprintf(o.Out, "Removing %s from users %v in project %s.\n", roleDisplayName, diff.List(), o.BindingNamespace)
+			fmt.Fprintf(o.Out, "Removing %s from users %v in project %s%s.\n", roleDisplayName, diff.List(), o.BindingNamespace, dryRunText)
 			usersRemoved.Insert(diff.List()...)
 		}
 		if diff := oldGroupsSet.Difference(newGroupsSet); len(diff) != 0 {
-			fmt.Fprintf(o.Out, "Removing %s from groups %v in project %s.\n", roleDisplayName, diff.List(), o.BindingNamespace)
+			fmt.Fprintf(o.Out, "Removing %s from groups %v in project %s%s.\n", roleDisplayName, diff.List(), o.BindingNamespace, dryRunText)
 			groupsRemoved.Insert(diff.List()...)
 		}
 		if diff := oldSAsSet.Difference(newSAsSet); len(diff) != 0 {
-			fmt.Fprintf(o.Out, "Removing %s from serviceaccounts %v in project %s.\n", roleDisplayName, diff.List(), o.BindingNamespace)
+			fmt.Fprintf(o.Out, "Removing %s from serviceaccounts %v in project %s%s.\n", roleDisplayName, diff.List(), o.BindingNamespace, dryRunText)
 			sasRemoved.Insert(diff.List()...)
 		}
 		if diff := oldOtherSet.Difference(newOtherSet); len(diff) != 0 {
-			fmt.Fprintf(o.Out, "Removing %s from subjects %v in project %s.\n", roleDisplayName, diff.List(), o.BindingNamespace)
+			fmt.Fprintf(o.Out, "Removing %s from subjects %v in project %s%s.\n", roleDisplayName, diff.List(), o.BindingNamespace, dryRunText)
 			othersRemoved.Insert(diff.List()...)
 		}
 	}
 
+	if len(o.Output) > 0 {
+		return o.PrintObject(updatedBindings)
+	}
+
 	if diff := sets.NewString(o.Users...).Difference(usersRemoved); len(diff) != 0 {
-		fmt.Fprintf(o.Out, "Users %v were not bound to roles in project %s.\n", diff.List(), o.BindingNamespace)
+		fmt.Fprintf(o.Out, "Users %v were not bound to roles in project %s%s.\n", diff.List(), o.BindingNamespace, dryRunText)
 	}
 	if diff := sets.NewString(o.Groups...).Difference(groupsRemoved); len(diff) != 0 {
-		fmt.Fprintf(o.Out, "Groups %v were not bound to roles in project %s.\n", diff.List(), o.BindingNamespace)
+		fmt.Fprintf(o.Out, "Groups %v were not bound to roles in project %s%s.\n", diff.List(), o.BindingNamespace, dryRunText)
 	}
 
 	return nil

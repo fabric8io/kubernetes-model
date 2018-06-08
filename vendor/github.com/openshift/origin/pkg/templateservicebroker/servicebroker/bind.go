@@ -11,22 +11,22 @@ import (
 
 	"github.com/golang/glog"
 
+	authorizationv1 "k8s.io/api/authorization/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/client-go/util/jsonpath"
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apis/authorization"
+	"k8s.io/client-go/util/retry"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
-	"github.com/openshift/origin/pkg/authorization/util"
+	"github.com/openshift/origin/pkg/bulk"
 	routeapi "github.com/openshift/origin/pkg/route/apis/route"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 	"github.com/openshift/origin/pkg/templateservicebroker/openservicebroker/api"
-	uservalidation "github.com/openshift/origin/pkg/user/apis/user/validation"
+	"github.com/openshift/origin/pkg/templateservicebroker/util"
 )
 
 func evaluateJSONPathExpression(obj interface{}, annotation, expression string, base64encode bool) (string, error) {
@@ -134,44 +134,6 @@ func updateCredentialsForObject(credentials map[string]interface{}, obj runtime.
 	return nil
 }
 
-// updateCredentials lists objects of a particular type created by a given
-// template in its namespace and calls updateCredentialsForObject for each.
-// TODO: handle objects created in other namespaces as well.
-func (b *Broker) updateCredentials(u user.Info, namespace, instanceID, group, resource string, credentials map[string]interface{}, lister func(metav1.ListOptions) (runtime.Object, error)) *api.Response {
-	glog.V(4).Infof("Template service broker: updateCredentials: group %s, resource: %s", group, resource)
-
-	requirement, _ := labels.NewRequirement(templateapi.TemplateInstanceLabel, selection.Equals, []string{instanceID})
-
-	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorization.ResourceAttributes{
-		Namespace: namespace,
-		Verb:      "list",
-		Group:     group,
-		Resource:  resource,
-	}); err != nil {
-		return api.Forbidden(err)
-	}
-
-	list, err := lister(metav1.ListOptions{LabelSelector: labels.NewSelector().Add(*requirement).String()})
-	if err != nil {
-		if kerrors.IsForbidden(err) {
-			return api.Forbidden(err)
-		}
-
-		return api.InternalServerError(err)
-	}
-
-	err = meta.EachListItem(list, func(obj runtime.Object) error {
-		return updateCredentialsForObject(credentials, obj)
-	})
-
-	if err != nil {
-		return api.InternalServerError(err)
-	}
-
-	return nil
-
-}
-
 // Bind returns the secrets and services from a provisioned template.
 func (b *Broker) Bind(u user.Info, instanceID, bindingID string, breq *api.BindRequest) *api.Response {
 	glog.V(4).Infof("Template service broker: Bind: instanceID %s, bindingID %s", instanceID, bindingID)
@@ -180,17 +142,8 @@ func (b *Broker) Bind(u user.Info, instanceID, bindingID string, breq *api.BindR
 		return api.BadRequest(errs.ToAggregate())
 	}
 
-	//TODO - when https://github.com/kubernetes-incubator/service-catalog/pull/939 sufficiently progresses, this check should be != 0
-	if len(breq.Parameters) > 1 {
+	if len(breq.Parameters) != 0 {
 		return api.BadRequest(errors.New("parameters not supported on bind"))
-	}
-
-	//TODO - when https://github.com/kubernetes-incubator/service-catalog/pull/939 sufficiently progresses, this block should be removed
-	if u.GetName() == "" {
-		impersonate := breq.Parameters[templateapi.RequesterUsernameParameterKey]
-		if impersonate != "" && uservalidation.ValidateUserName(impersonate, true) == nil {
-			u = &user.DefaultInfo{Name: impersonate}
-		}
 	}
 
 	brokerTemplateInstance, err := b.templateclient.BrokerTemplateInstances().Get(instanceID, metav1.GetOptions{})
@@ -206,7 +159,7 @@ func (b *Broker) Bind(u user.Info, instanceID, bindingID string, breq *api.BindR
 
 	// end users are not expected to have access to BrokerTemplateInstance
 	// objects; SAR on the TemplateInstance instead.
-	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorization.ResourceAttributes{
+	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorizationv1.ResourceAttributes{
 		Namespace: namespace,
 		Verb:      "get",
 		Group:     templateapi.GroupName,
@@ -226,35 +179,73 @@ func (b *Broker) Bind(u user.Info, instanceID, bindingID string, breq *api.BindR
 	if breq.ServiceID != string(templateInstance.Spec.Template.UID) {
 		return api.BadRequest(errors.New("service_id does not match provisioned service"))
 	}
+	if strings.ToLower(templateInstance.Spec.Template.Annotations[templateapi.BindableAnnotation]) == "false" {
+		return api.BadRequest(errors.New("provisioned service is not bindable"))
+	}
 
 	credentials := map[string]interface{}{}
 
-	resp := b.updateCredentials(u, namespace, instanceID, kapi.GroupName, "configmaps", credentials, func(o metav1.ListOptions) (runtime.Object, error) {
-		return b.extkc.Core().ConfigMaps(namespace).List(o)
-	})
-	if resp != nil {
-		return resp
+	for _, object := range templateInstance.Status.Objects {
+		switch object.Ref.GroupVersionKind().GroupKind() {
+		case kapi.Kind("ConfigMap"),
+			kapi.Kind("Secret"),
+			kapi.Kind("Service"),
+			routeapi.Kind("Route"),
+			routeapi.LegacyKind("Route"):
+		default:
+			continue
+		}
+
+		mapping, err := b.restmapper.RESTMapping(object.Ref.GroupVersionKind().GroupKind())
+		if err != nil {
+			return api.InternalServerError(err)
+		}
+
+		if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorizationv1.ResourceAttributes{
+			Namespace: object.Ref.Namespace,
+			Verb:      "get",
+			Group:     object.Ref.GroupVersionKind().Group,
+			Resource:  mapping.Resource,
+			Name:      object.Ref.Name,
+		}); err != nil {
+			return api.Forbidden(err)
+		}
+
+		cli, err := bulk.ClientMapperFromConfig(b.extconfig).ClientForMapping(mapping)
+		if err != nil {
+			return api.InternalServerError(err)
+		}
+
+		obj, err := cli.Get().Resource(mapping.Resource).NamespaceIfScoped(object.Ref.Namespace, mapping.Scope.Name() == meta.RESTScopeNameNamespace).Name(object.Ref.Name).Do().Get()
+		if err != nil {
+			return api.InternalServerError(err)
+		}
+
+		meta, err := meta.Accessor(obj)
+		if err != nil {
+			return api.InternalServerError(err)
+		}
+
+		if meta.GetUID() != object.Ref.UID {
+			return api.InternalServerError(kerrors.NewNotFound(schema.GroupResource{Group: mapping.GroupVersionKind.Group, Resource: mapping.Resource}, object.Ref.Name))
+		}
+
+		err = updateCredentialsForObject(credentials, obj)
+		if err != nil {
+			return api.InternalServerError(err)
+		}
 	}
 
-	resp = b.updateCredentials(u, namespace, instanceID, kapi.GroupName, "secrets", credentials, func(o metav1.ListOptions) (runtime.Object, error) {
-		return b.extkc.Core().Secrets(namespace).List(o)
-	})
-	if resp != nil {
-		return resp
-	}
-
-	resp = b.updateCredentials(u, namespace, instanceID, kapi.GroupName, "services", credentials, func(o metav1.ListOptions) (runtime.Object, error) {
-		return b.extkc.Core().Services(namespace).List(o)
-	})
-	if resp != nil {
-		return resp
-	}
-
-	resp = b.updateCredentials(u, namespace, instanceID, routeapi.GroupName, "routes", credentials, func(o metav1.ListOptions) (runtime.Object, error) {
-		return b.extrouteclient.Routes(namespace).List(o)
-	})
-	if resp != nil {
-		return resp
+	// end users are not expected to have access to BrokerTemplateInstance
+	// objects; SAR on the TemplateInstance instead.
+	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorizationv1.ResourceAttributes{
+		Namespace: namespace,
+		Verb:      "update",
+		Group:     templateapi.GroupName,
+		Resource:  "templateinstances",
+		Name:      brokerTemplateInstance.Spec.TemplateInstance.Name,
+	}); err != nil {
+		return api.Forbidden(err)
 	}
 
 	// The OSB API requires this function to be idempotent (restartable).  If
@@ -262,31 +253,36 @@ func (b *Broker) Bind(u user.Info, instanceID, bindingID string, breq *api.BindR
 	// StatusOK.
 
 	status := http.StatusCreated
-	for _, id := range brokerTemplateInstance.Spec.BindingIDs {
-		if id == bindingID {
-			status = http.StatusOK
-			break
-		}
-	}
-	if status == http.StatusCreated { // binding not found; create it
-		// end users are not expected to have access to BrokerTemplateInstance
-		// objects; SAR on the TemplateInstance instead.
-		if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorization.ResourceAttributes{
-			Namespace: namespace,
-			Verb:      "update",
-			Group:     templateapi.GroupName,
-			Resource:  "templateinstances",
-			Name:      brokerTemplateInstance.Spec.TemplateInstance.Name,
-		}); err != nil {
-			return api.Forbidden(err)
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		for _, id := range brokerTemplateInstance.Spec.BindingIDs {
+			if id == bindingID {
+				status = http.StatusOK
+				return nil
+			}
 		}
 
+		// binding not found; create it
 		brokerTemplateInstance.Spec.BindingIDs = append(brokerTemplateInstance.Spec.BindingIDs, bindingID)
-		brokerTemplateInstance, err = b.templateclient.BrokerTemplateInstances().Update(brokerTemplateInstance)
-		if err != nil {
-			return api.InternalServerError(err)
-		}
-	}
 
-	return api.NewResponse(status, &api.BindResponse{Credentials: credentials}, nil)
+		newBrokerTemplateInstance, err := b.templateclient.BrokerTemplateInstances().Update(brokerTemplateInstance)
+		switch {
+		case err == nil:
+			brokerTemplateInstance = newBrokerTemplateInstance
+
+		case kerrors.IsConflict(err):
+			var getErr error
+			brokerTemplateInstance, getErr = b.templateclient.BrokerTemplateInstances().Get(brokerTemplateInstance.Name, metav1.GetOptions{})
+			if getErr != nil {
+				err = getErr
+			}
+		}
+		return err
+	})
+	switch {
+	case err == nil:
+		return api.NewResponse(status, &api.BindResponse{Credentials: credentials}, nil)
+	case kerrors.IsConflict(err):
+		return api.NewResponse(http.StatusUnprocessableEntity, &api.ConcurrencyError, nil)
+	}
+	return api.InternalServerError(err)
 }

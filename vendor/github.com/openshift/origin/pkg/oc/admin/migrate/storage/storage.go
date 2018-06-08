@@ -14,8 +14,8 @@ import (
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/oc/admin/migrate"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 var (
@@ -65,7 +65,8 @@ func NewCmdMigrateAPIStorage(name, fullName string, f *clientcmd.Factory, in io.
 			Out:    out,
 			ErrOut: errout,
 
-			Include: []string{"*"},
+			Unstructured: true,
+			Include:      []string{"*"},
 			DefaultExcludes: []schema.GroupResource{
 				// openshift resources:
 				{Resource: "appliedclusterresourcequotas"},
@@ -86,10 +87,6 @@ func NewCmdMigrateAPIStorage(name, fullName string, f *clientcmd.Factory, in io.
 				{Resource: "replicationcontrollerdummies.extensions"},
 				{Resource: "podtemplates"},
 				{Resource: "selfsubjectaccessreviews", Group: "authorization.k8s.io"}, {Resource: "localsubjectaccessreviews", Group: "authorization.k8s.io"},
-
-				// skip kube RBAC resources for now because no one will have rights to update them yet
-				{Resource: "roles", Group: "rbac.authorization.k8s.io"}, {Resource: "rolebindings", Group: "rbac.authorization.k8s.io"},
-				{Resource: "clusterroles", Group: "rbac.authorization.k8s.io"}, {Resource: "clusterrolebindings", Group: "rbac.authorization.k8s.io"},
 			},
 			// Resources known to share the same storage
 			OverlappingResources: []sets.String{
@@ -206,7 +203,11 @@ func (o *MigrateAPIStorageOptions) save(info *resource.Info, reporter migrate.Re
 			Name(info.Name).Do()
 		data, err := get.Raw()
 		if err != nil {
-			return migrate.DefaultRetriable(info, err)
+			// since we have an error, processing the body is safe because we are not going
+			// to send it back to the server.  Thus we can safely call Result.Error().
+			// This is required because we want to make sure we pass an errors.APIStatus so
+			// that DefaultRetriable can correctly determine if the error is safe to retry.
+			return migrate.DefaultRetriable(info, get.Error())
 		}
 		update := info.Client.Put().
 			Resource(info.Mapping.Resource).

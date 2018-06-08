@@ -15,7 +15,7 @@ import (
 
 // RunInPodContainer will run provided command in the specified pod container.
 func RunInPodContainer(oc *exutil.CLI, selector labels.Selector, cmd []string) error {
-	pods, err := exutil.WaitForPods(oc.KubeClient().CoreV1().Pods(oc.Namespace()), selector, exutil.CheckPodIsRunningFn, 1, 2*time.Minute)
+	pods, err := exutil.WaitForPods(oc.KubeClient().CoreV1().Pods(oc.Namespace()), selector, exutil.CheckPodIsRunningFn, 1, 4*time.Minute)
 	if err != nil {
 		return err
 	}
@@ -53,4 +53,10 @@ func CheckPageContains(oc *exutil.CLI, endpoint, path, contents string) (bool, e
 		fmt.Fprintf(g.GinkgoWriter, "CheckPageContains was looking for %s but got %s\n", contents, response)
 	}
 	return success, nil
+}
+
+func cleanup(oc *exutil.CLI) {
+	if err := exutil.CleanupHostPathVolumes(oc.AdminKubeClient().Core().PersistentVolumes(), oc.Namespace()); err != nil {
+		ginkgolog("WARNING: couldn't cleanup persistent volumes: %v", err)
+	}
 }

@@ -17,13 +17,14 @@ import (
 	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/homedir"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
-	defaultsapi "github.com/openshift/origin/pkg/build/controller/build/defaults/api"
+	defaultsapi "github.com/openshift/origin/pkg/build/controller/build/apis/defaults"
+	clientconfig "github.com/openshift/origin/pkg/client/config"
 	"github.com/openshift/origin/pkg/cmd/server/admin"
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	_ "github.com/openshift/origin/pkg/cmd/server/api/install"
-	configapilatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
+	_ "github.com/openshift/origin/pkg/cmd/server/apis/config/install"
+	configapilatest "github.com/openshift/origin/pkg/cmd/server/apis/config/latest"
 	"github.com/openshift/origin/pkg/cmd/server/crypto"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	"github.com/openshift/origin/pkg/oc/bootstrap/docker/dockerhelper"
@@ -31,34 +32,32 @@ import (
 	dockerexec "github.com/openshift/origin/pkg/oc/bootstrap/docker/exec"
 	"github.com/openshift/origin/pkg/oc/bootstrap/docker/host"
 	"github.com/openshift/origin/pkg/oc/bootstrap/docker/run"
-	cliconfig "github.com/openshift/origin/pkg/oc/cli/config"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 )
 
 const (
-	defaultNodeName             = "localhost"
-	initialStatusCheckWait      = 4 * time.Second
-	serverUpTimeout             = 35
-	serverConfigPath            = "/var/lib/origin/openshift.local.config"
-	serverMasterConfig          = serverConfigPath + "/master/master-config.yaml"
-	serverNodeConfig            = serverConfigPath + "/node-" + defaultNodeName + "/node-config.yaml"
-	serviceCatalogExtensionPath = serverConfigPath + "/master/servicecatalog-extension.js"
-	aggregatorKey               = "aggregator-front-proxy.key"
-	aggregatorCert              = "aggregator-front-proxy.crt"
-	aggregatorCACert            = "front-proxy-ca.crt"
-	aggregatorCAKey             = "front-proxy-ca.key"
-	aggregatorCASerial          = "frontend-proxy-ca.serial.txt"
-	aggregatorKeyPath           = serverConfigPath + "/master/" + aggregatorKey
-	aggregatorCertPath          = serverConfigPath + "/master/" + aggregatorCert
-	aggregatorCACertPath        = serverConfigPath + "/master/" + aggregatorCACert
-	aggregatorCAKeyPath         = serverConfigPath + "/master/" + aggregatorCAKey
-	aggregatorCASerialPath      = serverConfigPath + "/master/" + aggregatorCASerial
-	DefaultDNSPort              = 53
-	AlternateDNSPort            = 8053
-	cmdDetermineNodeHost        = "for name in %s; do ls /var/lib/origin/openshift.local.config/node-$name &> /dev/null && echo $name && break; done"
-	OpenShiftContainer          = "origin"
-	OpenshiftNamespace          = "openshift"
-	OpenshiftInfraNamespace     = "openshift-infra"
+	defaultNodeName         = "localhost"
+	initialStatusCheckWait  = 4 * time.Second
+	serverUpTimeout         = 35
+	serverConfigPath        = "/var/lib/origin/openshift.local.config"
+	serverMasterConfig      = serverConfigPath + "/master/master-config.yaml"
+	serverNodeConfig        = serverConfigPath + "/node-" + defaultNodeName + "/node-config.yaml"
+	aggregatorKey           = "aggregator-front-proxy.key"
+	aggregatorCert          = "aggregator-front-proxy.crt"
+	aggregatorCACert        = "front-proxy-ca.crt"
+	aggregatorCAKey         = "front-proxy-ca.key"
+	aggregatorCASerial      = "frontend-proxy-ca.serial.txt"
+	aggregatorKeyPath       = serverConfigPath + "/master/" + aggregatorKey
+	aggregatorCertPath      = serverConfigPath + "/master/" + aggregatorCert
+	aggregatorCACertPath    = serverConfigPath + "/master/" + aggregatorCACert
+	aggregatorCAKeyPath     = serverConfigPath + "/master/" + aggregatorCAKey
+	aggregatorCASerialPath  = serverConfigPath + "/master/" + aggregatorCASerial
+	DefaultDNSPort          = 53
+	AlternateDNSPort        = 8053
+	cmdDetermineNodeHost    = "for name in %s; do ls /var/lib/origin/openshift.local.config/node-$name &> /dev/null && echo $name && break; done"
+	OpenShiftContainer      = "origin"
+	OpenshiftNamespace      = "openshift"
+	OpenshiftInfraNamespace = "openshift-infra"
 )
 
 var (
@@ -74,7 +73,7 @@ var (
 	DefaultPorts          = append(BasePorts, DefaultDNSPort)
 	PortsWithAlternateDNS = append(BasePorts, AlternateDNSPort)
 	AllPorts              = append(append(RouterPorts, DefaultPorts...), AlternateDNSPort)
-	SocatPidFile          = filepath.Join(homedir.HomeDir(), cliconfig.OpenShiftConfigHomeDir, "socat-8443.pid")
+	SocatPidFile          = filepath.Join(homedir.HomeDir(), clientconfig.OpenShiftConfigHomeDir, "socat-8443.pid")
 	defaultCertHosts      = []string{
 		"127.0.0.1",
 		"172.30.0.1",
@@ -150,7 +149,7 @@ func NewHelper(dockerHelper *dockerhelper.Helper, hostHelper *host.HostHelper, i
 }
 
 func (h *Helper) TestPorts(ports []int) error {
-	portData, _, _, err := h.runHelper.New().Image(h.image).
+	_, portData, _, _, err := h.runHelper.New().Image(h.image).
 		DiscardContainer().
 		Privileged().
 		HostNetwork().
@@ -209,7 +208,7 @@ func (h *Helper) TestForwardedIP(ip string) error {
 }
 
 func (h *Helper) DetermineNodeHost(hostConfigDir string, names ...string) (string, error) {
-	result, _, _, err := h.runHelper.New().Image(h.image).
+	_, result, _, _, err := h.runHelper.New().Image(h.image).
 		DiscardContainer().
 		Privileged().
 		HostNetwork().
@@ -227,7 +226,7 @@ func (h *Helper) ServerIP() (string, error) {
 	if len(h.serverIP) > 0 {
 		return h.serverIP, nil
 	}
-	result, _, _, err := h.runHelper.New().Image(h.image).
+	_, result, _, _, err := h.runHelper.New().Image(h.image).
 		DiscardContainer().
 		Privileged().
 		HostNetwork().
@@ -241,7 +240,7 @@ func (h *Helper) ServerIP() (string, error) {
 
 // OtherIPs tries to find other IPs besides the argument IP for the Docker host
 func (h *Helper) OtherIPs(excludeIP string) ([]string, error) {
-	result, _, _, err := h.runHelper.New().Image(h.image).
+	_, result, _, _, err := h.runHelper.New().Image(h.image).
 		DiscardContainer().
 		Privileged().
 		HostNetwork().
@@ -343,7 +342,7 @@ func (h *Helper) Start(opt *StartOptions, out io.Writer) (string, error) {
 			fmt.Sprintf("--hostname=%s", defaultNodeName),
 			fmt.Sprintf("--public-master=https://%s:8443", publicHost),
 		}
-		_, err := h.runHelper.New().Image(h.image).
+		_, _, err := h.runHelper.New().Image(h.image).
 			Privileged().
 			DiscardContainer().
 			HostNetwork().
@@ -652,7 +651,7 @@ func (h *Helper) ServerPrereleaseVersion() (semver.Version, error) {
 		return *h.prereleaseVersion, nil
 	}
 
-	versionText, _, _, err := h.runHelper.New().Image(h.image).
+	_, versionText, _, _, err := h.runHelper.New().Image(h.image).
 		Command("version").
 		DiscardContainer().
 		Output()
@@ -668,9 +667,8 @@ func (h *Helper) ServerPrereleaseVersion() (semver.Version, error) {
 			break
 		}
 	}
-
 	if len(versionStr) == 0 {
-		return semver.Version{}, fmt.Errorf("did not find version in command output")
+		return semver.Version{}, fmt.Errorf("did not find version in command output: %s", versionText)
 	}
 	return parseOpenshiftVersion(versionStr)
 }
@@ -696,15 +694,24 @@ func useAggregator(version semver.Version) bool {
 	return version.GTE(version37)
 }
 
-func useTemplateServiceBroker(version semver.Version) bool {
-	return version.GTE(version37)
-}
-
 func (h *Helper) updateConfig(configDir string, opt *StartOptions) error {
 	cfg, configPath, err := h.GetConfigFromLocalDir(configDir)
 	if err != nil {
 		return err
 	}
+
+	// turn on admission webhooks by default.  They are no-ops until someone explicitly tries to configure one
+	if cfg.AdmissionConfig.PluginConfig == nil {
+		cfg.AdmissionConfig.PluginConfig = map[string]*configapi.AdmissionPluginConfig{}
+	}
+	cfg.AdmissionConfig.PluginConfig["GenericAdmissionWebhook"] = &configapi.AdmissionPluginConfig{
+		Configuration: &configapi.DefaultAdmissionConfig{},
+	}
+
+	if cfg.KubernetesMasterConfig.APIServerArguments == nil {
+		cfg.KubernetesMasterConfig.APIServerArguments = configapi.ExtendedArguments{}
+	}
+	cfg.KubernetesMasterConfig.APIServerArguments["runtime-config"] = append(cfg.KubernetesMasterConfig.APIServerArguments["runtime-config"], "apis/admissionregistration.k8s.io/v1alpha1=true")
 
 	if len(opt.RoutingSuffix) > 0 {
 		cfg.RoutingConfig.Subdomain = opt.RoutingSuffix
@@ -712,23 +719,12 @@ func (h *Helper) updateConfig(configDir string, opt *StartOptions) error {
 		cfg.RoutingConfig.Subdomain = fmt.Sprintf("%s.nip.io", opt.ServerIP)
 	}
 
-	if len(opt.MetricsHost) > 0 && cfg.AssetConfig != nil {
-		cfg.AssetConfig.MetricsPublicURL = fmt.Sprintf("https://%s/hawkular/metrics", opt.MetricsHost)
-	}
-
-	if len(opt.LoggingHost) > 0 && cfg.AssetConfig != nil {
-		cfg.AssetConfig.LoggingPublicURL = fmt.Sprintf("https://%s", opt.LoggingHost)
-	}
-
 	if len(opt.HTTPProxy) > 0 || len(opt.HTTPSProxy) > 0 || len(opt.NoProxy) > 0 {
-		if cfg.AdmissionConfig.PluginConfig == nil {
-			cfg.AdmissionConfig.PluginConfig = map[string]configapi.AdmissionPluginConfig{}
-		}
 
 		var buildDefaults *defaultsapi.BuildDefaultsConfig
 		buildDefaultsConfig, ok := cfg.AdmissionConfig.PluginConfig[defaultsapi.BuildDefaultsPlugin]
 		if !ok {
-			buildDefaultsConfig = configapi.AdmissionPluginConfig{}
+			buildDefaultsConfig = &configapi.AdmissionPluginConfig{}
 		}
 		if buildDefaultsConfig.Configuration != nil {
 			buildDefaults = buildDefaultsConfig.Configuration.(*defaultsapi.BuildDefaultsConfig)
@@ -832,35 +828,12 @@ func (h *Helper) updateConfig(configDir string, opt *StartOptions) error {
 		cfg.KubernetesMasterConfig.APIServerArguments["runtime-config"] = append(cfg.KubernetesMasterConfig.APIServerArguments["runtime-config"], "apis/settings.k8s.io/v1alpha1=true")
 
 		if cfg.AdmissionConfig.PluginConfig == nil {
-			cfg.AdmissionConfig.PluginConfig = map[string]configapi.AdmissionPluginConfig{}
+			cfg.AdmissionConfig.PluginConfig = map[string]*configapi.AdmissionPluginConfig{}
 		}
 
-		cfg.AdmissionConfig.PluginConfig["PodPreset"] = configapi.AdmissionPluginConfig{
+		cfg.AdmissionConfig.PluginConfig["PodPreset"] = &configapi.AdmissionPluginConfig{
 			Configuration: &configapi.DefaultAdmissionConfig{Disable: false},
 		}
-
-		if cfg.AssetConfig == nil {
-			cfg.AssetConfig = &configapi.AssetConfig{}
-		}
-		cfg.AssetConfig.ExtensionScripts = append(cfg.AssetConfig.ExtensionScripts, serviceCatalogExtensionPath)
-
-		extension := `
-window.OPENSHIFT_CONSTANTS.ENABLE_TECH_PREVIEW_FEATURE = {
-  service_catalog_landing_page: true,
-  template_service_broker: true,
-  pod_presets: true
-};
-`
-		extensionPath := filepath.Join(configDir, "master", "servicecatalog-extension.js")
-		err = ioutil.WriteFile(extensionPath, []byte(extension), 0644)
-		if err != nil {
-			return err
-		}
-		err = h.hostHelper.UploadFileToContainer(extensionPath, serviceCatalogExtensionPath)
-		if err != nil {
-			return err
-		}
-
 	}
 
 	cfg.JenkinsPipelineConfig.TemplateName = "jenkins-persistent"
@@ -888,7 +861,7 @@ window.OPENSHIFT_CONSTANTS.ENABLE_TECH_PREVIEW_FEATURE = {
 	}
 	nodeCfg.DNSBindAddress = ""
 
-	if h.supportsCgroupDriver() {
+	if h.supportsCgroupDriver(version) {
 		// Set the cgroup driver from the current docker
 		cgroupDriver, err := h.dockerHelper.CgroupDriver()
 		if err != nil {
@@ -956,7 +929,10 @@ func getUsedPorts(data string) map[int]struct{} {
 	return ports
 }
 
-func (h *Helper) supportsCgroupDriver() bool {
+func (h *Helper) supportsCgroupDriver(version semver.Version) bool {
+	if version.GTE(version37) {
+		return true
+	}
 	script := `#!/bin/bash
 
 # Exit with an error
@@ -969,7 +945,7 @@ fi
 
 kubelet --help | grep -- "--cgroup-driver"
 `
-	rc, err := h.runHelper.New().Image(h.image).
+	_, rc, err := h.runHelper.New().Image(h.image).
 		DiscardContainer().
 		Entrypoint("/bin/bash").
 		Command("-c", script).

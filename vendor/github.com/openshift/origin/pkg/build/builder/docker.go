@@ -12,20 +12,22 @@ import (
 	"github.com/docker/docker/builder/dockerfile/parser"
 	docker "github.com/fsouza/go-dockerclient"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapi "k8s.io/kubernetes/pkg/api"
 
 	s2iapi "github.com/openshift/source-to-image/pkg/api"
 	"github.com/openshift/source-to-image/pkg/tar"
 	s2ifs "github.com/openshift/source-to-image/pkg/util/fs"
 
-	buildapi "github.com/openshift/origin/pkg/build/apis/build"
+	buildapiv1 "github.com/openshift/api/build/v1"
 	"github.com/openshift/origin/pkg/build/builder/cmd/dockercfg"
 	"github.com/openshift/origin/pkg/build/builder/timing"
+	builderutil "github.com/openshift/origin/pkg/build/builder/util"
+	"github.com/openshift/origin/pkg/build/builder/util/dockerfile"
 	"github.com/openshift/origin/pkg/build/controller/strategy"
 	buildutil "github.com/openshift/origin/pkg/build/util"
-	"github.com/openshift/origin/pkg/build/util/dockerfile"
-	"github.com/openshift/origin/pkg/client"
+
+	buildclientv1 "github.com/openshift/client-go/build/clientset/versioned/typed/build/v1"
 )
 
 // defaultDockerfilePath is the default path of the Dockerfile
@@ -35,14 +37,14 @@ const defaultDockerfilePath = "Dockerfile"
 type DockerBuilder struct {
 	dockerClient DockerClient
 	tar          tar.Tar
-	build        *buildapi.Build
-	client       client.BuildInterface
+	build        *buildapiv1.Build
+	client       buildclientv1.BuildInterface
 	cgLimits     *s2iapi.CGroupLimits
 	inputDir     string
 }
 
 // NewDockerBuilder creates a new instance of DockerBuilder
-func NewDockerBuilder(dockerClient DockerClient, buildsClient client.BuildInterface, build *buildapi.Build, cgLimits *s2iapi.CGroupLimits) *DockerBuilder {
+func NewDockerBuilder(dockerClient DockerClient, buildsClient buildclientv1.BuildInterface, build *buildapiv1.Build, cgLimits *s2iapi.CGroupLimits) *DockerBuilder {
 	return &DockerBuilder{
 		dockerClient: dockerClient,
 		build:        build,
@@ -59,7 +61,7 @@ func (d *DockerBuilder) Build() error {
 	var err error
 	ctx := timing.NewContext(context.Background())
 	defer func() {
-		d.build.Status.Stages = buildapi.AppendStageAndStepInfo(d.build.Status.Stages, timing.GetStages(ctx))
+		d.build.Status.Stages = timing.AppendStageAndStepInfo(d.build.Status.Stages, timing.GetStages(ctx))
 		HandleBuildStatusUpdate(d.build, d.client, nil)
 	}()
 
@@ -111,12 +113,12 @@ func (d *DockerBuilder) Build() error {
 			startTime := metav1.Now()
 			err = pullImage(d.dockerClient, imageName, pullAuthConfig)
 
-			timing.RecordNewStep(ctx, buildapi.StagePullImages, buildapi.StepPullBaseImage, startTime, metav1.Now())
+			timing.RecordNewStep(ctx, buildapiv1.StagePullImages, buildapiv1.StepPullBaseImage, startTime, metav1.Now())
 
 			if err != nil {
-				d.build.Status.Phase = buildapi.BuildPhaseFailed
-				d.build.Status.Reason = buildapi.StatusReasonPullBuilderImageFailed
-				d.build.Status.Message = buildapi.StatusMessagePullBuilderImageFailed
+				d.build.Status.Phase = buildapiv1.BuildPhaseFailed
+				d.build.Status.Reason = buildapiv1.StatusReasonPullBuilderImageFailed
+				d.build.Status.Message = builderutil.StatusMessagePullBuilderImageFailed
 				HandleBuildStatusUpdate(d.build, d.client, nil)
 				return fmt.Errorf("failed to pull image: %v", err)
 			}
@@ -127,26 +129,24 @@ func (d *DockerBuilder) Build() error {
 	startTime := metav1.Now()
 	err = d.dockerBuild(buildDir, buildTag, d.build.Spec.Source.Secrets)
 
-	timing.RecordNewStep(ctx, buildapi.StageBuild, buildapi.StepDockerBuild, startTime, metav1.Now())
+	timing.RecordNewStep(ctx, buildapiv1.StageBuild, buildapiv1.StepDockerBuild, startTime, metav1.Now())
 
 	if err != nil {
-		d.build.Status.Phase = buildapi.BuildPhaseFailed
-		d.build.Status.Reason = buildapi.StatusReasonDockerBuildFailed
-		d.build.Status.Message = buildapi.StatusMessageDockerBuildFailed
+		d.build.Status.Phase = buildapiv1.BuildPhaseFailed
+		d.build.Status.Reason = buildapiv1.StatusReasonDockerBuildFailed
+		d.build.Status.Message = builderutil.StatusMessageDockerBuildFailed
 		HandleBuildStatusUpdate(d.build, d.client, nil)
 		return err
 	}
 
 	cname := containerName("docker", d.build.Name, d.build.Namespace, "post-commit")
-	startTime = metav1.Now()
-	err = execPostCommitHook(d.dockerClient, d.build.Spec.PostCommit, buildTag, cname)
 
-	timing.RecordNewStep(ctx, buildapi.StagePostCommit, buildapi.StepExecPostCommitHook, startTime, metav1.Now())
+	err = execPostCommitHook(ctx, d.dockerClient, d.build.Spec.PostCommit, buildTag, cname)
 
 	if err != nil {
-		d.build.Status.Phase = buildapi.BuildPhaseFailed
-		d.build.Status.Reason = buildapi.StatusReasonPostCommitHookFailed
-		d.build.Status.Message = buildapi.StatusMessagePostCommitHookFailed
+		d.build.Status.Phase = buildapiv1.BuildPhaseFailed
+		d.build.Status.Reason = buildapiv1.StatusReasonPostCommitHookFailed
+		d.build.Status.Message = builderutil.StatusMessagePostCommitHookFailed
 		HandleBuildStatusUpdate(d.build, d.client, nil)
 		return err
 	}
@@ -174,18 +174,18 @@ func (d *DockerBuilder) Build() error {
 		startTime = metav1.Now()
 		digest, err := pushImage(d.dockerClient, pushTag, pushAuthConfig)
 
-		timing.RecordNewStep(ctx, buildapi.StagePushImage, buildapi.StepPushDockerImage, startTime, metav1.Now())
+		timing.RecordNewStep(ctx, buildapiv1.StagePushImage, buildapiv1.StepPushDockerImage, startTime, metav1.Now())
 
 		if err != nil {
-			d.build.Status.Phase = buildapi.BuildPhaseFailed
-			d.build.Status.Reason = buildapi.StatusReasonPushImageToRegistryFailed
-			d.build.Status.Message = buildapi.StatusMessagePushImageToRegistryFailed
+			d.build.Status.Phase = buildapiv1.BuildPhaseFailed
+			d.build.Status.Reason = buildapiv1.StatusReasonPushImageToRegistryFailed
+			d.build.Status.Message = builderutil.StatusMessagePushImageToRegistryFailed
 			HandleBuildStatusUpdate(d.build, d.client, nil)
 			return reportPushFailure(err, authPresent, pushAuthConfig)
 		}
 
 		if len(digest) > 0 {
-			d.build.Status.Output.To = &buildapi.BuildStatusOutputTo{
+			d.build.Status.Output.To = &buildapiv1.BuildStatusOutputTo{
 				ImageDigest: digest,
 			}
 			HandleBuildStatusUpdate(d.build, d.client, nil)
@@ -198,7 +198,7 @@ func (d *DockerBuilder) Build() error {
 // copySecrets copies all files from the directory where the secret is
 // mounted in the builder pod to a directory where the is the Dockerfile, so
 // users can ADD or COPY the files inside their Dockerfile.
-func (d *DockerBuilder) copySecrets(secrets []buildapi.SecretBuildSource, buildDir string) error {
+func (d *DockerBuilder) copySecrets(secrets []buildapiv1.SecretBuildSource, buildDir string) error {
 	for _, s := range secrets {
 		dstDir := filepath.Join(buildDir, s.DestinationDir)
 		if err := os.MkdirAll(dstDir, 0777); err != nil {
@@ -272,7 +272,7 @@ func (d *DockerBuilder) setupPullSecret() (*docker.AuthConfigurations, error) {
 }
 
 // dockerBuild performs a docker build on the source that has been retrieved
-func (d *DockerBuilder) dockerBuild(dir string, tag string, secrets []buildapi.SecretBuildSource) error {
+func (d *DockerBuilder) dockerBuild(dir string, tag string, secrets []buildapiv1.SecretBuildSource) error {
 	var noCache bool
 	var forcePull bool
 	var buildArgs []docker.BuildArg
@@ -299,16 +299,28 @@ func (d *DockerBuilder) dockerBuild(dir string, tag string, secrets []buildapi.S
 	}
 
 	opts := docker.BuildImageOptions{
-		Name:           tag,
-		RmTmpContainer: true,
-		OutputStream:   os.Stdout,
-		Dockerfile:     dockerfilePath,
-		NoCache:        noCache,
-		Pull:           forcePull,
-		BuildArgs:      buildArgs,
-		NetworkMode:    string(getDockerNetworkMode()),
+		Name:                tag,
+		RmTmpContainer:      true,
+		ForceRmTmpContainer: true,
+		OutputStream:        os.Stdout,
+		Dockerfile:          dockerfilePath,
+		NoCache:             noCache,
+		Pull:                forcePull,
+		BuildArgs:           buildArgs,
 	}
-
+	network, resolvConfHostPath, err := getContainerNetworkConfig()
+	if err != nil {
+		return err
+	}
+	opts.NetworkMode = network
+	if len(resolvConfHostPath) != 0 {
+		cmd := exec.Command("chcon", "system_u:object_r:svirt_sandbox_file_t:s0", "/etc/resolv.conf")
+		err := cmd.Run()
+		if err != nil {
+			return fmt.Errorf("unable to set permissions on /etc/resolv.conf: %v", err)
+		}
+		opts.BuildBinds = fmt.Sprintf("[\"%s:/etc/resolv.conf\"]", resolvConfHostPath)
+	}
 	// Though we are capped on memory and cpu at the cgroup parent level,
 	// some build containers care what their memory limit is so they can
 	// adapt, thus we need to set the memory limit at the container level
@@ -326,9 +338,9 @@ func (d *DockerBuilder) dockerBuild(dir string, tag string, secrets []buildapi.S
 	if s := d.build.Spec.Strategy.DockerStrategy; s != nil {
 		if policy := s.ImageOptimizationPolicy; policy != nil {
 			switch *policy {
-			case buildapi.ImageOptimizationSkipLayers:
+			case buildapiv1.ImageOptimizationSkipLayers:
 				return buildDirectImage(dir, false, &opts)
-			case buildapi.ImageOptimizationSkipLayersAndWarn:
+			case buildapiv1.ImageOptimizationSkipLayersAndWarn:
 				return buildDirectImage(dir, true, &opts)
 			}
 		}
@@ -337,7 +349,7 @@ func (d *DockerBuilder) dockerBuild(dir string, tag string, secrets []buildapi.S
 	return buildImage(d.dockerClient, dir, d.tar, &opts)
 }
 
-func getDockerfilePath(dir string, build *buildapi.Build) string {
+func getDockerfilePath(dir string, build *buildapiv1.Build) string {
 	var contextDirPath string
 	if build.Spec.Strategy.DockerStrategy != nil && len(build.Spec.Source.ContextDir) > 0 {
 		contextDirPath = filepath.Join(dir, build.Spec.Source.ContextDir)
@@ -355,10 +367,10 @@ func getDockerfilePath(dir string, build *buildapi.Build) string {
 }
 func parseDockerfile(dockerfilePath string) (*parser.Node, error) {
 	f, err := os.Open(dockerfilePath)
-	defer f.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 
 	// Parse the Dockerfile.
 	node, err := dockerfile.Parse(f)
@@ -424,7 +436,7 @@ func appendKeyValueInstruction(f func([]dockerfile.KeyValue) (string, error), no
 
 // insertEnvAfterFrom inserts an ENV instruction with the environment variables
 // from env after every FROM instruction in node.
-func insertEnvAfterFrom(node *parser.Node, env []kapi.EnvVar) error {
+func insertEnvAfterFrom(node *parser.Node, env []corev1.EnvVar) error {
 	if node == nil || len(env) == 0 {
 		return nil
 	}

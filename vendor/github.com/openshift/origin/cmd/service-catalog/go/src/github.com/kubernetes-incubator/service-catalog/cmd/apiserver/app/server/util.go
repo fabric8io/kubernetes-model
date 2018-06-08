@@ -19,21 +19,27 @@ package server
 import (
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
+	"github.com/go-openapi/spec"
 	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/admission"
+	admissionmetrics "k8s.io/apiserver/pkg/admission/metrics"
+	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 
+	"github.com/kubernetes-incubator/service-catalog/pkg/api"
 	scadmission "github.com/kubernetes-incubator/service-catalog/pkg/apiserver/admission"
+	"github.com/kubernetes-incubator/service-catalog/pkg/apiserver/authenticator"
 	"github.com/kubernetes-incubator/service-catalog/pkg/client/clientset_generated/internalclientset"
 	informers "github.com/kubernetes-incubator/service-catalog/pkg/client/informers_generated/internalversion"
-	"github.com/kubernetes-incubator/service-catalog/pkg/registry/servicecatalog/server"
+	"github.com/kubernetes-incubator/service-catalog/pkg/openapi"
 	"github.com/kubernetes-incubator/service-catalog/pkg/version"
 )
 
@@ -49,8 +55,8 @@ type serviceCatalogConfig struct {
 	kubeClient kubeclientset.Interface
 }
 
-// buildGenericConfig takes the server options and produces the genericapiserver.Config associated with it
-func buildGenericConfig(s *ServiceCatalogServerOptions) (*genericapiserver.Config, *serviceCatalogConfig, error) {
+// buildGenericConfig takes the server options and produces the genericapiserver.RecommendedConfig associated with it
+func buildGenericConfig(s *ServiceCatalogServerOptions) (*genericapiserver.RecommendedConfig, *serviceCatalogConfig, error) {
 	// check if we are running in standalone mode (for test scenarios)
 	inCluster := !s.StandaloneMode
 	if !inCluster {
@@ -60,31 +66,48 @@ func buildGenericConfig(s *ServiceCatalogServerOptions) (*genericapiserver.Confi
 	if err := s.SecureServingOptions.MaybeDefaultWithSelfSignedCerts(s.GenericServerRunOptions.AdvertiseAddress.String(), nil /*alternateDNS*/, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
 		return nil, nil, err
 	}
-	genericConfig := genericapiserver.NewConfig(server.Codecs)
-	if err := s.GenericServerRunOptions.ApplyTo(genericConfig); err != nil {
+	genericConfig := genericapiserver.NewRecommendedConfig(api.Codecs)
+	if err := s.GenericServerRunOptions.ApplyTo(&genericConfig.Config); err != nil {
 		return nil, nil, err
 	}
-	if err := s.SecureServingOptions.ApplyTo(genericConfig); err != nil {
+	if err := s.SecureServingOptions.ApplyTo(&genericConfig.Config); err != nil {
 		return nil, nil, err
 	}
 	if !s.DisableAuth && inCluster {
-		if err := s.AuthenticationOptions.ApplyTo(genericConfig); err != nil {
+		if err := s.AuthenticationOptions.ApplyTo(&genericConfig.Config); err != nil {
 			return nil, nil, err
 		}
-		if err := s.AuthorizationOptions.ApplyTo(genericConfig); err != nil {
+		if err := s.AuthorizationOptions.ApplyTo(&genericConfig.Config); err != nil {
 			return nil, nil, err
 		}
 	} else {
 		// always warn when auth is disabled, since this should only be used for testing
-		glog.Infof("Authentication and authorization disabled for testing purposes")
+		glog.Warning("Authentication and authorization disabled for testing purposes")
+		genericConfig.Authenticator = &authenticator.AnyUserAuthenticator{}
+		genericConfig.Authorizer = authorizerfactory.NewAlwaysAllowAuthorizer()
 	}
 
-	if err := s.AuditOptions.ApplyTo(genericConfig); err != nil {
+	if err := s.AuditOptions.ApplyTo(&genericConfig.Config); err != nil {
 		return nil, nil, err
 	}
 
-	// TODO: add support for OpenAPI config
-	// see https://github.com/kubernetes-incubator/service-catalog/issues/721
+	if s.ServeOpenAPISpec {
+		genericConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(
+			openapi.GetOpenAPIDefinitions, api.Scheme)
+		if genericConfig.OpenAPIConfig.Info == nil {
+			genericConfig.OpenAPIConfig.Info = &spec.Info{}
+		}
+		if genericConfig.OpenAPIConfig.Info.Version == "" {
+			if genericConfig.Version != nil {
+				genericConfig.OpenAPIConfig.Info.Version = strings.Split(genericConfig.Version.String(), "-")[0]
+			} else {
+				genericConfig.OpenAPIConfig.Info.Version = "unversioned"
+			}
+		}
+	} else {
+		glog.Warning("OpenAPI spec will not be served")
+	}
+
 	genericConfig.SwaggerConfig = genericapiserver.DefaultSwaggerConfig()
 	// TODO: investigate if we need metrics unique to service catalog, but take defaults for now
 	// see https://github.com/kubernetes-incubator/service-catalog/issues/677
@@ -121,6 +144,7 @@ func buildGenericConfig(s *ServiceCatalogServerOptions) (*genericapiserver.Confi
 		}
 
 		kubeSharedInformers := kubeinformers.NewSharedInformerFactory(kubeClient, 10*time.Minute)
+		genericConfig.SharedInformerFactory = kubeSharedInformers
 
 		// TODO: we need upstream to package AlwaysAdmit, or stop defaulting to it!
 		// NOTE: right now, we only run admission controllers when on kube cluster.
@@ -146,11 +170,11 @@ func buildAdmission(s *ServiceCatalogServerOptions,
 	var err error
 
 	pluginInitializer := scadmission.NewPluginInitializer(client, sharedInformers, kubeClient, kubeSharedInformers)
-	admissionConfigProvider, err := admission.ReadAdmissionConfiguration(admissionControlPluginNames, s.AdmissionOptions.ConfigFile)
+	admissionConfigProvider, err := admission.ReadAdmissionConfiguration(admissionControlPluginNames, s.AdmissionOptions.ConfigFile, api.Scheme)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read plugin config: %v", err)
 	}
-	return s.AdmissionOptions.Plugins.NewFromPlugins(admissionControlPluginNames, admissionConfigProvider, pluginInitializer)
+	return s.AdmissionOptions.Plugins.NewFromPlugins(admissionControlPluginNames, admissionConfigProvider, pluginInitializer, admissionmetrics.WithControllerMetrics)
 }
 
 // addPostStartHooks adds the common post start hooks we invoke when using either server storage option.

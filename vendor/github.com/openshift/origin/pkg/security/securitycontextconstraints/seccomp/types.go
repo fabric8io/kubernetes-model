@@ -2,10 +2,10 @@ package seccomp
 
 import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/kubernetes/pkg/api"
+	api "k8s.io/kubernetes/pkg/apis/core"
 )
 
-// RunAsUserStrategy defines the interface for all uid constraint strategies.
+// SeccompStrategy defines the interface for all seccomp constraint strategies.
 type SeccompStrategy interface {
 	// Generate creates the profile based on policy rules.
 	Generate(pod *api.Pod) (string, error)

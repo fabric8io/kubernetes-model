@@ -17,7 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/apis/extensions"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
@@ -25,12 +25,12 @@ import (
 
 	authapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/cmd/util/variable"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 
-	configcmd "github.com/openshift/origin/pkg/config/cmd"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
-	"github.com/openshift/origin/pkg/generate/app"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	configcmd "github.com/openshift/origin/pkg/bulk"
+	"github.com/openshift/origin/pkg/oc/generate/app"
 )
 
 var (
@@ -119,6 +119,7 @@ type RegistryConfig struct {
 
 	ClusterIP string
 
+	Local bool
 	// TODO: accept environment values.
 }
 
@@ -167,7 +168,7 @@ func NewCmdRegistry(f *clientcmd.Factory, parentName, name string, out, errout i
 			}
 			kcmdutil.CheckErr(opts.Complete(f, cmd, out, errout, args))
 			err := opts.RunCmdRegistry()
-			if err == cmdutil.ErrExit {
+			if err == kcmdutil.ErrExit {
 				os.Exit(1)
 			}
 			kcmdutil.CheckErr(err)
@@ -191,6 +192,7 @@ func NewCmdRegistry(f *clientcmd.Factory, parentName, name string, out, errout i
 	cmd.Flags().StringVar(&cfg.FSGroup, "fs-group", "", "Specify fsGroup which is an ID that grants group access to registry block storage")
 	cmd.Flags().BoolVar(&cfg.DaemonSet, "daemonset", cfg.DaemonSet, "If true, use a daemonset instead of a deployment config.")
 	cmd.Flags().BoolVar(&cfg.EnforceQuota, "enforce-quota", cfg.EnforceQuota, "If true, the registry will refuse to write blobs if they exceed quota limits")
+	cmd.Flags().BoolVar(&cfg.Local, "local", cfg.Local, "If true, do not contact the apiserver")
 
 	cfg.Action.BindForOutput(cmd.Flags())
 	cmd.Flags().String("output-version", "", "The preferred API versions of the output objects")
@@ -201,7 +203,7 @@ func NewCmdRegistry(f *clientcmd.Factory, parentName, name string, out, errout i
 // Complete completes any options that are required by validate or run steps.
 func (opts *RegistryOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, out, errout io.Writer, args []string) error {
 	if len(args) > 0 {
-		return kcmdutil.UsageError(cmd, "No arguments are allowed to this command")
+		return kcmdutil.UsageErrorf(cmd, "No arguments are allowed to this command")
 	}
 
 	opts.image = opts.Config.ImageTemplate.ExpandOrDie(opts.Config.Type)
@@ -215,7 +217,7 @@ func (opts *RegistryOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, 
 			return err
 		}
 		if len(remove) > 0 {
-			return kcmdutil.UsageError(cmd, "You may not pass negative labels in %q", opts.Config.Labels)
+			return kcmdutil.UsageErrorf(cmd, "You may not pass negative labels in %q", opts.Config.Labels)
 		}
 		opts.label = valid
 	}
@@ -227,26 +229,26 @@ func (opts *RegistryOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, 
 			return err
 		}
 		if len(remove) > 0 {
-			return kcmdutil.UsageError(cmd, "You may not pass negative labels in selector %q", opts.Config.Selector)
+			return kcmdutil.UsageErrorf(cmd, "You may not pass negative labels in selector %q", opts.Config.Selector)
 		}
 		opts.nodeSelector = valid
 	}
 
 	if len(opts.Config.FSGroup) > 0 {
 		if _, err := strconv.ParseInt(opts.Config.FSGroup, 10, 64); err != nil {
-			return kcmdutil.UsageError(cmd, "invalid group ID %q specified for fsGroup (%v)", opts.Config.FSGroup, err)
+			return kcmdutil.UsageErrorf(cmd, "invalid group ID %q specified for fsGroup (%v)", opts.Config.FSGroup, err)
 		}
 	}
 
 	if len(opts.Config.SupplementalGroups) > 0 {
 		for _, v := range opts.Config.SupplementalGroups {
 			if val, err := strconv.ParseInt(v, 10, 64); err != nil || val == 0 {
-				return kcmdutil.UsageError(cmd, "invalid group ID %q specified for supplemental group (%v)", v, err)
+				return kcmdutil.UsageErrorf(cmd, "invalid group ID %q specified for supplemental group (%v)", v, err)
 			}
 		}
 	}
 	if len(opts.Config.SupplementalGroups) > 0 && len(opts.Config.FSGroup) > 0 {
-		return kcmdutil.UsageError(cmd, "fsGroup and supplemental groups cannot be specified both at the same time")
+		return kcmdutil.UsageErrorf(cmd, "fsGroup and supplemental groups cannot be specified both at the same time")
 	}
 
 	var portsErr error
@@ -259,11 +261,17 @@ func (opts *RegistryOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, 
 		return fmt.Errorf("error getting namespace: %v", nsErr)
 	}
 
-	_, kClient, kClientErr := f.Clients()
-	if kClientErr != nil {
-		return fmt.Errorf("error getting client: %v", kClientErr)
+	if !opts.Config.Local {
+		kClient, kClientErr := f.ClientSet()
+		if kClientErr != nil {
+			return fmt.Errorf("error getting client: %v", kClientErr)
+		}
+		opts.serviceClient = kClient.Core()
 	}
-	opts.serviceClient = kClient.Core()
+
+	if opts.Config.Local && !opts.Config.Action.DryRun {
+		return fmt.Errorf("--local cannot be specified without --dry-run")
+	}
 
 	opts.Config.Action.Bulk.Mapper = clientcmd.ResourceMapper(f)
 	opts.Config.Action.Out, opts.Config.Action.ErrOut = out, errout
@@ -283,19 +291,21 @@ func (opts *RegistryOptions) RunCmdRegistry() error {
 
 	output := opts.Config.Action.ShouldPrint()
 	generate := output
-	service, err := opts.serviceClient.Services(opts.namespace).Get(name, metav1.GetOptions{})
-	if err != nil {
-		if !generate {
-			if !errors.IsNotFound(err) {
-				return fmt.Errorf("can't check for existing docker-registry %q: %v", name, err)
+	if !opts.Config.Local {
+		service, err := opts.serviceClient.Services(opts.namespace).Get(name, metav1.GetOptions{})
+		if err != nil {
+			if !generate {
+				if !errors.IsNotFound(err) {
+					return fmt.Errorf("can't check for existing docker-registry %q: %v", name, err)
+				}
+				if opts.Config.Action.DryRun {
+					return fmt.Errorf("Docker registry %q service does not exist", name)
+				}
+				generate = true
 			}
-			if opts.Config.Action.DryRun {
-				return fmt.Errorf("Docker registry %q service does not exist", name)
-			}
-			generate = true
+		} else {
+			clusterIP = service.Spec.ClusterIP
 		}
-	} else {
-		clusterIP = service.Spec.ClusterIP
 	}
 
 	if !generate {
@@ -420,6 +430,7 @@ func (opts *RegistryOptions) RunCmdRegistry() error {
 				Labels: opts.label,
 			},
 			Spec: extensions.DaemonSetSpec{
+				Selector: &metav1.LabelSelector{MatchLabels: opts.label},
 				Template: kapi.PodTemplateSpec{
 					ObjectMeta: podTemplate.ObjectMeta,
 					Spec:       podTemplate.Spec,
@@ -427,16 +438,16 @@ func (opts *RegistryOptions) RunCmdRegistry() error {
 			},
 		})
 	} else {
-		objects = append(objects, &deployapi.DeploymentConfig{
+		objects = append(objects, &appsapi.DeploymentConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   name,
 				Labels: opts.label,
 			},
-			Spec: deployapi.DeploymentConfigSpec{
+			Spec: appsapi.DeploymentConfigSpec{
 				Replicas: opts.Config.Replicas,
 				Selector: opts.label,
-				Triggers: []deployapi.DeploymentTriggerPolicy{
-					{Type: deployapi.DeploymentTriggerOnConfigChange},
+				Triggers: []appsapi.DeploymentTriggerPolicy{
+					{Type: appsapi.DeploymentTriggerOnConfigChange},
 				},
 				Template: podTemplate,
 			},
@@ -471,7 +482,7 @@ func (opts *RegistryOptions) RunCmdRegistry() error {
 	}
 
 	if errs := opts.Config.Action.WithMessage(fmt.Sprintf("Creating registry %s", opts.Config.Name), "created").Run(list, opts.namespace); len(errs) > 0 {
-		return cmdutil.ErrExit
+		return kcmdutil.ErrExit
 	}
 	return nil
 }

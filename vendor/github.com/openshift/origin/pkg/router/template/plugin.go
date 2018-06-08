@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
@@ -13,10 +14,15 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
 	routeapi "github.com/openshift/origin/pkg/route/apis/route"
 	unidlingapi "github.com/openshift/origin/pkg/unidling/api"
+)
+
+const (
+	// endpointsKeySeparator is used to uniquely generate key/ID for endpoints
+	endpointsKeySeparator = "/"
 )
 
 // TemplatePlugin implements the router.Plugin interface to provide
@@ -137,7 +143,7 @@ func NewTemplatePlugin(cfg TemplatePluginConfig, lookupSvc ServiceLookup) (*Temp
 func (p *TemplatePlugin) HandleEndpoints(eventType watch.EventType, endpoints *kapi.Endpoints) error {
 	key := endpointsKey(endpoints)
 
-	glog.V(4).Infof("Processing %d Endpoints for Name: %v (%v)", len(endpoints.Subsets), endpoints.Name, eventType)
+	glog.V(4).Infof("Processing %d Endpoints for %s/%s (%v)", len(endpoints.Subsets), endpoints.Namespace, endpoints.Name, eventType)
 
 	for i, s := range endpoints.Subsets {
 		glog.V(4).Infof("  Subset %d : %#v", i, s)
@@ -197,14 +203,28 @@ func (p *TemplatePlugin) Commit() error {
 
 // endpointsKey returns the internal router key to use for the given Endpoints.
 func endpointsKey(endpoints *kapi.Endpoints) string {
-	return fmt.Sprintf("%s/%s", endpoints.Namespace, endpoints.Name)
+	return endpointsKeyFromParts(endpoints.Namespace, endpoints.Name)
+}
+
+func endpointsKeyFromParts(namespace, name string) string {
+	return fmt.Sprintf("%s%s%s", namespace, endpointsKeySeparator, name)
+}
+
+func getPartsFromEndpointsKey(key string) (string, string) {
+	tokens := strings.SplitN(key, endpointsKeySeparator, 2)
+	if len(tokens) != 2 {
+		glog.Errorf("Expected separator %q not found in endpoints key %q", endpointsKeySeparator, key)
+	}
+	namespace := tokens[0]
+	name := tokens[1]
+	return namespace, name
 }
 
 // peerServiceKey may be used by the underlying router when handling endpoints to identify
 // endpoints that belong to its peers.  THIS MUST FOLLOW THE KEY STRATEGY OF endpointsKey.  It
 // receives a NamespacedName that is created from the service that is added by the oadm command
 func peerEndpointsKey(namespacedName ktypes.NamespacedName) string {
-	return fmt.Sprintf("%s/%s", namespacedName.Namespace, namespacedName.Name)
+	return endpointsKeyFromParts(namespacedName.Namespace, namespacedName.Name)
 }
 
 // createRouterEndpoints creates openshift router endpoints based on k8s endpoints
@@ -247,7 +267,7 @@ func createRouterEndpoints(endpoints *kapi.Endpoints, excludeUDP bool, lookupSvc
 
 	out := make([]Endpoint, 0, len(endpoints.Subsets)*4)
 
-	// TODO: review me for sanity
+	// Now build the actual endpoints we pass to the template
 	for _, s := range subsets {
 		for _, p := range s.Ports {
 			if excludeUDP && p.Protocol == kapi.ProtocolUDP {

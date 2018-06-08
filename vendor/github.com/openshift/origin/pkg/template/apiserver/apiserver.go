@@ -1,28 +1,26 @@
 package apiserver
 
 import (
+	"sync"
+
 	"k8s.io/apimachinery/pkg/apimachinery/registered"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
-	authorizationinternalversion "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/authorization/internalversion"
+	restclient "k8s.io/client-go/rest"
+	authorizationclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/authorization/internalversion"
 
-	"sync"
-
-	templateapiv1 "github.com/openshift/origin/pkg/template/apis/template/v1"
+	templateapiv1 "github.com/openshift/api/template/v1"
 	brokertemplateinstanceetcd "github.com/openshift/origin/pkg/template/registry/brokertemplateinstance/etcd"
 	templateregistry "github.com/openshift/origin/pkg/template/registry/template"
 	templateetcd "github.com/openshift/origin/pkg/template/registry/template/etcd"
 	templateinstanceetcd "github.com/openshift/origin/pkg/template/registry/templateinstance/etcd"
 )
 
-type TemplateConfig struct {
-	GenericConfig *genericapiserver.Config
-
-	// AuthorizationClient is used to run SAR checks.  It should point to the master.
-	AuthorizationClient authorizationinternalversion.AuthorizationInterface
+type ExtraConfig struct {
+	CoreAPIServerClientConfig *restclient.Config
 
 	// TODO these should all become local eventually
 	Scheme   *runtime.Scheme
@@ -34,30 +32,39 @@ type TemplateConfig struct {
 	v1StorageErr  error
 }
 
+type TemplateConfig struct {
+	GenericConfig *genericapiserver.RecommendedConfig
+	ExtraConfig   ExtraConfig
+}
+
 // TemplateServer contains state for a Kubernetes cluster master/api server.
 type TemplateServer struct {
 	GenericAPIServer *genericapiserver.GenericAPIServer
 }
 
 type completedConfig struct {
-	*TemplateConfig
+	GenericConfig genericapiserver.CompletedConfig
+	ExtraConfig   *ExtraConfig
+}
+
+type CompletedConfig struct {
+	// Embed a private pointer that cannot be instantiated outside of this package.
+	*completedConfig
 }
 
 // Complete fills in any fields not set that are required to have valid data. It's mutating the receiver.
 func (c *TemplateConfig) Complete() completedConfig {
-	c.GenericConfig.Complete()
+	cfg := completedConfig{
+		c.GenericConfig.Complete(),
+		&c.ExtraConfig,
+	}
 
-	return completedConfig{c}
-}
-
-// SkipComplete provides a way to construct a server instance without config completion.
-func (c *TemplateConfig) SkipComplete() completedConfig {
-	return completedConfig{c}
+	return cfg
 }
 
 // New returns a new instance of TemplateServer from the given config.
 func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*TemplateServer, error) {
-	genericServer, err := c.TemplateConfig.GenericConfig.SkipComplete().New("template.openshift.io-apiserver", delegationTarget) // completion is done in Complete, no need for a second time
+	genericServer, err := c.GenericConfig.New("template.openshift.io-apiserver", delegationTarget)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +78,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		return nil, err
 	}
 
-	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(templateapiv1.GroupName, c.Registry, c.Scheme, metav1.ParameterCodec, c.Codecs)
+	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(templateapiv1.GroupName, c.ExtraConfig.Registry, c.ExtraConfig.Scheme, metav1.ParameterCodec, c.ExtraConfig.Codecs)
 	apiGroupInfo.GroupMeta.GroupVersion = templateapiv1.SchemeGroupVersion
 	apiGroupInfo.VersionedResourcesStorageMap[templateapiv1.SchemeGroupVersion.Version] = v1Storage
 	if err := s.GenericAPIServer.InstallAPIGroup(&apiGroupInfo); err != nil {
@@ -81,20 +88,25 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	return s, nil
 }
 
-func (c *TemplateConfig) V1RESTStorage() (map[string]rest.Storage, error) {
-	c.makeV1Storage.Do(func() {
-		c.v1Storage, c.v1StorageErr = c.newV1RESTStorage()
+func (c *completedConfig) V1RESTStorage() (map[string]rest.Storage, error) {
+	c.ExtraConfig.makeV1Storage.Do(func() {
+		c.ExtraConfig.v1Storage, c.ExtraConfig.v1StorageErr = c.newV1RESTStorage()
 	})
 
-	return c.v1Storage, c.v1StorageErr
+	return c.ExtraConfig.v1Storage, c.ExtraConfig.v1StorageErr
 }
 
-func (c *TemplateConfig) newV1RESTStorage() (map[string]rest.Storage, error) {
+func (c *completedConfig) newV1RESTStorage() (map[string]rest.Storage, error) {
+	authorizationClient, err := authorizationclient.NewForConfig(c.ExtraConfig.CoreAPIServerClientConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	templateStorage, err := templateetcd.NewREST(c.GenericConfig.RESTOptionsGetter)
 	if err != nil {
 		return nil, err
 	}
-	templateInstanceStorage, templateInstanceStatusStorage, err := templateinstanceetcd.NewREST(c.GenericConfig.RESTOptionsGetter, c.AuthorizationClient)
+	templateInstanceStorage, templateInstanceStatusStorage, err := templateinstanceetcd.NewREST(c.GenericConfig.RESTOptionsGetter, authorizationClient)
 	if err != nil {
 		return nil, err
 	}

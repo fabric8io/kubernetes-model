@@ -3,14 +3,16 @@ package templateinstance
 import (
 	"errors"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/authentication/user"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/storage/names"
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapihelper "k8s.io/kubernetes/pkg/api/helper"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	"k8s.io/kubernetes/pkg/apis/authorization"
+	kapihelper "k8s.io/kubernetes/pkg/apis/core/helper"
 	authorizationinternalversion "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/authorization/internalversion"
 	rbacregistry "k8s.io/kubernetes/pkg/registry/rbac"
 
@@ -28,7 +30,7 @@ type templateInstanceStrategy struct {
 }
 
 func NewStrategy(authorizationClient authorizationinternalversion.AuthorizationInterface) *templateInstanceStrategy {
-	return &templateInstanceStrategy{kapi.Scheme, names.SimpleNameGenerator, authorizationClient}
+	return &templateInstanceStrategy{legacyscheme.Scheme, names.SimpleNameGenerator, authorizationClient}
 }
 
 // NamespaceScoped is true for templateinstances.
@@ -52,8 +54,9 @@ func (templateInstanceStrategy) Canonicalize(obj runtime.Object) {
 func (templateInstanceStrategy) PrepareForCreate(ctx apirequest.Context, obj runtime.Object) {
 	templateInstance := obj.(*templateapi.TemplateInstance)
 
-	//TODO - when https://github.com/kubernetes-incubator/service-catalog/pull/939 sufficiently progresses, remove the if nil check and always
-	// Clear any user-specified info, then seed it from the context
+	// if request not set, pull from context; note: the requester can be set via the service catalog
+	// propagating the user information via the openservicebroker origination api header on
+	// calls to the TSB endpoints (i.e. the Provision call)
 	if templateInstance.Spec.Requester == nil {
 
 		if user, ok := apirequest.UserFrom(ctx); ok {
@@ -95,8 +98,34 @@ func (s *templateInstanceStrategy) ValidateUpdate(ctx apirequest.Context, obj, o
 		return field.ErrorList{field.InternalError(field.NewPath(""), errors.New("user not found in context"))}
 	}
 
-	templateInstance := obj.(*templateapi.TemplateInstance)
-	oldTemplateInstance := old.(*templateapi.TemplateInstance)
+	// Decode Spec.Template.Objects on both obj and old to Unstructureds.  This
+	// allows detectection of at least some cases where the Objects are
+	// semantically identical, but the serialisations have been jumbled up.  One
+	// place where this happens is in the garbage collector, which uses
+	// Unstructureds via the dynamic client.
+
+	if obj == nil {
+		return field.ErrorList{field.InternalError(field.NewPath(""), errors.New("input object is nil"))}
+	}
+	templateInstanceCopy := obj.DeepCopyObject()
+	templateInstance := templateInstanceCopy.(*templateapi.TemplateInstance)
+
+	errs := runtime.DecodeList(templateInstance.Spec.Template.Objects, unstructured.UnstructuredJSONScheme)
+	if len(errs) != 0 {
+		return field.ErrorList{field.InternalError(field.NewPath(""), kutilerrors.NewAggregate(errs))}
+	}
+
+	if old == nil {
+		return field.ErrorList{field.InternalError(field.NewPath(""), errors.New("input object is nil"))}
+	}
+	oldTemplateInstanceCopy := old.DeepCopyObject()
+	oldTemplateInstance := oldTemplateInstanceCopy.(*templateapi.TemplateInstance)
+
+	errs = runtime.DecodeList(oldTemplateInstance.Spec.Template.Objects, unstructured.UnstructuredJSONScheme)
+	if len(errs) != 0 {
+		return field.ErrorList{field.InternalError(field.NewPath(""), kutilerrors.NewAggregate(errs))}
+	}
+
 	allErrs := validation.ValidateTemplateInstanceUpdate(templateInstance, oldTemplateInstance)
 	allErrs = append(allErrs, s.validateImpersonationUpdate(templateInstance, oldTemplateInstance, user)...)
 
@@ -136,7 +165,7 @@ type statusStrategy struct {
 	names.NameGenerator
 }
 
-var StatusStrategy = statusStrategy{kapi.Scheme, names.SimpleNameGenerator}
+var StatusStrategy = statusStrategy{legacyscheme.Scheme, names.SimpleNameGenerator}
 
 func (statusStrategy) NamespaceScoped() bool {
 	return true

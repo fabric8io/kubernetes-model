@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	informers "k8s.io/client-go/informers/core/v1"
+	kcoreclient "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/v1"
-	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/clientset/typed/core/v1"
-	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/externalversions/core/v1"
 
 	"github.com/golang/glog"
 	"github.com/openshift/origin/pkg/security"
@@ -157,14 +156,10 @@ func (c *NamespaceSecurityDefaultsController) allocate(ns *v1.Namespace) error {
 		return nil
 	}
 
-	obj, err := kapi.Scheme.Copy(ns)
-	if err != nil {
-		return err
-	}
-	ns = obj.(*v1.Namespace)
+	nsCopy := ns.DeepCopy()
 
-	if ns.Annotations == nil {
-		ns.Annotations = make(map[string]string)
+	if nsCopy.Annotations == nil {
+		nsCopy.Annotations = make(map[string]string)
 	}
 
 	// do uid allocation
@@ -174,15 +169,15 @@ func (c *NamespaceSecurityDefaultsController) allocate(ns *v1.Namespace) error {
 	}
 	tx.Add(func() error { return c.uidAllocator.Release(block) })
 
-	ns.Annotations[security.UIDRangeAnnotation] = block.String()
-	ns.Annotations[security.SupplementalGroupsAnnotation] = block.String()
-	if _, ok := ns.Annotations[security.MCSAnnotation]; !ok {
+	nsCopy.Annotations[security.UIDRangeAnnotation] = block.String()
+	nsCopy.Annotations[security.SupplementalGroupsAnnotation] = block.String()
+	if _, ok := nsCopy.Annotations[security.MCSAnnotation]; !ok {
 		if label := c.mcsAllocator(block); label != nil {
-			ns.Annotations[security.MCSAnnotation] = label.String()
+			nsCopy.Annotations[security.MCSAnnotation] = label.String()
 		}
 	}
 
-	_, err = c.client.Update(ns)
+	_, err = c.client.Update(nsCopy)
 	if err == nil {
 		tx.Commit()
 	}

@@ -12,30 +12,34 @@ import (
 	"github.com/spf13/cobra"
 
 	kapierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	restclient "k8s.io/client-go/rest"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kclient "k8s.io/kubernetes/pkg/client/unversioned"
 	kcmd "k8s.io/kubernetes/pkg/kubectl/cmd"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
+	"k8s.io/kubernetes/pkg/kubectl/util/term"
 	"k8s.io/kubernetes/pkg/util/interrupt"
-	"k8s.io/kubernetes/pkg/util/term"
 
-	"github.com/openshift/origin/pkg/client"
-	cmdutil "github.com/openshift/origin/pkg/cmd/util"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
-	generateapp "github.com/openshift/origin/pkg/generate/app"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	appsclient "github.com/openshift/origin/pkg/apps/generated/internalclientset/typed/apps/internalversion"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset/typed/image/internalversion"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
+	generateapp "github.com/openshift/origin/pkg/oc/generate/app"
+	utilenv "github.com/openshift/origin/pkg/oc/util/env"
 )
 
 type DebugOptions struct {
 	Attach kcmd.AttachOptions
-	Client *client.Client
+
+	AppsClient  appsclient.AppsInterface
+	ImageClient imageclient.ImageInterface
 
 	Print         func(pod *kapi.Pod, w io.Writer) error
 	LogsForObject func(object, options runtime.Object, timeout time.Duration) (*restclient.Request, error)
@@ -174,16 +178,16 @@ func (o *DebugOptions) Complete(cmd *cobra.Command, f *clientcmd.Factory, args [
 		o.Command = args[i:]
 		args = args[:i]
 	}
-	resources, envArgs, ok := cmdutil.SplitEnvironmentFromResources(args)
+	resources, envArgs, ok := utilenv.SplitEnvironmentFromResources(args)
 	if !ok {
-		return kcmdutil.UsageError(cmd, "all resources must be specified before environment changes: %s", strings.Join(args, " "))
+		return kcmdutil.UsageErrorf(cmd, "all resources must be specified before environment changes: %s", strings.Join(args, " "))
 	}
 
 	switch {
 	case o.ForceTTY && o.NoStdin:
-		return kcmdutil.UsageError(cmd, "you may not specify -I and -t together")
+		return kcmdutil.UsageErrorf(cmd, "you may not specify -I and -t together")
 	case o.ForceTTY && o.DisableTTY:
-		return kcmdutil.UsageError(cmd, "you may not specify -t and -T together")
+		return kcmdutil.UsageErrorf(cmd, "you may not specify -t and -T together")
 	case o.ForceTTY:
 		o.Attach.TTY = true
 	// since ForceTTY is defaulted to false, check if user specifically passed in "=false" flag
@@ -218,7 +222,8 @@ func (o *DebugOptions) Complete(cmd *cobra.Command, f *clientcmd.Factory, args [
 	}
 
 	mapper, _ := f.Object()
-	b := f.NewBuilder(true).
+	b := f.NewBuilder().
+		Internal().
 		NamespaceParam(cmdNamespace).DefaultNamespace().
 		SingleResourceType().
 		ResourceNames("pods", resources...).
@@ -227,7 +232,7 @@ func (o *DebugOptions) Complete(cmd *cobra.Command, f *clientcmd.Factory, args [
 		b.FilenameParam(explicit, &resource.FilenameOptions{Recursive: false, Filenames: []string{o.Filename}})
 	}
 
-	o.AddEnv, o.RemoveEnv, err = cmdutil.ParseEnv(envArgs, nil)
+	o.AddEnv, o.RemoveEnv, err = utilenv.ParseEnv(envArgs, nil)
 	if err != nil {
 		return err
 	}
@@ -258,6 +263,17 @@ func (o *DebugOptions) Complete(cmd *cobra.Command, f *clientcmd.Factory, args [
 	o.AsNonRoot = !o.AsRoot && cmd.Flag("as-root").Changed
 
 	if len(o.Attach.ContainerName) == 0 && len(pod.Spec.Containers) > 0 {
+		fullCmdName := ""
+		cmdParent := cmd.Parent()
+		if cmdParent != nil {
+			fullCmdName = cmdParent.CommandPath()
+		}
+
+		if len(fullCmdName) > 0 && kcmdutil.IsSiblingCommandExists(cmd, "describe") {
+			fmt.Fprintf(o.Attach.Err, "Defaulting container name to %s.\n", pod.Spec.Containers[0].Name)
+			fmt.Fprintf(o.Attach.Err, "Use '%s describe pod/%s -n %s' to see all of the containers in this pod.\n", fullCmdName, pod.Name, pod.Namespace)
+		}
+
 		glog.V(4).Infof("Defaulting container name to %s", pod.Spec.Containers[0].Name)
 		o.Attach.ContainerName = pod.Spec.Containers[0].Name
 	}
@@ -278,12 +294,23 @@ func (o *DebugOptions) Complete(cmd *cobra.Command, f *clientcmd.Factory, args [
 	}
 	o.Attach.Config = config
 
-	oc, kc, err := f.Clients()
+	kc, err := f.ClientSet()
 	if err != nil {
 		return err
 	}
 	o.Attach.PodClient = kc.Core()
-	o.Client = oc
+
+	appsClient, err := f.OpenshiftInternalAppsClient()
+	if err != nil {
+		return err
+	}
+	o.AppsClient = appsClient.Apps()
+
+	imageClient, err := f.OpenshiftInternalImageClient()
+	if err != nil {
+		return err
+	}
+	o.ImageClient = imageClient.Image()
 	return nil
 }
 func (o DebugOptions) Validate() error {
@@ -400,18 +427,18 @@ func (o *DebugOptions) getContainerImageViaDeploymentConfig(pod *kapi.Pod, conta
 		return nil, nil // ID is needed for later lookup
 	}
 
-	dcname := pod.Annotations[deployapi.DeploymentConfigAnnotation]
+	dcname := pod.Annotations[appsapi.DeploymentConfigAnnotation]
 	if dcname == "" {
 		return nil, nil // Pod doesn't appear to have been created by a DeploymentConfig
 	}
 
-	dc, err := o.Client.DeploymentConfigs(o.Attach.Pod.Namespace).Get(dcname, metav1.GetOptions{})
+	dc, err := o.AppsClient.DeploymentConfigs(o.Attach.Pod.Namespace).Get(dcname, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 
 	for _, trigger := range dc.Spec.Triggers {
-		if trigger.Type == deployapi.DeploymentTriggerOnImageChange &&
+		if trigger.Type == appsapi.DeploymentTriggerOnImageChange &&
 			trigger.ImageChangeParams != nil &&
 			trigger.ImageChangeParams.From.Kind == "ImageStreamTag" {
 
@@ -425,7 +452,7 @@ func (o *DebugOptions) getContainerImageViaDeploymentConfig(pod *kapi.Pod, conta
 				namespace = o.Attach.Pod.Namespace
 			}
 
-			isi, err := o.Client.ImageStreamImages(namespace).Get(isname, ref.ID)
+			isi, err := o.ImageClient.ImageStreamImages(namespace).Get(imageapi.JoinImageStreamImage(isname, ref.ID), metav1.GetOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -459,7 +486,7 @@ func (o *DebugOptions) getContainerImageViaImageStreamImport(container *kapi.Con
 		},
 	}
 
-	isi, err := o.Client.ImageStreams(o.Attach.Pod.Namespace).Import(isi)
+	isi, err := o.ImageClient.ImageStreamImports(o.Attach.Pod.Namespace).Create(isi)
 	if err != nil {
 		return nil, err
 	}
@@ -586,6 +613,9 @@ func (o *DebugOptions) transformPodForDebug(annotations map[string]string) (*kap
 	pod.UID = ""
 	pod.CreationTimestamp = metav1.Time{}
 	pod.SelfLink = ""
+
+	// clear pod ownerRefs
+	pod.ObjectMeta.OwnerReferences = []v1.OwnerReference{}
 
 	return pod, originalCommand
 }

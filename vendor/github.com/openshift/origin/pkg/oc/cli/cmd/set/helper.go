@@ -9,7 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 )
@@ -141,7 +142,9 @@ func CalculatePatches(infos []*resource.Info, encoder runtime.Encoder, mutateFn 
 	var patches []*Patch
 	for _, info := range infos {
 		patch := &Patch{Info: info}
-		patch.Before, patch.Err = runtime.Encode(encoder, info.Object)
+
+		versionedEncoder := legacyscheme.Codecs.EncoderForVersion(encoder, patch.Info.Mapping.GroupVersionKind.GroupVersion())
+		patch.Before, patch.Err = runtime.Encode(versionedEncoder, info.Object)
 
 		ok, err := mutateFn(info)
 		if !ok {
@@ -155,7 +158,7 @@ func CalculatePatches(infos []*resource.Info, encoder runtime.Encoder, mutateFn 
 			continue
 		}
 
-		patch.After, patch.Err = runtime.Encode(encoder, info.Object)
+		patch.After, patch.Err = runtime.Encode(versionedEncoder, info.Object)
 		if patch.Err != nil {
 			continue
 		}

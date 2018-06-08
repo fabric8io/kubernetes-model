@@ -10,14 +10,13 @@ import (
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kclientset "k8s.io/client-go/kubernetes"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 
 	oapi "github.com/openshift/origin/pkg/api"
 	projectapi "github.com/openshift/origin/pkg/project/apis/project"
 	exutil "github.com/openshift/origin/test/extended/util"
-	testutil "github.com/openshift/origin/test/util"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 )
 
 const deploymentRunTimeout = 5 * time.Minute
@@ -59,6 +58,7 @@ var _ = g.Describe("[Feature:Performance][Serial][Slow] Load cluster", func() {
 	g.It("should load the cluster", func() {
 		project := ConfigContext.ClusterLoader.Projects
 		tuningSets := ConfigContext.ClusterLoader.TuningSets
+		sync := ConfigContext.ClusterLoader.Sync
 		if project == nil {
 			e2e.Failf("Invalid config file.\nFile: %v", project)
 		}
@@ -81,36 +81,32 @@ var _ = g.Describe("[Feature:Performance][Serial][Slow] Load cluster", func() {
 				e2e.Logf("%d/%d : Created new namespace: %v", j+1, p.Number, nsName)
 				namespaces = append(namespaces, nsName)
 
-				// Create templates as defined
-				for _, template := range p.Templates {
-					var allArgs []string
-					templateFile := mkPath(template.File)
-					e2e.Logf("We're loading file %v: ", templateFile)
-					templateObj, err := testutil.GetTemplateFixture(templateFile)
-					if err != nil {
-						e2e.Failf("Cant read template config file. Error: %v", err)
-					}
-					allArgs = append(allArgs, templateObj.Name)
-
-					if template.Parameters == (ParameterConfigType{}) {
-						e2e.Logf("Pod environment variables will not be modified.")
-					} else {
-						params := convertVariablesToString(template.Parameters)
-						allArgs = append(allArgs, params...)
-					}
-
-					config, err := oc.AdminClient().Templates(nsName).Create(templateObj)
-					e2e.Logf("Template %v created, config: %+v", templateObj.Name, config)
-
-					err = oc.SetNamespace(nsName).Run("new-app").Args(allArgs...).Execute()
+				// Create config maps
+				if p.Configmaps != nil {
+					// Configmaps defined, create them
+					err := CreateConfigmaps(oc, c, nsName, p.Configmaps)
 					o.Expect(err).NotTo(o.HaveOccurred())
 				}
+
+				// Create secrets
+				if p.Secrets != nil {
+					// Secrets defined, create them
+					err := CreateSecrets(oc, c, nsName, p.Secrets)
+					o.Expect(err).NotTo(o.HaveOccurred())
+				}
+
+				// Create templates as defined
+				for _, template := range p.Templates {
+					err := CreateTemplates(oc, c, nsName, template, tuning)
+					o.Expect(err).NotTo(o.HaveOccurred())
+				}
+
 				// This is too familiar, create pods
 				for _, pod := range p.Pods {
 					// Parse Pod file into struct
 					config := ParsePods(mkPath(pod.File))
 					// Check if environment variables are defined in CL config
-					if pod.Parameters == (ParameterConfigType{}) {
+					if pod.Parameters == nil {
 						e2e.Logf("Pod environment variables will not be modified.")
 					} else {
 						// Override environment variables for Pod using ConfigMap
@@ -122,21 +118,46 @@ var _ = g.Describe("[Feature:Performance][Serial][Slow] Load cluster", func() {
 					}
 					// TODO sjug: pass label via config
 					labels := map[string]string{"purpose": "test"}
-					CreatePods(c, pod.Basename, nsName, labels, config.Spec, pod.Number, tuning)
+					err := CreatePods(c, pod.Basename, nsName, labels, config.Spec, pod.Number, tuning, &pod.Sync)
+					o.Expect(err).NotTo(o.HaveOccurred())
 				}
+			}
+		}
+
+		if sync.Running {
+			timeout, err := time.ParseDuration(sync.Timeout)
+			o.Expect(err).NotTo(o.HaveOccurred())
+			for _, ns := range namespaces {
+				err := SyncRunningPods(c, ns, sync.Selectors, timeout)
+				o.Expect(err).NotTo(o.HaveOccurred())
+			}
+		}
+
+		if sync.Server.Enabled {
+			var podCount PodCount
+			err := Server(&podCount, sync.Server.Port, false)
+			o.Expect(err).NotTo(o.HaveOccurred())
+		}
+
+		if sync.Succeeded {
+			timeout, err := time.ParseDuration(sync.Timeout)
+			o.Expect(err).NotTo(o.HaveOccurred())
+			for _, ns := range namespaces {
+				err := SyncSucceededPods(c, ns, sync.Selectors, timeout)
+				o.Expect(err).NotTo(o.HaveOccurred())
 			}
 		}
 
 		// Wait for builds and deployments to complete
 		for _, ns := range namespaces {
-			buildList, err := oc.Client().Builds(ns).List(metav1.ListOptions{})
+			buildList, err := oc.BuildClient().Build().Builds(ns).List(metav1.ListOptions{})
 			if err != nil {
 				e2e.Logf("Error listing builds: %v", err)
 			}
 			if len(buildList.Items) > 0 {
 				buildName := buildList.Items[0].Name
 				e2e.Logf("Waiting for build: %q", buildName)
-				err = exutil.WaitForABuild(oc.Client().Builds(ns), buildName, nil, nil, nil)
+				err = exutil.WaitForABuild(oc.BuildClient().Build().Builds(ns), buildName, nil, nil, nil)
 				if err != nil {
 					exutil.DumpBuildLogs(buildName, oc)
 				}
@@ -146,7 +167,7 @@ var _ = g.Describe("[Feature:Performance][Serial][Slow] Load cluster", func() {
 				// deploymentName is buildName without the -1 suffix
 				deploymentName := buildName[:len(buildName)-2]
 				e2e.Logf("Waiting for deployment: %q", deploymentName)
-				err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), ns, deploymentName, 1, oc)
+				err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.AppsClient().Apps(), ns, deploymentName, 1, oc)
 				o.Expect(err).NotTo(o.HaveOccurred())
 				e2e.Logf("Deployment %q completed", deploymentName)
 			}
@@ -157,17 +178,6 @@ var _ = g.Describe("[Feature:Performance][Serial][Slow] Load cluster", func() {
 		e2e.Logf("Cluster loading duration: %s", testDuration)
 		err := writeJSONToDisk(TestResult{testDuration}, testResultFile)
 		o.Expect(err).NotTo(o.HaveOccurred())
-
-		// Wait for pods to be running
-		//for _, ns := range namespaces {
-		//	label := labels.SelectorFromSet(labels.Set(map[string]string{"purpose": "test"}))
-		//	err := testutils.WaitForPodsWithLabelRunning(c, ns, label)
-		//	if err != nil {
-		//		e2e.Failf("Got %v when trying to wait for the pods to start", err)
-		//	}
-		//	o.Expect(err).NotTo(o.HaveOccurred())
-		//	e2e.Logf("All pods running in namespace %s.", ns)
-		//}
 
 		// If config context set to cleanup on completion
 		if ConfigContext.ClusterLoader.Cleanup == true {

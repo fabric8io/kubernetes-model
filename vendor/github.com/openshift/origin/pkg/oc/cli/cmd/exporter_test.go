@@ -6,10 +6,10 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
-	deploytest "github.com/openshift/origin/pkg/deploy/apis/apps/test"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	appstest "github.com/openshift/origin/pkg/apps/apis/apps/test"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	osautil "github.com/openshift/origin/pkg/serviceaccounts/util"
 )
@@ -29,14 +29,14 @@ func TestExport(t *testing.T) {
 	}{
 		{
 			name:   "export deploymentConfig",
-			object: deploytest.OkDeploymentConfig(1),
-			expectedObj: &deployapi.DeploymentConfig{
+			object: appstest.OkDeploymentConfig(1),
+			expectedObj: &appsapi.DeploymentConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       "config",
 					Generation: 1,
 				},
-				Spec:   deploytest.OkDeploymentConfigSpec(),
-				Status: deployapi.DeploymentConfigStatus{},
+				Spec:   appstest.OkDeploymentConfigSpec(),
+				Status: appsapi.DeploymentConfigStatus{},
 			},
 			expectedErr: nil,
 		},

@@ -4,14 +4,12 @@ import (
 	"github.com/golang/glog"
 	gonum "github.com/gonum/graph"
 
-	"github.com/docker/distribution/digest"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
-	kapi "k8s.io/kubernetes/pkg/api"
-
-	"github.com/openshift/origin/pkg/api/graph"
-	kubegraph "github.com/openshift/origin/pkg/api/kubegraph/nodes"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
-	imagegraph "github.com/openshift/origin/pkg/image/graph/nodes"
+	"github.com/openshift/origin/pkg/oc/graph/genericgraph"
+	imagegraph "github.com/openshift/origin/pkg/oc/graph/imagegraph/nodes"
+	kubegraph "github.com/openshift/origin/pkg/oc/graph/kubegraph/nodes"
 )
 
 const (
@@ -22,6 +20,8 @@ const (
 	PodImageEdgeKind                 = "PodImage"
 	ParentImageEdgeKind              = "ParentImage"
 
+	// digestSha256EmptyTar is the canonical sha256 digest of empty data
+	digestSHA256EmptyTar = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 	// digest.DigestSha256EmptyTar is empty layer digest, whereas this is gzipped digest of empty layer
 	digestSHA256GzippedEmptyTar = "sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4"
 )
@@ -36,7 +36,7 @@ func getImageNodes(nodes []gonum.Node) []*imagegraph.ImageNode {
 	return ret
 }
 
-func addImagesToGraph(g graph.Graph, images *imageapi.ImageList) {
+func addImagesToGraph(g genericgraph.Graph, images *imageapi.ImageList) {
 	for i := range images.Items {
 		image := &images.Items[i]
 
@@ -53,7 +53,7 @@ func addImagesToGraph(g graph.Graph, images *imageapi.ImageList) {
 			layer := image.DockerImageLayers[i]
 			layerNode := imagegraph.EnsureImageComponentLayerNode(g, layer.Name)
 			edgeKind := ImageLayerEdgeKind
-			if !topLayerAdded && layer.Name != digest.DigestSha256EmptyTar && layer.Name != digestSHA256GzippedEmptyTar {
+			if !topLayerAdded && layer.Name != digestSHA256EmptyTar && layer.Name != digestSHA256GzippedEmptyTar {
 				edgeKind = ImageTopLayerEdgeKind
 				topLayerAdded = true
 			}
@@ -63,7 +63,7 @@ func addImagesToGraph(g graph.Graph, images *imageapi.ImageList) {
 	}
 }
 
-func addImageStreamsToGraph(g graph.Graph, streams *imageapi.ImageStreamList) {
+func addImageStreamsToGraph(g genericgraph.Graph, streams *imageapi.ImageStreamList) {
 	for i := range streams.Items {
 		stream := &streams.Items[i]
 		glog.V(4).Infof("Adding ImageStream %s/%s to graph", stream.Namespace, stream.Name)
@@ -74,16 +74,15 @@ func addImageStreamsToGraph(g graph.Graph, streams *imageapi.ImageStreamList) {
 		for tag, history := range stream.Status.Tags {
 			for i := range history.Items {
 				image := history.Items[i]
-				n := imagegraph.FindImage(g, image.Image)
-				if n == nil {
+				imageNode := imagegraph.FindImage(g, image.Image)
+				if imageNode == nil {
 					glog.V(2).Infof("Unable to find image %q in graph (from tag=%q, dockerImageReference=%s)",
 						history.Items[i].Image, tag, image.DockerImageReference)
 					continue
 				}
-				imageNode := n.(*imagegraph.ImageNode)
 				glog.V(4).Infof("Adding edge from %q to %q", imageStreamNode.UniqueName(), imageNode.UniqueName())
 				edgeKind := ImageStreamImageEdgeKind
-				if i > 1 {
+				if i > 0 {
 					edgeKind = HistoricImageStreamImageEdgeKind
 				}
 				g.AddEdge(imageStreamNode, imageNode, edgeKind)
@@ -92,7 +91,7 @@ func addImageStreamsToGraph(g graph.Graph, streams *imageapi.ImageStreamList) {
 	}
 }
 
-func addPodsToGraph(g graph.Graph, pods *kapi.PodList) {
+func addPodsToGraph(g genericgraph.Graph, pods *kapi.PodList) {
 	for i := range pods.Items {
 		pod := &pods.Items[i]
 		if pod.Status.Phase != kapi.PodRunning && pod.Status.Phase != kapi.PodPending {
@@ -106,7 +105,7 @@ func addPodsToGraph(g graph.Graph, pods *kapi.PodList) {
 	}
 }
 
-func addPodSpecToGraph(g graph.Graph, spec *kapi.PodSpec, predecessor gonum.Node) {
+func addPodSpecToGraph(g genericgraph.Graph, spec *kapi.PodSpec, predecessor gonum.Node) {
 	for j := range spec.Containers {
 		container := spec.Containers[j]
 
@@ -133,7 +132,7 @@ func addPodSpecToGraph(g graph.Graph, spec *kapi.PodSpec, predecessor gonum.Node
 	}
 }
 
-func markParentsInGraph(g graph.Graph) {
+func markParentsInGraph(g genericgraph.Graph) {
 	imageNodes := getImageNodes(g.Nodes())
 	for _, in := range imageNodes {
 		// find image's top layer, should be just one

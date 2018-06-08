@@ -13,11 +13,13 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubernetes/pkg/apis/core/install"
 	"k8s.io/kubernetes/pkg/controller"
 
+	templateapiv1 "github.com/openshift/api/template/v1"
+	templateclientset "github.com/openshift/client-go/template/clientset/versioned"
+	templateinformer "github.com/openshift/client-go/template/informers/externalversions"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
-	templateinformer "github.com/openshift/origin/pkg/template/generated/informers/internalversion"
-	templateinternalclientset "github.com/openshift/origin/pkg/template/generated/internalclientset"
 	templateservicebroker "github.com/openshift/origin/pkg/templateservicebroker/servicebroker"
 )
 
@@ -43,10 +45,22 @@ var (
 	}
 )
 
-type TemplateServiceBrokerConfig struct {
-	GenericConfig *genericapiserver.Config
+func init() {
+	install.Install(groupFactoryRegistry, registry, Scheme)
 
+	// we need to add the options to empty v1
+	metav1.AddToGroupVersion(Scheme, schema.GroupVersion{Group: "", Version: "v1"})
+
+	Scheme.AddUnversionedTypes(unversionedVersion, unversionedTypes...)
+}
+
+type ExtraConfig struct {
 	TemplateNamespaces []string
+}
+
+type TemplateServiceBrokerConfig struct {
+	GenericConfig *genericapiserver.RecommendedConfig
+	ExtraConfig   ExtraConfig
 }
 
 type TemplateServiceBrokerServer struct {
@@ -54,23 +68,22 @@ type TemplateServiceBrokerServer struct {
 }
 
 type completedTemplateServiceBrokerConfig struct {
-	*TemplateServiceBrokerConfig
+	GenericConfig genericapiserver.CompletedConfig
+	ExtraConfig   *ExtraConfig
 }
 
 // Complete fills in any fields not set that are required to have valid data. It's mutating the receiver.
 func (c *TemplateServiceBrokerConfig) Complete() completedTemplateServiceBrokerConfig {
-	c.GenericConfig.Complete()
+	cfg := completedTemplateServiceBrokerConfig{
+		c.GenericConfig.Complete(),
+		&c.ExtraConfig,
+	}
 
-	return completedTemplateServiceBrokerConfig{c}
-}
-
-// SkipComplete provides a way to construct a server instance without config completion.
-func (c *TemplateServiceBrokerConfig) SkipComplete() completedTemplateServiceBrokerConfig {
-	return completedTemplateServiceBrokerConfig{c}
+	return cfg
 }
 
 func (c completedTemplateServiceBrokerConfig) New(delegationTarget genericapiserver.DelegationTarget) (*TemplateServiceBrokerServer, error) {
-	genericServer, err := c.TemplateServiceBrokerConfig.GenericConfig.SkipComplete().New("template-service-broker", delegationTarget) // completion is done in Complete, no need for a second time
+	genericServer, err := c.GenericConfig.New("template-service-broker", delegationTarget)
 	if err != nil {
 		return nil, err
 	}
@@ -83,21 +96,21 @@ func (c completedTemplateServiceBrokerConfig) New(delegationTarget genericapiser
 	if err != nil {
 		return nil, err
 	}
-	templateClient, err := templateinternalclientset.NewForConfig(clientConfig)
+	templateClient, err := templateclientset.NewForConfig(clientConfig)
 	if err != nil {
 		return nil, err
 	}
 	templateInformers := templateinformer.NewSharedInformerFactory(templateClient, 5*time.Minute)
-	templateInformers.Template().InternalVersion().Templates().Informer().AddIndexers(cache.Indexers{
+	templateInformers.Template().V1().Templates().Informer().AddIndexers(cache.Indexers{
 		templateapi.TemplateUIDIndex: func(obj interface{}) ([]string, error) {
-			return []string{string(obj.(*templateapi.Template).UID)}, nil
+			return []string{string(obj.(*templateapiv1.Template).UID)}, nil
 		},
 	})
 
 	broker, err := templateservicebroker.NewBroker(
 		clientConfig,
-		templateInformers.Template().InternalVersion().Templates(),
-		c.TemplateNamespaces,
+		templateInformers.Template().V1().Templates(),
+		c.ExtraConfig.TemplateNamespaces,
 	)
 	if err != nil {
 		return nil, err
@@ -105,7 +118,7 @@ func (c completedTemplateServiceBrokerConfig) New(delegationTarget genericapiser
 
 	if err := s.GenericAPIServer.AddPostStartHook("template-service-broker-synctemplates", func(context genericapiserver.PostStartHookContext) error {
 		templateInformers.Start(context.StopCh)
-		if !controller.WaitForCacheSync("tsb", context.StopCh, templateInformers.Template().InternalVersion().Templates().Informer().HasSynced) {
+		if !controller.WaitForCacheSync("tsb", context.StopCh, templateInformers.Template().V1().Templates().Informer().HasSynced) {
 			return fmt.Errorf("unable to sync caches")
 		}
 		return nil

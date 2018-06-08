@@ -21,28 +21,31 @@ import (
 	"testing"
 	"time"
 
-	cadvisorapiv2 "github.com/google/cadvisor/info/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/record"
-	cadvisortest "k8s.io/kubernetes/pkg/kubelet/cadvisor/testing"
+	statsapi "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 	"k8s.io/kubernetes/pkg/kubelet/container"
 	containertest "k8s.io/kubernetes/pkg/kubelet/container/testing"
+	statstest "k8s.io/kubernetes/pkg/kubelet/server/stats/testing"
 )
 
 var zero time.Time
+var sandboxImage = "gcr.io/google_containers/pause-amd64:latest"
 
-func newRealImageGCManager(policy ImageGCPolicy) (*realImageGCManager, *containertest.FakeRuntime, *cadvisortest.Mock) {
+func newRealImageGCManager(policy ImageGCPolicy) (*realImageGCManager, *containertest.FakeRuntime, *statstest.StatsProvider) {
 	fakeRuntime := &containertest.FakeRuntime{}
-	mockCadvisor := new(cadvisortest.Mock)
+	mockStatsProvider := new(statstest.StatsProvider)
 	return &realImageGCManager{
-		runtime:      fakeRuntime,
-		policy:       policy,
-		imageRecords: make(map[string]*imageRecord),
-		cadvisor:     mockCadvisor,
-		recorder:     &record.FakeRecorder{},
-	}, fakeRuntime, mockCadvisor
+		runtime:       fakeRuntime,
+		policy:        policy,
+		imageRecords:  make(map[string]*imageRecord),
+		statsProvider: mockStatsProvider,
+		recorder:      &record.FakeRecorder{},
+		sandboxImage:  sandboxImage,
+	}, fakeRuntime, mockStatsProvider
 }
 
 // Accessors used for thread-safe testing.
@@ -173,6 +176,21 @@ func TestDetectImagesWithNewImage(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(detectedTime, newContainer.firstDetected)
 	assert.Equal(zero, noContainer.lastUsed)
+}
+
+func TestDeleteUnusedImagesExemptSandboxImage(t *testing.T) {
+	manager, fakeRuntime, _ := newRealImageGCManager(ImageGCPolicy{})
+	fakeRuntime.ImageList = []container.Image{
+		{
+			ID:   sandboxImage,
+			Size: 1024,
+		},
+	}
+
+	spaceFreed, err := manager.DeleteUnusedImages()
+	assert := assert.New(t)
+	require.NoError(t, err)
+	assert.EqualValues(0, spaceFreed)
 }
 
 func TestDetectImagesContainerStopped(t *testing.T) {
@@ -356,12 +374,12 @@ func TestGarbageCollectBelowLowThreshold(t *testing.T) {
 		HighThresholdPercent: 90,
 		LowThresholdPercent:  80,
 	}
-	manager, _, mockCadvisor := newRealImageGCManager(policy)
+	manager, _, mockStatsProvider := newRealImageGCManager(policy)
 
 	// Expect 40% usage.
-	mockCadvisor.On("ImagesFsInfo").Return(cadvisorapiv2.FsInfo{
-		Available: 600,
-		Capacity:  1000,
+	mockStatsProvider.On("ImageFsStats").Return(&statsapi.FsStats{
+		AvailableBytes: uint64Ptr(600),
+		CapacityBytes:  uint64Ptr(1000),
 	}, nil)
 
 	assert.NoError(t, manager.GarbageCollect())
@@ -372,9 +390,9 @@ func TestGarbageCollectCadvisorFailure(t *testing.T) {
 		HighThresholdPercent: 90,
 		LowThresholdPercent:  80,
 	}
-	manager, _, mockCadvisor := newRealImageGCManager(policy)
+	manager, _, mockStatsProvider := newRealImageGCManager(policy)
 
-	mockCadvisor.On("ImagesFsInfo").Return(cadvisorapiv2.FsInfo{}, fmt.Errorf("error"))
+	mockStatsProvider.On("ImageFsStats").Return(&statsapi.FsStats{}, fmt.Errorf("error"))
 	assert.NotNil(t, manager.GarbageCollect())
 }
 
@@ -383,12 +401,12 @@ func TestGarbageCollectBelowSuccess(t *testing.T) {
 		HighThresholdPercent: 90,
 		LowThresholdPercent:  80,
 	}
-	manager, fakeRuntime, mockCadvisor := newRealImageGCManager(policy)
+	manager, fakeRuntime, mockStatsProvider := newRealImageGCManager(policy)
 
 	// Expect 95% usage and most of it gets freed.
-	mockCadvisor.On("ImagesFsInfo").Return(cadvisorapiv2.FsInfo{
-		Available: 50,
-		Capacity:  1000,
+	mockStatsProvider.On("ImageFsStats").Return(&statsapi.FsStats{
+		AvailableBytes: uint64Ptr(50),
+		CapacityBytes:  uint64Ptr(1000),
 	}, nil)
 	fakeRuntime.ImageList = []container.Image{
 		makeImage(0, 450),
@@ -402,12 +420,12 @@ func TestGarbageCollectNotEnoughFreed(t *testing.T) {
 		HighThresholdPercent: 90,
 		LowThresholdPercent:  80,
 	}
-	manager, fakeRuntime, mockCadvisor := newRealImageGCManager(policy)
+	manager, fakeRuntime, mockStatsProvider := newRealImageGCManager(policy)
 
 	// Expect 95% usage and little of it gets freed.
-	mockCadvisor.On("ImagesFsInfo").Return(cadvisorapiv2.FsInfo{
-		Available: 50,
-		Capacity:  1000,
+	mockStatsProvider.On("ImageFsStats").Return(&statsapi.FsStats{
+		AvailableBytes: uint64Ptr(50),
+		CapacityBytes:  uint64Ptr(1000),
 	}, nil)
 	fakeRuntime.ImageList = []container.Image{
 		makeImage(0, 50),
@@ -423,13 +441,13 @@ func TestGarbageCollectImageNotOldEnough(t *testing.T) {
 		MinAge:               time.Minute * 1,
 	}
 	fakeRuntime := &containertest.FakeRuntime{}
-	mockCadvisor := new(cadvisortest.Mock)
+	mockStatsProvider := new(statstest.StatsProvider)
 	manager := &realImageGCManager{
-		runtime:      fakeRuntime,
-		policy:       policy,
-		imageRecords: make(map[string]*imageRecord),
-		cadvisor:     mockCadvisor,
-		recorder:     &record.FakeRecorder{},
+		runtime:       fakeRuntime,
+		policy:        policy,
+		imageRecords:  make(map[string]*imageRecord),
+		statsProvider: mockStatsProvider,
+		recorder:      &record.FakeRecorder{},
 	}
 
 	fakeRuntime.ImageList = []container.Image{
@@ -516,10 +534,14 @@ func TestValidateImageGCPolicy(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		if _, err := NewImageGCManager(nil, nil, nil, nil, tc.imageGCPolicy); err != nil {
+		if _, err := NewImageGCManager(nil, nil, nil, nil, tc.imageGCPolicy, ""); err != nil {
 			if err.Error() != tc.expectErr {
 				t.Errorf("[%s:]Expected err:%v, but got:%v", tc.name, tc.expectErr, err.Error())
 			}
 		}
 	}
+}
+
+func uint64Ptr(i uint64) *uint64 {
+	return &i
 }

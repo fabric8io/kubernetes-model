@@ -10,12 +10,12 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/docker/distribution/reference"
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
 	"github.com/golang/glog"
 
 	"github.com/openshift/imagebuilder/imageprogress"
-	"github.com/openshift/origin/pkg/bootstrap/docker/dockerhelper"
 	starterrors "github.com/openshift/origin/pkg/oc/bootstrap/docker/errors"
 )
 
@@ -71,7 +71,7 @@ func (h *Helper) InsecureRegistryIsConfigured() (configured bool, hasEntries boo
 	if err != nil {
 		return false, false, err
 	}
-	registryConfig := dockerhelper.NewRegistryConfig(info)
+	registryConfig := NewRegistryConfig(info)
 	if !registryConfig.HasCustomInsecureRegistryCIDRs() {
 		return false, false, nil
 	}
@@ -147,10 +147,26 @@ func (h *Helper) CheckAndPull(image string, out io.Writer) error {
 	if glog.V(5) {
 		outputStream = out
 	}
-	err = h.client.ImagePull(image, types.ImagePullOptions{}, outputStream)
+
+	normalized, err := reference.ParseNormalizedNamed(image)
+	if err != nil {
+		return err
+	}
+
+	err = h.client.ImagePull(normalized.String(), types.ImagePullOptions{}, outputStream)
 	if err != nil {
 		return starterrors.NewError("error pulling Docker image %s", image).WithCause(err)
 	}
+
+	// This is to work around issue https://github.com/docker/engine-api/issues/138
+	// where engine-api/client/ImagePull does not return an error when it should.
+	// which also still seems to exist in https://github.com/moby/moby/blob/master/client/image_pull.go
+	_, _, err = h.client.ImageInspectWithRaw(image, false)
+	if err != nil {
+		glog.V(5).Infof("Image %q not found: %v", image, err)
+		return starterrors.NewError("error pulling Docker image %s", image).WithCause(err)
+	}
+
 	fmt.Fprintf(out, "Image pull complete\n")
 	return nil
 }
@@ -203,7 +219,7 @@ func (h *Helper) HostIP() string {
 
 func (h *Helper) ContainerLog(container string, numLines int) string {
 	outBuf := &bytes.Buffer{}
-	if err := h.client.ContainerLogs(container, types.ContainerLogsOptions{Tail: strconv.Itoa(numLines)}, outBuf, outBuf); err != nil {
+	if err := h.client.ContainerLogs(container, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true, Tail: strconv.Itoa(numLines)}, outBuf, outBuf); err != nil {
 		glog.V(2).Infof("Error getting container %q log: %v", container, err)
 	}
 	return outBuf.String()

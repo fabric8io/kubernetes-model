@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/json"
 	"fmt"
@@ -17,15 +18,19 @@ import (
 	"github.com/docker/distribution/reference"
 	"github.com/fsouza/go-dockerclient"
 
+	s2igit "github.com/openshift/source-to-image/pkg/scm/git"
 	"github.com/openshift/source-to-image/pkg/util"
 
-	buildapi "github.com/openshift/origin/pkg/build/apis/build"
+	buildapiv1 "github.com/openshift/api/build/v1"
+	"github.com/openshift/origin/pkg/build/builder/timing"
+	builderutil "github.com/openshift/origin/pkg/build/builder/util"
+	"github.com/openshift/origin/pkg/build/builder/util/dockerfile"
 	buildutil "github.com/openshift/origin/pkg/build/util"
-	"github.com/openshift/origin/pkg/build/util/dockerfile"
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/generate/git"
+	"github.com/openshift/origin/pkg/git"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	utilglog "github.com/openshift/origin/pkg/util/glog"
+
+	buildclientv1 "github.com/openshift/client-go/build/clientset/versioned/typed/build/v1"
 )
 
 // glog is a placeholder until the builders pass an output stream down
@@ -58,7 +63,7 @@ type GitClient interface {
 
 // buildInfo returns a slice of KeyValue pairs with build metadata to be
 // inserted into Docker images produced by build.
-func buildInfo(build *buildapi.Build, sourceInfo *git.SourceInfo) []KeyValue {
+func buildInfo(build *buildapiv1.Build, sourceInfo *git.SourceInfo) []KeyValue {
 	kv := []KeyValue{
 		{"OPENSHIFT_BUILD_NAME", build.Name},
 		{"OPENSHIFT_BUILD_NAMESPACE", build.Namespace},
@@ -88,7 +93,7 @@ func buildInfo(build *buildapi.Build, sourceInfo *git.SourceInfo) []KeyValue {
 // that the built image can be referred to unambiguously even in the face of
 // concurrent builds with the same name in the same namespace.
 func randomBuildTag(namespace, name string) string {
-	repo := fmt.Sprintf("%s/%s", namespace, name)
+	repo := fmt.Sprintf("docker.io/%s/%s", namespace, name)
 	randomTag := fmt.Sprintf("%08x", rand.Uint32())
 	maxRepoLen := reference.NameTotalLengthMax - len(randomTag) - 1
 	if len(repo) > maxRepoLen {
@@ -114,7 +119,7 @@ func containerName(strategyName, buildName, namespace, containerPurpose string) 
 // postCommitSpec in a new ephemeral Docker container running the given image.
 // It returns an error if the hook cannot be run or returns a non-zero exit
 // code.
-func execPostCommitHook(client DockerClient, postCommitSpec buildapi.BuildPostCommitSpec, image, containerName string) error {
+func execPostCommitHook(ctx context.Context, client DockerClient, postCommitSpec buildapiv1.BuildPostCommitSpec, image, containerName string) error {
 	command := postCommitSpec.Command
 	args := postCommitSpec.Args
 	script := postCommitSpec.Script
@@ -143,8 +148,9 @@ func execPostCommitHook(client DockerClient, postCommitSpec buildapi.BuildPostCo
 	if err != nil {
 		return fmt.Errorf("read cgroup parent: %v", err)
 	}
+	startTime := metav1.Now()
 
-	return dockerRun(client, docker.CreateContainerOptions{
+	err = dockerRun(client, docker.CreateContainerOptions{
 		Name: containerName,
 		Config: &docker.Config{
 			Image:      image,
@@ -169,23 +175,26 @@ func execPostCommitHook(client DockerClient, postCommitSpec buildapi.BuildPostCo
 		Stdout:       true,
 		Stderr:       true,
 	})
+	timing.RecordNewStep(ctx, buildapiv1.StagePostCommit, buildapiv1.StepExecPostCommitHook, startTime, metav1.Now())
+
+	return err
 }
 
 // GetSourceRevision returns a SourceRevision object either from the build (if it already had one)
 // or by creating one from the sourceInfo object passed in.
-func GetSourceRevision(build *buildapi.Build, sourceInfo *git.SourceInfo) *buildapi.SourceRevision {
+func GetSourceRevision(build *buildapiv1.Build, sourceInfo *git.SourceInfo) *buildapiv1.SourceRevision {
 	if build.Spec.Revision != nil {
 		return build.Spec.Revision
 	}
-	return &buildapi.SourceRevision{
-		Git: &buildapi.GitSourceRevision{
+	return &buildapiv1.SourceRevision{
+		Git: &buildapiv1.GitSourceRevision{
 			Commit:  sourceInfo.CommitID,
 			Message: sourceInfo.Message,
-			Author: buildapi.SourceControlUser{
+			Author: buildapiv1.SourceControlUser{
 				Name:  sourceInfo.AuthorName,
 				Email: sourceInfo.AuthorEmail,
 			},
-			Committer: buildapi.SourceControlUser{
+			Committer: buildapiv1.SourceControlUser{
 				Name:  sourceInfo.CommitterName,
 				Email: sourceInfo.CommitterEmail,
 			},
@@ -195,8 +204,8 @@ func GetSourceRevision(build *buildapi.Build, sourceInfo *git.SourceInfo) *build
 
 // HandleBuildStatusUpdate handles updating the build status
 // retries occur on update conflict and unreachable api server
-func HandleBuildStatusUpdate(build *buildapi.Build, client client.BuildInterface, sourceRev *buildapi.SourceRevision) {
-	var latestBuild *buildapi.Build
+func HandleBuildStatusUpdate(build *buildapiv1.Build, client buildclientv1.BuildInterface, sourceRev *buildapiv1.SourceRevision) {
+	var latestBuild *buildapiv1.Build
 	var err error
 
 	updateBackoff := wait.Backoff{
@@ -223,9 +232,9 @@ func HandleBuildStatusUpdate(build *buildapi.Build, client client.BuildInterface
 		latestBuild.Status.Reason = build.Status.Reason
 		latestBuild.Status.Message = build.Status.Message
 		latestBuild.Status.Output.To = build.Status.Output.To
-		latestBuild.Status.Stages = buildapi.AppendStageAndStepInfo(latestBuild.Status.Stages, build.Status.Stages)
+		latestBuild.Status.Stages = timing.AppendStageAndStepInfo(latestBuild.Status.Stages, build.Status.Stages)
 
-		_, err = client.UpdateDetails(latestBuild)
+		_, err = client.UpdateDetails(latestBuild.Name, latestBuild)
 
 		switch {
 		case err == nil:
@@ -247,7 +256,7 @@ func HandleBuildStatusUpdate(build *buildapi.Build, client client.BuildInterface
 
 // buildEnv converts the buildInfo output to a format that appendEnv can
 // consume.
-func buildEnv(build *buildapi.Build, sourceInfo *git.SourceInfo) []dockerfile.KeyValue {
+func buildEnv(build *buildapiv1.Build, sourceInfo *git.SourceInfo) []dockerfile.KeyValue {
 	bi := buildInfo(build, sourceInfo)
 	kv := make([]dockerfile.KeyValue, len(bi))
 	for i, item := range bi {
@@ -256,9 +265,25 @@ func buildEnv(build *buildapi.Build, sourceInfo *git.SourceInfo) []dockerfile.Ke
 	return kv
 }
 
+// TODO: remove this shim (required to adapt vendored types)
+func toS2ISourceInfo(sourceInfo *git.SourceInfo) *s2igit.SourceInfo {
+	return &s2igit.SourceInfo{
+		Ref:            sourceInfo.Ref,
+		CommitID:       sourceInfo.CommitID,
+		Date:           sourceInfo.Date,
+		AuthorName:     sourceInfo.AuthorName,
+		AuthorEmail:    sourceInfo.AuthorEmail,
+		CommitterName:  sourceInfo.CommitterName,
+		CommitterEmail: sourceInfo.CommitterEmail,
+		Message:        sourceInfo.Message,
+		Location:       sourceInfo.Location,
+		ContextDir:     sourceInfo.ContextDir,
+	}
+}
+
 // buildLabels returns a slice of KeyValue pairs in a format that appendLabel can
 // consume.
-func buildLabels(build *buildapi.Build, sourceInfo *git.SourceInfo) []dockerfile.KeyValue {
+func buildLabels(build *buildapiv1.Build, sourceInfo *git.SourceInfo) []dockerfile.KeyValue {
 	labels := map[string]string{}
 	if sourceInfo == nil {
 		sourceInfo = &git.SourceInfo{}
@@ -266,7 +291,14 @@ func buildLabels(build *buildapi.Build, sourceInfo *git.SourceInfo) []dockerfile
 	if len(build.Spec.Source.ContextDir) > 0 {
 		sourceInfo.ContextDir = build.Spec.Source.ContextDir
 	}
-	labels = util.GenerateLabelsFromSourceInfo(labels, &sourceInfo.SourceInfo, buildapi.DefaultDockerLabelNamespace)
+	labels = util.GenerateLabelsFromSourceInfo(labels, toS2ISourceInfo(sourceInfo), builderutil.DefaultDockerLabelNamespace)
+	if build != nil && build.Spec.Source.Git != nil && build.Spec.Source.Git.Ref != "" {
+		// override the io.openshift.build.commit.ref label to match what we
+		// were originally told to check out, as well as the
+		// OPENSHIFT_BUILD_REFERENCE environment variable.  This can sometimes
+		// differ from git's view (see PotentialPRRetryAsFetch for details).
+		labels[builderutil.DefaultDockerLabelNamespace+"build.commit.ref"] = build.Spec.Source.Git.Ref
+	}
 	addBuildLabels(labels, build)
 
 	kv := make([]dockerfile.KeyValue, 0, len(labels)+len(build.Spec.Output.ImageLabels))
@@ -305,7 +337,7 @@ func readSourceInfo() (*git.SourceInfo, error) {
 // addBuildParameters checks if a Image is set to replace the default base image.
 // If that's the case then change the Dockerfile to make the build with the given image.
 // Also append the environment variables and labels in the Dockerfile.
-func addBuildParameters(dir string, build *buildapi.Build, sourceInfo *git.SourceInfo) error {
+func addBuildParameters(dir string, build *buildapiv1.Build, sourceInfo *git.SourceInfo) error {
 	dockerfilePath := getDockerfilePath(dir, build)
 	node, err := parseDockerfile(dockerfilePath)
 	if err != nil {

@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	restclient "k8s.io/client-go/rest"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 	ctl "k8s.io/kubernetes/pkg/kubectl"
 	kcmd "k8s.io/kubernetes/pkg/kubectl/cmd"
@@ -31,20 +31,24 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
+	configcmd "github.com/openshift/origin/pkg/bulk"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	dockerutil "github.com/openshift/origin/pkg/cmd/util/docker"
-	configcmd "github.com/openshift/origin/pkg/config/cmd"
-	"github.com/openshift/origin/pkg/generate"
-	newapp "github.com/openshift/origin/pkg/generate/app"
-	newcmd "github.com/openshift/origin/pkg/generate/app/cmd"
-	"github.com/openshift/origin/pkg/generate/git"
+	"github.com/openshift/origin/pkg/git"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/generate"
+	newapp "github.com/openshift/origin/pkg/oc/generate/app"
+	newcmd "github.com/openshift/origin/pkg/oc/generate/cmd"
+	dockerutil "github.com/openshift/origin/pkg/oc/util/docker"
+	routeapi "github.com/openshift/origin/pkg/route/apis/route"
 	"github.com/openshift/origin/pkg/util"
 )
 
 // NewAppRecommendedCommandName is the recommended command name.
 const NewAppRecommendedCommandName = "new-app"
+
+// RoutePollTimoutSeconds sets how long new-app command waits for route host to be prepopulated
+const RoutePollTimeout = 5 * time.Second
 
 var (
 	newAppLong = templates.LongDesc(`
@@ -89,6 +93,9 @@ var (
 
 	  # Create an application from a remote repository and specify a context directory
 	  %[1]s %[2]s https://github.com/youruser/yourgitrepo --context-dir=src/build
+
+	  # Create an application from a remote private repository and specify which existing secret to use
+	  %[1]s %[2]s https://github.com/youruser/yourgitrepo --source-secret=yoursecret
 
 	  # Create an application based on a template file, explicitly setting a parameter value
 	  %[1]s %[2]s --file=./example/myapp/template.json --param=MYSQL_USER=admin
@@ -157,11 +164,18 @@ func (o *ObjectGeneratorOptions) Complete(baseName, commandName string, f *clien
 	if err != nil {
 		return err
 	}
+
 	mapper, typer := f.Object()
+
 	// ignore errors.   We use this to make a best guess at preferred seralizations, but the command might run without a server
 	discoveryClient, _ := f.DiscoveryClient()
 
 	o.Action.Out, o.Action.ErrOut = out, o.ErrOut
+	o.Action.Bulk.DynamicMapper = &resource.Mapper{
+		RESTMapper:   mapper,
+		ObjectTyper:  typer,
+		ClientMapper: resource.ClientMapperFunc(f.UnstructuredClientForMapping),
+	}
 	o.Action.Bulk.Mapper = &resource.Mapper{
 		RESTMapper:   mapper,
 		ObjectTyper:  typer,
@@ -175,7 +189,7 @@ func (o *ObjectGeneratorOptions) Complete(baseName, commandName string, f *clien
 
 	o.Config.DryRun = o.Action.DryRun
 	if o.Action.Output == "wide" {
-		return kcmdutil.UsageError(c, "wide mode is not a compatible output format")
+		return kcmdutil.UsageErrorf(c, "wide mode is not a compatible output format")
 	}
 	o.CommandPath = c.CommandPath()
 	o.BaseName = baseName
@@ -207,7 +221,7 @@ func NewCmdNewApplication(name, baseName string, f *clientcmd.Factory, in io.Rea
 		Run: func(c *cobra.Command, args []string) {
 			kcmdutil.CheckErr(o.Complete(baseName, name, f, c, args, in, out, errout))
 			err := o.RunNewApp()
-			if err == cmdutil.ErrExit {
+			if err == kcmdutil.ErrExit {
 				os.Exit(1)
 			}
 			kcmdutil.CheckErr(err)
@@ -244,6 +258,7 @@ func NewCmdNewApplication(name, baseName string, f *clientcmd.Factory, in io.Rea
 	cmd.Flags().BoolVar(&config.AllowMissingImages, "allow-missing-images", false, "If true, indicates that referenced Docker images that cannot be found locally or in a registry should still be used.")
 	cmd.Flags().BoolVar(&config.AllowMissingImageStreamTags, "allow-missing-imagestream-tags", false, "If true, indicates that image stream tags that don't exist should still be used.")
 	cmd.Flags().BoolVar(&config.AllowSecretUse, "grant-install-rights", false, "If true, a component that requires access to your account may use your token to install software into your project. Only grant images you trust the right to run with your token.")
+	cmd.Flags().StringVar(&config.SourceSecret, "source-secret", "", "The name of an existing secret that should be used for cloning a private git repository.")
 	cmd.Flags().BoolVar(&config.SkipGeneration, "no-install", false, "Do not attempt to run images that describe themselves as being installable")
 
 	o.Action.BindForOutput(cmd.Flags(), "template")
@@ -321,7 +336,7 @@ func (o *NewAppOptions) RunNewApp() error {
 	}
 
 	if errs := o.Action.WithMessage(configcmd.CreateMessage(config.Labels), "created").Run(result.List, result.Namespace); len(errs) > 0 {
-		return cmdutil.ErrExit
+		return kcmdutil.ErrExit
 	}
 
 	if !o.Action.Verbose() || o.Action.DryRun {
@@ -331,6 +346,7 @@ func (o *NewAppOptions) RunNewApp() error {
 	hasMissingRepo := false
 	installing := []*kapi.Pod{}
 	indent := o.Action.DefaultIndent()
+	containsRoute := false
 	for _, item := range result.List.Items {
 		switch t := item.(type) {
 		case *kapi.Pod:
@@ -359,6 +375,27 @@ func (o *NewAppOptions) RunNewApp() error {
 				hasMissingRepo = true
 				fmt.Fprintf(out, "%sWARNING: No Docker registry has been configured with the server. Automatic builds and deployments may not function.\n", indent)
 			}
+		case *routeapi.Route:
+			containsRoute = true
+			if len(t.Spec.Host) > 0 {
+				var route *routeapi.Route
+				//check if route processing was completed and host field is prepopulated by router
+				err := wait.PollImmediate(500*time.Millisecond, RoutePollTimeout, func() (bool, error) {
+					route, err = config.RouteClient.Routes(t.Namespace).Get(t.Name, metav1.GetOptions{})
+					if err != nil {
+						return false, fmt.Errorf("Error while polling route %s", t.Name)
+					}
+					if route.Spec.Host != "" {
+						return true, nil
+					}
+					return false, nil
+				})
+				if err != nil {
+					glog.V(4).Infof("Failed to poll route %s host field: %s", t.Name, err)
+				} else {
+					fmt.Fprintf(out, "%sAccess your application via route '%s' \n", indent, route.Spec.Host)
+				}
+			}
 		}
 	}
 
@@ -371,12 +408,34 @@ func (o *NewAppOptions) RunNewApp() error {
 			fmt.Fprintf(out, "%sTrack installation of %s with '%s logs %s'.\n", indent, installing[i].Name, o.BaseName, installing[i].Name)
 		}
 	case len(result.List.Items) > 0:
+		//if we don't find a route we give a message to expose it
+		if !containsRoute {
+			//we if don't have any routes, but we have services - we suggest commands to expose those
+			svc := getServices(result.List.Items)
+			if len(svc) > 0 {
+				fmt.Fprintf(out, "%sApplication is not exposed. You can expose services to the outside world by executing one or more of the commands below:\n", indent)
+				for _, s := range svc {
+					fmt.Fprintf(out, "%s '%s %s svc/%s' \n", indent, o.BaseName, ExposeRecommendedName, s.Name)
+				}
+			}
+		}
 		fmt.Fprintf(out, "%sRun '%s %s' to view your app.\n", indent, o.BaseName, StatusRecommendedName)
 	}
 	return nil
 }
 
 type LogsForObjectFunc func(object, options runtime.Object, timeout time.Duration) (*restclient.Request, error)
+
+func getServices(items []runtime.Object) []*kapi.Service {
+	var svc []*kapi.Service
+	for _, i := range items {
+		switch i.(type) {
+		case *kapi.Service:
+			svc = append(svc, i.(*kapi.Service))
+		}
+	}
+	return svc
+}
 
 func followInstallation(config *newcmd.AppConfig, input string, pod *kapi.Pod, logsForObjectFn LogsForObjectFunc) error {
 	fmt.Fprintf(config.Out, "--> Installing ...\n")
@@ -494,6 +553,9 @@ func getDockerClient() (*docker.Client, error) {
 
 func CompleteAppConfig(config *newcmd.AppConfig, f *clientcmd.Factory, c *cobra.Command, args []string) error {
 	mapper, typer := f.Object()
+	if config.Builder == nil {
+		config.Builder = f.NewBuilder()
+	}
 	if config.Mapper == nil {
 		config.Mapper = mapper
 	}
@@ -512,13 +574,26 @@ func CompleteAppConfig(config *newcmd.AppConfig, f *clientcmd.Factory, c *cobra.
 		return err
 	}
 
-	osclient, kclient, err := f.Clients()
+	kclient, err := f.ClientSet()
 	if err != nil {
 		return err
 	}
 	config.KubeClient = kclient
 	dockerClient, _ := getDockerClient()
-	config.SetOpenShiftClient(osclient, namespace, dockerClient)
+
+	imageClient, err := f.OpenshiftInternalImageClient()
+	if err != nil {
+		return err
+	}
+	templateClient, err := f.OpenshiftInternalTemplateClient()
+	if err != nil {
+		return err
+	}
+	routeClient, err := f.OpenshiftInternalRouteClient()
+	if err != nil {
+		return err
+	}
+	config.SetOpenShiftClient(imageClient.Image(), templateClient.Template(), routeClient.Route(), namespace, dockerClient)
 
 	if config.AllowSecretUse {
 		cfg, err := f.ClientConfig()
@@ -530,26 +605,48 @@ func CompleteAppConfig(config *newcmd.AppConfig, f *clientcmd.Factory, c *cobra.
 
 	unknown := config.AddArguments(args)
 	if len(unknown) != 0 {
-		return kcmdutil.UsageError(c, "Did not recognize the following arguments: %v", unknown)
+		buf := &bytes.Buffer{}
+		fmt.Fprintf(buf, "Did not recognize the following arguments: %v\n\n", unknown)
+		for _, argName := range unknown {
+			fmt.Fprintf(buf, "%s:\n", argName)
+			for _, classErr := range config.EnvironmentClassificationErrors {
+				if classErr.Value != nil {
+					fmt.Fprintf(buf, fmt.Sprintf("%s:  %v\n", classErr.Key, classErr.Value))
+				} else {
+					fmt.Fprintf(buf, fmt.Sprintf("%s\n", classErr.Key))
+				}
+			}
+			for _, classErr := range config.SourceClassificationErrors {
+				fmt.Fprintf(buf, fmt.Sprintf("%s:  %v\n", classErr.Key, classErr.Value))
+			}
+			for _, classErr := range config.TemplateClassificationErrors {
+				fmt.Fprintf(buf, fmt.Sprintf("%s:  %v\n", classErr.Key, classErr.Value))
+			}
+			for _, classErr := range config.ComponentClassificationErrors {
+				fmt.Fprintf(buf, fmt.Sprintf("%s:  %v\n", classErr.Key, classErr.Value))
+			}
+			fmt.Fprintln(buf)
+		}
+		return kcmdutil.UsageErrorf(c, heredoc.Docf(buf.String()))
 	}
 
 	if config.AllowMissingImages && config.AsSearch {
-		return kcmdutil.UsageError(c, "--allow-missing-images and --search are mutually exclusive.")
+		return kcmdutil.UsageErrorf(c, "--allow-missing-images and --search are mutually exclusive.")
 	}
 
 	if len(config.SourceImage) != 0 && len(config.SourceImagePath) == 0 {
-		return kcmdutil.UsageError(c, "--source-image-path must be specified when --source-image is specified.")
+		return kcmdutil.UsageErrorf(c, "--source-image-path must be specified when --source-image is specified.")
 	}
 	if len(config.SourceImage) == 0 && len(config.SourceImagePath) != 0 {
-		return kcmdutil.UsageError(c, "--source-image must be specified when --source-image-path is specified.")
+		return kcmdutil.UsageErrorf(c, "--source-image must be specified when --source-image-path is specified.")
 	}
 
 	if config.BinaryBuild && config.Strategy == generate.StrategyPipeline {
-		return kcmdutil.UsageError(c, "specifying binary builds and the pipeline strategy at the same time is not allowed.")
+		return kcmdutil.UsageErrorf(c, "specifying binary builds and the pipeline strategy at the same time is not allowed.")
 	}
 
 	if len(config.BuildArgs) > 0 && config.Strategy != generate.StrategyUnspecified && config.Strategy != generate.StrategyDocker {
-		return kcmdutil.UsageError(c, "Cannot use '--build-arg' without a Docker build")
+		return kcmdutil.UsageErrorf(c, "Cannot use '--build-arg' without a Docker build")
 	}
 	return nil
 }
@@ -576,12 +673,7 @@ func setLabels(labels map[string]string, result *newcmd.AppResult) error {
 
 func hasLabel(labels map[string]string, result *newcmd.AppResult) (bool, error) {
 	for _, obj := range result.List.Items {
-		objCopy, err := kapi.Scheme.DeepCopy(obj)
-		if err != nil {
-			return false, err
-		}
-		err = util.AddObjectLabelsWithFlags(objCopy.(runtime.Object), labels, util.ErrorOnExistingDstKey)
-		if err != nil {
+		if err := util.AddObjectLabelsWithFlags(obj.DeepCopyObject(), labels, util.ErrorOnExistingDstKey); err != nil {
 			return true, nil
 		}
 	}
@@ -631,7 +723,7 @@ func retryBuildConfig(info *resource.Info, err error) runtime.Object {
 	return nil
 }
 
-func handleError(err error, baseName, commandName, commandPath string, config *newcmd.AppConfig, transformError func(err error, baseName, commandName, commandPath string, groups errorGroups)) error {
+func handleError(err error, baseName, commandName, commandPath string, config *newcmd.AppConfig, transformError func(err error, baseName, commandName, commandPath string, groups errorGroups, config *newcmd.AppConfig)) error {
 	if err == nil {
 		return nil
 	}
@@ -641,23 +733,19 @@ func handleError(err error, baseName, commandName, commandPath string, config *n
 	}
 	groups := errorGroups{}
 	for _, err := range errs {
-		transformError(err, baseName, commandName, commandPath, groups)
+		transformError(err, baseName, commandName, commandPath, groups, config)
 	}
 	buf := &bytes.Buffer{}
-	if len(config.ArgumentClassificationErrors) > 0 {
-		fmt.Fprintf(buf, "Errors occurred while determining argument types:\n")
-		for _, classErr := range config.ArgumentClassificationErrors {
-			fmt.Fprintf(buf, fmt.Sprintf("\n%s:  %v\n", classErr.Key, classErr.Value))
-		}
-		fmt.Fprint(buf, "\n")
-		// this print serves as a header for the printing of the errorGroups, but
-		// only print it if we precede with classification errors, to help distinguish
-		// between the two
-		fmt.Fprintln(buf, "Errors occurred during resource creation:")
-	}
 	for _, group := range groups {
 		fmt.Fprint(buf, kcmdutil.MultipleErrors("error: ", group.errs))
+		if len(group.classification) > 0 {
+			fmt.Fprintln(buf)
+		}
+		fmt.Fprintf(buf, group.classification)
 		if len(group.suggestion) > 0 {
+			if len(group.classification) > 0 {
+				fmt.Fprintln(buf)
+			}
 			fmt.Fprintln(buf)
 		}
 		fmt.Fprint(buf, group.suggestion)
@@ -666,20 +754,22 @@ func handleError(err error, baseName, commandName, commandPath string, config *n
 }
 
 type errorGroup struct {
-	errs       []error
-	suggestion string
+	errs           []error
+	suggestion     string
+	classification string
 }
 type errorGroups map[string]errorGroup
 
-func (g errorGroups) Add(group string, suggestion string, err error, errs ...error) {
+func (g errorGroups) Add(group string, suggestion string, classification string, err error, errs ...error) {
 	all := g[group]
 	all.errs = append(all.errs, errs...)
 	all.errs = append(all.errs, err)
 	all.suggestion = suggestion
+	all.classification = classification
 	g[group] = all
 }
 
-func transformRunError(err error, baseName, commandName, commandPath string, groups errorGroups) {
+func transformRunError(err error, baseName, commandName, commandPath string, groups errorGroups, config *newcmd.AppConfig) {
 	switch t := err.(type) {
 	case newcmd.ErrRequiresExplicitAccess:
 		if t.Input.Token != nil && t.Input.Token.ServiceAccount {
@@ -692,6 +782,7 @@ func transformRunError(err error, baseName, commandName, commandPath string, gro
 					You can see more information about the image by adding the --dry-run flag.
 					If you trust the provided image, include the flag --grant-install-rights.`,
 				),
+				"",
 				fmt.Errorf("installing %q requires an 'installer' service account with project editor access", t.Match.Value),
 			)
 		} else {
@@ -704,11 +795,19 @@ func transformRunError(err error, baseName, commandName, commandPath string, gro
 					You can see more information about the image by adding the --dry-run flag.
 					If you trust the provided image, include the flag --grant-install-rights.`,
 				),
+				"",
 				fmt.Errorf("installing %q requires that you grant the image access to run with your credentials", t.Match.Value),
 			)
 		}
 		return
 	case newapp.ErrNoMatch:
+		classification, _ := config.ClassificationWinners[t.Value]
+		if classification.IncludeGitErrors {
+			notGitRepo, ok := config.SourceClassificationErrors[t.Value]
+			if ok {
+				t.Errs = append(t.Errs, notGitRepo.Value)
+			}
+		}
 		groups.Add(
 			"no-matches",
 			heredoc.Docf(`
@@ -724,11 +823,13 @@ func transformRunError(err error, baseName, commandName, commandPath string, gro
 
 				See '%[1]s -h' for examples.`, commandPath,
 			),
+			classification.String(),
 			t,
 			t.Errs...,
 		)
 		return
 	case newapp.ErrMultipleMatches:
+		classification, _ := config.ClassificationWinners[t.Value]
 		buf := &bytes.Buffer{}
 		for i, match := range t.Matches {
 
@@ -742,6 +843,7 @@ func transformRunError(err error, baseName, commandName, commandPath string, gro
 
 						%[2]sTo view a full list of matches, use '%[3]s %[4]s -S %[1]s'`, t.Value, buf.String(), baseName, commandName,
 					),
+					classification.String(),
 					t,
 					t.Errs...,
 				)
@@ -760,11 +862,13 @@ func transformRunError(err error, baseName, commandName, commandPath string, gro
 
 					%[2]s`, t.Value, buf.String(),
 			),
+			classification.String(),
 			t,
 			t.Errs...,
 		)
 		return
 	case newapp.ErrPartialMatch:
+		classification, _ := config.ClassificationWinners[t.Value]
 		buf := &bytes.Buffer{}
 		fmt.Fprintf(buf, "* %s\n", t.Match.Description)
 		fmt.Fprintf(buf, "  Use %[1]s to specify this image or template\n\n", t.Match.Argument)
@@ -776,11 +880,13 @@ func transformRunError(err error, baseName, commandName, commandPath string, gro
 
 					%[2]s`, t.Value, buf.String(),
 			),
+			classification.String(),
 			t,
 			t.Errs...,
 		)
 		return
 	case newapp.ErrNoTagsFound:
+		classification, _ := config.ClassificationWinners[t.Value]
 		buf := &bytes.Buffer{}
 		fmt.Fprintf(buf, "  Use --allow-missing-imagestream-tags to use this image stream\n\n")
 		groups.Add(
@@ -790,6 +896,7 @@ func transformRunError(err error, baseName, commandName, commandPath string, gro
 
 					%[2]s`, t.Match.Name, buf.String(),
 			),
+			classification.String(),
 			t,
 			t.Errs...,
 		)
@@ -798,13 +905,14 @@ func transformRunError(err error, baseName, commandName, commandPath string, gro
 	switch err {
 	case errNoTokenAvailable:
 		// TODO: improve by allowing token generation
-		groups.Add("", "", fmt.Errorf("to install components you must be logged in with an OAuth token (instead of only a certificate)"))
+		groups.Add("", "", "", fmt.Errorf("to install components you must be logged in with an OAuth token (instead of only a certificate)"))
 	case newcmd.ErrNoInputs:
 		// TODO: suggest things to the user
-		groups.Add("", "", usageError(commandPath, newAppNoInput, baseName, commandName))
+		groups.Add("", "", "", usageError(commandPath, newAppNoInput, baseName, commandName))
 	default:
-		groups.Add("", "", err)
+		groups.Add("", "", "", err)
 	}
+	return
 }
 
 func usageError(commandPath, format string, args ...interface{}) error {

@@ -1,10 +1,12 @@
 package image
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,19 +14,18 @@ import (
 	"github.com/containers/image/docker/policyconfiguration"
 	"github.com/containers/image/docker/reference"
 	"github.com/containers/image/signature"
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	imageapi "github.com/openshift/origin/pkg/image/apis/image"
-	imageutil "github.com/openshift/origin/pkg/image/util"
-
 	sigtypes "github.com/containers/image/types"
 	"github.com/spf13/cobra"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclientcmd "k8s.io/client-go/tools/clientcmd"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
+
+	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset/typed/image/internalversion"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 var (
@@ -44,6 +45,9 @@ var (
 	key or invalid expected identity will cause the saved verification status to be removed
 	and the image will become "unverified".
 
+	If this command is outside the cluster, users have to specify the "--registry-url" parameter
+	with the public URL of image registry.
+
 	To remove all verifications, users can use the "--remove-all" flag.
 	`)
 
@@ -55,6 +59,11 @@ var (
 	# Verify the image signature and identity using the local GPG keychain and save the status
 	%[1]s sha256:c841e9b64e4579bd56c794bdd7c36e1c257110fd2404bebbb8b613e4935228c4 \
 			--expected-identity=registry.local:5000/foo/bar:v1 --save
+
+	# Verify the image signature and identity via exposed registry route
+	%[1]s sha256:c841e9b64e4579bd56c794bdd7c36e1c257110fd2404bebbb8b613e4935228c4 \
+			--expected-identity=registry.local:5000/foo/bar:v1 \
+			--registry-url=docker-registry.foo.com
 
 	# Remove all signature verifications from the image
 	%[1]s sha256:c841e9b64e4579bd56c794bdd7c36e1c257110fd2404bebbb8b613e4935228c4 --remove-all
@@ -70,8 +79,11 @@ type VerifyImageSignatureOptions struct {
 	RemoveAll         bool
 	CurrentUser       string
 	CurrentUserToken  string
+	RegistryURL       string
+	Insecure          bool
 
-	Client       client.Interface
+	ImageClient imageclient.ImageInterface
+
 	clientConfig kclientcmd.ClientConfig
 
 	Out    io.Writer
@@ -108,6 +120,8 @@ func NewCmdVerifyImageSignature(name, fullName string, f *clientcmd.Factory, out
 	cmd.Flags().BoolVar(&opts.Save, "save", opts.Save, "If true, the result of the verification will be saved to an image object.")
 	cmd.Flags().BoolVar(&opts.RemoveAll, "remove-all", opts.RemoveAll, "If set, all signature verifications will be removed from the given image.")
 	cmd.Flags().StringVar(&opts.PublicKeyFilename, "public-key", opts.PublicKeyFilename, fmt.Sprintf("A path to a public GPG key to be used for verification. (defaults to %q)", opts.PublicKeyFilename))
+	cmd.Flags().StringVar(&opts.RegistryURL, "registry-url", opts.RegistryURL, "The address to use when contacting the registry, instead of using the internal cluster address. This is useful if you can't resolve or reach the internal registry address.")
+	cmd.Flags().BoolVar(&opts.Insecure, "insecure", opts.Insecure, "If set, use the insecure protocol for registry communication.")
 	return cmd
 }
 
@@ -127,7 +141,7 @@ func (o *VerifyImageSignatureOptions) Validate() error {
 }
 func (o *VerifyImageSignatureOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, args []string, out io.Writer) error {
 	if len(args) != 1 {
-		return kcmdutil.UsageError(cmd, "exactly one image must be specified")
+		return kcmdutil.UsageErrorf(cmd, "exactly one image must be specified")
 	}
 	o.InputImage = args[0]
 	var err error
@@ -137,15 +151,21 @@ func (o *VerifyImageSignatureOptions) Complete(f *clientcmd.Factory, cmd *cobra.
 			return fmt.Errorf("unable to read --public-key: %v", err)
 		}
 	}
-	if o.Client, _, err = f.Clients(); err != nil {
+	imageClient, err := f.OpenshiftInternalImageClient()
+	if err != nil {
+		return err
+	}
+	o.ImageClient = imageClient.Image()
+
+	userClient, err := f.OpenshiftInternalUserClient()
+	if err != nil {
 		return err
 	}
 
 	// We need the current user name so we can record it into an verification condition and
 	// we need a bearer token so we can fetch the manifest from the registry.
 	// TODO: Add support for external registries (currently only integrated registry will
-	// work).
-	if me, err := o.Client.Users().Get("~", metav1.GetOptions{}); err != nil {
+	if me, err := userClient.User().Users().Get("~", metav1.GetOptions{}); err != nil {
 		return err
 	} else {
 		o.CurrentUser = me.Name
@@ -162,7 +182,7 @@ func (o *VerifyImageSignatureOptions) Complete(f *clientcmd.Factory, cmd *cobra.
 }
 
 func (o VerifyImageSignatureOptions) Run() error {
-	img, err := o.Client.Images().Get(o.InputImage, metav1.GetOptions{})
+	img, err := o.ImageClient.Images().Get(o.InputImage, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -220,7 +240,7 @@ func (o VerifyImageSignatureOptions) Run() error {
 	}
 
 	if o.Save || o.RemoveAll {
-		_, err := o.Client.Images().Update(img)
+		_, err := o.ImageClient.Images().Update(img)
 		return err
 	}
 	return nil
@@ -232,7 +252,14 @@ func (o *VerifyImageSignatureOptions) getImageManifest(img *imageapi.Image) ([]b
 	if err != nil {
 		return nil, err
 	}
-	return imageutil.GetImageManifestByIDFromRegistry(parsed.RegistryURL(), parsed.RepositoryName(), img.Name, o.CurrentUser, o.CurrentUserToken)
+	registryURL := parsed.RegistryURL()
+	if len(o.RegistryURL) > 0 {
+		registryURL = &url.URL{Host: o.RegistryURL, Scheme: "https"}
+		if o.Insecure {
+			registryURL.Scheme = ""
+		}
+	}
+	return getImageManifestByIDFromRegistry(registryURL, parsed.RepositoryName(), img.Name, o.CurrentUser, o.CurrentUserToken, o.Insecure)
 }
 
 // verifySignature takes policy, image and the image signature blob and verifies that the
@@ -405,6 +432,6 @@ func (ui *unparsedImage) Manifest() ([]byte, string, error) {
 }
 
 // Signatures is like ImageSource.GetSignatures, but the result is cached; it is OK to call this however often you need.
-func (ui *unparsedImage) Signatures() ([][]byte, error) {
+func (ui *unparsedImage) Signatures(context.Context) ([][]byte, error) {
 	return [][]byte{ui.signature}, nil
 }

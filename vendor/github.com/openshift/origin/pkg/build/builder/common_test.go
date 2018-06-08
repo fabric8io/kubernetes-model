@@ -6,30 +6,30 @@ import (
 	"strings"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapi "k8s.io/kubernetes/pkg/api"
 
-	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	"github.com/openshift/origin/pkg/generate/git"
+	buildapiv1 "github.com/openshift/api/build/v1"
+	"github.com/openshift/origin/pkg/git"
 )
 
 func TestBuildInfo(t *testing.T) {
-	b := &buildapi.Build{
+	b := &buildapiv1.Build{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "sample-app",
 			Namespace: "default",
 		},
-		Spec: buildapi.BuildSpec{
-			CommonSpec: buildapi.CommonSpec{
-				Source: buildapi.BuildSource{
-					Git: &buildapi.GitBuildSource{
+		Spec: buildapiv1.BuildSpec{
+			CommonSpec: buildapiv1.CommonSpec{
+				Source: buildapiv1.BuildSource{
+					Git: &buildapiv1.GitBuildSource{
 						URI: "github.com/openshift/sample-app",
 						Ref: "master",
 					},
 				},
-				Strategy: buildapi.BuildStrategy{
-					SourceStrategy: &buildapi.SourceBuildStrategy{
-						Env: []kapi.EnvVar{
+				Strategy: buildapiv1.BuildStrategy{
+					SourceStrategy: &buildapiv1.SourceBuildStrategy{
+						Env: []corev1.EnvVar{
 							{Name: "RAILS_ENV", Value: "production"},
 						},
 					},
@@ -52,8 +52,8 @@ func TestBuildInfo(t *testing.T) {
 		t.Errorf("buildInfo(%+v) = %+v; want %+v", b, got, want)
 	}
 
-	b.Spec.Revision = &buildapi.SourceRevision{
-		Git: &buildapi.GitSourceRevision{
+	b.Spec.Revision = &buildapiv1.SourceRevision{
+		Git: &buildapiv1.GitSourceRevision{
 			Commit: "1575a90c569a7cc0eea84fbd3304d9df37c9f5ee",
 		},
 	}
@@ -69,7 +69,7 @@ func TestRandomBuildTag(t *testing.T) {
 		namespace, name string
 		want            string
 	}{
-		{"test", "build-1", "test/build-1:f1f85ff5"},
+		{"test", "build-1", "docker.io/test/build-1:f1f85ff5"},
 		// For long build namespace + build name, the returned random build tag
 		// would be longer than the limit of reference.NameTotalLengthMax (255
 		// chars). We do not truncate the repository name because it could create an
@@ -80,7 +80,7 @@ func TestRandomBuildTag(t *testing.T) {
 		{
 			"namespace" + strings.Repeat(".namespace", 20),
 			"name" + strings.Repeat(".name", 20),
-			"47c1d5c686ce4563521c625457e79ca23c07bc27:f1f85ff5",
+			"3250b1b251c90df3963d8faf6525732f56c44f8e:f1f85ff5",
 		},
 	}
 	for _, tt := range tests {

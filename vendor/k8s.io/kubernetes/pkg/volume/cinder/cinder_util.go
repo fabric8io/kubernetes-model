@@ -27,12 +27,12 @@ import (
 	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/kubernetes/pkg/api/v1"
-	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
+	clientset "k8s.io/client-go/kubernetes"
 	kubeletapis "k8s.io/kubernetes/pkg/kubelet/apis"
-	"k8s.io/kubernetes/pkg/util/exec"
 	"k8s.io/kubernetes/pkg/volume"
+	"k8s.io/utils/exec"
 )
 
 type CinderDiskUtil struct{}
@@ -144,7 +144,7 @@ func getZonesFromNodes(kubeClient clientset.Interface) (sets.String, error) {
 	// TODO: caching, currently it is overkill because it calls this function
 	// only when it creates dynamic PV
 	zones := make(sets.String)
-	nodes, err := kubeClient.Core().Nodes().List(metav1.ListOptions{})
+	nodes, err := kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		glog.V(2).Infof("Error listing nodes")
 		return zones, err
@@ -204,7 +204,7 @@ func (util *CinderDiskUtil) CreateVolume(c *cinderVolumeProvisioner) (volumeID s
 		}
 	}
 
-	volumeID, volumeAZ, errr := cloud.CreateVolume(name, volSizeGB, vtype, availability, c.options.CloudTags)
+	volumeID, volumeAZ, IgnoreVolumeAZ, errr := cloud.CreateVolume(name, volSizeGB, vtype, availability, c.options.CloudTags)
 	if errr != nil {
 		glog.V(2).Infof("Error creating cinder volume: %v", errr)
 		return "", 0, nil, "", errr
@@ -213,8 +213,9 @@ func (util *CinderDiskUtil) CreateVolume(c *cinderVolumeProvisioner) (volumeID s
 
 	// these are needed that pod is spawning to same AZ
 	volumeLabels = make(map[string]string)
-	volumeLabels[kubeletapis.LabelZoneFailureDomain] = volumeAZ
-
+	if IgnoreVolumeAZ == false {
+		volumeLabels[kubeletapis.LabelZoneFailureDomain] = volumeAZ
+	}
 	return volumeID, volSizeGB, volumeLabels, fstype, nil
 }
 

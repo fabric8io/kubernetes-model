@@ -19,7 +19,7 @@ function find_tests() {
     local full_test_list=()
     local selected_tests=()
 
-    full_test_list=( $(find "${OS_ROOT}/test/cmd" -name '*.sh' -not -wholename '*images_tests.sh') )
+    full_test_list=( $(find "${OS_ROOT}/test/cmd" -name '*.sh') )
     for test in "${full_test_list[@]}"; do
         if grep -q -E "${test_regex}" <<< "${test}"; then
             selected_tests+=( "${test}" )
@@ -44,11 +44,7 @@ export NETWORK_PLUGIN='redhat/openshift-ovs-multitenant'
 
 os::cleanup::tmpdir
 os::util::environment::setup_all_server_vars
-
-# Allow setting $JUNIT_REPORT to toggle output behavior
-if [[ -n "${JUNIT_REPORT:-}" ]]; then
-  export JUNIT_REPORT_OUTPUT="${LOG_DIR}/raw_test_output.log"
-fi
+os::util::ensure_tmpfs "${ETCD_DATA_DIR}"
 
 echo "Logging to ${LOG_DIR}..."
 
@@ -72,6 +68,8 @@ fi
 
 # profile the web
 export OPENSHIFT_PROFILE="${WEB_PROFILE-}"
+
+export ADDITIONAL_ALLOWED_REGISTRIES=( "172.30.30.30:5000" "myregistry.com" "registry.centos.org" )
 
 os::start::configure_server
 

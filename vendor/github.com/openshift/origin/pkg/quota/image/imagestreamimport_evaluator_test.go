@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kquota "k8s.io/kubernetes/pkg/quota"
 
 	imagetest "github.com/openshift/origin/pkg/image/admission/testutil"
@@ -50,7 +50,7 @@ func TestImageStreamImportEvaluatorUsage(t *testing.T) {
 					From: kapi.ObjectReference{
 						Kind:      "ImageStreamImage",
 						Namespace: "test",
-						Name:      imageapi.MakeImageStreamImageName("someis", imagetest.BaseImageWith1LayerDigest),
+						Name:      imageapi.JoinImageStreamImage("someis", imagetest.BaseImageWith1LayerDigest),
 					},
 				},
 			},

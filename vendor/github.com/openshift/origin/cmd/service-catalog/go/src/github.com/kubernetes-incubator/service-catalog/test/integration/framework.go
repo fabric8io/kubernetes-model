@@ -20,35 +20,33 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"net/http"
 	"testing"
 	"time"
 
+	restfullog "github.com/emicklei/go-restful/log"
 	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	fake "github.com/kubernetes-incubator/service-catalog/pkg/rest/core/fake"
 	restclient "k8s.io/client-go/rest"
 
 	genericserveroptions "k8s.io/apiserver/pkg/server/options"
 
 	"github.com/kubernetes-incubator/service-catalog/cmd/apiserver/app/server"
 	_ "github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog/install"
+	_ "github.com/kubernetes-incubator/service-catalog/pkg/apis/settings/install"
 	servicecatalogclient "github.com/kubernetes-incubator/service-catalog/pkg/client/clientset_generated/clientset"
 	serverstorage "github.com/kubernetes-incubator/service-catalog/pkg/registry/servicecatalog/server"
 	"k8s.io/apimachinery/pkg/runtime"
-	_ "k8s.io/client-go/pkg/api/install"
-	_ "k8s.io/client-go/pkg/apis/extensions/install"
-)
-
-const (
-	globalTPRNamespace = "globalTPRNamespace"
 )
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
+	// silence the go-restful webservices swagger logger
+	restfullog.SetLogger(log.New(ioutil.Discard, "[restful]", log.LstdFlags|log.Lshortfile))
 }
 
 type TestServerConfig struct {
@@ -85,18 +83,11 @@ func withConfigGetFreshApiserverAndClient(
 	secureServingOptions := genericserveroptions.NewSecureServingOptions()
 	// start the server in the background
 	go func() {
-		var tprOptions *server.TPROptions
 		var etcdOptions *server.EtcdOptions
 		if serverstorage.StorageTypeEtcd == serverConfig.storageType {
 			etcdOptions = server.NewEtcdOptions()
 			etcdOptions.StorageConfig.ServerList = serverConfig.etcdServerList
-		} else if serverstorage.StorageTypeTPR == serverConfig.storageType {
-			tprOptions = server.NewTPROptions()
-			tprOptions.RESTClient = fake.NewRESTClient(serverConfig.emptyObjFunc)
-			tprOptions.InstallTPRsFunc = func() error {
-				return nil
-			}
-			tprOptions.GlobalNamespace = globalTPRNamespace
+			etcdOptions.EtcdOptions.StorageConfig.Prefix = fmt.Sprintf("%s-%08X", server.DefaultEtcdPathPrefix, rand.Int31())
 		} else {
 			t.Fatal("no storage type specified")
 		}
@@ -104,21 +95,20 @@ func withConfigGetFreshApiserverAndClient(
 		options := &server.ServiceCatalogServerOptions{
 			StorageTypeString:       serverConfig.storageType.String(),
 			GenericServerRunOptions: genericserveroptions.NewServerRunOptions(),
-			AdmissionOptions: genericserveroptions.NewAdmissionOptions(),
+			AdmissionOptions:        genericserveroptions.NewAdmissionOptions(),
 			SecureServingOptions:    secureServingOptions,
 			EtcdOptions:             etcdOptions,
-			TPROptions:              tprOptions,
 			AuthenticationOptions:   genericserveroptions.NewDelegatingAuthenticationOptions(),
 			AuthorizationOptions:    genericserveroptions.NewDelegatingAuthorizationOptions(),
 			AuditOptions:            genericserveroptions.NewAuditOptions(),
 			DisableAuth:             true,
-			StopCh:                  stopCh,
 			StandaloneMode:          true, // this must be true because we have no kube server for integration.
+			ServeOpenAPISpec:        true,
 		}
 		options.SecureServingOptions.BindPort = securePort
 		options.SecureServingOptions.ServerCert.CertDirectory = certDir
 
-		if err := server.RunServer(options); err != nil {
+		if err := server.RunServer(options, stopCh); err != nil {
 			close(serverFailed)
 			t.Fatalf("Error in bringing up the server: %v", err)
 		}
@@ -144,7 +134,7 @@ func getFreshApiserverAndClient(
 	t *testing.T,
 	storageTypeStr string,
 	newEmptyObj func() runtime.Object,
-) (servicecatalogclient.Interface, func()) {
+) (servicecatalogclient.Interface, *restclient.Config, func()) {
 	var serverStorageType serverstorage.StorageType
 	serverStorageType, err := serverstorage.StorageTypeFromString(storageTypeStr)
 	if nil != err {
@@ -156,8 +146,8 @@ func getFreshApiserverAndClient(
 		storageType:    serverStorageType,
 		emptyObjFunc:   newEmptyObj,
 	}
-	client, _, shutdownFunc := withConfigGetFreshApiserverAndClient(t, serverConfig)
-	return client, shutdownFunc
+	client, clientConfig, shutdownFunc := withConfigGetFreshApiserverAndClient(t, serverConfig)
+	return client, clientConfig, shutdownFunc
 }
 
 func waitForApiserverUp(serverURL string, stopCh <-chan struct{}) error {

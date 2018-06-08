@@ -2,16 +2,17 @@ package defaults
 
 import (
 	"github.com/golang/glog"
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/api/core/v1"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
 	buildadmission "github.com/openshift/origin/pkg/build/admission"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	defaultsapi "github.com/openshift/origin/pkg/build/controller/build/defaults/api"
-	"github.com/openshift/origin/pkg/build/controller/build/defaults/api/validation"
+	defaultsapi "github.com/openshift/origin/pkg/build/controller/build/apis/defaults"
+	"github.com/openshift/origin/pkg/build/controller/build/apis/defaults/validation"
+	"github.com/openshift/origin/pkg/build/controller/build/pluginconfig"
 	"github.com/openshift/origin/pkg/build/util"
 	buildutil "github.com/openshift/origin/pkg/build/util"
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
 )
 
 type BuildDefaults struct {
@@ -19,9 +20,9 @@ type BuildDefaults struct {
 }
 
 // NewBuildDefaults creates a new BuildDefaults that will apply the defaults specified in the plugin config
-func NewBuildDefaults(pluginConfig map[string]configapi.AdmissionPluginConfig) (BuildDefaults, error) {
+func NewBuildDefaults(pluginConfig map[string]*configapi.AdmissionPluginConfig) (BuildDefaults, error) {
 	config := &defaultsapi.BuildDefaultsConfig{}
-	err := buildadmission.ReadPluginConfig(pluginConfig, defaultsapi.BuildDefaultsPlugin, config)
+	err := pluginconfig.ReadPluginConfig(pluginConfig, defaultsapi.BuildDefaultsPlugin, config)
 	if err != nil {
 		return BuildDefaults{}, err
 	}
@@ -45,9 +46,9 @@ func (b BuildDefaults) ApplyDefaults(pod *v1.Pod) error {
 	}
 
 	glog.V(4).Infof("Applying defaults to build %s/%s", build.Namespace, build.Name)
-
 	b.applyBuildDefaults(build)
 
+	glog.V(4).Infof("Applying defaults to pod %s/%s", pod.Namespace, pod.Name)
 	b.applyPodDefaults(pod)
 
 	err = buildadmission.SetPodLogLevelFromBuild(pod, build)
@@ -68,11 +69,13 @@ func (b BuildDefaults) applyPodDefaults(pod *v1.Pod) {
 		}
 	}
 
-	if len(b.config.Annotations) != 0 && pod.Annotations == nil {
-		pod.Annotations = map[string]string{}
-	}
-	for k, v := range b.config.Annotations {
-		addDefaultAnnotations(k, v, pod.Annotations)
+	if len(b.config.Annotations) != 0 {
+		if pod.Annotations == nil {
+			pod.Annotations = map[string]string{}
+		}
+		for k, v := range b.config.Annotations {
+			addDefaultAnnotation(k, v, pod.Annotations)
+		}
 	}
 
 	// Apply default resources
@@ -86,7 +89,7 @@ func (b BuildDefaults) applyPodDefaults(pod *v1.Pod) {
 		}
 		for name, value := range defaultResources.Limits {
 			if _, ok := pod.Spec.Containers[i].Resources.Limits[v1.ResourceName(name)]; !ok {
-				glog.V(5).Infof("Setting default resource limit %s for pod %s/%s to %s", name, pod.Namespace, pod.Name, value)
+				glog.V(5).Infof("Setting default resource limit %s for pod %s/%s to %v", name, pod.Namespace, pod.Name, value)
 				pod.Spec.Containers[i].Resources.Limits[v1.ResourceName(name)] = value
 			}
 		}
@@ -95,7 +98,7 @@ func (b BuildDefaults) applyPodDefaults(pod *v1.Pod) {
 		}
 		for name, value := range defaultResources.Requests {
 			if _, ok := pod.Spec.Containers[i].Resources.Requests[v1.ResourceName(name)]; !ok {
-				glog.V(5).Infof("Setting default resource request %s for pod %s/%s to %s", name, pod.Namespace, pod.Name, value)
+				glog.V(5).Infof("Setting default resource request %s for pod %s/%s to %v", name, pod.Namespace, pod.Name, value)
 				pod.Spec.Containers[i].Resources.Requests[v1.ResourceName(name)] = value
 			}
 		}
@@ -159,7 +162,7 @@ func (b BuildDefaults) applyBuildDefaults(build *buildapi.Build) {
 	}
 	for name, value := range defaultResources.Limits {
 		if _, ok := build.Spec.Resources.Limits[name]; !ok {
-			glog.V(5).Infof("Setting default resource limit %s for build %s/%s to %s", name, build.Namespace, build.Name, value)
+			glog.V(5).Infof("Setting default resource limit %s for build %s/%s to %v", name, build.Namespace, build.Name, value)
 			build.Spec.Resources.Limits[name] = value
 		}
 	}
@@ -168,7 +171,7 @@ func (b BuildDefaults) applyBuildDefaults(build *buildapi.Build) {
 	}
 	for name, value := range defaultResources.Requests {
 		if _, ok := build.Spec.Resources.Requests[name]; !ok {
-			glog.V(5).Infof("Setting default resource request %s for build %s/%s to %s", name, build.Namespace, build.Name, value)
+			glog.V(5).Infof("Setting default resource request %s for build %s/%s to %v", name, build.Namespace, build.Name, value)
 			build.Spec.Resources.Requests[name] = value
 		}
 	}
@@ -187,29 +190,22 @@ func addDefaultEnvVar(build *buildapi.Build, v kapi.EnvVar) {
 }
 
 func addDefaultLabel(defaultLabel buildapi.ImageLabel, buildLabels *[]buildapi.ImageLabel) {
-	found := false
 	for _, lbl := range *buildLabels {
 		if lbl.Name == defaultLabel.Name {
-			found = true
+			return
 		}
 	}
-	if !found {
-		*buildLabels = append(*buildLabels, defaultLabel)
-	}
+	*buildLabels = append(*buildLabels, defaultLabel)
 }
 
-func addDefaultNodeSelector(k, v string, selectors map[string]string) bool {
+func addDefaultNodeSelector(k, v string, selectors map[string]string) {
 	if _, ok := selectors[k]; !ok {
 		selectors[k] = v
-		return true
 	}
-	return false
 }
 
-func addDefaultAnnotations(k, v string, annotations map[string]string) bool {
+func addDefaultAnnotation(k, v string, annotations map[string]string) {
 	if _, ok := annotations[k]; !ok {
 		annotations[k] = v
-		return true
 	}
-	return false
 }

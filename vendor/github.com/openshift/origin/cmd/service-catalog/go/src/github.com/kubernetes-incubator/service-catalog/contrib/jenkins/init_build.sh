@@ -19,9 +19,9 @@ set -o errexit
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 . "${ROOT}/contrib/hack/utilities.sh" || { echo 'Cannot load bash utilities.'; exit 1; }
 
-GO_VERSION='1.8'
-HELM_VERSION='v2.0.0'
-GLIDE_VERSION='v0.12.3'
+GO_VERSION='1.9'
+HELM_VERSION='v2.7.0'
+DEP_VERSION='v0.3.2'
 
 function update-golang() {
   # Check version of golang
@@ -67,35 +67,38 @@ function update-helm() {
   fi
 }
 
+function update-dep() {
+  # Check version of dep
+  local current="$(dep --version 2>/dev/null || echo "unknown")"
 
-function update-glide() {
-  # Check version of glide
-  local current="$(glide --version 2>/dev/null || echo "unknown")"
-
-  # glide version prints its output in the format:
-  #   glide version v0.12.3
+  # dep version prints its output in the format:
+  #   dep:
+  #     version     : v0.3.2
+  #     build date  :
+  #     git hash    :
+  #     go version  : go1.9.2
+  #     go compiler : gc
+  #     platform    : darwin/amd64
   # To isolate the version string, we include the leading space
   # in the comparison, and ommit the trailing wildcard.
-  if [[ "${current}" == *" ${GLIDE_VERSION}" ]]; then
-    echo "Glide is up-to-date: ${current}"
+  if [[ "${current}" == *" ${DEP_VERSION}"* ]]; then
+    echo "dep is up-to-date: ${current}"
   else
-    echo "Upgrading Glide ${current} to ${GLIDE_VERSION}"
+    echo "Upgrading dep ${current} to ${DEP_VERSION}"
 
-    # Install new Glide.
-    local glide_url='https://github.com/Masterminds/glide/releases/download/'
-    glide_url+="${GLIDE_VERSION}/glide-${GLIDE_VERSION}-linux-amd64.tar.gz"
+    # Install new dep.
+    local dep_url='https://github.com/golang/dep/releases/download/'
+    dep_url+="${DEP_VERSION}/dep-linux-amd64"
 
-    curl -sSL "${glide_url}" \
-        | tar -C /usr/local/bin -xz --strip-components=1 linux-amd64/glide \
-      || { echo "Cannot upgrade glide to ${GLIDE_VERSION}"; return 1; }
+    curl -sSL -o /usr/local/bin/dep "${dep_url}" && chmod +x /usr/local/bin/dep \
+      || { echo "Cannot upgrade dep to ${DEP_VERSION}"; return 1; }
   fi
 }
-
 
 function main() {
   update-golang || error_exit 'Failed to update golang'
   update-helm   || error_exit 'Failed to update helm'
-  update-glide  || error_exit 'Failed to update glide'
+  update-dep  || error_exit 'Failed to update dep'
 }
 
 main

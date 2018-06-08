@@ -22,9 +22,10 @@ import (
 	"k8s.io/apimachinery/pkg/apimachinery/announced"
 	"k8s.io/apimachinery/pkg/apimachinery/registered"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	"k8s.io/kubernetes/pkg/apis/batch"
 	"k8s.io/kubernetes/pkg/apis/batch/v1"
+	"k8s.io/kubernetes/pkg/apis/batch/v1beta1"
 	"k8s.io/kubernetes/pkg/apis/batch/v2alpha1"
 
 	// force determinstic ordering when loading these packages
@@ -32,7 +33,7 @@ import (
 )
 
 func init() {
-	Install(api.GroupFactoryRegistry, api.Registry, api.Scheme)
+	Install(legacyscheme.GroupFactoryRegistry, legacyscheme.Registry, legacyscheme.Scheme)
 }
 
 // Install registers the API group and adds types to a scheme
@@ -40,12 +41,12 @@ func Install(groupFactoryRegistry announced.APIGroupFactoryRegistry, registry *r
 	if err := announced.NewGroupMetaFactory(
 		&announced.GroupMetaFactoryArgs{
 			GroupName:                  batch.GroupName,
-			VersionPreferenceOrder:     []string{v1.SchemeGroupVersion.Version, v2alpha1.SchemeGroupVersion.Version},
-			ImportPrefix:               "k8s.io/kubernetes/pkg/apis/batch",
+			VersionPreferenceOrder:     []string{v1.SchemeGroupVersion.Version, v1beta1.SchemeGroupVersion.Version, v2alpha1.SchemeGroupVersion.Version},
 			AddInternalObjectsToScheme: batch.AddToScheme,
 		},
 		announced.VersionToSchemeFunc{
 			v1.SchemeGroupVersion.Version:       v1.AddToScheme,
+			v1beta1.SchemeGroupVersion.Version:  v1beta1.AddToScheme,
 			v2alpha1.SchemeGroupVersion.Version: v2alpha1.AddToScheme,
 		},
 	).Announce(groupFactoryRegistry).RegisterAndEnable(registry, scheme); err != nil {

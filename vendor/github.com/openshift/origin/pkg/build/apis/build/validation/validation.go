@@ -7,18 +7,19 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 
 	kpath "k8s.io/apimachinery/pkg/api/validation/path"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	kvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapihelper "k8s.io/kubernetes/pkg/api/helper"
-	"k8s.io/kubernetes/pkg/api/validation"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
+	kapihelper "k8s.io/kubernetes/pkg/apis/core/helper"
+	"k8s.io/kubernetes/pkg/apis/core/validation"
 
+	buildapiv1 "github.com/openshift/api/build/v1"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	buildapiv1 "github.com/openshift/origin/pkg/build/apis/build/v1"
 	buildutil "github.com/openshift/origin/pkg/build/util"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	imageapivalidation "github.com/openshift/origin/pkg/image/apis/image/validation"
@@ -44,11 +45,7 @@ func ValidateBuildUpdate(build *buildapi.Build, older *buildapi.Build) field.Err
 	}
 
 	// lie about the old build's pushsecret value so we can allow it to be updated.
-	olderCopy, err := buildutil.BuildDeepCopy(older)
-	if err != nil {
-		glog.V(2).Infof("Error copying build for update validation: %v", err)
-		allErrs = append(allErrs, field.InternalError(field.NewPath(""), fmt.Errorf("Unable to copy build for update validation: %v", err)))
-	}
+	olderCopy := older.DeepCopy()
 	olderCopy.Spec.Output.PushSecret = build.Spec.Output.PushSecret
 
 	if !kapihelper.Semantic.DeepEqual(build.Spec, olderCopy.Spec) {
@@ -86,7 +83,7 @@ func ValidateBuildConfig(config *buildapi.BuildConfig) field.ErrorList {
 	fromRefs := map[string]struct{}{}
 	specPath := field.NewPath("spec")
 	triggersPath := specPath.Child("triggers")
-	buildFrom := buildutil.GetInputReference(config.Spec.Strategy)
+	buildFrom := buildapi.GetInputReference(config.Spec.Strategy)
 	for i, trg := range config.Spec.Triggers {
 		allErrs = append(allErrs, validateTrigger(&trg, buildFrom, triggersPath.Index(i))...)
 		if trg.Type != buildapi.ImageChangeBuildTriggerType || trg.ImageChange == nil {
@@ -503,7 +500,6 @@ func validateSourceStrategy(strategy *buildapi.SourceBuildStrategy, fldPath *fie
 	allErrs = append(allErrs, validateImageReference(&strategy.From, fldPath.Child("from"))...)
 	allErrs = append(allErrs, validateSecretRef(strategy.PullSecret, fldPath.Child("pullSecret"))...)
 	allErrs = append(allErrs, ValidateStrategyEnv(strategy.Env, fldPath.Child("env"))...)
-	allErrs = append(allErrs, validateRuntimeImage(strategy, fldPath.Child("runtimeImage"))...)
 	return allErrs
 }
 
@@ -608,8 +604,11 @@ func validateTrigger(trigger *buildapi.BuildTriggerPolicy, buildFrom *kapi.Objec
 
 func validateWebHook(webHook *buildapi.WebHookTrigger, fldPath *field.Path, isGeneric bool) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if len(webHook.Secret) == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("secret"), ""))
+	if len(webHook.Secret) == 0 && webHook.SecretReference == nil {
+		allErrs = append(allErrs, field.Invalid(fldPath, webHook, "must provide a value for at least one of secret or secretReference"))
+	}
+	if webHook.SecretReference != nil && len(webHook.SecretReference.Name) == 0 {
+		allErrs = append(allErrs, field.Required(fldPath.Child("secretReference").Child("name"), ""))
 	}
 	if !isGeneric && webHook.AllowEnv {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("allowEnv"), webHook, "git webhooks cannot allow env vars"))
@@ -662,24 +661,6 @@ func validatePostCommit(spec buildapi.BuildPostCommitSpec, fldPath *field.Path) 
 	return allErrs
 }
 
-// validateRuntimeImage verifies that the runtimeImage field in
-// SourceBuildStrategy is not empty if it was specified and also checks to see
-// if the incremental build flag was specified, which is incompatible since we
-// can't have extended incremental builds.
-func validateRuntimeImage(sourceStrategy *buildapi.SourceBuildStrategy, fldPath *field.Path) (allErrs field.ErrorList) {
-	if sourceStrategy.RuntimeImage == nil {
-		return
-	}
-	if sourceStrategy.RuntimeImage.Name == "" {
-		return append(allErrs, field.Required(fldPath, "name"))
-	}
-
-	if sourceStrategy.Incremental != nil && *sourceStrategy.Incremental {
-		return append(allErrs, field.Invalid(fldPath, sourceStrategy.Incremental, "incremental cannot be set to true with extended builds"))
-	}
-	return
-}
-
 func ValidateImageLabels(labels []buildapi.ImageLabel, fldPath *field.Path) (allErrs field.ErrorList) {
 	for i, lbl := range labels {
 		idxPath := fldPath.Index(i)
@@ -729,7 +710,7 @@ func diffBuildSpec(newer, older buildapi.BuildSpec) (string, error) {
 }
 
 func CreateBuildPatch(older, newer *buildapi.Build) ([]byte, error) {
-	codec := kapi.Codecs.LegacyCodec(buildapiv1.LegacySchemeGroupVersion)
+	codec := legacyscheme.Codecs.LegacyCodec(buildapiv1.LegacySchemeGroupVersion)
 
 	newerJSON, err := runtime.Encode(codec, newer)
 	if err != nil {
@@ -747,8 +728,8 @@ func CreateBuildPatch(older, newer *buildapi.Build) ([]byte, error) {
 }
 
 func ApplyBuildPatch(build *buildapi.Build, patch []byte) (*buildapi.Build, error) {
-	codec := kapi.Codecs.LegacyCodec(buildapiv1.LegacySchemeGroupVersion)
-	versionedBuild, err := kapi.Scheme.ConvertToVersion(build, buildapiv1.SchemeGroupVersion)
+	codec := legacyscheme.Codecs.LegacyCodec(buildapiv1.LegacySchemeGroupVersion)
+	versionedBuild, err := legacyscheme.Scheme.ConvertToVersion(build, buildapiv1.SchemeGroupVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -764,7 +745,7 @@ func ApplyBuildPatch(build *buildapi.Build, patch []byte) (*buildapi.Build, erro
 	if err != nil {
 		return nil, err
 	}
-	patchedBuild, err := kapi.Scheme.ConvertToVersion(patchedVersionedBuild, buildapi.SchemeGroupVersion)
+	patchedBuild, err := legacyscheme.Scheme.ConvertToVersion(patchedVersionedBuild, buildapi.SchemeGroupVersion)
 	if err != nil {
 		return nil, err
 	}

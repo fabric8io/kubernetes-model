@@ -7,15 +7,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/authentication/user"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	genericregistrytest "k8s.io/apiserver/pkg/registry/generic/testing"
+	"k8s.io/apiserver/pkg/registry/rest"
 	etcdtesting "k8s.io/apiserver/pkg/storage/etcd/testing"
-	kapihelper "k8s.io/kubernetes/pkg/api/helper"
+	authorizationapi "k8s.io/kubernetes/pkg/apis/authorization"
+	kapihelper "k8s.io/kubernetes/pkg/apis/core/helper"
 	"k8s.io/kubernetes/pkg/registry/registrytest"
 
 	"github.com/openshift/origin/pkg/api/latest"
-	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/authorization/registry/subjectaccessreview"
-	"github.com/openshift/origin/pkg/image/admission/testutil"
+	admfake "github.com/openshift/origin/pkg/image/admission/fake"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	"github.com/openshift/origin/pkg/image/apis/image/validation/fake"
 	"github.com/openshift/origin/pkg/util/restoptions"
 
 	// install all APIs
@@ -27,8 +29,8 @@ const (
 )
 
 var (
-	testDefaultRegistry = imageapi.DefaultRegistryFunc(func() (string, bool) { return "test", true })
-	noDefaultRegistry   = imageapi.DefaultRegistryFunc(func() (string, bool) { return "", false })
+	testDefaultRegistry = func() (string, bool) { return "test", true }
+	noDefaultRegistry   = func() (string, bool) { return "", false }
 )
 
 type fakeSubjectAccessReviewRegistry struct {
@@ -38,17 +40,25 @@ type fakeSubjectAccessReviewRegistry struct {
 	requestNamespace string
 }
 
-var _ subjectaccessreview.Registry = &fakeSubjectAccessReviewRegistry{}
-
-func (f *fakeSubjectAccessReviewRegistry) CreateSubjectAccessReview(ctx apirequest.Context, subjectAccessReview *authorizationapi.SubjectAccessReview) (*authorizationapi.SubjectAccessReviewResponse, error) {
+func (f *fakeSubjectAccessReviewRegistry) Create(subjectAccessReview *authorizationapi.SubjectAccessReview) (*authorizationapi.SubjectAccessReview, error) {
 	f.request = subjectAccessReview
-	f.requestNamespace = apirequest.NamespaceValue(ctx)
-	return &authorizationapi.SubjectAccessReviewResponse{Allowed: f.allow}, f.err
+	f.requestNamespace = subjectAccessReview.Spec.ResourceAttributes.Namespace
+	return &authorizationapi.SubjectAccessReview{
+		Status: authorizationapi.SubjectAccessReviewStatus{
+			Allowed: f.allow,
+		},
+	}, f.err
 }
 
 func newStorage(t *testing.T) (*REST, *StatusREST, *InternalREST, *etcdtesting.EtcdTestServer) {
 	etcdStorage, server := registrytest.NewEtcdStorage(t, latest.Version.Group)
-	imageStorage, statusStorage, internalStorage, err := NewREST(restoptions.NewSimpleGetter(etcdStorage), noDefaultRegistry, &fakeSubjectAccessReviewRegistry{}, &testutil.FakeImageStreamLimitVerifier{})
+	registry := imageapi.DefaultRegistryHostnameRetriever(noDefaultRegistry, "", "")
+	imageStorage, statusStorage, internalStorage, err := NewREST(
+		restoptions.NewSimpleGetter(etcdStorage),
+		registry,
+		&fakeSubjectAccessReviewRegistry{},
+		&admfake.ImageStreamLimitVerifier{},
+		&fake.RegistryWhitelister{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +75,7 @@ func validImageStream() *imageapi.ImageStream {
 
 func create(t *testing.T, storage *REST, obj *imageapi.ImageStream) *imageapi.ImageStream {
 	ctx := apirequest.WithUser(apirequest.NewDefaultContext(), &fakeUser{})
-	newObj, err := storage.Create(ctx, obj, false)
+	newObj, err := storage.Create(ctx, obj, rest.ValidateAllObjectFunc, false)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -86,7 +96,7 @@ func TestList(t *testing.T) {
 	storage, _, _, server := newStorage(t)
 	defer server.Terminate(t)
 	defer storage.Store.DestroyFunc()
-	test := registrytest.New(t, storage.Store)
+	test := genericregistrytest.New(t, storage.Store)
 	test.TestList(
 		validImageStream(),
 	)

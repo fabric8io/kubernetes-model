@@ -14,9 +14,9 @@ import (
 	"github.com/spf13/cobra"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/client"
+	authorizationtypedclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset/typed/authorization/internalversion"
 	"github.com/openshift/origin/pkg/cmd/templates"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 const PolicyRecommendedName = "policy"
@@ -118,17 +118,19 @@ func getUniqueName(basename string, existingNames *sets.String) string {
 type RoleBindingAccessor interface {
 	GetExistingRoleBindingsForRole(roleNamespace, role string) ([]*authorizationapi.RoleBinding, error)
 	GetExistingRoleBindingNames() (*sets.String, error)
+	GetRoleBinding(name string) (*authorizationapi.RoleBinding, error)
 	UpdateRoleBinding(binding *authorizationapi.RoleBinding) error
 	CreateRoleBinding(binding *authorizationapi.RoleBinding) error
+	DeleteRoleBinding(name string) error
 }
 
 // LocalRoleBindingAccessor operates against role bindings in namespace
 type LocalRoleBindingAccessor struct {
 	BindingNamespace string
-	Client           client.Interface
+	Client           authorizationtypedclient.RoleBindingsGetter
 }
 
-func NewLocalRoleBindingAccessor(bindingNamespace string, client client.Interface) LocalRoleBindingAccessor {
+func NewLocalRoleBindingAccessor(bindingNamespace string, client authorizationtypedclient.RoleBindingsGetter) LocalRoleBindingAccessor {
 	return LocalRoleBindingAccessor{bindingNamespace, client}
 }
 
@@ -165,6 +167,10 @@ func (a LocalRoleBindingAccessor) GetExistingRoleBindingNames() (*sets.String, e
 	return ret, nil
 }
 
+func (a LocalRoleBindingAccessor) GetRoleBinding(name string) (*authorizationapi.RoleBinding, error) {
+	return a.Client.RoleBindings(a.BindingNamespace).Get(name, metav1.GetOptions{})
+}
+
 func (a LocalRoleBindingAccessor) UpdateRoleBinding(binding *authorizationapi.RoleBinding) error {
 	_, err := a.Client.RoleBindings(a.BindingNamespace).Update(binding)
 	return err
@@ -176,12 +182,16 @@ func (a LocalRoleBindingAccessor) CreateRoleBinding(binding *authorizationapi.Ro
 	return err
 }
 
-// ClusterRoleBindingAccessor operates against cluster scoped role bindings
-type ClusterRoleBindingAccessor struct {
-	Client client.Interface
+func (a LocalRoleBindingAccessor) DeleteRoleBinding(name string) error {
+	return a.Client.RoleBindings(a.BindingNamespace).Delete(name, &metav1.DeleteOptions{})
 }
 
-func NewClusterRoleBindingAccessor(client client.Interface) ClusterRoleBindingAccessor {
+// ClusterRoleBindingAccessor operates against cluster scoped role bindings
+type ClusterRoleBindingAccessor struct {
+	Client authorizationtypedclient.ClusterRoleBindingsGetter
+}
+
+func NewClusterRoleBindingAccessor(client authorizationtypedclient.ClusterRoleBindingsGetter) ClusterRoleBindingAccessor {
 	// the master namespace value doesn't matter because we're round tripping all the values, so the namespace gets stripped out
 	return ClusterRoleBindingAccessor{client}
 }
@@ -224,6 +234,15 @@ func (a ClusterRoleBindingAccessor) GetExistingRoleBindingNames() (*sets.String,
 	return ret, nil
 }
 
+func (a ClusterRoleBindingAccessor) GetRoleBinding(name string) (*authorizationapi.RoleBinding, error) {
+	clusterRole, err := a.Client.ClusterRoleBindings().Get(name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	roleBinding := authorizationapi.ToRoleBinding(clusterRole)
+	return roleBinding, nil
+}
+
 func (a ClusterRoleBindingAccessor) UpdateRoleBinding(binding *authorizationapi.RoleBinding) error {
 	clusterBinding := authorizationapi.ToClusterRoleBinding(binding)
 	_, err := a.Client.ClusterRoleBindings().Update(clusterBinding)
@@ -234,4 +253,8 @@ func (a ClusterRoleBindingAccessor) CreateRoleBinding(binding *authorizationapi.
 	clusterBinding := authorizationapi.ToClusterRoleBinding(binding)
 	_, err := a.Client.ClusterRoleBindings().Create(clusterBinding)
 	return err
+}
+
+func (a ClusterRoleBindingAccessor) DeleteRoleBinding(name string) error {
+	return a.Client.ClusterRoleBindings().Delete(name, &metav1.DeleteOptions{})
 }

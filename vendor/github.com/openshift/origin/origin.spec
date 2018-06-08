@@ -10,14 +10,12 @@
 
 # docker_version is the version of docker requires by packages
 %global docker_version 1.12
-# tuned_version is the version of tuned requires by packages
-%global tuned_version  2.3
 # openvswitch_version is the version of openvswitch requires by packages
 %global openvswitch_version 2.6.1
 # this is the version we obsolete up to. The packaging changed for Origin
 # 1.0.6 and OSE 3.1 such that 'openshift' package names were no longer used.
 %global package_refector_version 3.0.2.900
-%global golang_version 1.8.3
+%global golang_version 1.9.1
 # %commit and %os_git_vars are intended to be set by tito custom builders provided
 # in the .tito/lib directory. The values in this spec file will not be kept up to date.
 %{!?commit:
@@ -26,8 +24,24 @@
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 # os_git_vars needed to run hack scripts during rpm builds
 %{!?os_git_vars:
-%global os_git_vars OS_GIT_VERSION='' OS_GIT_COMMIT='' OS_GIT_MAJOR='' OS_GIT_MINOR='' OS_GIT_TREE_STATE=''
+%global os_git_vars OS_GIT_VERSION='' OS_GIT_COMMIT='' OS_GIT_MAJOR='' OS_GIT_MINOR='' OS_GIT_TREE_STATE='' OS_GIT_CATALOG_VERSION=''
 }
+
+%if 0%{?skip_build}
+%global do_build 0
+%else
+%global do_build 1
+%endif
+%if 0%{?skip_prep}
+%global do_prep 0
+%else
+%global do_prep 1
+%endif
+%if 0%{?skip_dist}
+%global package_dist %{nil}
+%else
+%global package_dist %{dist}
+%endif
 
 %if 0%{?fedora} || 0%{?epel}
 %global need_redistributable_set 0
@@ -49,11 +63,12 @@
 %global product_name Origin
 %endif
 
+%{!?version: %global version 0.0.1}
+%{!?release: %global release 1}
+
 Name:           %{package_name}
-# Version is not kept up to date and is intended to be set by tito custom
-# builders provided in the .tito/lib directory of this project
-Version:        0.0.1
-Release:        0%{?dist}
+Version:        %{version}
+Release:        %{release}%{package_dist}
 Summary:        Open Source Container Management by Red Hat
 License:        ASL 2.0
 URL:            https://%{import_path}
@@ -115,26 +130,21 @@ Summary: %{product_name} Test Suite
 Summary:        %{product_name} Node
 Requires:       %{name} = %{version}-%{release}
 Requires:       docker >= %{docker_version}
-Requires:       tuned-profiles-%{name}-node = %{version}-%{release}
 Requires:       util-linux
 Requires:       socat
 Requires:       nfs-utils
+Requires:       cifs-utils
 Requires:       ethtool
 Requires:       device-mapper-persistent-data >= 0.6.2
+Requires:       conntrack-tools
 Requires(post):   systemd
 Requires(preun):  systemd
 Requires(postun): systemd
 Obsoletes:      openshift-node < %{package_refector_version}
+Obsoletes:      tuned-profiles-%{name}-node
+Provides:       tuned-profiles-%{name}-node
 
 %description node
-%{summary}
-
-%package -n tuned-profiles-%{name}-node
-Summary:        Tuned profiles for %{product_name} Node hosts
-Requires:       tuned >= %{tuned_version}
-Obsoletes:      tuned-profiles-openshift-node < %{package_refector_version}
-
-%description -n tuned-profiles-%{name}-node
 %{summary}
 
 %package clients
@@ -155,12 +165,6 @@ BuildRequires:  goversioninfo
 %description clients-redistributable
 %{summary}
 %endif
-
-%package dockerregistry
-Summary:        Docker Registry v2 for %{product_name}
-
-%description dockerregistry
-%{summary}
 
 %package pod
 Summary:        %{product_name} Pod
@@ -193,6 +197,11 @@ Summary:        %{product_name} Service Catalog
 %description service-catalog
 %{summary}
 
+%package template-service-broker
+Summary: Template Service Broker
+%description template-service-broker
+%{summary}
+
 %package cluster-capacity
 Summary:        %{product_name} Cluster Capacity Analysis Tool
 
@@ -222,12 +231,15 @@ of docker.  Exclude those versions of docker.
 %{name}-docker-excluder unexclude - docker packages can be updated
 
 %prep
+%if 0%{do_prep}
 %setup -q
+%endif
 
 %build
+%if 0%{do_build}
 %if 0%{make_redistributable}
 # Create Binaries for all supported arches
-%{os_git_vars} hack/build-cross.sh
+%{os_git_vars} OS_BUILD_RELEASE_ARCHIVES=n make build-cross
 %{os_git_vars} hack/build-go.sh vendor/github.com/onsi/ginkgo/ginkgo
 %{os_git_vars} unset GOPATH; cmd/service-catalog/go/src/github.com/kubernetes-incubator/service-catalog/hack/build-cross.sh
 %{os_git_vars} unset GOPATH; cmd/cluster-capacity/go/src/github.com/kubernetes-incubator/cluster-capacity/hack/build-cross.sh
@@ -248,7 +260,7 @@ of docker.  Exclude those versions of docker.
 %ifarch s390x
   BUILD_PLATFORM="linux/s390x"
 %endif
-OS_ONLY_BUILD_PLATFORMS="${BUILD_PLATFORM}" %{os_git_vars} hack/build-cross.sh
+OS_ONLY_BUILD_PLATFORMS="${BUILD_PLATFORM}" %{os_git_vars} OS_BUILD_RELEASE_ARCHIVES=n make build-cross
 OS_ONLY_BUILD_PLATFORMS="${BUILD_PLATFORM}" %{os_git_vars} hack/build-go.sh vendor/github.com/onsi/ginkgo/ginkgo
 OS_ONLY_BUILD_PLATFORMS="${BUILD_PLATFORM}" %{os_git_vars} unset GOPATH; cmd/service-catalog/go/src/github.com/kubernetes-incubator/service-catalog/hack/build-cross.sh
 OS_ONLY_BUILD_PLATFORMS="${BUILD_PLATFORM}" %{os_git_vars} unset GOPATH; cmd/cluster-capacity/go/src/github.com/kubernetes-incubator/cluster-capacity/hack/build-cross.sh
@@ -256,6 +268,7 @@ OS_ONLY_BUILD_PLATFORMS="${BUILD_PLATFORM}" %{os_git_vars} unset GOPATH; cmd/clu
 
 # Generate man pages
 %{os_git_vars} hack/generate-docs.sh
+%endif
 
 %install
 
@@ -263,7 +276,7 @@ PLATFORM="$(go env GOHOSTOS)/$(go env GOHOSTARCH)"
 install -d %{buildroot}%{_bindir}
 
 # Install linux components
-for bin in oc openshift dockerregistry kubefed
+for bin in oc oadm openshift template-service-broker
 do
   echo "+++ INSTALLING ${bin}"
   install -p -m 755 _output/local/bin/${PLATFORM}/${bin} %{buildroot}%{_bindir}/${bin}
@@ -280,6 +293,10 @@ install -d %{buildroot}%{_datadir}/%{name}/{linux,macosx,windows}
 install -p -m 755 _output/local/bin/linux/amd64/oc %{buildroot}%{_datadir}/%{name}/linux/oc
 install -p -m 755 _output/local/bin/darwin/amd64/oc %{buildroot}/%{_datadir}/%{name}/macosx/oc
 install -p -m 755 _output/local/bin/windows/amd64/oc.exe %{buildroot}/%{_datadir}/%{name}/windows/oc.exe
+# Install oadm client executable
+install -p -m 755 _output/local/bin/linux/amd64/oadm %{buildroot}%{_datadir}/%{name}/linux/oadm
+install -p -m 755 _output/local/bin/darwin/amd64/oadm %{buildroot}/%{_datadir}/%{name}/macosx/oadm
+install -p -m 755 _output/local/bin/windows/amd64/oadm.exe %{buildroot}/%{_datadir}/%{name}/windows/oadm.exe
 %endif
 
 # Install federation services
@@ -290,8 +307,7 @@ install -p -m 755 cmd/cluster-capacity/go/src/github.com/kubernetes-incubator/cl
 ln -s hypercc %{buildroot}%{_bindir}/cluster-capacity
 
 # Install service-catalog
-install -p -m 755 cmd/service-catalog/go/src/github.com/kubernetes-incubator/service-catalog/_output/local/bin/${PLATFORM}/apiserver %{buildroot}%{_bindir}/
-install -p -m 755 cmd/service-catalog/go/src/github.com/kubernetes-incubator/service-catalog/_output/local/bin/${PLATFORM}/controller-manager %{buildroot}%{_bindir}/
+install -p -m 755 cmd/service-catalog/go/src/github.com/kubernetes-incubator/service-catalog/_output/local/bin/${PLATFORM}/service-catalog %{buildroot}%{_bindir}/
 
 # Install pod
 install -p -m 755 _output/local/bin/${PLATFORM}/pod %{buildroot}%{_bindir}/
@@ -301,13 +317,6 @@ install -d -m 0755 %{buildroot}%{_unitdir}
 mkdir -p %{buildroot}%{_sysconfdir}/sysconfig
 
 for cmd in \
-    kube-apiserver \
-    kube-controller-manager \
-    kube-proxy \
-    kube-scheduler \
-    kubelet \
-    kubernetes \
-    oadm \
     openshift-deploy \
     openshift-docker-build \
     openshift-sti-build \
@@ -332,23 +341,10 @@ install -m 0644 contrib/systemd/%{name}-node.service %{buildroot}%{_unitdir}/%{n
 # same sysconfig files for origin vs aos
 install -m 0644 contrib/systemd/origin-master.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/%{name}-master
 install -m 0644 contrib/systemd/origin-node.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/%{name}-node
-install -d -m 0755 %{buildroot}%{_prefix}/lib/tuned/%{name}-node-{guest,host}
-install -m 0644 contrib/tuned/origin-node-guest/tuned.conf %{buildroot}%{_prefix}/lib/tuned/%{name}-node-guest/tuned.conf
-install -m 0644 contrib/tuned/origin-node-host/tuned.conf %{buildroot}%{_prefix}/lib/tuned/%{name}-node-host/tuned.conf
 
 # Install man1 man pages
 install -d -m 0755 %{buildroot}%{_mandir}/man1
 install -m 0644 docs/man/man1/* %{buildroot}%{_mandir}/man1/
-
-# Patch and install the manpage for tuned profiles on aos
-install -d -m 0755 %{buildroot}%{_mandir}/man7
-%if "%{dist}" == ".el7aos"
-%{__sed} -e 's|origin-node|atomic-openshift-node|g' \
- -e 's|ORIGIN_NODE|ATOMIC_OPENSHIFT_NODE|' \
- contrib/tuned/man/tuned-profiles-origin-node.7 > %{buildroot}%{_mandir}/man7/tuned-profiles-%{name}-node.7
-%else
-install -m 0644 contrib/tuned/man/tuned-profiles-origin-node.7 %{buildroot}%{_mandir}/man7/tuned-profiles-%{name}-node.7
-%endif
 
 mkdir -p %{buildroot}%{_sharedstatedir}/origin
 
@@ -364,7 +360,7 @@ install -p -m 0644 contrib/systemd/openshift-sdn-ovs.conf %{buildroot}%{_unitdir
 
 # Install bash completions
 install -d -m 755 %{buildroot}%{_sysconfdir}/bash_completion.d/
-for bin in oadm oc openshift
+for bin in oc openshift
 do
   echo "+++ INSTALLING BASH COMPLETIONS FOR ${bin} "
   %{buildroot}%{_bindir}/${bin} completion bash > %{buildroot}%{_sysconfdir}/bash_completion.d/${bin}
@@ -385,12 +381,12 @@ mkdir -p $RPM_BUILD_ROOT/usr/sbin
 
 # Install openshift-excluder script
 sed "s|@@CONF_FILE-VARIABLE@@|${OS_CONF_FILE}|" contrib/excluder/excluder-template > $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
-sed -i "s|@@PACKAGE_LIST-VARIABLE@@|%{name} %{name}-clients %{name}-clients-redistributable %{name}-dockerregistry %{name}-master %{name}-node %{name}-pod %{name}-recycle %{name}-sdn-ovs %{name}-tests tuned-profiles-%{name}-node|" $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
+sed -i "s|@@PACKAGE_LIST-VARIABLE@@|%{name} %{name}-clients %{name}-clients-redistributable %{name}-master %{name}-node %{name}-pod %{name}-recycle %{name}-sdn-ovs %{name}-tests|" $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
 chmod 0744 $RPM_BUILD_ROOT/usr/sbin/%{name}-excluder
 
 # Install docker-excluder script
 sed "s|@@CONF_FILE-VARIABLE@@|${OS_CONF_FILE}|" contrib/excluder/excluder-template > $RPM_BUILD_ROOT/usr/sbin/%{name}-docker-excluder
-sed -i "s|@@PACKAGE_LIST-VARIABLE@@|docker*1.13* docker*1.14* docker*1.15* docker*1.16* docker*1.17* docker*1.18* docker*1.19* docker*1.20*|" $RPM_BUILD_ROOT/usr/sbin/%{name}-docker-excluder
+sed -i "s|@@PACKAGE_LIST-VARIABLE@@|docker*1.14* docker*1.15* docker*1.16* docker*1.17* docker*1.18* docker*1.19* docker*1.20*|" $RPM_BUILD_ROOT/usr/sbin/%{name}-docker-excluder
 chmod 0744 $RPM_BUILD_ROOT/usr/sbin/%{name}-docker-excluder
 
 # Install migration scripts
@@ -401,13 +397,7 @@ install -p -m 755 contrib/migration/* %{buildroot}%{_datadir}/%{name}/migration/
 %doc README.md
 %license LICENSE
 %{_bindir}/openshift
-%{_bindir}/kube-apiserver
-%{_bindir}/kube-controller-manager
-%{_bindir}/kube-proxy
-%{_bindir}/kube-scheduler
-%{_bindir}/kubelet
-%{_bindir}/kubernetes
-%{_bindir}/oadm
+%{_bindir}/hyperkube
 %{_bindir}/openshift-deploy
 %{_bindir}/openshift-f5-router
 %{_bindir}/openshift-recycle
@@ -419,13 +409,11 @@ install -p -m 755 contrib/migration/* %{buildroot}%{_datadir}/%{name}/migration/
 %{_bindir}/openshift-manage-dockerfile
 %{_bindir}/origin
 %{_sharedstatedir}/origin
-%{_sysconfdir}/bash_completion.d/oadm
 %{_sysconfdir}/bash_completion.d/openshift
 %defattr(-,root,root,0700)
 %dir %config(noreplace) %{_sysconfdir}/origin
 %ghost %dir %config(noreplace) %{_sysconfdir}/origin
 %ghost %config(noreplace) %{_sysconfdir}/origin/.config_managed
-%{_mandir}/man1/oadm*
 %{_mandir}/man1/openshift*
 
 %pre
@@ -452,33 +440,33 @@ fi
 %{_datadir}/%{name}/migration/*
 %defattr(-,root,root,0700)
 %config(noreplace) %{_sysconfdir}/origin/master
-%ghost %config(noreplace) %{_sysconfdir}/origin/admin.crt
-%ghost %config(noreplace) %{_sysconfdir}/origin/admin.key
-%ghost %config(noreplace) %{_sysconfdir}/origin/admin.kubeconfig
-%ghost %config(noreplace) %{_sysconfdir}/origin/ca.crt
-%ghost %config(noreplace) %{_sysconfdir}/origin/ca.key
-%ghost %config(noreplace) %{_sysconfdir}/origin/ca.serial.txt
-%ghost %config(noreplace) %{_sysconfdir}/origin/etcd.server.crt
-%ghost %config(noreplace) %{_sysconfdir}/origin/etcd.server.key
-%ghost %config(noreplace) %{_sysconfdir}/origin/master-config.yaml
-%ghost %config(noreplace) %{_sysconfdir}/origin/master.etcd-client.crt
-%ghost %config(noreplace) %{_sysconfdir}/origin/master.etcd-client.key
-%ghost %config(noreplace) %{_sysconfdir}/origin/master.kubelet-client.crt
-%ghost %config(noreplace) %{_sysconfdir}/origin/master.kubelet-client.key
-%ghost %config(noreplace) %{_sysconfdir}/origin/master.server.crt
-%ghost %config(noreplace) %{_sysconfdir}/origin/master.server.key
-%ghost %config(noreplace) %{_sysconfdir}/origin/openshift-master.crt
-%ghost %config(noreplace) %{_sysconfdir}/origin/openshift-master.key
-%ghost %config(noreplace) %{_sysconfdir}/origin/openshift-master.kubeconfig
-%ghost %config(noreplace) %{_sysconfdir}/origin/openshift-registry.crt
-%ghost %config(noreplace) %{_sysconfdir}/origin/openshift-registry.key
-%ghost %config(noreplace) %{_sysconfdir}/origin/openshift-registry.kubeconfig
-%ghost %config(noreplace) %{_sysconfdir}/origin/openshift-router.crt
-%ghost %config(noreplace) %{_sysconfdir}/origin/openshift-router.key
-%ghost %config(noreplace) %{_sysconfdir}/origin/openshift-router.kubeconfig
-%ghost %config(noreplace) %{_sysconfdir}/origin/policy.json
-%ghost %config(noreplace) %{_sysconfdir}/origin/serviceaccounts.private.key
-%ghost %config(noreplace) %{_sysconfdir}/origin/serviceaccounts.public.key
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/admin.crt
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/admin.key
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/admin.kubeconfig
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/ca.crt
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/ca.key
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/ca.serial.txt
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/etcd.server.crt
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/etcd.server.key
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/master-config.yaml
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/master.etcd-client.crt
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/master.etcd-client.key
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/master.kubelet-client.crt
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/master.kubelet-client.key
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/master.server.crt
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/master.server.key
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/openshift-master.crt
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/openshift-master.key
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/openshift-master.kubeconfig
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/openshift-registry.crt
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/openshift-registry.key
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/openshift-registry.kubeconfig
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/openshift-router.crt
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/openshift-router.key
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/openshift-router.kubeconfig
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/policy.json
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/serviceaccounts.private.key
+%ghost %config(noreplace) %{_sysconfdir}/origin/master/serviceaccounts.public.key
 %ghost %config(noreplace) %{_sysconfdir}/origin/.config_managed
 
 %post master
@@ -540,36 +528,13 @@ if [ -d %{kube_plugin_path} ]; then
 fi
 
 %files service-catalog
-%{_bindir}/apiserver
-%{_bindir}/controller-manager
-
-%files -n tuned-profiles-%{name}-node
-%license LICENSE
-%{_prefix}/lib/tuned/%{name}-node-host
-%{_prefix}/lib/tuned/%{name}-node-guest
-%{_mandir}/man7/tuned-profiles-%{name}-node.7*
-
-%post -n tuned-profiles-%{name}-node
-recommended=`/usr/sbin/tuned-adm recommend`
-if [[ "${recommended}" =~ guest ]] ; then
-  /usr/sbin/tuned-adm profile %{name}-node-guest > /dev/null 2>&1
-else
-  /usr/sbin/tuned-adm profile %{name}-node-host > /dev/null 2>&1
-fi
-
-%preun -n tuned-profiles-%{name}-node
-# reset the tuned profile to the recommended profile
-# $1 = 0 when we're being removed > 0 during upgrades
-if [ "$1" = 0 ]; then
-  recommended=`/usr/sbin/tuned-adm recommend`
-  /usr/sbin/tuned-adm profile $recommended > /dev/null 2>&1
-fi
+%{_bindir}/service-catalog
 
 %files clients
 %license LICENSE
 %{_bindir}/oc
 %{_bindir}/kubectl
-%{_bindir}/kubefed
+%{_bindir}/oadm
 %{_sysconfdir}/bash_completion.d/oc
 %{_mandir}/man1/oc*
 
@@ -581,10 +546,10 @@ fi
 %{_datadir}/%{name}/linux/oc
 %{_datadir}/%{name}/macosx/oc
 %{_datadir}/%{name}/windows/oc.exe
+%{_datadir}/%{name}/linux/oadm
+%{_datadir}/%{name}/macosx/oadm
+%{_datadir}/%{name}/windows/oadm.exe
 %endif
-
-%files dockerregistry
-%{_bindir}/dockerregistry
 
 %files pod
 %{_bindir}/pod
@@ -616,6 +581,9 @@ fi
 %{_bindir}/hypercc
 %{_bindir}/cluster-capacity
 
+%files template-service-broker
+%{_bindir}/template-service-broker
+
 
 %pretrans docker-excluder
 # we always want to clear this out using the last
@@ -638,6 +606,12 @@ fi
 %{_bindir}/hyperkube
 
 %changelog
+* Tue Jan 23 2018 Huamin Chen <hchen@redhat.com> 0.2-11
+- Add cifs-utils BZ#1536362.
+
+* Wed Jul 12 2017 Steve Milner <smilner@redhat.com> 0.2-10
+- Master config files moved to /etc/origin/master/ BZ#1469034.
+
 * Fri Sep 18 2015 Scott Dodson <sdodson@redhat.com> 0.2-9
 - Rename from openshift -> origin
 - Symlink /var/lib/origin to /var/lib/openshift if /var/lib/openshift exists

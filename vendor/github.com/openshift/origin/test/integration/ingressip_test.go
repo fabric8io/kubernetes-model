@@ -6,16 +6,16 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
+	kinformers "k8s.io/client-go/informers"
+	kclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/api/v1"
-	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
-	kinformers "k8s.io/kubernetes/pkg/client/informers/informers_generated/externalversions"
 
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
 	"github.com/openshift/origin/pkg/service/controller/ingressip"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -32,7 +32,7 @@ func TestIngressIPAllocation(t *testing.T) {
 	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	masterConfig.NetworkConfig.ExternalIPNetworkCIDRs = []string{"172.16.0.0/24"}
 	masterConfig.NetworkConfig.IngressIPNetworkCIDR = "172.16.1.0/24"
-	clusterAdminKubeConfig, err := testserver.StartConfiguredMasterWithOptions(masterConfig, testserver.TestOptions{})
+	clusterAdminKubeConfig, err := testserver.StartConfiguredMasterWithOptions(masterConfig)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

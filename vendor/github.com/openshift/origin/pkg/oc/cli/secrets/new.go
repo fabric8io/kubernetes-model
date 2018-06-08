@@ -11,12 +11,12 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kvalidation "k8s.io/apimachinery/pkg/util/validation"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 	"github.com/spf13/cobra"
 )
 
@@ -76,17 +76,18 @@ func NewCmdCreateSecret(name, fullName string, f *clientcmd.Factory, out io.Writ
 	options.Out = out
 
 	cmd := &cobra.Command{
-		Use:     fmt.Sprintf("%s NAME [KEY=]SOURCE ...", name),
-		Short:   "Create a new secret based on a key file or on files within a directory",
-		Long:    newLong,
-		Example: fmt.Sprintf(newExample, fullName),
+		Use:        fmt.Sprintf("%s NAME [KEY=]SOURCE ...", name),
+		Short:      "Create a new secret based on a key file or on files within a directory",
+		Long:       newLong,
+		Example:    fmt.Sprintf(newExample, fullName),
+		Deprecated: "use oc create secret",
 		Run: func(c *cobra.Command, args []string) {
 			if err := options.Complete(args, f); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(c, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(c, err.Error()))
 			}
 
 			if err := options.Validate(); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(c, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(c, err.Error()))
 			}
 
 			if len(kcmdutil.GetFlagString(c, "output")) != 0 {
@@ -130,7 +131,7 @@ func (o *CreateSecretOptions) Complete(args []string, f *clientcmd.Factory) erro
 	}
 
 	if f != nil {
-		_, kubeClient, err := f.Clients()
+		kubeClient, err := f.ClientSet()
 		if err != nil {
 			return err
 		}

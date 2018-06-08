@@ -13,22 +13,23 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
-	kapi "k8s.io/kubernetes/pkg/api"
-	kvalidation "k8s.io/kubernetes/pkg/api/validation"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
+	kvalidation "k8s.io/kubernetes/pkg/apis/core/validation"
 	"k8s.io/kubernetes/pkg/capabilities"
 
 	"github.com/openshift/origin/pkg/api/validation"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	networkapi "github.com/openshift/origin/pkg/network/apis/network"
 	projectapi "github.com/openshift/origin/pkg/project/apis/project"
 	routeapi "github.com/openshift/origin/pkg/route/apis/route"
-	sdnapi "github.com/openshift/origin/pkg/sdn/apis/network"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 
 	// install all APIs
 	_ "github.com/openshift/origin/pkg/api/install"
-	_ "k8s.io/kubernetes/pkg/api/install"
+	_ "k8s.io/kubernetes/pkg/apis/core/install"
 	_ "k8s.io/kubernetes/pkg/apis/extensions/install"
 )
 
@@ -113,7 +114,7 @@ func TestExampleObjectSchemas(t *testing.T) {
 		},
 		"../test/extended/testdata/ldap": {
 			"ldapserver-buildconfig":         &buildapi.BuildConfig{},
-			"ldapserver-deploymentconfig":    &deployapi.DeploymentConfig{},
+			"ldapserver-deploymentconfig":    &appsapi.DeploymentConfig{},
 			"ldapserver-imagestream":         &imageapi.ImageStream{},
 			"ldapserver-imagestream-testenv": &imageapi.ImageStream{},
 			"ldapserver-service":             &kapi.Service{},
@@ -121,7 +122,8 @@ func TestExampleObjectSchemas(t *testing.T) {
 		"../test/integration/testdata": {
 			// TODO fix this test to  handle json and yaml
 			"project-request-template-with-quota": nil, // skip a yaml file
-			"test-deployment-config":              &deployapi.DeploymentConfig{},
+			"test-replication-controller":         nil, // skip &api.ReplicationController
+			"test-deployment-config":              &appsapi.DeploymentConfig{},
 			"test-image":                          &imageapi.Image{},
 			"test-image-stream":                   &imageapi.ImageStream{},
 			"test-image-stream-mapping":           nil, // skip &imageapi.ImageStreamMapping{},
@@ -130,7 +132,7 @@ func TestExampleObjectSchemas(t *testing.T) {
 			"test-service-with-finalizer":         &kapi.Service{},
 			"test-buildcli":                       &kapi.List{},
 			"test-buildcli-beta2":                 &kapi.List{},
-			"test-egress-network-policy":          &sdnapi.EgressNetworkPolicy{},
+			"test-egress-network-policy":          &networkapi.EgressNetworkPolicy{},
 		},
 		"../test/templates/testdata": {
 			"crunchydata-pod": nil, // Explicitly fails validation, but should pass transformation
@@ -152,7 +154,7 @@ func TestExampleObjectSchemas(t *testing.T) {
 				t.Logf("%q is skipped", path)
 				return
 			}
-			if err := runtime.DecodeInto(kapi.Codecs.UniversalDecoder(), data, expectedType); err != nil {
+			if err := runtime.DecodeInto(legacyscheme.Codecs.UniversalDecoder(), data, expectedType); err != nil {
 				t.Errorf("%s did not decode correctly: %v\n%s", path, err, string(data))
 				return
 			}
@@ -202,7 +204,7 @@ func validateObject(path string, obj runtime.Object, t *testing.T) {
 
 	case *kapi.List, *imageapi.ImageStreamList:
 		if list, err := meta.ExtractList(typedObj); err == nil {
-			runtime.DecodeList(list, kapi.Codecs.UniversalDecoder())
+			runtime.DecodeList(list, legacyscheme.Codecs.UniversalDecoder())
 			for i := range list {
 				validateObject(path, list[i], t)
 			}

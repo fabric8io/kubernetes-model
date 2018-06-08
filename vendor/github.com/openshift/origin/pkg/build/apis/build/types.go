@@ -5,7 +5,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 )
 
 const (
@@ -90,6 +90,10 @@ const (
 	// if the buildconfig does not specify a value.  This only applies to buildconfigs created
 	// via the new group api resource, not the legacy resource.
 	DefaultFailedBuildsHistoryLimit = int32(5)
+
+	// WebHookSecretKey is the key used to identify the value containing the webhook invocation
+	// secret within a secret referenced by a webhook trigger.
+	WebHookSecretKey = "WebHookSecretKey"
 )
 
 var (
@@ -99,6 +103,9 @@ var (
 )
 
 // +genclient
+// +genclient:method=UpdateDetails,verb=update,subresource=details
+// +genclient:method=Clone,verb=create,subresource=clone,input=BuildRequest
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Build encapsulates the inputs needed to produce a new deployable image, as well as
 // the status of the execution and a reference to the Pod which executed the build.
@@ -428,7 +435,7 @@ type StatusReason string
 // These are the valid reasons of build statuses.
 const (
 	// StatusReasonError is a generic reason for a build error condition.
-	StatusReasonError StatusReason = "Error"
+	StatusReasonError StatusReason = "Error" //note/fyi:  not used currently, api or v1
 
 	// StatusReasonCannotCreateBuildPodSpec is an error condition when the build
 	// strategy cannot create a build pod spec.
@@ -448,7 +455,7 @@ const (
 
 	// StatusReasonCancelBuildFailed is an error condition when cancelling a build
 	// fails.
-	StatusReasonCancelBuildFailed StatusReason = "CancelBuildFailed"
+	StatusReasonCancelBuildFailed StatusReason = "CancelBuildFailed" // note/fyi: not used currently, api or v1
 
 	// StatusReasonBuildPodDeleted is an error condition when the build pod is
 	// deleted before build completion.
@@ -456,7 +463,7 @@ const (
 
 	// StatusReasonExceededRetryTimeout is an error condition when the build has
 	// not completed and retrying the build times out.
-	StatusReasonExceededRetryTimeout StatusReason = "ExceededRetryTimeout"
+	StatusReasonExceededRetryTimeout StatusReason = "ExceededRetryTimeout" // note/fyi: not used currently, api or v1
 
 	// StatusReasonMissingPushSecret indicates that the build is missing required
 	// secret for pushing the output image.
@@ -537,7 +544,7 @@ const (
 	StatusMessageFailedContainer                 = "The pod for this build has at least one container with a non-zero exit status."
 	StatusMessageGenericBuildFailed              = "Generic Build failure - check logs for details."
 	StatusMessageUnresolvableEnvironmentVariable = "Unable to resolve build environment variable reference."
-	StatusMessageCannotRetrieveServiceAccount    = "Unable to look up the service account associated with this build."
+	StatusMessageCannotRetrieveServiceAccount    = "Unable to look up the service account secrets for this build."
 )
 
 // BuildStatusOutput contains the status of the built image.
@@ -725,7 +732,6 @@ type BuildStrategy struct {
 	CustomStrategy *CustomBuildStrategy
 
 	// JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy.
-	// This strategy is in tech preview.
 	JenkinsPipelineStrategy *JenkinsPipelineBuildStrategy
 }
 
@@ -851,24 +857,9 @@ type SourceBuildStrategy struct {
 
 	// ForcePull describes if the builder should pull the images from registry prior to building.
 	ForcePull bool
-
-	// RuntimeImage is an optional image that is used to run an application
-	// without unneeded dependencies installed. The building of the application
-	// is still done in the builder image but, post build, you can copy the
-	// needed artifacts in the runtime image for use.
-	// This field and the feature it enables are in tech preview.
-	RuntimeImage *kapi.ObjectReference
-
-	// RuntimeArtifacts specifies a list of source/destination pairs that will be
-	// copied from the builder to a runtime image. sourcePath can be a file or
-	// directory. destinationDir must be a directory. destinationDir can also be
-	// empty or equal to ".", in this case it just refers to the root of WORKDIR.
-	// This field and the feature it enables are in tech preview.
-	RuntimeArtifacts []ImageSourcePath
 }
 
 // JenkinsPipelineStrategy holds parameters specific to a Jenkins Pipeline build.
-// This strategy is in tech preview.
 type JenkinsPipelineBuildStrategy struct {
 	// JenkinsfilePath is the optional path of the Jenkinsfile that will be used to configure the pipeline
 	// relative to the root of the context (contextDir). If both JenkinsfilePath & Jenkinsfile are
@@ -1000,6 +991,8 @@ type ImageLabel struct {
 }
 
 // +genclient
+// +genclient:method=Instantiate,verb=create,subresource=instantiate,input=BuildRequest,result=Build
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // BuildConfig is a template which can be used to create new builds.
 type BuildConfig struct {
@@ -1062,14 +1055,27 @@ type BuildConfigStatus struct {
 	LastVersion int64
 }
 
+// SecretLocalReference contains information that points to the local secret being used
+type SecretLocalReference struct {
+	// Name is the name of the resource in the same namespace being referenced
+	Name string
+}
+
 // WebHookTrigger is a trigger that gets invoked using a webhook type of post
 type WebHookTrigger struct {
 	// Secret used to validate requests.
+	// Deprecated: use SecretReference instead.
 	Secret string
 
 	// AllowEnv determines whether the webhook can set environment variables; can only
 	// be set to true for GenericWebHook
 	AllowEnv bool
+
+	// SecretReference is a reference to a secret in the same namespace,
+	// containing the value to be validated when the webhook is invoked.
+	// The secret being referenced must contain a key named "WebHookSecretKey", the value
+	// of which will be checked against the value supplied in the webhook invocation.
+	SecretReference *SecretLocalReference
 }
 
 // ImageChangeTrigger allows builds to be triggered when an ImageStream changes
@@ -1149,6 +1155,8 @@ const (
 	ConfigChangeBuildTriggerType BuildTriggerType = "ConfigChange"
 )
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // BuildList is a collection of Builds.
 type BuildList struct {
 	metav1.TypeMeta
@@ -1157,6 +1165,8 @@ type BuildList struct {
 	// Items is a list of builds
 	Items []Build
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // BuildConfigList is a collection of BuildConfigs.
 type BuildConfigList struct {
@@ -1198,6 +1208,8 @@ type GitRefInfo struct {
 	GitSourceRevision
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // BuildLog is the (unused) resource associated with the build log redirector
 type BuildLog struct {
 	metav1.TypeMeta
@@ -1208,7 +1220,18 @@ type DockerStrategyOptions struct {
 	// Args contains any build arguments that are to be passed to Docker.  See
 	// https://docs.docker.com/engine/reference/builder/#/arg for more details
 	BuildArgs []kapi.EnvVar
+
+	// NoCache overrides the docker-strategy noCache option in the build config
+	NoCache *bool
 }
+
+// SourceStrategyOptions contains extra strategy options for Source builds
+type SourceStrategyOptions struct {
+	// Incremental overrides the source-strategy incremental option in the build config
+	Incremental *bool
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // BuildRequest is the resource used to pass parameters to build generator
 type BuildRequest struct {
@@ -1243,7 +1266,12 @@ type BuildRequest struct {
 
 	// DockerStrategyOptions contains additional docker-strategy specific options for the build
 	DockerStrategyOptions *DockerStrategyOptions
+
+	// SourceStrategyOptions contains additional source-strategy specific options for the build
+	SourceStrategyOptions *SourceStrategyOptions
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type BinaryBuildRequestOptions struct {
 	metav1.TypeMeta
@@ -1271,6 +1299,8 @@ type BinaryBuildRequestOptions struct {
 	// CommitterEmail of the source control user
 	CommitterEmail string
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // BuildLogOptions is the REST options for a build log
 type BuildLogOptions struct {

@@ -7,7 +7,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 
@@ -2433,7 +2433,7 @@ func TestValidateTrigger(t *testing.T) {
 				Type:          buildapi.GitHubWebHookBuildTriggerType,
 				GitHubWebHook: &buildapi.WebHookTrigger{},
 			},
-			expected: []*field.Error{field.Required(field.NewPath("github", "secret"), "")},
+			expected: []*field.Error{field.Invalid(field.NewPath("github"), buildapi.WebHookTrigger{}, "must provide a value for at least one of secret or secretReference")},
 		},
 		"GitHub trigger with generic webhook": {
 			trigger: buildapi.BuildTriggerPolicy{
@@ -2463,7 +2463,7 @@ func TestValidateTrigger(t *testing.T) {
 				Type:          buildapi.GitLabWebHookBuildTriggerType,
 				GitLabWebHook: &buildapi.WebHookTrigger{},
 			},
-			expected: []*field.Error{field.Required(field.NewPath("gitlab", "secret"), "")},
+			expected: []*field.Error{field.Invalid(field.NewPath("gitlab"), buildapi.WebHookTrigger{}, "must provide a value for at least one of secret or secretReference")},
 		},
 		"GitLab trigger with generic webhook": {
 			trigger: buildapi.BuildTriggerPolicy{
@@ -2493,7 +2493,7 @@ func TestValidateTrigger(t *testing.T) {
 				Type:             buildapi.BitbucketWebHookBuildTriggerType,
 				BitbucketWebHook: &buildapi.WebHookTrigger{},
 			},
-			expected: []*field.Error{field.Required(field.NewPath("bitbucket", "secret"), "")},
+			expected: []*field.Error{field.Invalid(field.NewPath("bitbucket"), buildapi.WebHookTrigger{}, "must provide a value for at least one of secret or secretReference")},
 		},
 		"Bitbucket trigger with generic webhook": {
 			trigger: buildapi.BuildTriggerPolicy{
@@ -2523,7 +2523,7 @@ func TestValidateTrigger(t *testing.T) {
 				Type:           buildapi.GenericWebHookBuildTriggerType,
 				GenericWebHook: &buildapi.WebHookTrigger{},
 			},
-			expected: []*field.Error{field.Required(field.NewPath("generic", "secret"), "")},
+			expected: []*field.Error{field.Invalid(field.NewPath("generic"), buildapi.WebHookTrigger{}, "must provide a value for at least one of secret or secretReference")},
 		},
 		"Generic trigger with github webhook": {
 			trigger: buildapi.BuildTriggerPolicy{
@@ -2533,6 +2533,15 @@ func TestValidateTrigger(t *testing.T) {
 				},
 			},
 			expected: []*field.Error{field.Required(field.NewPath("generic"), "")},
+		},
+		"Webhook trigger with no secretref name": {
+			trigger: buildapi.BuildTriggerPolicy{
+				Type: buildapi.GenericWebHookBuildTriggerType,
+				GenericWebHook: &buildapi.WebHookTrigger{
+					SecretReference: &buildapi.SecretLocalReference{},
+				},
+			},
+			expected: []*field.Error{field.Required(field.NewPath("generic.secretReference.name"), "")},
 		},
 		"ImageChange trigger without params": {
 			trigger: buildapi.BuildTriggerPolicy{
@@ -2544,31 +2553,49 @@ func TestValidateTrigger(t *testing.T) {
 			trigger: buildapi.BuildTriggerPolicy{
 				Type: buildapi.GitHubWebHookBuildTriggerType,
 				GitHubWebHook: &buildapi.WebHookTrigger{
-					Secret: "secret101",
+					SecretReference: &buildapi.SecretLocalReference{
+						Name: "mysecret",
+					},
 				},
 			},
 		},
-		"valid GitLab trigger": {
+		"valid GitHub trigger with secretref": {
+			trigger: buildapi.BuildTriggerPolicy{
+				Type: buildapi.GitHubWebHookBuildTriggerType,
+				GitHubWebHook: &buildapi.WebHookTrigger{
+					SecretReference: &buildapi.SecretLocalReference{
+						Name: "mysecret",
+					},
+				},
+			},
+		},
+		"valid GitLab trigger with secretref": {
 			trigger: buildapi.BuildTriggerPolicy{
 				Type: buildapi.GitLabWebHookBuildTriggerType,
 				GitLabWebHook: &buildapi.WebHookTrigger{
-					Secret: "secret101",
+					SecretReference: &buildapi.SecretLocalReference{
+						Name: "mysecret",
+					},
 				},
 			},
 		},
-		"valid Bitbucket trigger": {
+		"valid Bitbucket trigger with secretref": {
 			trigger: buildapi.BuildTriggerPolicy{
 				Type: buildapi.BitbucketWebHookBuildTriggerType,
 				BitbucketWebHook: &buildapi.WebHookTrigger{
-					Secret: "secret101",
+					SecretReference: &buildapi.SecretLocalReference{
+						Name: "mysecret",
+					},
 				},
 			},
 		},
-		"valid Generic trigger": {
+		"valid Generic trigger with secretref": {
 			trigger: buildapi.BuildTriggerPolicy{
 				Type: buildapi.GenericWebHookBuildTriggerType,
 				GenericWebHook: &buildapi.WebHookTrigger{
-					Secret: "secret101",
+					SecretReference: &buildapi.SecretLocalReference{
+						Name: "mysecret",
+					},
 				},
 			},
 		},
@@ -2891,32 +2918,6 @@ func TestValidateBuildImageRefs(t *testing.T) {
 			expectedError: "not a valid Docker pull specification: invalid reference format",
 		},
 		{
-			name: "valid s2i build w/ runtimeImage",
-			build: buildapi.Build{
-				ObjectMeta: metav1.ObjectMeta{Name: "build", Namespace: "default"},
-				Spec: buildapi.BuildSpec{
-					CommonSpec: buildapi.CommonSpec{
-						Source: buildapi.BuildSource{
-							Binary: &buildapi.BinaryBuildSource{},
-						},
-						Strategy: buildapi.BuildStrategy{
-							SourceStrategy: &buildapi.SourceBuildStrategy{
-								From: kapi.ObjectReference{
-									Kind: "DockerImage",
-									Name: "myimage:tag",
-								},
-								RuntimeImage: &kapi.ObjectReference{
-									Kind: "DockerImage",
-									Name: "runtimestream:tag",
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedError: "",
-		},
-		{
 			name: "docker build with ImageStreamTag in from",
 			build: buildapi.Build{
 				ObjectMeta: metav1.ObjectMeta{Name: "build", Namespace: "default"},
@@ -3014,32 +3015,6 @@ func TestValidateBuildImageRefs(t *testing.T) {
 								From: kapi.ObjectReference{
 									Kind: "DockerImage",
 									Name: "myimagestream:tag",
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedError: "Required value",
-		},
-		{
-			name: "s2i build with ImageStreamTag runtimeImage",
-			build: buildapi.Build{
-				ObjectMeta: metav1.ObjectMeta{Name: "build", Namespace: "default"},
-				Spec: buildapi.BuildSpec{
-					CommonSpec: buildapi.CommonSpec{
-						Source: buildapi.BuildSource{
-							Binary: &buildapi.BinaryBuildSource{},
-						},
-						Strategy: buildapi.BuildStrategy{
-							SourceStrategy: &buildapi.SourceBuildStrategy{
-								From: kapi.ObjectReference{
-									Kind: "DockerImage",
-									Name: "myimage:tag",
-								},
-								RuntimeImage: &kapi.ObjectReference{
-									Kind: "ImageStreamTag",
-									Name: "",
 								},
 							},
 						},

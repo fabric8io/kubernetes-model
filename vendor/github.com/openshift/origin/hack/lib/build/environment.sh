@@ -10,14 +10,17 @@ function os::build::environment::create() {
   set -o errexit
   local release_image="${OS_BUILD_ENV_IMAGE}"
   local additional_context="${OS_BUILD_ENV_DOCKER_ARGS:-}"
+
+  local workingdir
+  workingdir=$( os::build::environment::release::workingdir )
+  additional_context+=" -w ${workingdir}"
+
   if [[ "${OS_BUILD_ENV_USE_DOCKER:-y}" == "y" ]]; then
     additional_context+=" --privileged -v /var/run/docker.sock:/var/run/docker.sock"
 
     if [[ "${OS_BUILD_ENV_LOCAL_DOCKER:-n}" == "y" ]]; then
       # if OS_BUILD_ENV_LOCAL_DOCKER==y, add the local OS_ROOT as the bind mount to the working dir
       # and set the running user to the current user
-      local workingdir
-      workingdir=$( os::build::environment::release::workingdir )
       additional_context+=" -v ${OS_ROOT}:${workingdir} -u $(id -u)"
     elif [[ -n "${OS_BUILD_ENV_VOLUME:-}" ]]; then
       if docker volume inspect "${OS_BUILD_ENV_VOLUME}" >/dev/null 2>&1; then
@@ -40,9 +43,6 @@ function os::build::environment::create() {
         fi
         additional_context+=" -v ${OS_BUILD_ENV_TMP_VOLUME}:/tmp"
       fi
-
-      local workingdir
-      workingdir=$( os::build::environment::release::workingdir )
       additional_context+=" -v ${OS_BUILD_ENV_VOLUME}:${workingdir}"
     fi
   fi
@@ -72,6 +72,11 @@ function os::build::environment::create() {
     fi
     if [[ "${cmd[0]}" == "/bin/sh" || "${cmd[0]}" == "/bin/bash" ]]; then
       additional_context+=" -it"
+    else
+      # container exit races with log collection so we
+      # need to sleep at the end but preserve the exit
+      # code of whatever the user asked for us to run
+      cmd=( '/bin/bash' '-c' "${cmd[*]}; return_code=\$?; sleep 1; exit \${return_code}" )
     fi
   fi
 
@@ -84,6 +89,10 @@ readonly -f os::build::environment::create
 # os::build::environment::release::workingdir calculates the working directory for the current
 # release image.
 function os::build::environment::release::workingdir() {
+  if [[ -n "${OS_BUILD_ENV_WORKINGDIR-}" ]]; then
+    echo "${OS_BUILD_ENV_WORKINGDIR}"
+    return 0
+  fi
   set -o errexit
   # get working directory
   local container
@@ -99,11 +108,24 @@ readonly -f os::build::environment::release::workingdir
 # (unless OS_BUILD_ENV_LEAVE_CONTAINER is set, in which case it will only stop the container).
 function os::build::environment::cleanup() {
   local container=$1
+  local volume=$2
+  local tmp_volume=$3
+  os::log::debug "Recording container information to ${LOG_DIR}/${container}.json"
+  docker inspect "${container}" > "${LOG_DIR}/${container}.json"
   os::log::debug "Stopping container ${container}"
   docker stop --time=0 "${container}" > /dev/null || true
   if [[ -z "${OS_BUILD_ENV_LEAVE_CONTAINER:-}" ]]; then
     os::log::debug "Removing container ${container}"
     docker rm "${container}" > /dev/null
+
+    if [[ -z "${OS_BUILD_ENV_REUSE_TMP_VOLUME:-}" ]]; then
+      os::log::debug "Removing tmp build volume"
+      os::build::environment::remove_volume "${tmp_volume}"
+    fi
+    if [[ -n "${OS_BUILD_ENV_CLEAN_BUILD_VOLUME:-}" ]]; then
+      os::log::debug "Removing build volume"
+      os::build::environment::remove_volume "${volume}"
+    fi
   fi
 }
 readonly -f os::build::environment::cleanup
@@ -169,7 +191,7 @@ function os::build::environment::withsource() {
   if [[ -n "${OS_BUILD_ENV_FROM_ARCHIVE-}" ]]; then
     # Generate version definitions. Tree state is clean because we are pulling from git directly.
     OS_GIT_TREE_STATE=clean os::build::version::get_vars
-    os::build::version::save_vars "/tmp/os-version-defs"
+    os::build::version::save_vars > "/tmp/os-version-defs"
 
     os::log::debug "Generating source code archive"
     tar -cf - -C /tmp/ os-version-defs | docker cp - "${container}:/tmp"
@@ -252,7 +274,7 @@ function os::build::environment::run() {
 
   local container
   container="$( os::build::environment::create "$@" )"
-  trap "os::build::environment::cleanup ${container}" EXIT
+  trap "os::build::environment::cleanup ${container} ${volume} ${tmp_volume}" EXIT
 
   os::log::debug "Using container ${container}"
 

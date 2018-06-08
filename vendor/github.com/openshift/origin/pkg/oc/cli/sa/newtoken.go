@@ -13,14 +13,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/kubernetes/pkg/api"
+	api "k8s.io/kubernetes/pkg/apis/core"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 	"k8s.io/kubernetes/pkg/kubectl"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/cmd/util/term"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 	"github.com/openshift/origin/pkg/serviceaccounts"
 	osautil "github.com/openshift/origin/pkg/serviceaccounts/util"
 )
@@ -92,7 +92,7 @@ func NewCommandNewServiceAccountToken(name, fullname string, f *clientcmd.Factor
 
 func (o *NewServiceAccountTokenOptions) Complete(args []string, requestedLabels string, f *clientcmd.Factory, cmd *cobra.Command) error {
 	if len(args) != 1 {
-		return cmdutil.UsageError(cmd, fmt.Sprintf("expected one service account name as an argument, got %q", args))
+		return cmdutil.UsageErrorf(cmd, fmt.Sprintf("expected one service account name as an argument, got %q", args))
 	}
 
 	o.SAName = args[0]
@@ -100,7 +100,7 @@ func (o *NewServiceAccountTokenOptions) Complete(args []string, requestedLabels 
 	if len(requestedLabels) > 0 {
 		labels, err := kubectl.ParseLabels(requestedLabels)
 		if err != nil {
-			return cmdutil.UsageError(cmd, err.Error())
+			return cmdutil.UsageErrorf(cmd, err.Error())
 		}
 		o.Labels = labels
 	}

@@ -11,10 +11,10 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	oauthapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
-	oauthclient "github.com/openshift/origin/pkg/oauth/generated/internalclientset/typed/oauth/internalversion"
-	"github.com/openshift/origin/pkg/oauth/server/osinserver"
-	registrystorage "github.com/openshift/origin/pkg/oauth/server/osinserver/registrystorage"
+	oauthapi "github.com/openshift/api/oauth/v1"
+	oauthclient "github.com/openshift/client-go/oauth/clientset/versioned/typed/oauth/v1"
+	"github.com/openshift/origin/pkg/oauthserver/osinserver"
+	"github.com/openshift/origin/pkg/oauthserver/osinserver/registrystorage"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -67,7 +67,7 @@ func TestOAuthStorage(t *testing.T) {
 	}
 
 	user := &testUser{UserName: "test", UserUID: "1"}
-	storage := registrystorage.New(oauthClient.OAuthAccessTokens(), oauthClient.OAuthAuthorizeTokens(), oauthClient.OAuthClients(), user)
+	storage := registrystorage.New(oauthClient.OAuthAccessTokens(), oauthClient.OAuthAuthorizeTokens(), oauthClient.OAuthClients(), user, 0)
 
 	oauthServer := osinserver.New(
 		osinserver.NewDefaultServerConfig(),

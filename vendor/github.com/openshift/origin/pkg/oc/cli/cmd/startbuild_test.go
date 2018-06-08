@@ -16,11 +16,9 @@ import (
 	restclient "k8s.io/client-go/rest"
 	kclientcmd "k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/client/testclient"
 )
 
 type FakeClientConfig struct {
@@ -64,7 +62,7 @@ func TestStartBuildWebHook(t *testing.T) {
 		Out:          buf,
 		ClientConfig: cfg,
 		FromWebhook:  server.URL + "/webhook",
-		Mapper:       kapi.Registry.RESTMapper(),
+		Mapper:       legacyscheme.Registry.RESTMapper(),
 	}
 	if err := o.Run(); err != nil {
 		t.Fatalf("unable to start hook: %v", err)
@@ -98,7 +96,7 @@ func TestStartBuildWebHookHTTPS(t *testing.T) {
 		Out:          buf,
 		ClientConfig: cfg,
 		FromWebhook:  server.URL + "/webhook",
-		Mapper:       kapi.Registry.RESTMapper(),
+		Mapper:       legacyscheme.Registry.RESTMapper(),
 	}
 	if err := o.Run(); err == nil || !strings.Contains(err.Error(), "certificate signed by unknown authority") {
 		t.Fatalf("unexpected non-error: %v", err)
@@ -134,7 +132,7 @@ func TestStartBuildHookPostReceive(t *testing.T) {
 		ClientConfig:   cfg,
 		FromWebhook:    server.URL + "/webhook",
 		GitPostReceive: f.Name(),
-		Mapper:         kapi.Registry.RESTMapper(),
+		Mapper:         legacyscheme.Registry.RESTMapper(),
 	}
 	if err := o.Run(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -150,12 +148,11 @@ func TestStartBuildHookPostReceive(t *testing.T) {
 }
 
 type FakeBuildConfigs struct {
-	client.BuildConfigInterface
 	t            *testing.T
 	expectAsFile bool
 }
 
-func (c FakeBuildConfigs) InstantiateBinary(options *buildapi.BinaryBuildRequestOptions, r io.Reader) (result *buildapi.Build, err error) {
+func (c FakeBuildConfigs) InstantiateBinary(name string, options *buildapi.BinaryBuildRequestOptions, r io.Reader) (result *buildapi.Build, err error) {
 	if binary, err := ioutil.ReadAll(r); err != nil {
 		c.t.Errorf("Error while reading binary over HTTP: %v", err)
 	} else if string(binary) != "hi" {
@@ -250,9 +247,6 @@ func TestHttpBinary(t *testing.T) {
 		stdin := bytes.NewReader([]byte{})
 		stdout := &bytes.Buffer{}
 		options := buildapi.BinaryBuildRequestOptions{}
-		fakeclient := testclient.NewSimpleFake()
-		buildconfigs := FakeBuildConfigs{fakeclient.BuildConfigs("default"), t, tc.fromFile}
-
 		handler := func(w http.ResponseWriter, r *http.Request) {
 			if tc.contentDisposition {
 				w.Header().Add("Content-Disposition", "attachment; filename=hi.txt")
@@ -282,7 +276,7 @@ func TestHttpBinary(t *testing.T) {
 			fromDir = server.URL + tc.urlPath
 		}
 
-		build, err := streamPathToBuild(nil, stdin, stdout, buildconfigs, fromDir, fromFile, "", &options)
+		build, err := streamPathToBuild(nil, stdin, stdout, &FakeBuildConfigs{t: t, expectAsFile: tc.fromFile}, fromDir, fromFile, "", &options)
 
 		if len(tc.expectedError) > 0 {
 			if err == nil {

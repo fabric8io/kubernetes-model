@@ -11,9 +11,9 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 
-	"github.com/openshift/origin/pkg/sdn"
+	"github.com/openshift/origin/pkg/network"
 )
 
 const JoinProjectsNetworkCommandName = "join-projects"
@@ -45,7 +45,7 @@ func NewCmdJoinProjectsNetwork(commandName, fullName string, f *clientcmd.Factor
 	cmd := &cobra.Command{
 		Use:     commandName,
 		Short:   "Join project network",
-		Long:    fmt.Sprintf(joinProjectsNetworkLong, sdn.MultiTenantPluginName),
+		Long:    fmt.Sprintf(joinProjectsNetworkLong, network.MultiTenantPluginName),
 		Example: fmt.Sprintf(joinProjectsNetworkExample, fullName),
 		Run: func(c *cobra.Command, args []string) {
 			if err := opts.Complete(f, c, args, out); err != nil {
@@ -53,7 +53,7 @@ func NewCmdJoinProjectsNetwork(commandName, fullName string, f *clientcmd.Factor
 			}
 			opts.CheckSelector = c.Flag("selector").Changed
 			if err := joinOp.Validate(); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(c, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(c, err.Error()))
 			}
 
 			err := joinOp.Run()
@@ -91,8 +91,8 @@ func (j *JoinOptions) Run() error {
 	errList := []error{}
 	for _, project := range projects {
 		if project.Name != j.joinProjectName {
-			if err = j.Options.UpdatePodNetwork(project.Name, sdn.JoinPodNetwork, j.joinProjectName); err != nil {
-				errList = append(errList, fmt.Errorf("Project %q failed to join %q, error: %v", project.Name, j.joinProjectName, err))
+			if err = j.Options.UpdatePodNetwork(project.Name, network.JoinPodNetwork, j.joinProjectName); err != nil {
+				errList = append(errList, fmt.Errorf("project %q failed to join %q, error: %v", project.Name, j.joinProjectName, err))
 			}
 		}
 	}

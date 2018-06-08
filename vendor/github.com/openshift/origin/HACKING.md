@@ -37,7 +37,7 @@ We generally cut a release before disruptive changes land.
 
 ### Building on Non-Linux Systems
 
-We provide the `openshift/release` container in which all of our build
+We provide the `openshift/origin-release` container in which all of our build
 dependencies live, so that one can build a full release of OpenShift without
 having to install anything other than a container runtime on their local system.
 To run scripts or `make` targets from the Origin repo inside of the container,
@@ -50,7 +50,7 @@ For instance, to build the `oc` binary:
     $ hack/env make build WHAT=cmd/oc
 
 The release container works by streaming a copy of the repository into a volume,
-sharing that volume with the container as it's working directory, executing the
+sharing that volume with the container as its working directory, executing the
 desired command and streaming the results back to your filesystem.
 
 One can configure what files are uploaded to the container by setting the
@@ -206,13 +206,10 @@ test suite.  Testing the API and high level API functions should generally
 not depend on calling into Docker. They are denoted by special test tags and
 should be in their own files so we can selectively build them.
 
-All integration tests are located under `test/integration/*`. All integration
-tests must set the `integration` build tag at the top of their source file,
-and also declare whether they need etcd with the `etcd` build tag and whether
-they need Docker with the `docker` build tag. For special function sets please
-create sub directories like `test/integration/deployimages`.
+All integration tests are located under `test/integration/*`. For special function
+sets please create sub directories like `test/integration/deployimages`.
 
-Run the integration tests with:
+Run all of the integration tests with:
 
     $ hack/test-integration.sh
 
@@ -221,16 +218,11 @@ If you need to execute a subset of integration tests, run:
 
     $ hack/test-integration.sh <regex>
 
-Where `<regex>` is some regular expression that matches the names of all
-of the tests you want to run. The regular expression is passed into `grep -E`,
-so ensure that the syntax or features you use are supported. The default
-regular expression used
-is `Test`, which matches all tests.
+Where `<regex>` is some regular expression that matches the names of all of the
+integration tests you want to run. The regular expression is passed into `go test -run`,
+so ensure that the syntax or features you use are supported.
 
-Each integration function is executed in its own process so that it cleanly
-shuts down any background
-goroutines. You will not be able to run more than a single test within a single
-process.
+Each integration test is executed in parallel using `test/integration/runner`.
 
 There is a CLI integration test suite which covers general non-Docker
 functionality of the CLI tool
@@ -300,6 +292,42 @@ any local interaction with the filesystem or Docker.
 More information about running extended tests can be found in
 [test/extended/README](https://github.com/openshift/origin/blob/master/test/extended/README.md).
 
+## Changing API
+
+OpenShift is split into three major repositories:
+
+1. https://github.com/openshift/api/ - which holds all the external API objects definitions.
+1. https://github.com/openshift/client-go/ - which holds all the client code (written in Go).
+1. https://github.com/openshift/origin/ - which holds the actual code behind OpenShift.
+
+This split requires additional effort to introduce any API change.  The following steps
+should guide you through the process.
+
+1. The first place to introduce the changes is [openshift/api](https://github.com/openshift/api/).
+Here, you put your external API updates and when you are done run `make generate`.  If you
+need to introduce a new dependency run `make update-deps`, and almost never update `glide.yaml`
+directly.  When you're done open a PR against the aforementioned repository and ping
+[@openshift/api-review](https://github.com/orgs/openshift/teams/api-review) for a review.
+
+2. The next step includes updating the [openshift/client-go](https://github.com/openshift/client-go/)
+with the changes from step 1, since it vendors it.  To do so run `make update-deps` to pick up
+the changes from step 1 and then run `make generate` to update the client code with necessary
+changes.  When you're done open a PR against the aforementioned repository and ping
+[@openshift/sig-master](https://github.com/orgs/openshift/teams/sig-master) for a review.
+
+3. The final step happens in [openshift/origin](https://github.com/openshift/origin/) repository.
+As previously, run `make update-deps` to pick up the changes from previous two steps.  Afterwards
+run `make update` to generated the remaining bits in origin repository. When you're done open
+a PR against the aforementioned repository and ping [@openshift/sig-master](https://github.com/orgs/openshift/teams/sig-master)
+for a review.
+
+If at any point you have doubts about any step of the flow reach out to
+[@openshift/sig-master](https://github.com/orgs/openshift/teams/sig-master) team for help.
+
+NOTE: It may happen that during `make update-deps` step you will pick up the changes introduced
+by someone else in his PR.  In that case sync with the other PR's author and include his changes
+in your PR noting the fact to your reviewer.
+
 ## Installing Godep
 
 OpenShift and Kubernetes use [Godep](https://github.com/tools/godep) for
@@ -338,8 +366,7 @@ https://github.com/kubernetes/kubernetes/pull/34624.patch`
 
 If this fails, then it's possible you may need to pick multiple commits.
 
-### For Openshift newcomers: Pick my kubernetes fix into Openshift vs. wait for
-the next rebase?
+### For Openshift newcomers: Pick my kubernetes fix into Openshift vs. wait for the next rebase?
 
 Assuming you read the bullets above... If your patch is really far behind, for
 example, if there have been 5 commits modifying the directory you care about,

@@ -31,12 +31,14 @@ JUNIT_REPORT ?= true
 #     package, the build will produce executable files under $(OUT_DIR)/local/bin.
 #     If not specified, "everything" will be built.
 #   GOFLAGS: Extra flags to pass to 'go' when building.
+#   GOGCFLAGS: Additional go compile flags passed to 'go' when building.
 #   TESTFLAGS: Extra flags that should only be passed to hack/test-go.sh
 #
 # Example:
 #   make
 #   make all
 #   make all WHAT=cmd/oc GOFLAGS=-v
+#   make all GOGCFLAGS="-N -l"
 all build:
 	hack/build-go.sh $(WHAT) $(GOFLAGS)
 .PHONY: all build
@@ -83,19 +85,17 @@ verify: build
 	hack/verify-govet.sh ||r=1;\
 	hack/verify-imports.sh ||r=1;\
 	hack/verify-generated-bindata.sh ||r=1;\
-	hack/verify-generated-deep-copies.sh ||r=1;\
 	hack/verify-generated-conversions.sh ||r=1;\
 	hack/verify-generated-clientsets.sh ||r=1;\
+	hack/verify-generated-deep-copies.sh ||r=1;\
 	hack/verify-generated-defaulters.sh ||r=1;\
 	hack/verify-generated-listers.sh ||r=1;\
 	hack/verify-generated-informers.sh ||r=1;\
 	hack/verify-generated-openapi.sh ||r=1;\
-	hack/verify-generated-protobuf.sh ||r=1;\
 	hack/verify-generated-completions.sh ||r=1;\
 	hack/verify-generated-docs.sh ||r=1;\
 	hack/verify-cli-conventions.sh ||r=1;\
 	hack/verify-generated-json-codecs.sh ||r=1; \
-	hack/verify-generated-swagger-descriptions.sh ||r=1;\
 	hack/verify-generated-swagger-spec.sh ||r=1;\
 	exit $$r ;\
 	}
@@ -116,18 +116,16 @@ verify-commits:
 #   make update
 update:
 	hack/update-generated-bindata.sh
-	hack/update-generated-deep-copies.sh
 	hack/update-generated-conversions.sh
 	hack/update-generated-clientsets.sh
+	hack/update-generated-deep-copies.sh
 	hack/update-generated-defaulters.sh
 	hack/update-generated-listers.sh
 	hack/update-generated-informers.sh
 	hack/update-generated-openapi.sh
-	hack/update-generated-protobuf.sh
 	$(MAKE) build
 	hack/update-generated-completions.sh
 	hack/update-generated-docs.sh
-	hack/update-generated-swagger-descriptions.sh
 	hack/update-generated-swagger-spec.sh
 .PHONY: update
 
@@ -136,15 +134,21 @@ update:
 # Example:
 #   make update-api
 update-api:
-	hack/update-generated-deep-copies.sh
 	hack/update-generated-conversions.sh
 	hack/update-generated-defaulters.sh
 	hack/update-generated-swagger-descriptions.sh
-	hack/update-generated-protobuf.sh
 	hack/update-generated-openapi.sh
 	$(MAKE) build
 	hack/update-generated-swagger-spec.sh
 .PHONY: update-api
+
+# Update vendored dependencies
+#
+# Example:
+#	make update-deps
+update-deps:
+	hack/update-deps.sh
+.PHONY: update-deps
 
 # Build and run the complete test-suite.
 #
@@ -172,10 +176,15 @@ test-unit:
 # Run integration tests. Compiles its own tests, cannot be run
 # in parallel with any other go compilation.
 #
+# Args:
+#   WHAT: Regular expression that matches the names of all of the
+#     integration tests to run.  If not specified, "everything" will be tested.
+#
 # Example:
 #   make test-integration
+#   make test-integration WHAT=TestProjectRequestError
 test-integration:
-	hack/test-integration.sh
+	hack/test-integration.sh $(WHAT)
 .PHONY: test-integration
 
 # Run command tests. Uses whatever binaries are currently built.
@@ -191,8 +200,8 @@ test-cmd: build
 #
 # Example:
 #   make test-end-to-end
+# TODO restore 	COVERAGE_SPEC=' ' DETECT_RACES='false' TIMEOUT='10m' hack/test-go.sh ./test/end-to-end
 test-end-to-end:
-	COVERAGE_SPEC=' ' DETECT_RACES='false' TIMEOUT='10m' hack/test-go.sh ./test/end-to-end
 	hack/test-end-to-end.sh
 .PHONY: test-end-to-end
 
@@ -215,7 +224,7 @@ test-tools:
 # Example:
 #   make test-extended SUITE=core
 #   make test-extended SUITE=conformance FOCUS=pods
-# 
+#
 SUITE ?= conformance
 test-extended:
 	test/extended/$(SUITE).sh
@@ -251,7 +260,6 @@ official-release: build-images build-cross
 # Example:
 #   make release
 release: build-images
-	hack/extract-release.sh
 .PHONY: release
 
 # Build the cross compiled release binaries
@@ -277,7 +285,7 @@ install-travis:
 # Example:
 #   make build-rpms
 build-rpms:
-	OS_ONLY_BUILD_PLATFORMS='linux/amd64' hack/build-rpm-release.sh
+	OS_ONLY_BUILD_PLATFORMS='linux/amd64' hack/build-rpms.sh
 .PHONY: build-rpms
 
 # Build RPMs for all architectures
@@ -287,11 +295,11 @@ build-rpms:
 # Example:
 #   make build-rpms-redistributable
 build-rpms-redistributable:
-	hack/build-rpm-release.sh
+	hack/build-rpms.sh
 .PHONY: build-rpms-redistributable
 
 # Build images from the official RPMs
-# 
+#
 # Args:
 #
 # Example:

@@ -6,29 +6,36 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
-	"github.com/openshift/origin/pkg/client"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
-	deployapiv1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
-	"github.com/openshift/origin/pkg/deploy/generated/clientset"
+	appsapiv1 "github.com/openshift/api/apps/v1"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	appsclient "github.com/openshift/origin/pkg/apps/generated/internalclientset"
+	appsclientscheme "github.com/openshift/origin/pkg/apps/generated/internalclientset/scheme"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
+
+	"github.com/openshift/origin/pkg/api/legacy"
+	_ "github.com/openshift/origin/pkg/apps/apis/apps/install"
 )
 
 var (
-	nonDefaultRevisionHistoryLimit = deployapi.DefaultRevisionHistoryLimit + 42
+	nonDefaultRevisionHistoryLimit = appsapi.DefaultRevisionHistoryLimit + 42
 )
 
-func minimalDC(name string, generation int64) *deployapi.DeploymentConfig {
-	return &deployapi.DeploymentConfig{
+func minimalDC(name string, generation int64) *appsapi.DeploymentConfig {
+	return &appsapi.DeploymentConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       name,
 			Generation: generation,
 		},
-		Spec: deployapi.DeploymentConfigSpec{
+		Spec: appsapi.DeploymentConfigSpec{
 			Selector: map[string]string{
 				"app": name,
 			},
@@ -59,9 +66,9 @@ func int32ptr(v int32) *int32 {
 	return &v
 }
 
-func setEssentialDefaults(dc *deployapi.DeploymentConfig) *deployapi.DeploymentConfig {
-	dc.Spec.Strategy.Type = deployapi.DeploymentStrategyTypeRolling
-	dc.Spec.Strategy.RollingParams = &deployapi.RollingDeploymentStrategyParams{
+func setEssentialDefaults(dc *appsapi.DeploymentConfig) *appsapi.DeploymentConfig {
+	dc.Spec.Strategy.Type = appsapi.DeploymentStrategyTypeRolling
+	dc.Spec.Strategy.RollingParams = &appsapi.RollingDeploymentStrategyParams{
 		IntervalSeconds:     int64ptr(1),
 		UpdatePeriodSeconds: int64ptr(1),
 		TimeoutSeconds:      int64ptr(600),
@@ -69,7 +76,9 @@ func setEssentialDefaults(dc *deployapi.DeploymentConfig) *deployapi.DeploymentC
 		MaxSurge:            intstr.FromString("25%"),
 	}
 	dc.Spec.Strategy.ActiveDeadlineSeconds = int64ptr(21600)
-	dc.Spec.Triggers = []deployapi.DeploymentTriggerPolicy{}
+	dc.Spec.Triggers = []appsapi.DeploymentTriggerPolicy{
+		{Type: appsapi.DeploymentTriggerOnConfigChange},
+	}
 	dc.Spec.Template.Spec.Containers[0].TerminationMessagePath = "/dev/termination-log"
 	dc.Spec.Template.Spec.Containers[0].TerminationMessagePolicy = "File"
 	dc.Spec.Template.Spec.Containers[0].ImagePullPolicy = "IfNotPresent"
@@ -86,7 +95,7 @@ func setEssentialDefaults(dc *deployapi.DeploymentConfig) *deployapi.DeploymentC
 	return dc
 }
 
-func clearTransient(dc *deployapi.DeploymentConfig) {
+func clearTransient(dc *appsapi.DeploymentConfig) {
 	dc.ObjectMeta.Namespace = ""
 	dc.ObjectMeta.SelfLink = ""
 	dc.ObjectMeta.UID = ""
@@ -108,27 +117,27 @@ func TestDeploymentConfigDefaults(t *testing.T) {
 		t.Fatalf("Failed to get cluster admin client config: %v", err)
 	}
 
-	legacyClient, err := client.New(adminClientConfig)
-	if err != nil {
-		t.Fatalf("Failed to create legacyClient: %v", err)
-	}
-
-	appsClient, err := clientset.NewForConfig(adminClientConfig)
+	appsClient, err := appsclient.NewForConfig(adminClientConfig)
 	if err != nil {
 		t.Fatalf("Failed to create appsClient: %v", err)
 	}
+	// install the legacy types into the client for decoding
+	legacy.InstallLegacy(appsapi.GroupName, appsapi.AddToSchemeInCoreGroup, appsapiv1.AddToSchemeInCoreGroup,
+		sets.NewString(),
+		appsclientscheme.Registry, appsclientscheme.Scheme,
+	)
 
 	ttLegacy := []struct {
-		obj    *deployapi.DeploymentConfig
-		legacy *deployapi.DeploymentConfig
+		obj    *appsapi.DeploymentConfig
+		legacy *appsapi.DeploymentConfig
 	}{
 		{
-			obj: func() *deployapi.DeploymentConfig {
+			obj: func() *appsapi.DeploymentConfig {
 				dc := minimalDC("test-legacy-01", 0)
 				dc.Spec.RevisionHistoryLimit = nil
 				return dc
 			}(),
-			legacy: func() *deployapi.DeploymentConfig {
+			legacy: func() *appsapi.DeploymentConfig {
 				dc := minimalDC("test-legacy-01", 1)
 				setEssentialDefaults(dc)
 				// Legacy API shall not default RevisionHistoryLimit to maintain backwards compatibility
@@ -137,12 +146,12 @@ func TestDeploymentConfigDefaults(t *testing.T) {
 			}(),
 		},
 		{
-			obj: func() *deployapi.DeploymentConfig {
+			obj: func() *appsapi.DeploymentConfig {
 				dc := minimalDC("test-legacy-02", 0)
 				dc.Spec.RevisionHistoryLimit = &nonDefaultRevisionHistoryLimit
 				return dc
 			}(),
-			legacy: func() *deployapi.DeploymentConfig {
+			legacy: func() *appsapi.DeploymentConfig {
 				dc := minimalDC("test-legacy-02", 1)
 				setEssentialDefaults(dc)
 				dc.Spec.RevisionHistoryLimit = &nonDefaultRevisionHistoryLimit
@@ -153,10 +162,15 @@ func TestDeploymentConfigDefaults(t *testing.T) {
 	t.Run("Legacy API", func(t *testing.T) {
 		for _, tc := range ttLegacy {
 			t.Run("", func(t *testing.T) {
-				legacyDC, err := legacyClient.DeploymentConfigs(namespace).Create(tc.obj)
+				dcBytes, err := runtime.Encode(legacyscheme.Codecs.LegacyCodec(schema.GroupVersion{Version: "v1"}), tc.obj)
+				if err != nil {
+					t.Fatal(err)
+				}
+				legacyObj, err := appsClient.Apps().RESTClient().Post().AbsPath("/oapi/v1/namespaces/" + namespace + "/deploymentconfigs").Body(dcBytes).Do().Get()
 				if err != nil {
 					t.Fatalf("Failed to create DC: %v", err)
 				}
+				legacyDC := legacyObj.(*appsapi.DeploymentConfig)
 
 				clearTransient(legacyDC)
 				if !reflect.DeepEqual(legacyDC, tc.legacy) {
@@ -167,16 +181,16 @@ func TestDeploymentConfigDefaults(t *testing.T) {
 	})
 
 	ttApps := []struct {
-		obj  *deployapi.DeploymentConfig
-		apps *deployapi.DeploymentConfig
+		obj  *appsapi.DeploymentConfig
+		apps *appsapi.DeploymentConfig
 	}{
 		{
-			obj: func() *deployapi.DeploymentConfig {
+			obj: func() *appsapi.DeploymentConfig {
 				dc := minimalDC("test-apps-01", 0)
 				dc.Spec.RevisionHistoryLimit = nil
 				return dc
 			}(),
-			apps: func() *deployapi.DeploymentConfig {
+			apps: func() *appsapi.DeploymentConfig {
 				dc := minimalDC("test-apps-01", 1)
 				setEssentialDefaults(dc)
 				// Group API should default RevisionHistoryLimit
@@ -185,12 +199,12 @@ func TestDeploymentConfigDefaults(t *testing.T) {
 			}(),
 		},
 		{
-			obj: func() *deployapi.DeploymentConfig {
+			obj: func() *appsapi.DeploymentConfig {
 				dc := minimalDC("test-apps-02", 0)
 				dc.Spec.RevisionHistoryLimit = &nonDefaultRevisionHistoryLimit
 				return dc
 			}(),
-			apps: func() *deployapi.DeploymentConfig {
+			apps: func() *appsapi.DeploymentConfig {
 				dc := minimalDC("test-apps-02", 1)
 				setEssentialDefaults(dc)
 				dc.Spec.RevisionHistoryLimit = &nonDefaultRevisionHistoryLimit
@@ -201,24 +215,14 @@ func TestDeploymentConfigDefaults(t *testing.T) {
 	t.Run("apps.openshift.io", func(t *testing.T) {
 		for _, tc := range ttApps {
 			t.Run("", func(t *testing.T) {
-				var objV1 deployapiv1.DeploymentConfig
-				err := kapi.Scheme.Convert(tc.obj, &objV1, nil)
-				if err != nil {
-					t.Fatalf("Failed to convert internal DC to v1: %v", err)
-				}
-				appsDCV1, err := appsClient.AppsV1().DeploymentConfigs(namespace).Create(&objV1)
+				appsDC, err := appsClient.Apps().DeploymentConfigs(namespace).Create(tc.obj)
 				if err != nil {
 					t.Fatalf("Failed to create DC: %v", err)
 				}
 
-				var appsDC deployapi.DeploymentConfig
-				err = kapi.Scheme.Convert(appsDCV1, &appsDC, nil)
-				if err != nil {
-					t.Fatalf("Failed to convert v1 to internal DC: %v", err)
-				}
-				clearTransient(&appsDC)
-				if !reflect.DeepEqual(&appsDC, tc.apps) {
-					t.Errorf("Apps DC differs from expected output: %s", diff.ObjectReflectDiff(&appsDC, tc.apps))
+				clearTransient(appsDC)
+				if !reflect.DeepEqual(appsDC, tc.apps) {
+					t.Errorf("Apps DC differs from expected output: %s", diff.ObjectReflectDiff(appsDC, tc.apps))
 				}
 			})
 		}

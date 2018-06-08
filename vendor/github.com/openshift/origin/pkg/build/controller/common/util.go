@@ -4,41 +4,22 @@ import (
 	"fmt"
 	"sort"
 
+	"k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/v1"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/third_party/forked/golang/expansion"
 
 	buildadmission "github.com/openshift/origin/pkg/build/admission"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	buildclient "github.com/openshift/origin/pkg/build/client"
-	"github.com/openshift/origin/pkg/build/controller/policy"
 	buildlister "github.com/openshift/origin/pkg/build/generated/listers/build/internalversion"
 	buildutil "github.com/openshift/origin/pkg/build/util"
 	envresolve "github.com/openshift/origin/pkg/pod/envresolve"
 
 	"github.com/golang/glog"
 )
-
-func HandleBuildCompletion(build *buildapi.Build, buildLister buildlister.BuildLister, buildConfigGetter buildlister.BuildConfigLister, buildDeleter buildclient.BuildDeleter, runPolicies []policy.RunPolicy) {
-	if !buildutil.IsBuildComplete(build) {
-		return
-	}
-	runPolicy := policy.ForBuild(build, runPolicies)
-	if runPolicy == nil {
-		utilruntime.HandleError(fmt.Errorf("unable to determine build scheduler for %s/%s", build.Namespace, build.Name))
-		return
-	}
-	if err := runPolicy.OnComplete(build); err != nil {
-		utilruntime.HandleError(fmt.Errorf("failed to run policy on completed build %s/%s: %v", build.Namespace, build.Name, err))
-	}
-	if err := HandleBuildPruning(buildutil.ConfigNameForBuild(build), build.Namespace, buildLister, buildConfigGetter, buildDeleter); err != nil {
-		utilruntime.HandleError(fmt.Errorf("failed to prune old builds %s/%s: %v", build.Namespace, build.Name, err))
-	}
-}
 
 type ByCreationTimestamp []*buildapi.Build
 
@@ -60,6 +41,11 @@ func HandleBuildPruning(buildConfigName string, namespace string, buildLister bu
 	buildConfig, err := buildConfigGetter.BuildConfigs(namespace).Get(buildConfigName)
 	if err != nil {
 		return err
+	}
+
+	if buildConfig.Spec.Strategy.JenkinsPipelineStrategy != nil {
+		glog.V(4).Infof("Build pruning for %s/%s is handled by Jenkins, skipping.", buildConfig.Namespace, buildConfig.Name)
+		return nil
 	}
 
 	var buildsToDelete []*buildapi.Build

@@ -13,9 +13,9 @@ import (
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	kprinters "k8s.io/kubernetes/pkg/printers"
 
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 	userapi "github.com/openshift/origin/pkg/user/apis/user"
+	usertypedclient "github.com/openshift/origin/pkg/user/generated/internalclientset/typed/user/internalversion"
 )
 
 const NewGroupRecommendedName = "new"
@@ -38,7 +38,7 @@ var (
 )
 
 type NewGroupOptions struct {
-	GroupClient client.GroupInterface
+	GroupClient usertypedclient.GroupInterface
 
 	Group string
 	Users []string
@@ -57,7 +57,7 @@ func NewCmdNewGroup(name, fullName string, f *clientcmd.Factory, out io.Writer) 
 		Example: fmt.Sprintf(newExample, fullName),
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := options.Complete(f, cmd, args); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 			kcmdutil.CheckErr(options.Validate())
 			kcmdutil.CheckErr(options.AddGroup())
@@ -79,14 +79,14 @@ func (o *NewGroupOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, arg
 		o.Users = append(o.Users, args[1:]...)
 	}
 
-	osClient, _, err := f.Clients()
+	userClient, err := f.OpenshiftInternalUserClient()
 	if err != nil {
 		return err
 	}
 
-	o.GroupClient = osClient.Groups()
+	o.GroupClient = userClient.User().Groups()
 
-	printer, err := f.PrinterForCommand(cmd, true, nil, kprinters.PrintOptions{})
+	printer, err := f.PrinterForOptions(kcmdutil.ExtractCmdPrintOptions(cmd, false))
 	if err != nil {
 		return err
 	}

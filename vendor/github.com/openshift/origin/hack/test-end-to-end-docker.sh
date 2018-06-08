@@ -14,11 +14,6 @@ os::util::environment::setup_all_server_vars
 os::util::environment::setup_time_vars
 export HOME="${FAKE_HOME_DIR}"
 
-# Allow setting $JUNIT_REPORT to toggle output behavior
-if [[ -n "${JUNIT_REPORT:-}" ]]; then
-	export JUNIT_REPORT_OUTPUT="${LOG_DIR}/raw_test_output.log"
-fi
-
 function cleanup() {
 	return_code=$?
 
@@ -54,6 +49,10 @@ if os::util::ensure::system_binary_exists 'systemctl'; then
 	# restart docker, as well.
 	${USE_SUDO:+sudo} systemctl restart docker.service
 fi
+
+# Tag the web console image with the same tag as the other origin images
+docker pull openshift/origin-web-console:latest
+docker tag openshift/origin-web-console:latest openshift/origin-web-console:${TAG}
 
 # Setup
 os::log::info "openshift version: `openshift version`"

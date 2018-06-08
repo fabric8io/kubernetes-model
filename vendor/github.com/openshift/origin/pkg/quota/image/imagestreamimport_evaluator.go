@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	kadmission "k8s.io/apiserver/pkg/admission"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kquota "k8s.io/kubernetes/pkg/quota"
 	"k8s.io/kubernetes/pkg/quota/generic"
 
@@ -42,12 +42,12 @@ func (i *imageStreamImportEvaluator) Constraints(required []kapi.ResourceName, o
 	return nil
 }
 
-func (i *imageStreamImportEvaluator) GroupKind() schema.GroupKind {
-	return imageapi.Kind("ImageStreamImport")
+func (i *imageStreamImportEvaluator) GroupResource() schema.GroupResource {
+	return imageapi.Resource("imagestreamimports")
 }
 
-func (i *imageStreamImportEvaluator) Handles(operation kadmission.Operation) bool {
-	return operation == kadmission.Create
+func (i *imageStreamImportEvaluator) Handles(a kadmission.Attributes) bool {
+	return a.GetOperation() == kadmission.Create
 }
 
 func (i *imageStreamImportEvaluator) Matches(resourceQuota *kapi.ResourceQuota, item runtime.Object) (bool, error) {

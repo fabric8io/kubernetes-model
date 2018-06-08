@@ -22,29 +22,48 @@ type BrokerTemplateInstanceInformer interface {
 }
 
 type brokerTemplateInstanceInformer struct {
-	factory internalinterfaces.SharedInformerFactory
+	factory          internalinterfaces.SharedInformerFactory
+	tweakListOptions internalinterfaces.TweakListOptionsFunc
 }
 
-func newBrokerTemplateInstanceInformer(client internalclientset.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	sharedIndexInformer := cache.NewSharedIndexInformer(
+// NewBrokerTemplateInstanceInformer constructs a new informer for BrokerTemplateInstance type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewBrokerTemplateInstanceInformer(client internalclientset.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredBrokerTemplateInstanceInformer(client, resyncPeriod, indexers, nil)
+}
+
+// NewFilteredBrokerTemplateInstanceInformer constructs a new informer for BrokerTemplateInstance type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewFilteredBrokerTemplateInstanceInformer(client internalclientset.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
 				return client.Template().BrokerTemplateInstances().List(options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
 				return client.Template().BrokerTemplateInstances().Watch(options)
 			},
 		},
 		&template.BrokerTemplateInstance{},
 		resyncPeriod,
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		indexers,
 	)
+}
 
-	return sharedIndexInformer
+func (f *brokerTemplateInstanceInformer) defaultInformer(client internalclientset.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredBrokerTemplateInstanceInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
 func (f *brokerTemplateInstanceInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&template.BrokerTemplateInstance{}, newBrokerTemplateInstanceInformer)
+	return f.factory.InformerFor(&template.BrokerTemplateInstance{}, f.defaultInformer)
 }
 
 func (f *brokerTemplateInstanceInformer) Lister() internalversion.BrokerTemplateInstanceLister {

@@ -27,6 +27,10 @@ os::cmd::expect_success_and_not_text 'oc adm migrate storage --loglevel=2 --incl
 os::cmd::expect_success_and_text     'oc adm migrate storage --loglevel=2 --confirm' 'unchanged:'
 os::test::junit::declare_suite_end
 
+os::test::junit::declare_suite_start "cmd/migrate/authorization"
+os::cmd::expect_failure_and_text     'oc adm migrate authorization' 'error: the server does not support legacy policy resources'
+os::test::junit::declare_suite_end
+
 os::test::junit::declare_suite_start "cmd/migrate/storage_oauthclientauthorizations"
 # Create valid OAuth client
 os::cmd::expect_success_and_text     'oc create -f test/testdata/oauth/client.yaml' 'oauthclient "test-oauth-client" created'
@@ -72,6 +76,18 @@ os::cmd::expect_success_and_text     'oc get istag test:2 --template "{{ .image.
 os::cmd::expect_success_and_text     'oc adm migrate image-references --include=imagestreams docker.io/*=my.docker.io/* --all-namespaces=false --loglevel=1 --confirm' 'migrated=1'
 os::cmd::expect_success_and_not_text 'oc get is test --template "{{ range .status.tags }}{{ range .items }}{{ .dockerImageReference }}{{ \"\n\" }}{{ end }}{{ end }}"' '^php'
 os::cmd::expect_success_and_not_text 'oc get is test --template "{{ range .status.tags }}{{ range .items }}{{ .dockerImageReference }}{{ \"\n\" }}{{ end }}{{ end }}"' '^mysql'
+os::test::junit::declare_suite_end
+
+os::test::junit::declare_suite_start "cmd/migrate/legacyhpa"
+# create a legacy and a normal HPA
+os::cmd::expect_success 'oc create -f test/testdata/hpa/legacy-and-normal-hpa.yaml'
+# verify dry run
+os::cmd::expect_success_and_text 'oc adm migrate legacy-hpa' 'migrated=1'
+# confirm...
+os::cmd::expect_success_and_text 'oc adm migrate legacy-hpa --confirm' 'migrated=1'
+# verify that all HPAs are as they should be
+os::cmd::expect_success_and_text 'oc get hpa legacy-hpa -o jsonpath="{.spec.scaleTargetRef.apiVersion}.{.spec.scaleTargetRef.kind} {.spec.scaleTargetRef.name}"' 'apps.openshift.io/v1.DeploymentConfig legacy-target'
+os::cmd::expect_success_and_text 'oc get hpa other-hpa -o jsonpath="{.spec.scaleTargetRef.apiVersion}.{.spec.scaleTargetRef.kind} {.spec.scaleTargetRef.name}"' 'apps/v1.Deployment other-target'
 os::test::junit::declare_suite_end
 
 os::test::junit::declare_suite_end

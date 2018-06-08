@@ -12,7 +12,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
 	"github.com/skynetservices/skydns/msg"
 	"github.com/skynetservices/skydns/server"
@@ -352,7 +352,7 @@ type oldestEndpoints []*kapi.Endpoints
 func (s oldestEndpoints) Len() int      { return len(s) }
 func (s oldestEndpoints) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s oldestEndpoints) Less(i, j int) bool {
-	return !s[j].CreationTimestamp.Before(s[i].CreationTimestamp)
+	return !s[j].CreationTimestamp.Before(&s[i].CreationTimestamp)
 }
 
 // arpaSuffix is the standard suffix for PTR IP reverse lookups.

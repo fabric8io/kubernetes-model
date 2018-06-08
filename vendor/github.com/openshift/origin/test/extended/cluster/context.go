@@ -13,17 +13,20 @@ type ContextType struct {
 	ClusterLoader struct {
 		Cleanup    bool
 		Projects   []ClusterLoaderType
+		Sync       SyncObjectType
 		TuningSets []TuningSetType
 	}
 }
 
 // ClusterLoaderType struct only used for Cluster Loader test config
 type ClusterLoaderType struct {
-	Number    int `mapstructure:"num"`
-	Basename  string
-	Tuning    string
-	Pods      []ClusterLoaderObjectType
-	Templates []ClusterLoaderObjectType
+	Number     int `mapstructure:"num"`
+	Basename   string
+	Tuning     string
+	Configmaps map[string]interface{}
+	Secrets    map[string]interface{}
+	Pods       []ClusterLoaderObjectType
+	Templates  []ClusterLoaderObjectType
 }
 
 // ClusterLoaderObjectType is nested object type for cluster loader struct
@@ -33,16 +36,20 @@ type ClusterLoaderObjectType struct {
 	Image      string
 	Basename   string
 	File       string
-	Parameters ParameterConfigType
+	Sync       SyncObjectType
+	Parameters map[string]interface{}
 }
 
-// ParameterConfigType contains config parameters for each object
-type ParameterConfigType struct {
-	Run         string `mapstructure:"run"`
-	RouterIP    string `mapstructure:"router_ip"`
-	TargetHost  string `mapstructure:"target_host"`
-	DurationSec int    `mapstructure:"duration"`
-	Megabytes   int
+// SyncObjectType is nested object type for cluster loader synchronisation functionality
+type SyncObjectType struct {
+	Server struct {
+		Enabled bool
+		Port    int
+	}
+	Running   bool
+	Succeeded bool
+	Selectors map[string]string
+	Timeout   string
 }
 
 // TuningSetType is nested type for controlling Cluster Loader deployment pattern

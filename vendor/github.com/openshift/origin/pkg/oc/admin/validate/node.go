@@ -12,8 +12,8 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
-	configapilatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
-	"github.com/openshift/origin/pkg/cmd/server/api/validation"
+	configapilatest "github.com/openshift/origin/pkg/cmd/server/apis/config/latest"
+	"github.com/openshift/origin/pkg/cmd/server/apis/config/validation"
 )
 
 const (
@@ -54,7 +54,7 @@ func NewCommandValidateNodeConfig(name, fullName string, out io.Writer) *cobra.C
 		Deprecated: validateNodeConfigDeprecationMessage,
 		Run: func(c *cobra.Command, args []string) {
 			if err := options.Complete(args); err != nil {
-				cmdutil.CheckErr(cmdutil.UsageError(c, err.Error()))
+				cmdutil.CheckErr(cmdutil.UsageErrorf(c, err.Error()))
 			}
 
 			ok, err := options.Run()

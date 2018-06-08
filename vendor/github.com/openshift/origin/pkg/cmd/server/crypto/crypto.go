@@ -38,6 +38,24 @@ var versions = map[string]uint16{
 	"VersionTLS12": tls.VersionTLS12,
 }
 
+// TLSVersionToNameOrDie given a tls version as an int, return its readable name
+func TLSVersionToNameOrDie(intVal uint16) string {
+	matches := []string{}
+	for key, version := range versions {
+		if version == intVal {
+			matches = append(matches, key)
+		}
+	}
+
+	if len(matches) == 0 {
+		panic(fmt.Sprintf("no name found for %d", intVal))
+	}
+	if len(matches) > 1 {
+		panic(fmt.Sprintf("multiple names found for %d: %v", intVal, matches))
+	}
+	return matches[0]
+}
+
 func TLSVersion(versionName string) (uint16, error) {
 	if len(versionName) == 0 {
 		return DefaultTLSVersion(), nil
@@ -92,6 +110,34 @@ var ciphers = map[string]uint16{
 	"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384": tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 	"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305":    tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
 	"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305":  tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+}
+
+// CipherSuitesToNamesOrDie given a list of cipher suites as ints, return their readable names
+func CipherSuitesToNamesOrDie(intVals []uint16) []string {
+	ret := []string{}
+	for _, intVal := range intVals {
+		ret = append(ret, CipherSuiteToNameOrDie(intVal))
+	}
+
+	return ret
+}
+
+// CipherSuiteToNameOrDie given a cipher suite as an int, return its readable name
+func CipherSuiteToNameOrDie(intVal uint16) string {
+	matches := []string{}
+	for key, version := range ciphers {
+		if version == intVal {
+			matches = append(matches, key)
+		}
+	}
+
+	if len(matches) == 0 {
+		panic(fmt.Sprintf("no name found for %d", intVal))
+	}
+	if len(matches) > 1 {
+		panic(fmt.Sprintf("multiple names found for %d: %v", intVal, matches))
+	}
+	return matches[0]
 }
 
 func CipherSuite(cipherName string) (uint16, error) {
@@ -199,13 +245,6 @@ func (c *TLSCertificateConfig) GetPEMBytes() ([]byte, []byte, error) {
 	return certBytes, keyBytes, nil
 }
 
-func (c *TLSCARoots) writeCARoots(rootFile string) error {
-	if err := writeCertificates(rootFile, c.Roots...); err != nil {
-		return err
-	}
-	return nil
-}
-
 func GetTLSCARoots(caFile string) (*TLSCARoots, error) {
 	if len(caFile) == 0 {
 		return nil, errors.New("caFile missing")
@@ -281,37 +320,45 @@ type SerialFileGenerator struct {
 	Serial int64
 }
 
-func NewSerialFileGenerator(serialFile string, createIfNeeded bool) (*SerialFileGenerator, error) {
-	// read serial file
-	var serial int64
-	serialData, err := ioutil.ReadFile(serialFile)
-	if err == nil {
-		serial, _ = strconv.ParseInt(string(serialData), 16, 64)
-	}
-	if os.IsNotExist(err) && createIfNeeded {
-		if err := ioutil.WriteFile(serialFile, []byte("00"), 0644); err != nil {
-			return nil, err
-		}
-		serial = 1
-
-	} else if err != nil {
+func NewSerialFileGenerator(serialFile string) (*SerialFileGenerator, error) {
+	// read serial file, it must already exist
+	serial, err := fileToSerial(serialFile)
+	if err != nil {
 		return nil, err
 	}
 
-	if serial < 1 {
-		serial = 1
-	}
-
-	return &SerialFileGenerator{
+	generator := &SerialFileGenerator{
 		Serial:     serial,
 		SerialFile: serialFile,
-	}, nil
+	}
+
+	// 0 is unused and 1 is reserved for the CA itself
+	// Thus we need to guarantee that the first external call to SerialFileGenerator.Next returns 2+
+	// meaning that SerialFileGenerator.Serial must not be less than 1 (it is guaranteed to be non-negative)
+	if generator.Serial < 1 {
+		// fake a call to Next so the file stays in sync and Serial is incremented
+		if _, err := generator.Next(&x509.Certificate{}); err != nil {
+			return nil, err
+		}
+	}
+
+	return generator, nil
 }
 
 // Next returns a unique, monotonically increasing serial number and ensures the CA on disk records that value.
 func (s *SerialFileGenerator) Next(template *x509.Certificate) (int64, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	// do a best effort check to make sure concurrent external writes are not occurring to the underlying serial file
+	serial, err := fileToSerial(s.SerialFile)
+	if err != nil {
+		return 0, err
+	}
+	if serial != s.Serial {
+		return 0, fmt.Errorf("serial file %s out of sync ram=%d disk=%d", s.SerialFile, s.Serial, serial)
+	}
+
 	next := s.Serial + 1
 	s.Serial = next
 
@@ -320,11 +367,32 @@ func (s *SerialFileGenerator) Next(template *x509.Certificate) (int64, error) {
 	if len(serialText)%2 == 1 {
 		serialText = "0" + serialText
 	}
+	// always add a newline at the end to have a valid file
+	serialText += "\n"
 
 	if err := ioutil.WriteFile(s.SerialFile, []byte(serialText), os.FileMode(0640)); err != nil {
 		return 0, err
 	}
 	return next, nil
+}
+
+func fileToSerial(serialFile string) (int64, error) {
+	serialData, err := ioutil.ReadFile(serialFile)
+	if err != nil {
+		return 0, err
+	}
+
+	// read the file as a single hex number after stripping any whitespace
+	serial, err := strconv.ParseInt(string(bytes.TrimSpace(serialData)), 16, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	if serial < 0 {
+		return 0, fmt.Errorf("invalid negative serial %d in serial file %s", serial, serialFile)
+	}
+
+	return serial, nil
 }
 
 // RandomSerialGenerator returns a serial based on time.Now and the subject
@@ -355,7 +423,7 @@ func GetCA(certFile, keyFile, serialFile string) (*CA, error) {
 
 	var serialGenerator SerialGenerator
 	if len(serialFile) > 0 {
-		serialGenerator, err = NewSerialFileGenerator(serialFile, false)
+		serialGenerator, err = NewSerialFileGenerator(serialFile)
 		if err != nil {
 			return nil, err
 		}
@@ -392,10 +460,11 @@ func MakeCA(certFile, keyFile, serialFile, name string, expireDays int) (*CA, er
 
 	var serialGenerator SerialGenerator
 	if len(serialFile) > 0 {
-		if err := ioutil.WriteFile(serialFile, []byte("00"), 0644); err != nil {
+		// create / overwrite the serial file with a zero padded hex value (ending in a newline to have a valid file)
+		if err := ioutil.WriteFile(serialFile, []byte("00\n"), 0644); err != nil {
 			return nil, err
 		}
-		serialGenerator, err = NewSerialFileGenerator(serialFile, false)
+		serialGenerator, err = NewSerialFileGenerator(serialFile)
 		if err != nil {
 			return nil, err
 		}

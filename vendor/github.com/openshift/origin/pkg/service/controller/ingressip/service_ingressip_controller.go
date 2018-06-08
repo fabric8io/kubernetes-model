@@ -8,19 +8,19 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+
+	"k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+	kclientset "k8s.io/client-go/kubernetes"
+	kcoreclient "k8s.io/client-go/kubernetes/typed/core/v1"
 	kv1core "k8s.io/client-go/kubernetes/typed/core/v1"
-	clientv1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/v1"
-	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
-	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/clientset/typed/core/v1"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/registry/core/service/allocator"
 	"k8s.io/kubernetes/pkg/registry/core/service/ipallocator"
@@ -82,7 +82,7 @@ type serviceChange struct {
 func NewIngressIPController(services cache.SharedIndexInformer, kc kclientset.Interface, ipNet *net.IPNet, resyncInterval time.Duration) *IngressIPController {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartRecordingToSink(&kv1core.EventSinkImpl{Interface: kv1core.New(kc.CoreV1().RESTClient()).Events("")})
-	recorder := eventBroadcaster.NewRecorder(kapi.Scheme, clientv1.EventSource{Component: "ingressip-controller"})
+	recorder := eventBroadcaster.NewRecorder(legacyscheme.Scheme, v1.EventSource{Component: "ingressip-controller"})
 
 	ic := &IngressIPController{
 		client:     kc.Core(),
@@ -198,7 +198,7 @@ type serviceAge []*v1.Service
 func (s serviceAge) Len() int      { return len(s) }
 func (s serviceAge) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s serviceAge) Less(i, j int) bool {
-	if s[i].CreationTimestamp.Before(s[j].CreationTimestamp) {
+	if s[i].CreationTimestamp.Before(&s[j].CreationTimestamp) {
 		return true
 	}
 	return (s[i].CreationTimestamp == s[j].CreationTimestamp && s[i].UID < s[j].UID)
@@ -329,10 +329,9 @@ func (ic *IngressIPController) recordLocalAllocation(key, ipString string) (real
 	}
 
 	err = ic.ipAllocator.Allocate(ip)
-	switch {
-	case err == ipallocator.ErrNotInRange:
+	if _, ok := err.(*ipallocator.ErrNotInRange); ok {
 		return true, fmt.Errorf("The ingress ip %v for service %v is not in the ingress range.  A new ip will be allocated.", ipString, key)
-	case err != nil:
+	} else if err != nil {
 		// The only other error that Allocate() can throw is ErrAllocated, but that
 		// should not happen after the check against the allocation map.
 		return false, fmt.Errorf("Unexpected error from ip allocator for service %v: %v", key, err)
@@ -469,23 +468,19 @@ func (ic *IngressIPController) recordAllocation(service *v1.Service, key string)
 	}
 
 	// Make a copy to modify to avoid mutating cache state
-	t, err := kapi.Scheme.DeepCopy(service)
-	if err != nil {
-		return err
-	}
-	service = t.(*v1.Service)
+	serviceCopy := service.DeepCopy()
 
 	if reallocate {
 		// TODO update the external ips but not the status since
 		// allocate() will overwrite any existing allocation.
-		if err = ic.clearPersistedAllocation(service, key, reallocateMessage); err != nil {
+		if err = ic.clearPersistedAllocation(serviceCopy, key, reallocateMessage); err != nil {
 			return err
 		}
-		ic.recorder.Eventf(service, v1.EventTypeWarning, "IngressIPReallocated", reallocateMessage)
-		return ic.allocate(service, key)
+		ic.recorder.Eventf(serviceCopy, v1.EventTypeWarning, "IngressIPReallocated", reallocateMessage)
+		return ic.allocate(serviceCopy, key)
 	} else {
 		// Ensure that the ingress ip is present in the service's spec.
-		return ic.ensureExternalIP(service, key, ipString)
+		return ic.ensureExternalIP(serviceCopy, key, ipString)
 	}
 }
 
@@ -493,20 +488,16 @@ func (ic *IngressIPController) recordAllocation(service *v1.Service, key string)
 // service's persisted state.
 func (ic *IngressIPController) allocate(service *v1.Service, key string) error {
 	// Make a copy to avoid mutating cache state
-	t, err := kapi.Scheme.DeepCopy(service)
-	if err != nil {
-		return err
-	}
-	service = t.(*v1.Service)
+	serviceCopy := service.DeepCopy()
 
-	ip, err := ic.allocateIP(service.Spec.LoadBalancerIP)
+	ip, err := ic.allocateIP(serviceCopy.Spec.LoadBalancerIP)
 	if err != nil {
 		return err
 	}
 	ipString := ip.String()
 
 	glog.V(5).Infof("Allocating ip %v to service %v", ipString, key)
-	service.Status = v1.ServiceStatus{
+	serviceCopy.Status = v1.ServiceStatus{
 		LoadBalancer: v1.LoadBalancerStatus{
 			Ingress: []v1.LoadBalancerIngress{
 				{
@@ -515,7 +506,7 @@ func (ic *IngressIPController) allocate(service *v1.Service, key string) error {
 			},
 		},
 	}
-	if err = ic.persistServiceStatus(service); err != nil {
+	if err = ic.persistServiceStatus(serviceCopy); err != nil {
 		if releaseErr := ic.ipAllocator.Release(ip); releaseErr != nil {
 			// Release from contiguous allocator should never return an error, but just in case...
 			utilruntime.HandleError(fmt.Errorf("Error releasing ip %v for service %v: %v", ipString, key, releaseErr))
@@ -524,7 +515,7 @@ func (ic *IngressIPController) allocate(service *v1.Service, key string) error {
 	}
 	ic.allocationMap[ipString] = key
 
-	return ic.ensureExternalIP(service, key, ipString)
+	return ic.ensureExternalIP(serviceCopy, key, ipString)
 }
 
 // deallocate ensures that the ip currently allocated to a service is
@@ -533,17 +524,13 @@ func (ic *IngressIPController) deallocate(service *v1.Service, key string) error
 	glog.V(5).Infof("Clearing allocation state for %v", key)
 
 	// Make a copy to modify to avoid mutating cache state
-	t, err := kapi.Scheme.DeepCopy(service)
-	if err != nil {
-		return err
-	}
-	service = t.(*v1.Service)
+	serviceCopy := service.DeepCopy()
 
 	// Get the ingress ip to remove from local allocation state before
 	// it is removed from the service.
-	ipString := service.Status.LoadBalancer.Ingress[0].IP
+	ipString := serviceCopy.Status.LoadBalancer.Ingress[0].IP
 
-	if err = ic.clearPersistedAllocation(service, key, ""); err != nil {
+	if err := ic.clearPersistedAllocation(serviceCopy, key, ""); err != nil {
 		return err
 	}
 

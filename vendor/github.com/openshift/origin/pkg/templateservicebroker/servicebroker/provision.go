@@ -3,43 +3,53 @@ package servicebroker
 import (
 	"net/http"
 	"reflect"
+	"time"
 
 	"github.com/golang/glog"
 
+	authorizationv1 "k8s.io/api/authorization/v1"
+	kapiv1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apiserver/pkg/authentication/user"
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/apis/authorization"
+	"k8s.io/client-go/util/retry"
 
-	"github.com/openshift/origin/pkg/authorization/util"
-	templateapi "github.com/openshift/origin/pkg/template/apis/template"
+	templateapiv1 "github.com/openshift/api/template/v1"
 	"github.com/openshift/origin/pkg/templateservicebroker/openservicebroker/api"
-	uservalidation "github.com/openshift/origin/pkg/user/apis/user/validation"
+	"github.com/openshift/origin/pkg/templateservicebroker/util"
 )
 
 // ensureSecret ensures the existence of a Secret object containing the template
 // configuration parameters.
-func (b *Broker) ensureSecret(u user.Info, namespace string, instanceID string, preq *api.ProvisionRequest, didWork *bool) (*kapi.Secret, *api.Response) {
+func (b *Broker) ensureSecret(u user.Info, namespace string, brokerTemplateInstance *templateapiv1.BrokerTemplateInstance, instanceID string, preq *api.ProvisionRequest, didWork *bool) (*kapiv1.Secret, *api.Response) {
 	glog.V(4).Infof("Template service broker: ensureSecret")
 
-	secret := &kapi.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: instanceID},
-		Data:       map[string][]byte{},
+	blockOwnerDeletion := true
+	secret := &kapiv1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: instanceID,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         templateapiv1.SchemeGroupVersion.String(),
+					Kind:               "BrokerTemplateInstance",
+					Name:               brokerTemplateInstance.Name,
+					UID:                brokerTemplateInstance.UID,
+					BlockOwnerDeletion: &blockOwnerDeletion,
+				},
+			},
+		},
+		Data: map[string][]byte{},
 	}
 
 	for k, v := range preq.Parameters {
-		//TODO - when https://github.com/kubernetes-incubator/service-catalog/pull/939 sufficiently progresses, remove the user name prop check, just copy data
-		if k != templateapi.RequesterUsernameParameterKey {
-			secret.Data[k] = []byte(v)
-		}
+		secret.Data[k] = []byte(v)
 	}
 
-	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorization.ResourceAttributes{
+	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorizationv1.ResourceAttributes{
 		Namespace: namespace,
 		Verb:      "create",
-		Group:     kapi.GroupName,
+		Group:     kapiv1.GroupName,
 		Resource:  "secrets",
 		Name:      secret.Name,
 	}); err != nil {
@@ -53,10 +63,10 @@ func (b *Broker) ensureSecret(u user.Info, namespace string, instanceID string, 
 	}
 
 	if kerrors.IsAlreadyExists(err) {
-		if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorization.ResourceAttributes{
+		if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorizationv1.ResourceAttributes{
 			Namespace: namespace,
 			Verb:      "get",
-			Group:     kapi.GroupName,
+			Group:     kapiv1.GroupName,
 			Resource:  "secrets",
 			Name:      secret.Name,
 		}); err != nil {
@@ -80,20 +90,35 @@ func (b *Broker) ensureSecret(u user.Info, namespace string, instanceID string, 
 // ensureTemplateInstance ensures the existence of a TemplateInstance object
 // (this causes the template instance controller to instantiate the template in
 // the namespace).
-func (b *Broker) ensureTemplateInstance(u user.Info, namespace string, instanceID string, template *templateapi.Template, secret *kapi.Secret, didWork *bool) (*templateapi.TemplateInstance, *api.Response) {
+func (b *Broker) ensureTemplateInstance(u user.Info, namespace string, brokerTemplateInstance *templateapiv1.BrokerTemplateInstance, instanceID string, template *templateapiv1.Template, secret *kapiv1.Secret, didWork *bool) (*templateapiv1.TemplateInstance, *api.Response) {
 	glog.V(4).Infof("Template service broker: ensureTemplateInstance")
 
-	extra := map[string]templateapi.ExtraValue{}
+	extra := map[string]templateapiv1.ExtraValue{}
 	for k, v := range u.GetExtra() {
-		extra[k] = templateapi.ExtraValue(v)
+		extra[k] = templateapiv1.ExtraValue(v)
 	}
 
-	templateInstance := &templateapi.TemplateInstance{
-		ObjectMeta: metav1.ObjectMeta{Name: instanceID},
-		Spec: templateapi.TemplateInstanceSpec{
+	blockOwnerDeletion := true
+	templateInstance := &templateapiv1.TemplateInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: instanceID,
+			Annotations: map[string]string{
+				api.OpenServiceBrokerInstanceExternalID: instanceID,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         templateapiv1.SchemeGroupVersion.String(),
+					Kind:               "BrokerTemplateInstance",
+					Name:               brokerTemplateInstance.Name,
+					UID:                brokerTemplateInstance.UID,
+					BlockOwnerDeletion: &blockOwnerDeletion,
+				},
+			},
+		},
+		Spec: templateapiv1.TemplateInstanceSpec{
 			Template: *template,
-			Secret:   &kapi.LocalObjectReference{Name: secret.Name},
-			Requester: &templateapi.TemplateInstanceRequester{
+			Secret:   &kapiv1.LocalObjectReference{Name: secret.Name},
+			Requester: &templateapiv1.TemplateInstanceRequester{
 				Username: u.GetName(),
 				UID:      u.GetUID(),
 				Groups:   u.GetGroups(),
@@ -102,10 +127,10 @@ func (b *Broker) ensureTemplateInstance(u user.Info, namespace string, instanceI
 		},
 	}
 
-	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorization.ResourceAttributes{
+	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorizationv1.ResourceAttributes{
 		Namespace: namespace,
 		Verb:      "create",
-		Group:     templateapi.GroupName,
+		Group:     templateapiv1.GroupName,
 		Resource:  "templateinstances",
 		Name:      instanceID,
 	}); err != nil {
@@ -119,10 +144,10 @@ func (b *Broker) ensureTemplateInstance(u user.Info, namespace string, instanceI
 	}
 
 	if kerrors.IsAlreadyExists(err) {
-		if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorization.ResourceAttributes{
+		if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorizationv1.ResourceAttributes{
 			Namespace: namespace,
 			Verb:      "get",
-			Group:     templateapi.GroupName,
+			Group:     templateapiv1.GroupName,
 			Resource:  "templateinstances",
 			Name:      templateInstance.Name,
 		}); err != nil {
@@ -146,48 +171,64 @@ func (b *Broker) ensureTemplateInstance(u user.Info, namespace string, instanceI
 // ensureBrokerTemplateInstanceUIDs ensures the UIDs of the namespaced Secret
 // and TemplateInstance objects are set in the BrokerTemplateInstance object, as
 // proof that we are done.
-func (b *Broker) ensureBrokerTemplateInstanceUIDs(u user.Info, namespace string, brokerTemplateInstance *templateapi.BrokerTemplateInstance, secret *kapi.Secret, templateInstance *templateapi.TemplateInstance, didWork *bool) (*templateapi.BrokerTemplateInstance, *api.Response) {
+func (b *Broker) ensureBrokerTemplateInstanceUIDs(u user.Info, namespace string, brokerTemplateInstance *templateapiv1.BrokerTemplateInstance, secret *kapiv1.Secret, templateInstance *templateapiv1.TemplateInstance, didWork *bool) (*templateapiv1.BrokerTemplateInstance, *api.Response) {
 	glog.V(4).Infof("Template service broker: ensureBrokerTemplateInstanceUIDs")
-
-	brokerTemplateInstance.Spec.Secret.UID = secret.UID
-	brokerTemplateInstance.Spec.TemplateInstance.UID = templateInstance.UID
 
 	// end users are not expected to have access to BrokerTemplateInstance
 	// objects; SAR on the TemplateInstance instead.
-	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorization.ResourceAttributes{
+	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorizationv1.ResourceAttributes{
 		Namespace: namespace,
 		Verb:      "update",
-		Group:     templateapi.GroupName,
+		Group:     templateapiv1.GroupName,
 		Resource:  "templateinstances",
 		Name:      brokerTemplateInstance.Spec.TemplateInstance.Name,
 	}); err != nil {
 		return nil, api.Forbidden(err)
 	}
 
-	brokerTemplateInstance, err := b.templateclient.BrokerTemplateInstances().Update(brokerTemplateInstance)
-	if err == nil {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		brokerTemplateInstance.Spec.Secret.UID = secret.UID
+		brokerTemplateInstance.Spec.TemplateInstance.UID = templateInstance.UID
+
+		newBrokerTemplateInstance, err := b.templateclient.BrokerTemplateInstances().Update(brokerTemplateInstance)
+		switch {
+		case err == nil:
+			brokerTemplateInstance = newBrokerTemplateInstance
+
+		case kerrors.IsConflict(err):
+			var getErr error
+			brokerTemplateInstance, getErr = b.templateclient.BrokerTemplateInstances().Get(brokerTemplateInstance.Name, metav1.GetOptions{})
+			if getErr != nil {
+				err = getErr
+			}
+		}
+		return err
+	})
+	switch {
+	case err == nil:
 		*didWork = true
 		return brokerTemplateInstance, nil
+	case kerrors.IsConflict(err):
+		return nil, api.NewResponse(http.StatusUnprocessableEntity, &api.ConcurrencyError, nil)
 	}
-
 	return nil, api.InternalServerError(err)
 }
 
 // ensureBrokerTemplateInstance ensures the existence of BrokerTemplateInstance
 // object (records intent, globally maps instanceID to namespaced Secret and
 // TemplateInstance objects).
-func (b *Broker) ensureBrokerTemplateInstance(u user.Info, namespace, instanceID string, didWork *bool) (*templateapi.BrokerTemplateInstance, *api.Response) {
+func (b *Broker) ensureBrokerTemplateInstance(u user.Info, namespace, instanceID string, didWork *bool) (*templateapiv1.BrokerTemplateInstance, *api.Response) {
 	glog.V(4).Infof("Template service broker: ensureBrokerTemplateInstance")
 
-	brokerTemplateInstance := &templateapi.BrokerTemplateInstance{
+	brokerTemplateInstance := &templateapiv1.BrokerTemplateInstance{
 		ObjectMeta: metav1.ObjectMeta{Name: instanceID},
-		Spec: templateapi.BrokerTemplateInstanceSpec{
-			TemplateInstance: kapi.ObjectReference{
+		Spec: templateapiv1.BrokerTemplateInstanceSpec{
+			TemplateInstance: kapiv1.ObjectReference{
 				Kind:      "TemplateInstance",
 				Namespace: namespace,
 				Name:      instanceID,
 			},
-			Secret: kapi.ObjectReference{
+			Secret: kapiv1.ObjectReference{
 				Kind:      "Secret",
 				Namespace: namespace,
 				Name:      instanceID,
@@ -197,10 +238,10 @@ func (b *Broker) ensureBrokerTemplateInstance(u user.Info, namespace, instanceID
 
 	// end users are not expected to have access to BrokerTemplateInstance
 	// objects; SAR on the TemplateInstance instead.
-	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorization.ResourceAttributes{
+	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorizationv1.ResourceAttributes{
 		Namespace: namespace,
 		Verb:      "create",
-		Group:     templateapi.GroupName,
+		Group:     templateapiv1.GroupName,
 		Resource:  "templateinstances",
 		Name:      instanceID,
 	}); err != nil {
@@ -216,10 +257,10 @@ func (b *Broker) ensureBrokerTemplateInstance(u user.Info, namespace, instanceID
 	if kerrors.IsAlreadyExists(err) {
 		// end users are not expected to have access to BrokerTemplateInstance
 		// objects; SAR on the TemplateInstance instead.
-		if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorization.ResourceAttributes{
+		if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorizationv1.ResourceAttributes{
 			Namespace: namespace,
 			Verb:      "get",
-			Group:     templateapi.GroupName,
+			Group:     templateapiv1.GroupName,
 			Resource:  "templateinstances",
 			Name:      instanceID,
 		}); err != nil {
@@ -247,13 +288,6 @@ func (b *Broker) Provision(u user.Info, instanceID string, preq *api.ProvisionRe
 	}
 
 	namespace := preq.Context.Namespace
-	//TODO - when https://github.com/kubernetes-incubator/service-catalog/pull/939 sufficiently progresses, this block should be removed
-	if u.GetName() == "" {
-		impersonate := preq.Parameters[templateapi.RequesterUsernameParameterKey]
-		if impersonate != "" && uservalidation.ValidateUserName(impersonate, true) == nil {
-			u = &user.DefaultInfo{Name: impersonate}
-		}
-	}
 
 	template, err := b.lister.GetByUID(preq.ServiceID)
 	if err != nil && !kerrors.IsNotFound(err) {
@@ -281,31 +315,27 @@ func (b *Broker) Provision(u user.Info, instanceID string, preq *api.ProvisionRe
 	}
 	if template == nil {
 		glog.V(4).Infof("Template service broker: template %s not found", preq.ServiceID)
-		return api.BadRequest(kerrors.NewNotFound(templateapi.Resource("templates"), preq.ServiceID))
+		return api.BadRequest(kerrors.NewNotFound(templateapiv1.Resource("templates"), preq.ServiceID))
 	}
 	if _, ok := b.templateNamespaces[template.Namespace]; !ok {
-		return api.BadRequest(kerrors.NewNotFound(templateapi.Resource("templates"), preq.ServiceID))
+		return api.BadRequest(kerrors.NewNotFound(templateapiv1.Resource("templates"), preq.ServiceID))
 	}
 
-	//TODO - when https://github.com/kubernetes-incubator/service-catalog/pull/939 sufficiently progresses, this block should be uncommented
-	// and pulled back in
-	/*
-		// with groups in the user.Info vs. the username only form of auth, we can SAR for get access on template resources
-		if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorization.ResourceAttributes{
-			Namespace: template.Namespace,
-			Verb:      "get",
-			Group:     templateapi.GroupName,
-			Resource:  "templates",
-			Name:      template.Name,
-		}); err != nil {
-			return api.Forbidden(err)
-		}
-	*/
+	// with groups in the user.Info vs. the username only form of auth, we can SAR for get access on template resources
+	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorizationv1.ResourceAttributes{
+		Namespace: template.Namespace,
+		Verb:      "get",
+		Group:     templateapiv1.GroupName,
+		Resource:  "templates",
+		Name:      template.Name,
+	}); err != nil {
+		return api.Forbidden(err)
+	}
 
-	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorization.ResourceAttributes{
+	if err := util.Authorize(b.kc.Authorization().SubjectAccessReviews(), u, &authorizationv1.ResourceAttributes{
 		Namespace: namespace,
 		Verb:      "create",
-		Group:     templateapi.GroupName,
+		Group:     templateapiv1.GroupName,
 		Resource:  "templateinstances",
 		Name:      instanceID,
 	}); err != nil {
@@ -335,12 +365,15 @@ func (b *Broker) Provision(u user.Info, instanceID string, preq *api.ProvisionRe
 		return resp
 	}
 
-	secret, resp := b.ensureSecret(u, namespace, instanceID, preq, &didWork)
+	// TODO remove this when https://github.com/kubernetes/kubernetes/issues/54940 is fixed
+	time.Sleep(b.gcCreateDelay)
+
+	secret, resp := b.ensureSecret(u, namespace, brokerTemplateInstance, instanceID, preq, &didWork)
 	if resp != nil {
 		return resp
 	}
 
-	templateInstance, resp := b.ensureTemplateInstance(u, namespace, instanceID, template, secret, &didWork)
+	templateInstance, resp := b.ensureTemplateInstance(u, namespace, brokerTemplateInstance, instanceID, template, secret, &didWork)
 	if resp != nil {
 		return resp
 	}

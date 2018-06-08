@@ -26,6 +26,14 @@ import (
 	genericserveroptions "k8s.io/apiserver/pkg/server/options"
 )
 
+const (
+	// Store generated SSL certificates in a place that won't collide with the
+	// k8s core API server.
+	certDirectory = "/var/run/kubernetes-service-catalog"
+
+	storageTypeFlagName = "storageType"
+)
+
 // ServiceCatalogServerOptions contains the aggregation of configuration structs for
 // the service-catalog server. It contains everything needed to configure a basic API server.
 // It is public so that integration tests can access it.
@@ -45,19 +53,18 @@ type ServiceCatalogServerOptions struct {
 	AuditOptions *genericserveroptions.AuditOptions
 	// EtcdOptions are options for serving with etcd as the backing store
 	EtcdOptions *EtcdOptions
-	// TPROptions are options for serving with TPR as the backing store
-	TPROptions *TPROptions
 	// DisableAuth disables delegating authentication and authorization for testing scenarios
 	DisableAuth bool
-	StopCh      <-chan struct{}
 	// StandaloneMode if true asserts that we will not depend on a kube-apiserver
 	StandaloneMode bool
+	// whether or not to serve the OpenAPI spec (at /swagger.json)
+	ServeOpenAPISpec bool
 }
 
 // NewServiceCatalogServerOptions creates a new instances of
 // ServiceCatalogServerOptions with all sub-options filled in.
 func NewServiceCatalogServerOptions() *ServiceCatalogServerOptions {
-	return &ServiceCatalogServerOptions{
+	opts := &ServiceCatalogServerOptions{
 		GenericServerRunOptions: genericserveroptions.NewServerRunOptions(),
 		AdmissionOptions:        genericserveroptions.NewAdmissionOptions(),
 		SecureServingOptions:    genericserveroptions.NewSecureServingOptions(),
@@ -65,11 +72,17 @@ func NewServiceCatalogServerOptions() *ServiceCatalogServerOptions {
 		AuthorizationOptions:    genericserveroptions.NewDelegatingAuthorizationOptions(),
 		AuditOptions:            genericserveroptions.NewAuditOptions(),
 		EtcdOptions:             NewEtcdOptions(),
-		TPROptions:              NewTPROptions(),
+		StandaloneMode:          standaloneMode(),
 	}
+	// register all admission plugins
+	registerAllAdmissionPlugins(opts.AdmissionOptions.Plugins)
+	// Set generated SSL cert path correctly
+	opts.SecureServingOptions.ServerCert.CertDirectory = certDirectory
+	return opts
 }
 
-func (s *ServiceCatalogServerOptions) addFlags(flags *pflag.FlagSet) {
+// AddFlags adds to the flag set the flags to configure the API Server.
+func (s *ServiceCatalogServerOptions) AddFlags(flags *pflag.FlagSet) {
 	flags.StringVar(
 		&s.StorageTypeString,
 		"storage-type",
@@ -84,13 +97,19 @@ func (s *ServiceCatalogServerOptions) addFlags(flags *pflag.FlagSet) {
 		"Disable authentication and authorization for testing purposes",
 	)
 
+	flags.BoolVar(
+		&s.ServeOpenAPISpec,
+		"serve-openapi-spec",
+		false,
+		"Whether this API server should serve the OpenAPI spec (problematic with older versions of kubectl)",
+	)
+
 	s.GenericServerRunOptions.AddUniversalFlags(flags)
 	s.AdmissionOptions.AddFlags(flags)
 	s.SecureServingOptions.AddFlags(flags)
 	s.AuthenticationOptions.AddFlags(flags)
 	s.AuthorizationOptions.AddFlags(flags)
 	s.EtcdOptions.addFlags(flags)
-	s.TPROptions.addFlags(flags)
 	s.AuditOptions.AddFlags(flags)
 }
 
@@ -119,7 +138,7 @@ func (s *ServiceCatalogServerOptions) Validate() error {
 		errors = append(errors, etcdErrs...)
 	}
 	// TODO add alternative storage validation
-	// errors = append(errors, s.TPROptions.Validate()...)
+	// errors = append(errors, s.CRDOptions.Validate()...)
 	// TODO uncomment after 1.8 rebase expecting
 	// https://github.com/kubernetes/kubernetes/pull/47043
 	// errors = append(errors, s.AuditOptions.Validate()...)

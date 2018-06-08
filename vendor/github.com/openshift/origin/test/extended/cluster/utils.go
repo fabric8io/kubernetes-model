@@ -7,24 +7,24 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
-	"github.com/fatih/structs"
-
-	exutil "github.com/openshift/origin/test/extended/util"
+	kapiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
-	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
+	"k8s.io/apimachinery/pkg/util/wait"
+	kclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
+
+	exutil "github.com/openshift/origin/test/extended/util"
 )
 
-const maxRetries = 5
+// The number of times we re-try to create a pod
+const maxRetries = 4
 
 // ParsePods unmarshalls the json file defined in the CL config into a struct
 func ParsePods(jsonFile string) (configStruct kapiv1.Pod) {
@@ -42,12 +42,58 @@ func ParsePods(jsonFile string) (configStruct kapiv1.Pod) {
 	return
 }
 
-// CreatePods creates pods in user defined namspaces with user configurable tuning sets
-func CreatePods(c kclientset.Interface, appName string, ns string, labels map[string]string, spec kapiv1.PodSpec, maxCount int, tuning *TuningSetType) {
+// SyncPods waits for pods to enter a state
+func SyncPods(c kclientset.Interface, ns string, selectors map[string]string, timeout time.Duration, state kapiv1.PodPhase) (err error) {
+	label := labels.SelectorFromSet(selectors)
+
+	err = wait.Poll(2*time.Second, timeout,
+		func() (bool, error) {
+			podList, err := framework.WaitForPodsWithLabel(c, ns, label)
+			if err != nil {
+				framework.Failf("Failed getting pods: %v", err)
+				return false, nil // Ignore this error (nil) and try again in "Poll" time
+			}
+			pods := podList.Items
+
+			if pods == nil || len(pods) == 0 {
+				return true, nil
+			}
+			for _, p := range pods {
+				if p.Status.Phase != state {
+					return false, nil
+				}
+			}
+			return true, nil
+		})
+	return err
+}
+
+// SyncRunningPods waits for pods to enter Running state
+func SyncRunningPods(c kclientset.Interface, ns string, selectors map[string]string, timeout time.Duration) (err error) {
+	err = SyncPods(c, ns, selectors, timeout, kapiv1.PodRunning)
+	if err == nil {
+		// There wasn't a timeout
+		e2e.Logf("All pods running in %s with labels: %v", ns, selectors)
+	}
+	return err
+}
+
+// SyncSucceededPods waits for pods to enter Completed state
+func SyncSucceededPods(c kclientset.Interface, ns string, selectors map[string]string, timeout time.Duration) (err error) {
+	err = SyncPods(c, ns, selectors, timeout, kapiv1.PodSucceeded)
+	if err == nil {
+		// There wasn't a timeout
+		e2e.Logf("All pods succeeded in %s with labels: %v", ns, selectors)
+	}
+	return err
+}
+
+// CreatePods creates pods in user defined namespaces with user configurable tuning sets
+func CreatePods(c kclientset.Interface, appName string, ns string, labels map[string]string, spec kapiv1.PodSpec, maxCount int, tuning *TuningSetType, sync *SyncObjectType) error {
 	for i := 0; i < maxCount; i++ {
 		framework.Logf("%v/%v : Creating pod", i+1, maxCount)
 		// Retry on pod creation failure
-		for retryCount := 0; retryCount < maxRetries; retryCount++ {
+		for retryCount := 0; retryCount <= maxRetries; retryCount++ {
 			_, err := c.CoreV1().Pods(ns).Create(&kapiv1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      fmt.Sprintf(appName+"-pod-%v", i),
@@ -82,6 +128,28 @@ func CreatePods(c kclientset.Interface, appName string, ns string, labels map[st
 			}
 		}
 	}
+
+	if sync.Running {
+		timeout, err := time.ParseDuration(sync.Timeout)
+		if err != nil {
+			return err
+		}
+		return SyncRunningPods(c, ns, sync.Selectors, timeout)
+	}
+
+	if sync.Server.Enabled {
+		var podCount PodCount
+		return Server(&podCount, sync.Server.Port, false)
+	}
+
+	if sync.Succeeded {
+		timeout, err := time.ParseDuration(sync.Timeout)
+		if err != nil {
+			return err
+		}
+		return SyncSucceededPods(c, ns, sync.Selectors, timeout)
+	}
+	return nil
 }
 
 func mapToString(m map[string]string) (s string) {
@@ -107,12 +175,18 @@ func GetTuningSet(tuningSets []TuningSetType, podTuning string) (tuning *TuningS
 	return nil
 }
 
-// Server is the webservice that will syncronize the start and stop of Pods
-func Server(c *PodCount) error {
+// Server is the webservice that will synchronize the start and stop of Pods
+func Server(c *PodCount, port int, awaitShutdown bool) error {
+	const serverPort = 9090
+
 	http.HandleFunc("/start", handleStart(startHandler, c))
 	http.HandleFunc("/stop", handleStop(stopHandler, c))
+	if port <= 0 || port > 65535 {
+		e2e.Logf("Invalid server port %v, using %v", port, serverPort)
+		port = serverPort
+	}
 
-	server := &http.Server{Addr: ":8081", Handler: nil}
+	server := &http.Server{Addr: fmt.Sprintf((":%d"), port), Handler: nil}
 
 	ln, err := net.Listen("tcp", server.Addr)
 	if err != nil {
@@ -121,19 +195,23 @@ func Server(c *PodCount) error {
 
 	go server.Serve(ln)
 	fmt.Println("Listening on port", server.Addr)
-	select {
-	case <-c.Shutdown:
-		fmt.Println("Shutdown server")
-		ln.Close()
-		return err
+	if awaitShutdown {
+		select {
+		case <-c.Shutdown:
+			fmt.Println("Shutdown server")
+			ln.Close()
+			return err
+		}
 	}
+
+	return nil
 }
 
 func handleStart(fn http.HandlerFunc, c *PodCount) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c.Started++
 		fn(w, r)
-		fmt.Printf("Started pods: %d, Stopped pods: %d\n", c.Started, c.Stopped)
+		fmt.Printf("Start requests: %d, Stop requests: %d\n", c.Started, c.Stopped)
 	}
 }
 
@@ -145,7 +223,7 @@ func handleStop(fn http.HandlerFunc, c *PodCount) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c.Stopped++
 		fn(w, r)
-		fmt.Printf("Started pods: %d, Stopped pods: %d\n", c.Started, c.Stopped)
+		fmt.Printf("Start requests: %d, Stop requests: %d\n", c.Started, c.Stopped)
 		if c.Stopped == c.Started && c.Stopped > 0 {
 			c.Shutdown <- true
 		}
@@ -164,10 +242,9 @@ func firstLowercase(s string) string {
 }
 
 // convertVariables takes our loaded struct and converts it into a map[string]string.
-func convertVariablesToMap(params ParameterConfigType) map[string]string {
-	m := structs.Map(params)
+func convertVariablesToMap(params map[string]interface{}) map[string]string {
 	values := make(map[string]string)
-	for k, v := range m {
+	for k, v := range params {
 		k = firstLowercase(k)
 		if v != 0 && v != "" {
 			if _, ok := v.(int); ok {
@@ -180,20 +257,70 @@ func convertVariablesToMap(params ParameterConfigType) map[string]string {
 	return values
 }
 
-func convertVariablesToString(params ParameterConfigType) (args []string) {
-	m := structs.Map(params)
-	for k, v := range m {
-		k = strings.ToUpper(k)
-		if v != 0 && v != "" {
-			args = append(args, "-p")
-			args = append(args, fmt.Sprintf("%s=%v", k, v))
+func getFromFileArg(k string, v interface{}) (arg string) {
+	return fmt.Sprintf("--from-file=%s=%v", k, v)
+}
+
+// CreateConfigmaps creates config maps from files in user defined namespaces.
+func CreateConfigmaps(oc *exutil.CLI, c kclientset.Interface, nsName string, configmaps map[string]interface{}) error {
+	var args []string
+	var err error
+
+	for k, v := range configmaps {
+		if v != nil && v != "" {
+			args = append(args, "configmap")
+			args = append(args, k)
+			args = append(args, getFromFileArg(k, v))
+		} else {
+			return fmt.Errorf("no or empty value provided for configmap filename")
 		}
+
+		err = oc.SetNamespace(nsName).Run("create").Args(args...).Execute()
+	}
+	return err
+}
+
+// CreateSecrets creates secrets from files in user defined namespaces.
+func CreateSecrets(oc *exutil.CLI, c kclientset.Interface, nsName string, secrets map[string]interface{}) error {
+	var args []string
+	var err error
+
+	for k, v := range secrets {
+		if v != nil && v != "" {
+			args = append(args, "secret")
+			args = append(args, "generic")
+			args = append(args, k)
+			args = append(args, getFromFileArg(k, v))
+		} else {
+			return fmt.Errorf("no or empty value provided for secret filename")
+		}
+
+		err = oc.SetNamespace(nsName).Run("create").Args(args...).Execute()
+	}
+	return err
+}
+
+func convertVariablesToString(params map[string]interface{}) (args []string) {
+	for k, v := range params {
+		k = strings.ToUpper(k)
+		if v == nil {
+			// Parameter not defined, see if it is defined in the environment.
+			var found bool
+			v, found = os.LookupEnv(fmt.Sprintf("%s", k))
+			if !found {
+				// Parameter not defined in the environment, do not define it
+				continue
+			}
+			// Parameter defined in the environment, use the value
+		}
+		args = append(args, "-p")
+		args = append(args, fmt.Sprintf("%s=%v", k, v))
 	}
 	return
 }
 
 // InjectConfigMap modifies the pod struct and replaces the environment variables.
-func InjectConfigMap(c kclientset.Interface, ns string, vars ParameterConfigType, config kapiv1.Pod) string {
+func InjectConfigMap(c kclientset.Interface, ns string, vars map[string]interface{}, config kapiv1.Pod) string {
 	configMapName := ns + "-configmap"
 	freshConfigVars := convertVariablesToMap(vars)
 	dirtyConfigVars := getClusterData(c, freshConfigVars)
@@ -297,38 +424,38 @@ func newConfigMap(ns string, name string, vars map[string]string) *kapiv1.Config
 	}
 }
 
-// CreateTemplate does regex substitution against the template file, then creates the template
-func CreateTemplate(oc *exutil.CLI, baseName string, ns string, configPath string, numObjects int, tuning *TuningSetType) {
-	// Try to read the file
-	content, err := ioutil.ReadFile(configPath)
-	if err != nil {
-		framework.Failf("Error reading file: %s", err)
+// CreateTemplates creates templates in user defined namespaces with user configurable tuning sets.
+func CreateTemplates(oc *exutil.CLI, c kclientset.Interface, nsName string, template ClusterLoaderObjectType, tuning *TuningSetType) error {
+	var allArgs []string
+	templateFile := mkPath(template.File)
+	e2e.Logf("We're loading file %v: ", templateFile)
+	allArgs = append(allArgs, "-f")
+	allArgs = append(allArgs, templateFile)
+
+	if template.Parameters == nil {
+		e2e.Logf("Template environment variables will not be modified.")
+	} else {
+		params := convertVariablesToString(template.Parameters)
+		allArgs = append(allArgs, params...)
 	}
 
-	// ${IDENTIFER} is what we're replacing in the file
-	regex, err := regexp.Compile("\\${IDENTIFIER}")
-	if err != nil {
-		framework.Failf("Error compiling regex: %v", err)
-	}
-
-	for i := 0; i < numObjects; i++ {
-		result := regex.ReplaceAll(content, []byte(strconv.Itoa(i)))
-
-		tmpfile, err := ioutil.TempFile("", "cl")
+	for i := 0; i < template.Number; i++ {
+		identifier := map[string]interface{}{"IDENTIFIER": i}
+		identifierParams := convertVariablesToString(identifier)
+		idArgs := append(allArgs, identifierParams...)
+		e2e.Logf("args: %v", idArgs)
+		configFile, err := oc.SetNamespace(nsName).Run("process").Args(idArgs...).OutputToFile("config.json")
 		if err != nil {
-			e2e.Failf("Error creating new tempfile: %v", err)
-		}
-		defer os.Remove(tmpfile.Name())
-
-		if _, err := tmpfile.Write(result); err != nil {
-			e2e.Failf("Error writing to tempfile: %v", err)
-		}
-		if err := tmpfile.Close(); err != nil {
-			e2e.Failf("Error closing tempfile: %v", err)
+			e2e.Failf("Unable to process template file. Error: %v", err)
 		}
 
-		err = oc.Run("new-app").Args("-f", tmpfile.Name(), getNsCmdFlag(ns)).Execute()
-		e2e.Logf("%d/%d : Created template %s", i+1, numObjects, baseName)
+		err = oc.SetNamespace(nsName).Run("create").Args("-f", configFile).Execute()
+		if err != nil {
+			e2e.Failf("Unable to create template objects. Error: %v", err)
+		}
+		if err != nil {
+			return err
+		}
 
 		// If there is a tuning set defined for this template
 		if tuning != nil {
@@ -342,6 +469,39 @@ func CreateTemplate(oc *exutil.CLI, baseName string, ns string, configPath strin
 			}
 		}
 	}
+
+	sync := template.Sync
+	if sync.Running {
+		timeout, err := time.ParseDuration(sync.Timeout)
+		if err != nil {
+			return err
+		}
+		err = SyncRunningPods(c, nsName, sync.Selectors, timeout)
+		if err != nil {
+			return err
+		}
+	}
+
+	if sync.Server.Enabled {
+		var podCount PodCount
+		err := Server(&podCount, sync.Server.Port, false)
+		if err != nil {
+			return err
+		}
+	}
+
+	if sync.Succeeded {
+		timeout, err := time.ParseDuration(sync.Timeout)
+		if err != nil {
+			return err
+		}
+		err = SyncSucceededPods(c, nsName, sync.Selectors, timeout)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func getNsCmdFlag(name string) string {

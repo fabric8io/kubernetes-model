@@ -7,18 +7,11 @@ import (
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	testtypes "github.com/openshift/origin/pkg/util/testing"
 )
-
-type FakeLabelsResource struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-}
-
-func (obj *FakeLabelsResource) GetObjectKind() schema.ObjectKind { return &obj.TypeMeta }
 
 func TestAddConfigLabels(t *testing.T) {
 	var nilLabels map[string]string
@@ -105,11 +98,11 @@ func TestAddConfigLabels(t *testing.T) {
 			expectedLabels: map[string]string{"foo": "same value"},
 		},
 		{ // [9] Test adding labels to a DeploymentConfig object
-			obj: &deployapi.DeploymentConfig{
+			obj: &appsapi.DeploymentConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{"foo": "first value"},
 				},
-				Spec: deployapi.DeploymentConfigSpec{
+				Spec: appsapi.DeploymentConfigSpec{
 					Template: &kapi.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{"foo": "first value"},
@@ -122,7 +115,7 @@ func TestAddConfigLabels(t *testing.T) {
 			expectedLabels: map[string]string{"foo": "first value", "bar": "second value"},
 		},
 		{ // [10] Test unknown Generic Object with Labels field
-			obj: &FakeLabelsResource{
+			obj: &testtypes.FakeLabelsResource{
 				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"baz": ""}},
 			},
 			addLabels:      map[string]string{"foo": "bar"},
@@ -154,7 +147,7 @@ func TestAddConfigLabels(t *testing.T) {
 			if e, a := map[string]string{}, objType.Spec.Template.Labels; !reflect.DeepEqual(e, a) {
 				t.Errorf("Unexpected labels on testCase[%v]. Expected: %#v, got: %#v.", i, e, a)
 			}
-		case *deployapi.DeploymentConfig:
+		case *appsapi.DeploymentConfig:
 			if e, a := test.expectedLabels, objType.Spec.Template.Labels; !reflect.DeepEqual(e, a) {
 				t.Errorf("Unexpected labels on testCase[%v]. Expected: %#v, got: %#v.", i, e, a)
 			}

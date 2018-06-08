@@ -4,22 +4,27 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	errorsutil "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
 	oapi "github.com/openshift/origin/pkg/api"
-	"github.com/openshift/origin/pkg/client"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
+	authorizationtypedclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset/typed/authorization/internalversion"
+	authorizationregistryutil "github.com/openshift/origin/pkg/authorization/registry/util"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/oc/admin/policy"
-
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 	projectapi "github.com/openshift/origin/pkg/project/apis/project"
+	projectclient "github.com/openshift/origin/pkg/project/generated/internalclientset/typed/project/internalversion"
 )
 
 const NewProjectRecommendedName = "new-project"
@@ -30,10 +35,14 @@ type NewProjectOptions struct {
 	Description  string
 	NodeSelector string
 
-	Client client.Interface
+	ProjectClient     projectclient.ProjectInterface
+	RoleBindingClient authorizationtypedclient.RoleBindingsGetter
+	SARClient         authorizationtypedclient.SubjectAccessReviewInterface
 
 	AdminRole string
 	AdminUser string
+
+	Output io.Writer
 }
 
 var newProjectLong = templates.LongDesc(`
@@ -52,13 +61,8 @@ func NewCmdNewProject(name, fullName string, f *clientcmd.Factory, out io.Writer
 		Short: "Create a new project",
 		Long:  newProjectLong,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := options.complete(args); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
-			}
-
-			var err error
-			if options.Client, _, err = f.Clients(); err != nil {
-				kcmdutil.CheckErr(err)
+			if err := options.complete(f, args); err != nil {
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 
 			// We can't depend on len(options.NodeSelector) > 0 as node-selector="" is valid
@@ -80,17 +84,31 @@ func NewCmdNewProject(name, fullName string, f *clientcmd.Factory, out io.Writer
 	return cmd
 }
 
-func (o *NewProjectOptions) complete(args []string) error {
+func (o *NewProjectOptions) complete(f *clientcmd.Factory, args []string) error {
 	if len(args) != 1 {
 		return errors.New("you must specify one argument: project name")
 	}
 
 	o.ProjectName = args[0]
+
+	projectClient, err := f.OpenshiftInternalProjectClient()
+	if err != nil {
+		return err
+	}
+	o.ProjectClient = projectClient.Project()
+	authorizationClient, err := f.OpenshiftInternalAuthorizationClient()
+	if err != nil {
+		return err
+	}
+	authorizationInterface := authorizationClient.Authorization()
+	o.RoleBindingClient = authorizationInterface
+	o.SARClient = authorizationInterface.SubjectAccessReviews()
+
 	return nil
 }
 
 func (o *NewProjectOptions) Run(useNodeSelector bool) error {
-	if _, err := o.Client.Projects().Get(o.ProjectName, metav1.GetOptions{}); err != nil {
+	if _, err := o.ProjectClient.Projects().Get(o.ProjectName, metav1.GetOptions{}); err != nil {
 		if !kerrors.IsNotFound(err) {
 			return err
 		}
@@ -106,36 +124,68 @@ func (o *NewProjectOptions) Run(useNodeSelector bool) error {
 	if useNodeSelector {
 		project.Annotations[projectapi.ProjectNodeSelector] = o.NodeSelector
 	}
-	project, err := o.Client.Projects().Create(project)
+	project, err := o.ProjectClient.Projects().Create(project)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Created project %v\n", o.ProjectName)
+	output := o.Output
+	if output == nil {
+		output = os.Stdout
+	}
+
+	fmt.Fprintf(output, "Created project %v\n", o.ProjectName)
 
 	errs := []error{}
 	if len(o.AdminUser) != 0 {
 		adduser := &policy.RoleModificationOptions{
 			RoleName:            o.AdminRole,
-			RoleBindingAccessor: policy.NewLocalRoleBindingAccessor(project.Name, o.Client),
+			RoleBindingAccessor: policy.NewLocalRoleBindingAccessor(project.Name, o.RoleBindingClient),
 			Users:               []string{o.AdminUser},
 		}
 
 		if err := adduser.AddRole(); err != nil {
-			fmt.Printf("%v could not be added to the %v role: %v\n", o.AdminUser, o.AdminRole, err)
+			fmt.Fprintf(output, "%v could not be added to the %v role: %v\n", o.AdminUser, o.AdminRole, err)
 			errs = append(errs, err)
+		} else {
+			if err := wait.PollImmediate(time.Second, time.Minute, func() (bool, error) {
+				resp, err := o.SARClient.Create(&authorizationapi.SubjectAccessReview{
+					Action: authorizationapi.Action{
+						Namespace: o.ProjectName,
+						Verb:      "get",
+						Resource:  "projects",
+					},
+					User: o.AdminUser,
+				})
+				if err != nil {
+					return false, err
+				}
+				if !resp.Allowed {
+					return false, nil
+				}
+				return true, nil
+			}); err != nil {
+				fmt.Printf("%s is not able to get project %s with the %s role: %v\n", o.AdminUser, o.ProjectName, o.AdminRole, err)
+				errs = append(errs, err)
+			}
 		}
 	}
 
-	for _, binding := range bootstrappolicy.GetBootstrapServiceAccountProjectRoleBindings(o.ProjectName) {
+	for _, rbacBinding := range bootstrappolicy.GetBootstrapServiceAccountProjectRoleBindings(o.ProjectName) {
+		binding, err := authorizationregistryutil.RoleBindingFromRBAC(&rbacBinding)
+		if err != nil {
+			fmt.Fprintf(output, "Could not convert Role Binding %s in the %q namespace: %v\n", rbacBinding.Name, o.ProjectName, err)
+			errs = append(errs, err)
+			continue
+		}
 		addRole := &policy.RoleModificationOptions{
 			RoleName:            binding.RoleRef.Name,
 			RoleNamespace:       binding.RoleRef.Namespace,
-			RoleBindingAccessor: policy.NewLocalRoleBindingAccessor(o.ProjectName, o.Client),
+			RoleBindingAccessor: policy.NewLocalRoleBindingAccessor(o.ProjectName, o.RoleBindingClient),
 			Subjects:            binding.Subjects,
 		}
 		if err := addRole.AddRole(); err != nil {
-			fmt.Printf("Could not add service accounts to the %v role: %v\n", binding.RoleRef.Name, err)
+			fmt.Fprintf(output, "Could not add service accounts to the %v role: %v\n", binding.RoleRef.Name, err)
 			errs = append(errs, err)
 		}
 	}

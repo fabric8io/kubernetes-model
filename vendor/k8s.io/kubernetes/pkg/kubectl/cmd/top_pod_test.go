@@ -25,11 +25,10 @@ import (
 
 	"net/url"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clientv1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest/fake"
-	"k8s.io/kubernetes/pkg/api"
 	cmdtesting "k8s.io/kubernetes/pkg/kubectl/cmd/testing"
 	metricsapi "k8s.io/metrics/pkg/apis/metrics/v1alpha1"
 )
@@ -118,7 +117,6 @@ func TestTopPod(t *testing.T) {
 		f, tf, _, ns := cmdtesting.NewAPIFactory()
 		tf.Printer = &testPrinter{}
 		tf.Client = &fake.RESTClient{
-			APIRegistry:          api.Registry,
 			NegotiatedSerializer: ns,
 			Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
 				switch p, m, q := req.URL.Path, req.Method, req.URL.RawQuery; {
@@ -254,7 +252,6 @@ func TestTopPodCustomDefaults(t *testing.T) {
 		f, tf, _, ns := cmdtesting.NewAPIFactory()
 		tf.Printer = &testPrinter{}
 		tf.Client = &fake.RESTClient{
-			APIRegistry:          api.Registry,
 			NegotiatedSerializer: ns,
 			Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
 				switch p, m, q := req.URL.Path, req.Method, req.URL.RawQuery; {
@@ -321,18 +318,18 @@ func testPodMetricsData() []metricsapi.PodMetrics {
 			Containers: []metricsapi.ContainerMetrics{
 				{
 					Name: "container1-1",
-					Usage: clientv1.ResourceList{
-						clientv1.ResourceCPU:     *resource.NewMilliQuantity(1, resource.DecimalSI),
-						clientv1.ResourceMemory:  *resource.NewQuantity(2*(1024*1024), resource.DecimalSI),
-						clientv1.ResourceStorage: *resource.NewQuantity(3*(1024*1024), resource.DecimalSI),
+					Usage: v1.ResourceList{
+						v1.ResourceCPU:     *resource.NewMilliQuantity(1, resource.DecimalSI),
+						v1.ResourceMemory:  *resource.NewQuantity(2*(1024*1024), resource.DecimalSI),
+						v1.ResourceStorage: *resource.NewQuantity(3*(1024*1024), resource.DecimalSI),
 					},
 				},
 				{
 					Name: "container1-2",
-					Usage: clientv1.ResourceList{
-						clientv1.ResourceCPU:     *resource.NewMilliQuantity(4, resource.DecimalSI),
-						clientv1.ResourceMemory:  *resource.NewQuantity(5*(1024*1024), resource.DecimalSI),
-						clientv1.ResourceStorage: *resource.NewQuantity(6*(1024*1024), resource.DecimalSI),
+					Usage: v1.ResourceList{
+						v1.ResourceCPU:     *resource.NewMilliQuantity(4, resource.DecimalSI),
+						v1.ResourceMemory:  *resource.NewQuantity(5*(1024*1024), resource.DecimalSI),
+						v1.ResourceStorage: *resource.NewQuantity(6*(1024*1024), resource.DecimalSI),
 					},
 				},
 			},
@@ -343,26 +340,26 @@ func testPodMetricsData() []metricsapi.PodMetrics {
 			Containers: []metricsapi.ContainerMetrics{
 				{
 					Name: "container2-1",
-					Usage: clientv1.ResourceList{
-						clientv1.ResourceCPU:     *resource.NewMilliQuantity(7, resource.DecimalSI),
-						clientv1.ResourceMemory:  *resource.NewQuantity(8*(1024*1024), resource.DecimalSI),
-						clientv1.ResourceStorage: *resource.NewQuantity(9*(1024*1024), resource.DecimalSI),
+					Usage: v1.ResourceList{
+						v1.ResourceCPU:     *resource.NewMilliQuantity(7, resource.DecimalSI),
+						v1.ResourceMemory:  *resource.NewQuantity(8*(1024*1024), resource.DecimalSI),
+						v1.ResourceStorage: *resource.NewQuantity(9*(1024*1024), resource.DecimalSI),
 					},
 				},
 				{
 					Name: "container2-2",
-					Usage: clientv1.ResourceList{
-						clientv1.ResourceCPU:     *resource.NewMilliQuantity(10, resource.DecimalSI),
-						clientv1.ResourceMemory:  *resource.NewQuantity(11*(1024*1024), resource.DecimalSI),
-						clientv1.ResourceStorage: *resource.NewQuantity(12*(1024*1024), resource.DecimalSI),
+					Usage: v1.ResourceList{
+						v1.ResourceCPU:     *resource.NewMilliQuantity(10, resource.DecimalSI),
+						v1.ResourceMemory:  *resource.NewQuantity(11*(1024*1024), resource.DecimalSI),
+						v1.ResourceStorage: *resource.NewQuantity(12*(1024*1024), resource.DecimalSI),
 					},
 				},
 				{
 					Name: "container2-3",
-					Usage: clientv1.ResourceList{
-						clientv1.ResourceCPU:     *resource.NewMilliQuantity(13, resource.DecimalSI),
-						clientv1.ResourceMemory:  *resource.NewQuantity(14*(1024*1024), resource.DecimalSI),
-						clientv1.ResourceStorage: *resource.NewQuantity(15*(1024*1024), resource.DecimalSI),
+					Usage: v1.ResourceList{
+						v1.ResourceCPU:     *resource.NewMilliQuantity(13, resource.DecimalSI),
+						v1.ResourceMemory:  *resource.NewQuantity(14*(1024*1024), resource.DecimalSI),
+						v1.ResourceStorage: *resource.NewQuantity(15*(1024*1024), resource.DecimalSI),
 					},
 				},
 			},
@@ -373,10 +370,10 @@ func testPodMetricsData() []metricsapi.PodMetrics {
 			Containers: []metricsapi.ContainerMetrics{
 				{
 					Name: "container3-1",
-					Usage: clientv1.ResourceList{
-						clientv1.ResourceCPU:     *resource.NewMilliQuantity(7, resource.DecimalSI),
-						clientv1.ResourceMemory:  *resource.NewQuantity(8*(1024*1024), resource.DecimalSI),
-						clientv1.ResourceStorage: *resource.NewQuantity(9*(1024*1024), resource.DecimalSI),
+					Usage: v1.ResourceList{
+						v1.ResourceCPU:     *resource.NewMilliQuantity(7, resource.DecimalSI),
+						v1.ResourceMemory:  *resource.NewQuantity(8*(1024*1024), resource.DecimalSI),
+						v1.ResourceStorage: *resource.NewQuantity(9*(1024*1024), resource.DecimalSI),
 					},
 				},
 			},

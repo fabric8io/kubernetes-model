@@ -16,8 +16,8 @@ import (
 	kextensions "k8s.io/kubernetes/pkg/apis/extensions"
 
 	oadmission "github.com/openshift/origin/pkg/cmd/server/admission"
-	configlatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
-	"github.com/openshift/origin/pkg/ingress/admission/api"
+	configlatest "github.com/openshift/origin/pkg/cmd/server/apis/config/latest"
+	"github.com/openshift/origin/pkg/ingress/admission/apis/ingressadmission"
 )
 
 const (
@@ -37,20 +37,20 @@ func Register(plugins *admission.Plugins) {
 
 type ingressAdmission struct {
 	*admission.Handler
-	config     *api.IngressAdmissionConfig
+	config     *ingressadmission.IngressAdmissionConfig
 	authorizer authorizer.Authorizer
 }
 
 var _ = oadmission.WantsAuthorizer(&ingressAdmission{})
 
-func NewIngressAdmission(config *api.IngressAdmissionConfig) *ingressAdmission {
+func NewIngressAdmission(config *ingressadmission.IngressAdmissionConfig) *ingressAdmission {
 	return &ingressAdmission{
 		Handler: admission.NewHandler(admission.Create, admission.Update),
 		config:  config,
 	}
 }
 
-func readConfig(reader io.Reader) (*api.IngressAdmissionConfig, error) {
+func readConfig(reader io.Reader) (*ingressadmission.IngressAdmissionConfig, error) {
 	if reader == nil || reflect.ValueOf(reader).IsNil() {
 		return nil, nil
 	}
@@ -61,7 +61,7 @@ func readConfig(reader io.Reader) (*api.IngressAdmissionConfig, error) {
 	if obj == nil {
 		return nil, nil
 	}
-	config, ok := obj.(*api.IngressAdmissionConfig)
+	config, ok := obj.(*ingressadmission.IngressAdmissionConfig)
 	if !ok {
 		return nil, fmt.Errorf("unexpected config object: %#v", obj)
 	}
@@ -73,7 +73,7 @@ func (r *ingressAdmission) SetAuthorizer(a authorizer.Authorizer) {
 	r.authorizer = a
 }
 
-func (r *ingressAdmission) Validate() error {
+func (r *ingressAdmission) ValidateInitialization() error {
 	if r.authorizer == nil {
 		return fmt.Errorf("%s needs an Openshift Authorizer", IngressAdmission)
 	}
@@ -98,11 +98,11 @@ func (r *ingressAdmission) Admit(a admission.Attributes) error {
 							ResourceRequest: true,
 						}
 						kind := schema.GroupKind{Group: a.GetResource().Group, Kind: a.GetResource().Resource}
-						allow, _, err := r.authorizer.Authorize(attr)
+						authorized, _, err := r.authorizer.Authorize(attr)
 						if err != nil {
 							return errors.NewInvalid(kind, ingress.Name, field.ErrorList{field.InternalError(field.NewPath("spec", "rules").Index(i), err)})
 						}
-						if !allow {
+						if authorized != authorizer.DecisionAllow {
 							return errors.NewInvalid(kind, ingress.Name, field.ErrorList{field.Forbidden(field.NewPath("spec", "rules").Index(i), "you do not have permission to set host fields in ingress rules")})
 						}
 						break
@@ -131,11 +131,11 @@ func (r *ingressAdmission) Admit(a admission.Attributes) error {
 						ResourceRequest: true,
 					}
 					kind := schema.GroupKind{Group: a.GetResource().Group, Kind: a.GetResource().Resource}
-					allow, _, err := r.authorizer.Authorize(attr)
+					authorized, _, err := r.authorizer.Authorize(attr)
 					if err != nil {
 						return errors.NewInvalid(kind, newIngress.Name, field.ErrorList{field.InternalError(field.NewPath("spec", "rules"), err)})
 					}
-					if allow {
+					if authorized == authorizer.DecisionAllow {
 						return nil
 					}
 					return fmt.Errorf("cannot change hostname")

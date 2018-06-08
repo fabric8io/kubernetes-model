@@ -17,52 +17,69 @@ limitations under the License.
 package controller
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 
 	"github.com/ghodss/yaml"
-	"github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog/v1alpha1"
+	"github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 )
 
 // buildParameters generates the parameters JSON structure to be passed
-// to the broker
-func buildParameters(kubeClient kubernetes.Interface, namespace string, parametersFrom []v1alpha1.ParametersFromSource, parameters *runtime.RawExtension) (map[string]interface{}, error) {
+// to the broker.
+// The first return value is a map of parameters to send to the Broker, including
+// secret values.
+// The second return value is a map of parameters with secret values redacted,
+// replaced with "<redacted>".
+// The third return value is any error that caused the function to fail.
+func buildParameters(kubeClient kubernetes.Interface, namespace string, parametersFrom []v1beta1.ParametersFromSource, parameters *runtime.RawExtension) (map[string]interface{}, map[string]interface{}, error) {
 	params := make(map[string]interface{})
+	paramsWithSecretsRedacted := make(map[string]interface{})
 	if parametersFrom != nil {
 		for _, p := range parametersFrom {
 			fps, err := fetchParametersFromSource(kubeClient, namespace, &p)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			for k, v := range fps {
 				if _, ok := params[k]; ok {
-					return nil, fmt.Errorf("conflict: duplicate entry for parameter %q", k)
+					return nil, nil, fmt.Errorf("conflict: duplicate entry for parameter %q", k)
 				}
 				params[k] = v
+				paramsWithSecretsRedacted[k] = "<redacted>"
 			}
 		}
 	}
 	if parameters != nil {
 		pp, err := UnmarshalRawParameters(parameters.Raw)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for k, v := range pp {
 			if _, ok := params[k]; ok {
-				return nil, fmt.Errorf("conflict: duplicate entry for parameter %q", k)
+				return nil, nil, fmt.Errorf("conflict: duplicate entry for parameter %q", k)
 			}
 			params[k] = v
+			paramsWithSecretsRedacted[k] = v
 		}
 	}
-	return params, nil
+	// Replace empty map with nil so that the params are omitted from the request
+	if len(params) == 0 {
+		params = nil
+	}
+	// Replace empty map with nil so that the params are omitted from the properties state
+	if len(paramsWithSecretsRedacted) == 0 {
+		paramsWithSecretsRedacted = nil
+	}
+	return params, paramsWithSecretsRedacted, nil
 }
 
 // fetchParametersFromSource fetches data from a specified external source and
 // represents it in the parameters map format
-func fetchParametersFromSource(kubeClient kubernetes.Interface, namespace string, parametersFrom *v1alpha1.ParametersFromSource) (map[string]interface{}, error) {
+func fetchParametersFromSource(kubeClient kubernetes.Interface, namespace string, parametersFrom *v1beta1.ParametersFromSource) (map[string]interface{}, error) {
 	var params map[string]interface{}
 	if parametersFrom.SecretKeyRef != nil {
 		data, err := fetchSecretKeyValue(kubeClient, namespace, parametersFrom.SecretKeyRef)
@@ -90,6 +107,14 @@ func UnmarshalRawParameters(in []byte) (map[string]interface{}, error) {
 	return parameters, nil
 }
 
+// MarshalRawParameters marshals the specified map of parameters into JSON
+func MarshalRawParameters(in map[string]interface{}) ([]byte, error) {
+	if in == nil || len(in) == 0 {
+		return nil, nil
+	}
+	return json.Marshal(in)
+}
+
 // unmarshalJSON produces a map structure from a given raw JSON input
 func unmarshalJSON(in []byte) (map[string]interface{}, error) {
 	parameters := make(map[string]interface{})
@@ -100,10 +125,63 @@ func unmarshalJSON(in []byte) (map[string]interface{}, error) {
 }
 
 // fetchSecretKeyValue requests and returns the contents of the given secret key
-func fetchSecretKeyValue(kubeClient kubernetes.Interface, namespace string, secretKeyRef *v1alpha1.SecretKeyReference) ([]byte, error) {
+func fetchSecretKeyValue(kubeClient kubernetes.Interface, namespace string, secretKeyRef *v1beta1.SecretKeyReference) ([]byte, error) {
 	secret, err := kubeClient.CoreV1().Secrets(namespace).Get(secretKeyRef.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 	return secret.Data[secretKeyRef.Key], nil
+}
+
+// generateChecksumOfParameters generates a checksum for the map of parameters.
+// This checksum is used to determine if parameters have changed.
+func generateChecksumOfParameters(params map[string]interface{}) (string, error) {
+	if params == nil || len(params) == 0 {
+		return "", nil
+	}
+	paramsAsJSON, err := json.Marshal(params)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.Sum256(paramsAsJSON)
+	return fmt.Sprintf("%x", hash), nil
+}
+
+// prepareInProgressPropertyParameters generates the required parameters for setting
+// the in-progress status of a Type.
+// Returns (parameters, parametersChecksum, rawParametersWithRedaction, err) where
+// 1 - a map of parameters to send to the Broker, including secret values.
+// 2 - a checksum for the map of parameters. This checksum is used to determine if parameters have changed.
+// 3 - the map of parameters marshaled into JSON as a RawExtension
+// 4 - any error that caused the function to fail.
+func prepareInProgressPropertyParameters(kubeClient kubernetes.Interface, namespace string, specParameters *runtime.RawExtension, specParametersFrom []v1beta1.ParametersFromSource) (map[string]interface{}, string, *runtime.RawExtension, error) {
+	parameters, parametersWithSecretsRedacted, err := buildParameters(kubeClient, namespace, specParametersFrom, specParameters)
+	if err != nil {
+		return nil, "", nil, fmt.Errorf(
+			"failed to prepare parameters %s: %s",
+			specParameters, err,
+		)
+	}
+
+	parametersChecksum, err := generateChecksumOfParameters(parameters)
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("failed to generate the parameters checksum to store in Status: %s", err)
+	}
+
+	marshalledParametersWithRedaction, err := MarshalRawParameters(parametersWithSecretsRedacted)
+	if err != nil {
+		return nil, "", nil, fmt.Errorf(
+			"failed to marshal the parameters to store in the Status: %s",
+			err,
+		)
+	}
+
+	var rawParametersWithRedaction *runtime.RawExtension
+	if marshalledParametersWithRedaction != nil {
+		rawParametersWithRedaction = &runtime.RawExtension{
+			Raw: marshalledParametersWithRedaction,
+		}
+	}
+
+	return parameters, parametersChecksum, rawParametersWithRedaction, err
 }

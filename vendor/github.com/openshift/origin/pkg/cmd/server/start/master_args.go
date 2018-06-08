@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/url"
 	"path"
+	"regexp"
 	"strconv"
 
 	"github.com/spf13/pflag"
@@ -12,19 +13,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/apiserver/pkg/util/flag"
 	"k8s.io/kubernetes/pkg/master/ports"
 	"k8s.io/kubernetes/pkg/registry/core/service/ipallocator"
 
 	"github.com/openshift/origin/pkg/cmd/flagtypes"
 	"github.com/openshift/origin/pkg/cmd/server/admin"
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	configapiv1 "github.com/openshift/origin/pkg/cmd/server/api/v1"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
+	configapiv1 "github.com/openshift/origin/pkg/cmd/server/apis/config/v1"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
-	imagepolicyapi "github.com/openshift/origin/pkg/image/admission/imagepolicy/api"
-	"github.com/openshift/origin/pkg/oc/bootstrap"
 	"github.com/spf13/cobra"
 )
 
@@ -127,6 +125,19 @@ func (args MasterArgs) GetConfigFileToWrite() string {
 	return path.Join(args.ConfigDir.Value(), "master-config.yaml")
 }
 
+// makeHostMatchRegex returns a regex that matches this host exactly.
+// If host contains a port, the returned regex matches the port exactly.
+// If host does not contain a port, the returned regex matches any port or no port.
+func makeHostMatchRegex(host string) string {
+	if _, _, err := net.SplitHostPort(host); err == nil {
+		// we have a port, match the end exactly
+		return "//" + regexp.QuoteMeta(host) + "$"
+	} else {
+		// we don't have a port, match a port separator or the end
+		return "//" + regexp.QuoteMeta(host) + "(:|$)"
+	}
+}
+
 // BuildSerializeableMasterConfig takes the MasterArgs (partially complete config) and uses them along with defaulting behavior to create the fully specified
 // config object for starting the master
 func (args MasterArgs) BuildSerializeableMasterConfig() (*configapi.MasterConfig, error) {
@@ -149,7 +160,12 @@ func (args MasterArgs) BuildSerializeableMasterConfig() (*configapi.MasterConfig
 	// always include localhost as an allowed CORS origin
 	// always include master public address as an allowed CORS origin
 	corsAllowedOrigins := sets.NewString(args.CORSAllowedOrigins...)
-	corsAllowedOrigins.Insert(assetPublicAddr.Host, masterPublicAddr.Host, "localhost", "127.0.0.1")
+	corsAllowedOrigins.Insert(
+		makeHostMatchRegex(assetPublicAddr.Host),
+		makeHostMatchRegex(masterPublicAddr.Host),
+		makeHostMatchRegex("localhost"),
+		makeHostMatchRegex("127.0.0.1"),
+	)
 
 	etcdAddress, err := args.GetEtcdAddress()
 	if err != nil {
@@ -214,16 +230,6 @@ func (args MasterArgs) BuildSerializeableMasterConfig() (*configapi.MasterConfig
 
 		PauseControllers: args.PauseControllers,
 
-		AssetConfig: &configapi.AssetConfig{
-			ServingInfo: configapi.HTTPServingInfo{
-				ServingInfo: listenServingInfo,
-			},
-
-			LogoutURL:       "",
-			MasterPublicURL: masterPublicAddr.String(),
-			PublicURL:       assetPublicAddr.String(),
-		},
-
 		DNSConfig: &configapi.DNSConfig{
 			BindAddress: dnsServingInfo.BindAddress,
 			BindNetwork: dnsServingInfo.BindNetwork,
@@ -275,9 +281,13 @@ func (args MasterArgs) BuildSerializeableMasterConfig() (*configapi.MasterConfig
 		},
 
 		NetworkConfig: configapi.MasterNetworkConfig{
-			NetworkPluginName:  args.NetworkArgs.NetworkPluginName,
-			ClusterNetworkCIDR: args.NetworkArgs.ClusterNetworkCIDR,
-			HostSubnetLength:   args.NetworkArgs.HostSubnetLength,
+			NetworkPluginName: args.NetworkArgs.NetworkPluginName,
+			ClusterNetworks: []configapi.ClusterNetworkEntry{
+				{
+					CIDR:             args.NetworkArgs.ClusterNetworkCIDR,
+					HostSubnetLength: args.NetworkArgs.HostSubnetLength,
+				},
+			},
 			ServiceNetworkCIDR: args.NetworkArgs.ServiceNetworkCIDR,
 		},
 
@@ -294,8 +304,6 @@ func (args MasterArgs) BuildSerializeableMasterConfig() (*configapi.MasterConfig
 
 	config.ServingInfo.ServerCert = admin.DefaultMasterServingCertInfo(args.ConfigDir.Value())
 	config.ServingInfo.ClientCA = admin.DefaultAPIClientCAFile(args.ConfigDir.Value())
-
-	config.AssetConfig.ServingInfo.ServerCert = admin.DefaultAssetServingCertInfo(args.ConfigDir.Value())
 
 	if oauthConfig != nil {
 		s := admin.DefaultCABundleFile(args.ConfigDir.Value())
@@ -337,23 +345,6 @@ func (args MasterArgs) BuildSerializeableMasterConfig() (*configapi.MasterConfig
 			bootstrappolicy.DeployerServiceAccountName,
 		}
 		config.ServiceAccountConfig.PublicKeyFiles = []string{}
-	}
-
-	// embed a default policy for generated config
-	defaultImagePolicy, err := bootstrap.Asset("pkg/image/admission/imagepolicy/api/v1/default-policy.yaml")
-	if err != nil {
-		return nil, fmt.Errorf("unable to find default image admission policy: %v", err)
-	}
-	// TODO: this should not be necessary, runtime.Unknown#MarshalJSON should handle YAML content type correctly
-	defaultImagePolicy, err = yaml.ToJSON(defaultImagePolicy)
-	if err != nil {
-		return nil, err
-	}
-	if config.AdmissionConfig.PluginConfig == nil {
-		config.AdmissionConfig.PluginConfig = make(map[string]configapi.AdmissionPluginConfig)
-	}
-	config.AdmissionConfig.PluginConfig[imagepolicyapi.PluginName] = configapi.AdmissionPluginConfig{
-		Configuration: &runtime.Unknown{Raw: defaultImagePolicy},
 	}
 
 	internal, err := applyDefaults(config, configapiv1.SchemeGroupVersion)
@@ -410,8 +401,9 @@ func (args MasterArgs) BuildSerializeableOAuthConfig() (*configapi.OAuthConfig, 
 		},
 
 		TokenConfig: configapi.TokenConfig{
-			AuthorizeTokenMaxAgeSeconds: 5 * 60,       // 5 minutes
-			AccessTokenMaxAgeSeconds:    24 * 60 * 60, // 1 day
+			AuthorizeTokenMaxAgeSeconds:         5 * 60,       // 5 minutes
+			AccessTokenMaxAgeSeconds:            24 * 60 * 60, // 1 day
+			AccessTokenInactivityTimeoutSeconds: nil,          // no timeouts by default
 		},
 	}
 
@@ -689,16 +681,6 @@ func getHost(theURL url.URL) string {
 	}
 
 	return host
-}
-
-func getPort(theURL url.URL) int {
-	_, port, err := net.SplitHostPort(theURL.Host)
-	if err != nil {
-		return 0
-	}
-
-	intport, _ := strconv.Atoi(port)
-	return intport
 }
 
 // applyDefaults roundtrips the config to v1 and back to ensure proper defaults are set.

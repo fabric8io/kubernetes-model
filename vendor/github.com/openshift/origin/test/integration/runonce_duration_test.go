@@ -3,11 +3,11 @@ package integration
 import (
 	"testing"
 
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	pluginapi "github.com/openshift/origin/pkg/quota/admission/runonceduration/api"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
+	pluginapi "github.com/openshift/origin/pkg/quota/admission/apis/runonceduration"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -76,7 +76,7 @@ func setupRunOnceDurationTest(t *testing.T, pluginConfig *pluginapi.RunOnceDurat
 	if err != nil {
 		t.Fatalf("error creating config: %v", err)
 	}
-	masterConfig.KubernetesMasterConfig.AdmissionConfig.PluginConfig = map[string]configapi.AdmissionPluginConfig{
+	masterConfig.AdmissionConfig.PluginConfig = map[string]*configapi.AdmissionPluginConfig{
 		"RunOnceDuration": {
 			Configuration: pluginConfig,
 		},

@@ -14,15 +14,19 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
 	oapi "github.com/openshift/origin/pkg/api"
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	"github.com/openshift/origin/pkg/authorization/authorizer/scope"
+	authorizationclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
+	buildclient "github.com/openshift/origin/pkg/build/generated/internalclientset"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
 	"github.com/openshift/origin/pkg/oc/admin/policy"
 	projectapi "github.com/openshift/origin/pkg/project/apis/project"
+	projectclient "github.com/openshift/origin/pkg/project/generated/internalclientset"
+	projectinternalversion "github.com/openshift/origin/pkg/project/generated/internalclientset/typed/project/internalversion"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -35,10 +39,11 @@ func TestProjectIsNamespace(t *testing.T) {
 	}
 	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
-	originClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
+	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	clusterAdminProjectClient := projectclient.NewForConfigOrDie(clusterAdminClientConfig).Project()
 	kubeClientset, err := testutil.GetClusterAdminKubeClient(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -54,7 +59,7 @@ func TestProjectIsNamespace(t *testing.T) {
 	}
 
 	// now try to get the project with the same name and ensure it is our namespace
-	project, err := originClient.Projects().Get(namespaceResult.Name, metav1.GetOptions{})
+	project, err := clusterAdminProjectClient.Projects().Get(namespaceResult.Name, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -72,7 +77,7 @@ func TestProjectIsNamespace(t *testing.T) {
 			},
 		},
 	}
-	projectResult, err := originClient.Projects().Create(project)
+	projectResult, err := clusterAdminProjectClient.Projects().Create(project)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -101,15 +106,16 @@ func TestProjectLifecycle(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	defer testserver.CleanupMasterEtcd(t, masterConfig)
-	_, etcd3, err := testserver.MasterEtcdClients(masterConfig)
+	etcd3, err := testserver.MasterEtcdClients(masterConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
+	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	clusterAdminBuildClient := buildclient.NewForConfigOrDie(clusterAdminClientConfig).Build()
 
 	clusterAdminKubeClientset, err := testutil.GetClusterAdminKubeClient(clusterAdminKubeConfig)
 	if err != nil {
@@ -163,7 +169,7 @@ func TestProjectLifecycle(t *testing.T) {
 		},
 	}
 
-	_, err = clusterAdminClient.Builds("test").Create(build)
+	_, err = clusterAdminBuildClient.Builds("test").Create(build)
 	if err == nil {
 		t.Errorf("Expected an error on creation of a Origin resource because namespace does not exist")
 	}
@@ -174,7 +180,7 @@ func TestProjectLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = clusterAdminClient.Builds("test").Create(build)
+	_, err = clusterAdminBuildClient.Builds("test").Create(build)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,37 +224,34 @@ func TestProjectWatch(t *testing.T) {
 	}
 	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
-	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	bobClient, _, _, err := testutil.GetClientForUser(*clusterAdminClientConfig, "bob")
+	_, bobConfig, err := testutil.GetClientForUser(clusterAdminClientConfig, "bob")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	w, err := bobClient.Projects().Watch(metav1.ListOptions{})
+	bobProjectClient := projectclient.NewForConfigOrDie(bobConfig).Project()
+	w, err := bobProjectClient.Projects().Watch(metav1.ListOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, "ns-01", "bob"); err != nil {
+	if _, _, err := testserver.CreateNewProject(clusterAdminClientConfig, "ns-01", "bob"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	waitForAdd("ns-01", w, t)
 
 	// TEST FOR ADD/REMOVE ACCESS
-	joeClient, err := testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, "ns-02", "joe")
+	_, joeConfig, err := testserver.CreateNewProject(clusterAdminClientConfig, "ns-02", "joe")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	addBob := &policy.RoleModificationOptions{
 		RoleNamespace:       "",
 		RoleName:            bootstrappolicy.EditRoleName,
-		RoleBindingAccessor: policy.NewLocalRoleBindingAccessor("ns-02", joeClient),
+		RoleBindingAccessor: policy.NewLocalRoleBindingAccessor("ns-02", authorizationclient.NewForConfigOrDie(joeConfig).Authorization()),
 		Users:               []string{"bob"},
 	}
 	if err := addBob.AddRole(); err != nil {
@@ -262,25 +265,25 @@ func TestProjectWatch(t *testing.T) {
 	waitForDelete("ns-02", w, t)
 
 	// TEST FOR DELETE PROJECT
-	if _, err := testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, "ns-03", "bob"); err != nil {
+	if _, _, err := testserver.CreateNewProject(clusterAdminClientConfig, "ns-03", "bob"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	waitForAdd("ns-03", w, t)
 
-	if err := bobClient.Projects().Delete("ns-03"); err != nil {
+	if err := bobProjectClient.Projects().Delete("ns-03", nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// wait for the delete
 	waitForDelete("ns-03", w, t)
 
 	// test the "start from beginning watch"
-	beginningWatch, err := bobClient.Projects().Watch(metav1.ListOptions{ResourceVersion: "0"})
+	beginningWatch, err := bobProjectClient.Projects().Watch(metav1.ListOptions{ResourceVersion: "0"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	waitForAdd("ns-01", beginningWatch, t)
 
-	fromNowWatch, err := bobClient.Projects().Watch(metav1.ListOptions{})
+	fromNowWatch, err := bobProjectClient.Projects().Watch(metav1.ListOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -388,21 +391,18 @@ func TestScopedProjectAccess(t *testing.T) {
 	}
 	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
-	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	fullBobClient, _, _, err := testutil.GetClientForUser(*clusterAdminClientConfig, "bob")
+	_, fullBobConfig, err := testutil.GetClientForUser(clusterAdminClientConfig, "bob")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	fullBobClient := projectclient.NewForConfigOrDie(fullBobConfig).Project()
 
-	oneTwoBobClient, _, _, err := testutil.GetScopedClientForUser(clusterAdminClient, *clusterAdminClientConfig, "bob", []string{
+	_, oneTwoBobConfig, err := testutil.GetScopedClientForUser(clusterAdminClientConfig, "bob", []string{
 		scope.UserListScopedProjects,
 		scope.ClusterRoleIndicator + "view:one",
 		scope.ClusterRoleIndicator + "view:two",
@@ -410,20 +410,23 @@ func TestScopedProjectAccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	oneTwoBobClient := projectclient.NewForConfigOrDie(oneTwoBobConfig).Project()
 
-	twoThreeBobClient, _, _, err := testutil.GetScopedClientForUser(clusterAdminClient, *clusterAdminClientConfig, "bob", []string{
+	_, twoThreeBobConfig, err := testutil.GetScopedClientForUser(clusterAdminClientConfig, "bob", []string{
 		scope.UserListScopedProjects,
 		scope.ClusterRoleIndicator + "view:two",
 		scope.ClusterRoleIndicator + "view:three",
 	})
+	twoThreeBobClient := projectclient.NewForConfigOrDie(twoThreeBobConfig).Project()
 
-	allBobClient, _, _, err := testutil.GetScopedClientForUser(clusterAdminClient, *clusterAdminClientConfig, "bob", []string{
+	_, allBobConfig, err := testutil.GetScopedClientForUser(clusterAdminClientConfig, "bob", []string{
 		scope.UserListScopedProjects,
 		scope.ClusterRoleIndicator + "view:*",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	allBobClient := projectclient.NewForConfigOrDie(allBobConfig).Project()
 
 	oneTwoWatch, err := oneTwoBobClient.Projects().Watch(metav1.ListOptions{})
 	if err != nil {
@@ -438,14 +441,14 @@ func TestScopedProjectAccess(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, "one", "bob"); err != nil {
+	if _, _, err := testserver.CreateNewProject(clusterAdminClientConfig, "one", "bob"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	t.Logf("test 1")
 	waitForOnlyAdd("one", allWatch, t)
 	waitForOnlyAdd("one", oneTwoWatch, t)
 
-	if _, err := testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, "two", "bob"); err != nil {
+	if _, _, err := testserver.CreateNewProject(clusterAdminClientConfig, "two", "bob"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	t.Logf("test 2")
@@ -453,59 +456,49 @@ func TestScopedProjectAccess(t *testing.T) {
 	waitForOnlyAdd("two", oneTwoWatch, t)
 	waitForOnlyAdd("two", twoThreeWatch, t)
 
-	if _, err := testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, "three", "bob"); err != nil {
+	if _, _, err := testserver.CreateNewProject(clusterAdminClientConfig, "three", "bob"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	t.Logf("test 3")
 	waitForOnlyAdd("three", allWatch, t)
 	waitForOnlyAdd("three", twoThreeWatch, t)
 
-	if _, err := testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, "four", "bob"); err != nil {
+	if _, _, err := testserver.CreateNewProject(clusterAdminClientConfig, "four", "bob"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	waitForOnlyAdd("four", allWatch, t)
 
-	oneTwoProjects, err := oneTwoBobClient.Projects().List(metav1.ListOptions{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := hasExactlyTheseProjects(oneTwoProjects, sets.NewString("one", "two")); err != nil {
-		t.Error(err)
-	}
-	twoThreeProjects, err := twoThreeBobClient.Projects().List(metav1.ListOptions{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := hasExactlyTheseProjects(twoThreeProjects, sets.NewString("two", "three")); err != nil {
-		t.Error(err)
-	}
-	allProjects, err := allBobClient.Projects().List(metav1.ListOptions{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := hasExactlyTheseProjects(allProjects, sets.NewString("one", "two", "three", "four")); err != nil {
+	if err := hasExactlyTheseProjects(oneTwoBobClient.Projects(), sets.NewString("one", "two")); err != nil {
 		t.Error(err)
 	}
 
-	if err := fullBobClient.Projects().Delete("four"); err != nil {
+	if err := hasExactlyTheseProjects(twoThreeBobClient.Projects(), sets.NewString("two", "three")); err != nil {
+		t.Error(err)
+	}
+
+	if err := hasExactlyTheseProjects(allBobClient.Projects(), sets.NewString("one", "two", "three", "four")); err != nil {
+		t.Error(err)
+	}
+
+	if err := fullBobClient.Projects().Delete("four", nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	waitForOnlyDelete("four", allWatch, t)
 
-	if err := fullBobClient.Projects().Delete("three"); err != nil {
+	if err := fullBobClient.Projects().Delete("three", nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	waitForOnlyDelete("three", allWatch, t)
 	waitForOnlyDelete("three", twoThreeWatch, t)
 
-	if err := fullBobClient.Projects().Delete("two"); err != nil {
+	if err := fullBobClient.Projects().Delete("two", nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	waitForOnlyDelete("two", allWatch, t)
 	waitForOnlyDelete("two", oneTwoWatch, t)
 	waitForOnlyDelete("two", twoThreeWatch, t)
 
-	if err := fullBobClient.Projects().Delete("one"); err != nil {
+	if err := fullBobClient.Projects().Delete("one", nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	waitForOnlyDelete("one", allWatch, t)
@@ -519,53 +512,50 @@ func TestInvalidRoleRefs(t *testing.T) {
 	}
 	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
-	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	clusterAdminAuthorizationClient := authorizationclient.NewForConfigOrDie(clusterAdminClientConfig).Authorization()
 
-	bobClient, _, _, err := testutil.GetClientForUser(*clusterAdminClientConfig, "bob")
+	_, bobConfig, err := testutil.GetClientForUser(clusterAdminClientConfig, "bob")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	aliceClient, _, _, err := testutil.GetClientForUser(*clusterAdminClientConfig, "alice")
+	_, aliceConfig, err := testutil.GetClientForUser(clusterAdminClientConfig, "alice")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, "foo", "bob"); err != nil {
+	if _, _, err := testserver.CreateNewProject(clusterAdminClientConfig, "foo", "bob"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if _, err := testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, "bar", "alice"); err != nil {
+	if _, _, err := testserver.CreateNewProject(clusterAdminClientConfig, "bar", "alice"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	roleName := "missing-role"
-	if _, err := clusterAdminClient.ClusterRoles().Create(&authorizationapi.ClusterRole{ObjectMeta: metav1.ObjectMeta{Name: roleName}}); err != nil {
+	if _, err := clusterAdminAuthorizationClient.ClusterRoles().Create(&authorizationapi.ClusterRole{ObjectMeta: metav1.ObjectMeta{Name: roleName}}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	modifyRole := &policy.RoleModificationOptions{RoleName: roleName, Users: []string{"someuser"}}
 	// mess up rolebindings in "foo"
-	modifyRole.RoleBindingAccessor = policy.NewLocalRoleBindingAccessor("foo", clusterAdminClient)
+	modifyRole.RoleBindingAccessor = policy.NewLocalRoleBindingAccessor("foo", authorizationclient.NewForConfigOrDie(clusterAdminClientConfig).Authorization())
 	if err := modifyRole.AddRole(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// mess up rolebindings in "bar"
-	modifyRole.RoleBindingAccessor = policy.NewLocalRoleBindingAccessor("bar", clusterAdminClient)
+	modifyRole.RoleBindingAccessor = policy.NewLocalRoleBindingAccessor("bar", authorizationclient.NewForConfigOrDie(clusterAdminClientConfig).Authorization())
 	if err := modifyRole.AddRole(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// mess up clusterrolebindings
-	modifyRole.RoleBindingAccessor = policy.NewClusterRoleBindingAccessor(clusterAdminClient)
+	modifyRole.RoleBindingAccessor = policy.NewClusterRoleBindingAccessor(authorizationclient.NewForConfigOrDie(clusterAdminClientConfig).Authorization())
 	if err := modifyRole.AddRole(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// Orphan the rolebindings by deleting the role
-	if err := clusterAdminClient.ClusterRoles().Delete(roleName); err != nil {
+	if err := clusterAdminAuthorizationClient.ClusterRoles().Delete(roleName, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -573,15 +563,15 @@ func TestInvalidRoleRefs(t *testing.T) {
 	if err := wait.PollImmediate(100*time.Millisecond, 10*time.Second, func() (bool, error) {
 		review := &authorizationapi.ResourceAccessReview{Action: authorizationapi.Action{Verb: "get", Resource: "pods"}}
 		review.Action.Namespace = "foo"
-		if resp, err := clusterAdminClient.ResourceAccessReviews().Create(review); err != nil || resp.EvaluationError == "" {
+		if resp, err := clusterAdminAuthorizationClient.ResourceAccessReviews().Create(review); err != nil || resp.EvaluationError == "" {
 			return false, err
 		}
 		review.Action.Namespace = "bar"
-		if resp, err := clusterAdminClient.ResourceAccessReviews().Create(review); err != nil || resp.EvaluationError == "" {
+		if resp, err := clusterAdminAuthorizationClient.ResourceAccessReviews().Create(review); err != nil || resp.EvaluationError == "" {
 			return false, err
 		}
 		review.Action.Namespace = ""
-		if resp, err := clusterAdminClient.ResourceAccessReviews().Create(review); err != nil || resp.EvaluationError == "" {
+		if resp, err := clusterAdminAuthorizationClient.ResourceAccessReviews().Create(review); err != nil || resp.EvaluationError == "" {
 			return false, err
 		}
 		return true, nil
@@ -590,19 +580,15 @@ func TestInvalidRoleRefs(t *testing.T) {
 	}
 
 	// Make sure bob still sees his project (and only his project)
-	if projects, err := bobClient.Projects().List(metav1.ListOptions{}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	} else if hasErr := hasExactlyTheseProjects(projects, sets.NewString("foo")); hasErr != nil {
+	if hasErr := hasExactlyTheseProjects(projectclient.NewForConfigOrDie(bobConfig).Project().Projects(), sets.NewString("foo")); hasErr != nil {
 		t.Error(hasErr)
 	}
 	// Make sure alice still sees her project (and only her project)
-	if projects, err := aliceClient.Projects().List(metav1.ListOptions{}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	} else if hasErr := hasExactlyTheseProjects(projects, sets.NewString("bar")); hasErr != nil {
+	if hasErr := hasExactlyTheseProjects(projectclient.NewForConfigOrDie(aliceConfig).Project().Projects(), sets.NewString("bar")); hasErr != nil {
 		t.Error(hasErr)
 	}
 	// Make sure cluster admin still sees all projects
-	if projects, err := clusterAdminClient.Projects().List(metav1.ListOptions{}); err != nil {
+	if projects, err := projectclient.NewForConfigOrDie(clusterAdminClientConfig).Project().Projects().List(metav1.ListOptions{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else {
 		projectNames := sets.NewString()
@@ -615,14 +601,26 @@ func TestInvalidRoleRefs(t *testing.T) {
 	}
 }
 
-func hasExactlyTheseProjects(list *projectapi.ProjectList, projects sets.String) error {
-	if len(list.Items) != len(projects) {
-		return fmt.Errorf("expected %v, got %v", projects, list.Items)
-	}
-	for _, project := range list.Items {
-		if !projects.Has(project.Name) {
-			return fmt.Errorf("expected %v, got %v", projects, list.Items)
+func hasExactlyTheseProjects(lister projectinternalversion.ProjectResourceInterface, projects sets.String) error {
+	var lastErr error
+	if err := wait.PollImmediate(100*time.Millisecond, 10*time.Second, func() (bool, error) {
+		list, err := lister.List(metav1.ListOptions{})
+		if err != nil {
+			return false, err
 		}
+		if len(list.Items) != len(projects) {
+			lastErr = fmt.Errorf("expected %v, got %v", projects.List(), list.Items)
+			return false, nil
+		}
+		for _, project := range list.Items {
+			if !projects.Has(project.Name) {
+				lastErr = fmt.Errorf("expected %v, got %v", projects.List(), list.Items)
+				return false, nil
+			}
+		}
+		return true, nil
+	}); err != nil {
+		return fmt.Errorf("hasExactlyTheseProjects failed with %v and %v", err, lastErr)
 	}
 	return nil
 }

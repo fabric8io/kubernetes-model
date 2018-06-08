@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgotesting "k8s.io/client-go/testing"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 )
@@ -28,18 +28,6 @@ func ExpectedResourceListFor(expectedISCount int64) kapi.ResourceList {
 // registry.
 func MakeDockerImageReference(ns, isName, imageID string) string {
 	return fmt.Sprintf("%s/%s/%s@%s", InternalRegistryURL, ns, isName, imageID)
-}
-
-type FakeImageStreamLimitVerifier struct {
-	ImageStreamEvaluator func(ns string, is *imageapi.ImageStream) error
-	Err                  error
-}
-
-func (f *FakeImageStreamLimitVerifier) VerifyLimits(ns string, is *imageapi.ImageStream) error {
-	if f.ImageStreamEvaluator != nil {
-		return f.ImageStreamEvaluator(ns, is)
-	}
-	return f.Err
 }
 
 // GetFakeImageStreamListHandler creates a test handler that lists given image streams matching requested

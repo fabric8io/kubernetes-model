@@ -1,33 +1,31 @@
 package validation
 
 import (
+	appsvalidation "github.com/openshift/origin/pkg/apps/apis/apps/validation"
 	authorizationvalidation "github.com/openshift/origin/pkg/authorization/apis/authorization/validation"
 	buildvalidation "github.com/openshift/origin/pkg/build/apis/build/validation"
-	deployvalidation "github.com/openshift/origin/pkg/deploy/apis/apps/validation"
 	imagevalidation "github.com/openshift/origin/pkg/image/apis/image/validation"
+	sdnvalidation "github.com/openshift/origin/pkg/network/apis/network/validation"
 	oauthvalidation "github.com/openshift/origin/pkg/oauth/apis/oauth/validation"
 	projectvalidation "github.com/openshift/origin/pkg/project/apis/project/validation"
 	quotavalidation "github.com/openshift/origin/pkg/quota/apis/quota/validation"
 	routevalidation "github.com/openshift/origin/pkg/route/apis/route/validation"
-	sdnvalidation "github.com/openshift/origin/pkg/sdn/apis/network/validation"
 	securityvalidation "github.com/openshift/origin/pkg/security/apis/security/validation"
 	templatevalidation "github.com/openshift/origin/pkg/template/apis/template/validation"
 	uservalidation "github.com/openshift/origin/pkg/user/apis/user/validation"
-	extvalidation "k8s.io/kubernetes/pkg/apis/extensions/validation"
 
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	networkapi "github.com/openshift/origin/pkg/network/apis/network"
 	oauthapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
 	projectapi "github.com/openshift/origin/pkg/project/apis/project"
 	quotaapi "github.com/openshift/origin/pkg/quota/apis/quota"
 	routeapi "github.com/openshift/origin/pkg/route/apis/route"
-	sdnapi "github.com/openshift/origin/pkg/sdn/apis/network"
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 	userapi "github.com/openshift/origin/pkg/user/apis/user"
-	"k8s.io/kubernetes/pkg/apis/extensions"
 
 	// required to be loaded before we register
 	_ "github.com/openshift/origin/pkg/api/install"
@@ -62,11 +60,10 @@ func registerAll() {
 	Validator.MustRegister(&buildapi.BuildRequest{}, buildvalidation.ValidateBuildRequest, nil)
 	Validator.MustRegister(&buildapi.BuildLogOptions{}, buildvalidation.ValidateBuildLogOptions, nil)
 
-	Validator.MustRegister(&deployapi.DeploymentConfig{}, deployvalidation.ValidateDeploymentConfig, deployvalidation.ValidateDeploymentConfigUpdate)
-	Validator.MustRegister(&deployapi.DeploymentConfigRollback{}, deployvalidation.ValidateDeploymentConfigRollback, nil)
-	Validator.MustRegister(&deployapi.DeploymentLogOptions{}, deployvalidation.ValidateDeploymentLogOptions, nil)
-	Validator.MustRegister(&deployapi.DeploymentRequest{}, deployvalidation.ValidateDeploymentRequest, nil)
-	Validator.MustRegister(&extensions.Scale{}, extvalidation.ValidateScale, nil)
+	Validator.MustRegister(&appsapi.DeploymentConfig{}, appsvalidation.ValidateDeploymentConfig, appsvalidation.ValidateDeploymentConfigUpdate)
+	Validator.MustRegister(&appsapi.DeploymentConfigRollback{}, appsvalidation.ValidateDeploymentConfigRollback, nil)
+	Validator.MustRegister(&appsapi.DeploymentLogOptions{}, appsvalidation.ValidateDeploymentLogOptions, nil)
+	Validator.MustRegister(&appsapi.DeploymentRequest{}, appsvalidation.ValidateDeploymentRequest, nil)
 
 	Validator.MustRegister(&imageapi.Image{}, imagevalidation.ValidateImage, imagevalidation.ValidateImageUpdate)
 	Validator.MustRegister(&imageapi.ImageSignature{}, imagevalidation.ValidateImageSignature, imagevalidation.ValidateImageSignatureUpdate)
@@ -86,10 +83,10 @@ func registerAll() {
 
 	Validator.MustRegister(&routeapi.Route{}, routevalidation.ValidateRoute, routevalidation.ValidateRouteUpdate)
 
-	Validator.MustRegister(&sdnapi.ClusterNetwork{}, sdnvalidation.ValidateClusterNetwork, sdnvalidation.ValidateClusterNetworkUpdate)
-	Validator.MustRegister(&sdnapi.HostSubnet{}, sdnvalidation.ValidateHostSubnet, sdnvalidation.ValidateHostSubnetUpdate)
-	Validator.MustRegister(&sdnapi.NetNamespace{}, sdnvalidation.ValidateNetNamespace, sdnvalidation.ValidateNetNamespaceUpdate)
-	Validator.MustRegister(&sdnapi.EgressNetworkPolicy{}, sdnvalidation.ValidateEgressNetworkPolicy, sdnvalidation.ValidateEgressNetworkPolicyUpdate)
+	Validator.MustRegister(&networkapi.ClusterNetwork{}, sdnvalidation.ValidateClusterNetwork, sdnvalidation.ValidateClusterNetworkUpdate)
+	Validator.MustRegister(&networkapi.HostSubnet{}, sdnvalidation.ValidateHostSubnet, sdnvalidation.ValidateHostSubnetUpdate)
+	Validator.MustRegister(&networkapi.NetNamespace{}, sdnvalidation.ValidateNetNamespace, sdnvalidation.ValidateNetNamespaceUpdate)
+	Validator.MustRegister(&networkapi.EgressNetworkPolicy{}, sdnvalidation.ValidateEgressNetworkPolicy, sdnvalidation.ValidateEgressNetworkPolicyUpdate)
 
 	Validator.MustRegister(&templateapi.Template{}, templatevalidation.ValidateTemplate, templatevalidation.ValidateTemplateUpdate)
 	Validator.MustRegister(&templateapi.TemplateInstance{}, templatevalidation.ValidateTemplateInstance, templatevalidation.ValidateTemplateInstanceUpdate)

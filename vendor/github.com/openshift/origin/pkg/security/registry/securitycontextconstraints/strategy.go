@@ -12,7 +12,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	apistorage "k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/names"
-	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
 	"github.com/openshift/origin/pkg/security/apis/security/validation"
@@ -26,7 +26,7 @@ type strategy struct {
 
 // Strategy is the default logic that applies when creating and updating ServiceAccount
 // objects via the REST API.
-var Strategy = strategy{api.Scheme, names.SimpleNameGenerator}
+var Strategy = strategy{legacyscheme.Scheme, names.SimpleNameGenerator}
 
 var _ = rest.RESTCreateStrategy(Strategy)
 
@@ -50,7 +50,27 @@ func (strategy) PrepareForCreate(_ genericapirequest.Context, obj runtime.Object
 func (strategy) PrepareForUpdate(_ genericapirequest.Context, obj, old runtime.Object) {
 }
 
+// Canonicalize removes duplicate user and group values, preserving order.
 func (strategy) Canonicalize(obj runtime.Object) {
+	scc := obj.(*securityapi.SecurityContextConstraints)
+	scc.Users = uniqueStrings(scc.Users)
+	scc.Groups = uniqueStrings(scc.Groups)
+}
+
+func uniqueStrings(values []string) []string {
+	if len(values) < 2 {
+		return values
+	}
+	updated := make([]string, 0, len(values))
+	existing := make(map[string]struct{})
+	for _, value := range values {
+		if _, ok := existing[value]; ok {
+			continue
+		}
+		existing[value] = struct{}{}
+		updated = append(updated, value)
+	}
+	return updated
 }
 
 func (strategy) Validate(ctx genericapirequest.Context, obj runtime.Object) field.ErrorList {

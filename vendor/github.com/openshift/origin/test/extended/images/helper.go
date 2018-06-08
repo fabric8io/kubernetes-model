@@ -3,6 +3,7 @@ package images
 import (
 	"bytes"
 	cryptorand "crypto/rand"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -17,17 +18,17 @@ import (
 	dockerclient "github.com/fsouza/go-dockerclient"
 	g "github.com/onsi/ginkgo"
 
-	"github.com/docker/distribution/digest"
+	godigest "github.com/opencontainers/go-digest"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	knet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/client/retry"
+	"k8s.io/client-go/util/retry"
 
-	"github.com/openshift/origin/pkg/client"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
-	registryutil "github.com/openshift/origin/test/extended/registry/util"
+	imagetypedclientset "github.com/openshift/origin/pkg/image/generated/internalclientset/typed/image/internalversion"
 	exutil "github.com/openshift/origin/test/extended/util"
 	testutil "github.com/openshift/origin/test/util"
 )
@@ -37,8 +38,8 @@ const (
 	layerSizeMultiplierForDocker18     = 2.0
 	layerSizeMultiplierForLatestDocker = 0.8
 	defaultLayerSize                   = 1024
-	digestSHA256GzippedEmptyTar        = digest.Digest("sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4")
-	digestSha256EmptyTar               = digest.Digest("sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+	digestSHA256GzippedEmptyTar        = godigest.Digest("sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4")
+	digestSha256EmptyTar               = godigest.Digest("sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
 
 	dockerRegistryBinary     = "dockerregistry"
 	registryGCLauncherScript = `#!/bin/sh
@@ -112,12 +113,12 @@ func repoToPath(root, repository string) string {
 	return path.Join(root, fmt.Sprintf("repositories/%s", repository))
 }
 func repoLinkToPath(root, fileType, repository, dgst string) string {
-	d := digest.Digest(dgst)
+	d := godigest.Digest(dgst)
 	return path.Join(root, fmt.Sprintf("repositories/%s/_%ss/%s/%s/link",
 		repository, fileType, d.Algorithm(), d.Hex()))
 }
 func blobToPath(root, dgst string) string {
-	d := digest.Digest(dgst)
+	d := godigest.Digest(dgst)
 	return path.Join(root, fmt.Sprintf("blobs/%s/%s/%s/data",
 		d.Algorithm(), d.Hex()[0:2], d.Hex()))
 }
@@ -140,9 +141,9 @@ var (
 
 // GetImageLabels retrieves Docker labels from image from image repository name and
 // image reference
-func GetImageLabels(c client.ImageStreamImageInterface, imageRepoName, imageRef string) (map[string]string, error) {
+func GetImageLabels(c imagetypedclientset.ImageStreamImageInterface, imageRepoName, imageRef string) (map[string]string, error) {
 	_, imageID, err := imageapi.ParseImageStreamImageName(imageRef)
-	image, err := c.Get(imageRepoName, imageID)
+	image, err := c.Get(imageapi.JoinImageStreamImage(imageRepoName, imageID), metav1.GetOptions{})
 
 	if err != nil {
 		return map[string]string{}, err
@@ -167,13 +168,13 @@ func BuildAndPushImageOfSizeWithBuilder(
 		istName += ":" + tag
 	}
 
-	bc, err := oc.Client().BuildConfigs(namespace).Get(name, metav1.GetOptions{})
+	bc, err := oc.BuildClient().Build().BuildConfigs(namespace).Get(name, metav1.GetOptions{})
 	if err == nil {
 		if bc.Spec.CommonSpec.Output.To.Kind != "ImageStreamTag" {
 			return fmt.Errorf("Unexpected kind of buildspec's output (%s != %s)", bc.Spec.CommonSpec.Output.To.Kind, "ImageStreamTag")
 		}
 		bc.Spec.CommonSpec.Output.To.Name = istName
-		if _, err = oc.Client().BuildConfigs(namespace).Update(bc); err != nil {
+		if _, err = oc.BuildClient().Build().BuildConfigs(namespace).Update(bc); err != nil {
 			return err
 		}
 	} else {
@@ -312,7 +313,7 @@ func buildImageOfSizeWithDocker(
 	numberOfLayers int,
 	outSink io.Writer,
 ) (string, *dockerclient.Image, error) {
-	registryURL, err := registryutil.GetDockerRegistryURL(oc)
+	registryURL, err := GetDockerRegistryURL(oc)
 	if err != nil {
 		return "", nil, err
 	}
@@ -382,7 +383,7 @@ func pushImageWithDocker(
 	}
 	token := strings.TrimSpace(out)
 
-	registryURL, err := registryutil.GetDockerRegistryURL(oc)
+	registryURL, err := GetDockerRegistryURL(oc)
 	if err != nil {
 		return "", err
 	}
@@ -505,7 +506,7 @@ func calculateRoughDataSize(logger io.Writer, wantedImageSize uint64, numberOfLa
 // MirrorBlobInRegistry forces a blob of external image to be mirrored in the registry. The function expects
 // the blob not to exist before a GET request is issued. The function blocks until the blob is mirrored or the
 // given timeout passes.
-func MirrorBlobInRegistry(oc *exutil.CLI, dgst digest.Digest, repository string, timeout time.Duration) error {
+func MirrorBlobInRegistry(oc *exutil.CLI, dgst godigest.Digest, repository string, timeout time.Duration) error {
 	presentGlobally, inRepository, err := IsBlobStoredInRegistry(oc, dgst, repository)
 	if err != nil {
 		return err
@@ -513,11 +514,7 @@ func MirrorBlobInRegistry(oc *exutil.CLI, dgst digest.Digest, repository string,
 	if presentGlobally || inRepository {
 		return fmt.Errorf("blob %q is already present in the registry", dgst.String())
 	}
-	registryURL, err := registryutil.GetDockerRegistryURL(oc)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/v2/%s/blobs/%s", registryURL, repository, dgst.String()), nil)
+	registryURL, err := GetDockerRegistryURL(oc)
 	if err != nil {
 		return err
 	}
@@ -525,12 +522,37 @@ func MirrorBlobInRegistry(oc *exutil.CLI, dgst digest.Digest, repository string,
 	if err != nil {
 		return err
 	}
-	req.Header.Set("range", "bytes=0-1")
-	req.Header.Set("Authorization", "Bearer "+token)
-	c := http.Client{}
-	resp, err := c.Do(req)
-	if err != nil {
-		return err
+
+	c := http.Client{
+		Transport: knet.SetTransportDefaults(&http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}),
+	}
+
+	peekAtBlob := func(schema string) (*http.Request, *http.Response, error) {
+		req, err := http.NewRequest("GET", fmt.Sprintf("%s://%s/v2/%s/blobs/%s", schema, registryURL, repository, dgst.String()), nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		req.Header.Set("range", "bytes=0-1")
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp, err := c.Do(req)
+		if err != nil {
+			fmt.Fprintf(g.GinkgoWriter, "failed to %s %s: %v (%#+v)\n", req.Method, req.URL, err, err)
+			return nil, nil, err
+		}
+		return req, resp, nil
+	}
+
+	var (
+		req    *http.Request
+		resp   *http.Response
+		getErr error
+	)
+	if req, resp, getErr = peekAtBlob("https"); getErr != nil {
+		if req, resp, getErr = peekAtBlob("http"); getErr != nil {
+			return getErr
+		}
 	}
 	defer resp.Body.Close()
 
@@ -545,7 +567,7 @@ func MirrorBlobInRegistry(oc *exutil.CLI, dgst digest.Digest, repository string,
 }
 
 // IsEmptyDigest returns true if the given digest matches one of empty blobs.
-func IsEmptyDigest(dgst digest.Digest) bool {
+func IsEmptyDigest(dgst godigest.Digest) bool {
 	return dgst == digestSha256EmptyTar || dgst == digestSHA256GzippedEmptyTar
 }
 
@@ -567,7 +589,7 @@ func pathExistsInRegistry(oc *exutil.CLI, pthComponents ...string) (bool, error)
 // globally in the registry's storage. The second says whether the blob is linked in the given repository.
 func IsBlobStoredInRegistry(
 	oc *exutil.CLI,
-	dgst digest.Digest,
+	dgst godigest.Digest,
 	repository string,
 ) (bool, bool, error) {
 	present, err := pathExistsInRegistry(
@@ -598,7 +620,7 @@ func IsBlobStoredInRegistry(
 // assumed to be in a read-only mode and using filesystem as a storage driver. It returns lists of deleted
 // files.
 func RunHardPrune(oc *exutil.CLI, dryRun bool) (*RegistryStorageFiles, error) {
-	pod, err := registryutil.GetRegistryPod(oc.AsAdmin().KubeClient().Core())
+	pod, err := GetRegistryPod(oc.AsAdmin().KubeClient().Core())
 	if err != nil {
 		return nil, err
 	}
@@ -757,27 +779,31 @@ func (c *CleanUpContainer) AddImageStream(isName string) {
 // Run deletes all the marked objects.
 func (c *CleanUpContainer) Run() {
 	for image := range c.imageNames {
-		err := c.OC.AsAdmin().Client().Images().Delete(image)
+		err := c.OC.AsAdmin().ImageClient().Image().Images().Delete(image, nil)
 		if err != nil {
 			fmt.Fprintf(g.GinkgoWriter, "clean up of image %q failed: %v\n", image, err)
 		}
 	}
 	for isName := range c.isNames {
-		err := c.OC.AsAdmin().Client().ImageStreams(c.OC.Namespace()).Delete(isName)
+		err := c.OC.AsAdmin().ImageClient().Image().ImageStreams(c.OC.Namespace()).Delete(isName, nil)
 		if err != nil {
 			fmt.Fprintf(g.GinkgoWriter, "clean up of image stream %q failed: %v\n", isName, err)
 		}
 	}
 	for isTag := range c.isTags {
-		parts := strings.SplitN(isTag, ":", 2)
-		if len(parts) != 2 {
-			fmt.Fprintf(g.GinkgoWriter, "cannot remove invalid istag %q", isTag)
-			continue
-		}
-		err := c.OC.Client().ImageStreamTags(c.OC.Namespace()).Delete(parts[0], parts[1])
+		err := c.OC.ImageClient().Image().ImageStreamTags(c.OC.Namespace()).Delete(isTag, nil)
 		if err != nil {
 			fmt.Fprintf(g.GinkgoWriter, "clean up of image stream tag %q failed: %v\n", isTag, err)
 		}
+	}
+
+	// Remove registry database between tests to avoid the influence of one test on another.
+	// TODO: replace this with removals of individual blobs used in the test case.
+	out, err := c.OC.SetNamespace(metav1.NamespaceDefault).AsAdmin().
+		Run("rsh").Args("dc/docker-registry", "find", "/registry", "-mindepth", "1", "-delete").Output()
+	if err != nil {
+		fmt.Fprintf(g.GinkgoWriter, "clean up registry failed: %v\n", err)
+		fmt.Fprintf(g.GinkgoWriter, "%s\n", out)
 	}
 
 	if len(c.imageIDs) == 0 {

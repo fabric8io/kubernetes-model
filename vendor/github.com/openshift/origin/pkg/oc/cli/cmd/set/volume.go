@@ -14,6 +14,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
+	"k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	kresource "k8s.io/apimachinery/pkg/api/resource"
@@ -22,14 +23,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/storage/names"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
+	"k8s.io/kubernetes/pkg/kubectl/categories"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 
-	cmdutil "github.com/openshift/origin/pkg/cmd/util"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 const (
@@ -103,9 +104,9 @@ type VolumeOptions struct {
 	Err                    io.Writer
 	Mapper                 meta.RESTMapper
 	Typer                  runtime.ObjectTyper
-	CategoryExpander       resource.CategoryExpander
+	CategoryExpander       categories.CategoryExpander
 	RESTClientFactory      func(mapping *meta.RESTMapping) (resource.RESTClient, error)
-	UpdatePodSpecForObject func(obj runtime.Object, fn func(*kapi.PodSpec) error) (bool, error)
+	UpdatePodSpecForObject func(obj runtime.Object, fn func(*v1.PodSpec) error) (bool, error)
 	Client                 kcoreclient.PersistentVolumeClaimsGetter
 	Encoder                runtime.Encoder
 	Cmd                    *cobra.Command
@@ -135,6 +136,7 @@ type VolumeOptions struct {
 type AddVolumeOptions struct {
 	Type          string
 	MountPath     string
+	SubPath       string
 	DefaultMode   string
 	Overwrite     bool
 	Path          string
@@ -165,13 +167,13 @@ func NewCmdVolume(fullName string, f *clientcmd.Factory, out, errOut io.Writer) 
 
 			err := opts.Validate(cmd, args)
 			if err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 			err = opts.Complete(f, cmd, out, errOut)
 			kcmdutil.CheckErr(err)
 
 			err = opts.RunVolume(args, f)
-			if err == cmdutil.ErrExit {
+			if err == kcmdutil.ErrExit {
 				os.Exit(1)
 			}
 			kcmdutil.CheckErr(err)
@@ -191,6 +193,7 @@ func NewCmdVolume(fullName string, f *clientcmd.Factory, out, errOut io.Writer) 
 
 	cmd.Flags().StringVarP(&addOpts.Type, "type", "t", "", "Type of the volume source for add operation. Supported options: emptyDir, hostPath, secret, configmap, persistentVolumeClaim")
 	cmd.Flags().StringVarP(&addOpts.MountPath, "mount-path", "m", "", "Mount path inside the container. Optional param for --add or --remove")
+	cmd.Flags().StringVar(&addOpts.SubPath, "sub-path", "", "Path within the local volume from which the container's volume should be mounted. Optional param for --add or --remove")
 	cmd.Flags().StringVarP(&addOpts.DefaultMode, "default-mode", "", "", "The default mode bits to create files with. Can be between 0000 and 0777. Defaults to 0644.")
 	cmd.Flags().BoolVar(&addOpts.Overwrite, "overwrite", false, "If true, replace existing volume source with the provided name and/or volume mount for the given resource")
 	cmd.Flags().StringVar(&addOpts.Path, "path", "", "Host path. Must be provided for hostPath volume type")
@@ -364,7 +367,7 @@ func (a *AddVolumeOptions) Validate(isAddOp bool) error {
 }
 
 func (v *VolumeOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, out, errOut io.Writer) error {
-	_, kc, err := f.Clients()
+	kc, err := f.ClientSet()
 	if err != nil {
 		return err
 	}
@@ -426,7 +429,9 @@ func (v *VolumeOptions) Complete(f *clientcmd.Factory, cmd *cobra.Command, out, 
 }
 
 func (v *VolumeOptions) RunVolume(args []string, f *clientcmd.Factory) error {
-	b := f.NewBuilder(!v.Local).
+	b := f.NewBuilder().
+		Internal().
+		LocalParam(v.Local).
 		ContinueOnError().
 		NamespaceParam(v.DefaultNamespace).DefaultNamespace().
 		FilenameParam(v.ExplicitNamespace, &resource.FilenameOptions{Recursive: false, Filenames: v.Filenames}).
@@ -434,7 +439,7 @@ func (v *VolumeOptions) RunVolume(args []string, f *clientcmd.Factory) error {
 
 	if !v.Local {
 		b = b.
-			SelectorParam(v.Selector).
+			LabelSelectorParam(v.Selector).
 			ResourceTypeOrNameArgs(v.All, args...)
 	}
 
@@ -447,7 +452,7 @@ func (v *VolumeOptions) RunVolume(args []string, f *clientcmd.Factory) error {
 	if v.List {
 		listingErrors := v.printVolumes(infos)
 		if len(listingErrors) > 0 {
-			return cmdutil.ErrExit
+			return kcmdutil.ErrExit
 		}
 		return nil
 	}
@@ -526,7 +531,7 @@ func (v *VolumeOptions) RunVolume(args []string, f *clientcmd.Factory) error {
 		kcmdutil.PrintSuccess(v.Mapper, false, v.Out, info.Mapping.Resource, info.Name, false, "updated")
 	}
 	if failed {
-		return cmdutil.ErrExit
+		return kcmdutil.ErrExit
 	}
 	return nil
 }
@@ -535,7 +540,7 @@ func (v *VolumeOptions) getVolumeUpdatePatches(infos []*resource.Info, singleIte
 	skipped := 0
 	patches := CalculatePatches(infos, v.Encoder, func(info *resource.Info) (bool, error) {
 		transformed := false
-		ok, err := v.UpdatePodSpecForObject(info.Object, func(spec *kapi.PodSpec) error {
+		ok, err := v.UpdatePodSpecForObject(info.Object, clientcmd.ConvertInteralPodSpecToExternal(func(spec *kapi.PodSpec) error {
 			var e error
 			switch {
 			case v.Add:
@@ -546,7 +551,7 @@ func (v *VolumeOptions) getVolumeUpdatePatches(infos []*resource.Info, singleIte
 				transformed = true
 			}
 			return e
-		})
+		}))
 		if !ok {
 			skipped++
 		}
@@ -602,9 +607,9 @@ func setVolumeSourceByType(kv *kapi.Volume, opts *AddVolumeOptions) error {
 func (v *VolumeOptions) printVolumes(infos []*resource.Info) []error {
 	listingErrors := []error{}
 	for _, info := range infos {
-		_, err := v.UpdatePodSpecForObject(info.Object, func(spec *kapi.PodSpec) error {
+		_, err := v.UpdatePodSpecForObject(info.Object, clientcmd.ConvertInteralPodSpecToExternal(func(spec *kapi.PodSpec) error {
 			return v.listVolumeForSpec(spec, info)
-		})
+		}))
 		if err != nil {
 			listingErrors = append(listingErrors, err)
 			fmt.Fprintf(v.Err, "error: %s/%s %v\n", info.Mapping.Resource, info.Name, err)
@@ -661,7 +666,7 @@ func (v *VolumeOptions) setVolumeMount(spec *kapi.PodSpec, info *resource.Info) 
 			}
 		}
 		for i, m := range c.VolumeMounts {
-			if m.Name == v.Name {
+			if m.Name == v.Name && opts.Overwrite {
 				c.VolumeMounts = append(c.VolumeMounts[:i], c.VolumeMounts[i+1:]...)
 				break
 			}
@@ -670,18 +675,21 @@ func (v *VolumeOptions) setVolumeMount(spec *kapi.PodSpec, info *resource.Info) 
 			Name:      v.Name,
 			MountPath: path.Clean(opts.MountPath),
 		}
+		if len(opts.SubPath) > 0 {
+			volumeMount.SubPath = path.Clean(opts.SubPath)
+		}
 		c.VolumeMounts = append(c.VolumeMounts, *volumeMount)
 	}
 	return nil
 }
 
-func (v *VolumeOptions) getVolumeName(spec *kapi.PodSpec, singleResource bool) (string, error) {
+func (v *VolumeOptions) getVolumeName(spec *kapi.PodSpec, singleResource bool) (string, bool, error) {
 	opts := v.AddOpts
 	if opts.Overwrite {
 		// Multiple resources can have same mount-path for different volumes,
 		// so restrict it for single resource to uniquely find the volume
 		if !singleResource {
-			return "", fmt.Errorf("you must specify --name for the volume name when dealing with multiple resources")
+			return "", false, fmt.Errorf("you must specify --name for the volume name when dealing with multiple resources")
 		}
 		if len(opts.MountPath) > 0 {
 			containers, _ := selectContainers(spec.Containers, v.Containers)
@@ -691,7 +699,7 @@ func (v *VolumeOptions) getVolumeName(spec *kapi.PodSpec, singleResource bool) (
 				for _, m := range c.VolumeMounts {
 					if path.Clean(m.MountPath) == path.Clean(opts.MountPath) {
 						name = m.Name
-						matchCount += 1
+						matchCount++
 						break
 					}
 				}
@@ -699,33 +707,52 @@ func (v *VolumeOptions) getVolumeName(spec *kapi.PodSpec, singleResource bool) (
 
 			switch matchCount {
 			case 0:
-				return "", fmt.Errorf("unable to find the volume for mount-path: %s", opts.MountPath)
+				return "", false, fmt.Errorf("unable to find the volume for mount-path: %s", opts.MountPath)
 			case 1:
-				return name, nil
+				return name, false, nil
 			default:
-				return "", fmt.Errorf("found multiple volumes with same mount-path: %s", opts.MountPath)
+				return "", false, fmt.Errorf("found multiple volumes with same mount-path: %s", opts.MountPath)
 			}
-		} else {
-			return "", fmt.Errorf("ambiguous --overwrite, specify --name or --mount-path")
 		}
-	} else { // Generate volume name
-		name := names.SimpleNameGenerator.GenerateName(volumePrefix)
-		if len(v.Output) == 0 {
-			fmt.Fprintf(v.Err, "info: Generated volume name: %s\n", name)
-		}
-		return name, nil
+		return "", false, fmt.Errorf("ambiguous --overwrite, specify --name or --mount-path")
 	}
+
+	oldName, claimFound := v.checkForExistingClaim(spec)
+
+	if claimFound {
+		return oldName, true, nil
+	}
+	// Generate volume name
+	name := names.SimpleNameGenerator.GenerateName(volumePrefix)
+	if len(v.Output) == 0 {
+		fmt.Fprintf(v.Err, "info: Generated volume name: %s\n", name)
+	}
+	return name, false, nil
+}
+
+func (v *VolumeOptions) checkForExistingClaim(spec *kapi.PodSpec) (string, bool) {
+	for _, vol := range spec.Volumes {
+		oldSource := vol.VolumeSource.PersistentVolumeClaim
+		if oldSource != nil && v.AddOpts.ClaimName == oldSource.ClaimName {
+			return vol.Name, true
+		}
+	}
+	return "", false
 }
 
 func (v *VolumeOptions) addVolumeToSpec(spec *kapi.PodSpec, info *resource.Info, singleResource bool) error {
 	opts := v.AddOpts
+	claimFound := false
 	if len(v.Name) == 0 {
 		var err error
-		v.Name, err = v.getVolumeName(spec, singleResource)
+		v.Name, claimFound, err = v.getVolumeName(spec, singleResource)
 		if err != nil {
 			return err
 		}
+	} else {
+		_, claimFound = v.checkForExistingClaim(spec)
 	}
+
 	newVolume := &kapi.Volume{
 		Name: v.Name,
 	}
@@ -734,7 +761,7 @@ func (v *VolumeOptions) addVolumeToSpec(spec *kapi.PodSpec, info *resource.Info,
 	for i, vol := range spec.Volumes {
 		if v.Name == vol.Name {
 			vNameFound = true
-			if !opts.Overwrite {
+			if !opts.Overwrite && !claimFound {
 				return fmt.Errorf("volume '%s' already exists. Use --overwrite to replace", v.Name)
 			}
 			if !opts.TypeChanged && len(opts.Source) == 0 {
@@ -745,7 +772,6 @@ func (v *VolumeOptions) addVolumeToSpec(spec *kapi.PodSpec, info *resource.Info,
 			break
 		}
 	}
-
 	// if --overwrite was passed, but volume did not previously
 	// exist, log a warning that no volumes were overwritten
 	if !vNameFound && opts.Overwrite && len(v.Output) == 0 {
@@ -771,12 +797,14 @@ func (v *VolumeOptions) addVolumeToSpec(spec *kapi.PodSpec, info *resource.Info,
 
 func (v *VolumeOptions) removeSpecificVolume(spec *kapi.PodSpec, containers, skippedContainers []*kapi.Container) error {
 	for _, c := range containers {
-		for i, m := range c.VolumeMounts {
-			if v.Name == m.Name {
-				c.VolumeMounts = append(c.VolumeMounts[:i], c.VolumeMounts[i+1:]...)
-				break
+		newMounts := c.VolumeMounts[:0]
+		for _, m := range c.VolumeMounts {
+			// Remove all volume mounts that match specified name
+			if v.Name != m.Name {
+				newMounts = append(newMounts, m)
 			}
 		}
+		c.VolumeMounts = newMounts
 	}
 
 	// Remove volume if no container is using it
@@ -878,6 +906,8 @@ func describeVolumeSource(source *kapi.VolumeSource) string {
 		return fmt.Sprintf("Ceph RBD %v type=%s image=%s pool=%s%s", source.RBD.CephMonitors, source.RBD.FSType, source.RBD.RBDImage, source.RBD.RBDPool, sourceAccessMode(source.RBD.ReadOnly))
 	case source.Secret != nil:
 		return fmt.Sprintf("secret/%s", source.Secret.SecretName)
+	case source.ConfigMap != nil:
+		return fmt.Sprintf("configMap/%s", source.ConfigMap.Name)
 	default:
 		return "unknown"
 	}

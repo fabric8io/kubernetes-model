@@ -3,24 +3,24 @@ package meta
 import (
 	"fmt"
 
+	appsv1beta1 "k8s.io/api/apps/v1beta1"
+	batchv1 "k8s.io/api/batch/v1"
+	batchv2alpha1 "k8s.io/api/batch/v2alpha1"
+	kapiv1 "k8s.io/api/core/v1"
+	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	kapi "k8s.io/kubernetes/pkg/api"
-	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/apis/apps"
-	appsv1beta1 "k8s.io/kubernetes/pkg/apis/apps/v1beta1"
 	"k8s.io/kubernetes/pkg/apis/batch"
-	batchv1 "k8s.io/kubernetes/pkg/apis/batch/v1"
-	batchv2alpha1 "k8s.io/kubernetes/pkg/apis/batch/v2alpha1"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/apis/extensions"
-	extensionsv1beta1 "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
-	deployapiv1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
+	appsapiv1 "github.com/openshift/api/apps/v1"
+	securityapiv1 "github.com/openshift/api/security/v1"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
-	securityapiv1 "github.com/openshift/origin/pkg/security/apis/security/v1"
 )
 
 type ContainerMutator interface {
@@ -56,15 +56,13 @@ var resourcesToCheck = map[schema.GroupResource]schema.GroupKind{
 	batch.Resource("jobs"):                  batch.Kind("Job"),
 	batch.Resource("jobtemplates"):          batch.Kind("JobTemplate"),
 
-	// TODO do we still need this or is cronjob sufficient?
-	batch.Resource("scheduledjobs"):    batch.Kind("ScheduledJob"),
 	batch.Resource("cronjobs"):         batch.Kind("CronJob"),
 	extensions.Resource("deployments"): extensions.Kind("Deployment"),
 	extensions.Resource("replicasets"): extensions.Kind("ReplicaSet"),
 	apps.Resource("statefulsets"):      apps.Kind("StatefulSet"),
 
-	deployapi.Resource("deploymentconfigs"):                           deployapi.Kind("DeploymentConfig"),
-	deployapi.LegacyResource("deploymentconfigs"):                     deployapi.LegacyKind("DeploymentConfig"),
+	appsapi.Resource("deploymentconfigs"):                             appsapi.Kind("DeploymentConfig"),
+	appsapi.LegacyResource("deploymentconfigs"):                       appsapi.LegacyKind("DeploymentConfig"),
 	securityapi.Resource("podsecuritypolicysubjectreviews"):           securityapi.Kind("PodSecurityPolicySubjectReview"),
 	securityapi.LegacyResource("podsecuritypolicysubjectreviews"):     securityapi.LegacyKind("PodSecurityPolicySubjectReview"),
 	securityapi.Resource("podsecuritypolicyselfsubjectreviews"):       securityapi.Kind("PodSecurityPolicySelfSubjectReview"),
@@ -114,7 +112,7 @@ func GetPodSpec(obj runtime.Object) (*kapi.PodSpec, *field.Path, error) {
 		return &r.Spec.Template.Spec, field.NewPath("spec", "template", "spec"), nil
 	case *securityapi.PodSecurityPolicyReview:
 		return &r.Spec.Template.Spec, field.NewPath("spec", "template", "spec"), nil
-	case *deployapi.DeploymentConfig:
+	case *appsapi.DeploymentConfig:
 		if r.Spec.Template != nil {
 			return &r.Spec.Template.Spec, field.NewPath("spec", "template", "spec"), nil
 		}
@@ -157,7 +155,7 @@ func GetPodSpecV1(obj runtime.Object) (*kapiv1.PodSpec, *field.Path, error) {
 		return &r.Spec.Template.Spec, field.NewPath("spec", "template", "spec"), nil
 	case *securityapiv1.PodSecurityPolicyReview:
 		return &r.Spec.Template.Spec, field.NewPath("spec", "template", "spec"), nil
-	case *deployapiv1.DeploymentConfig:
+	case *appsapiv1.DeploymentConfig:
 		if r.Spec.Template != nil {
 			return &r.Spec.Template.Spec, field.NewPath("spec", "template", "spec"), nil
 		}
@@ -197,7 +195,7 @@ func GetTemplateMetaObject(obj runtime.Object) (metav1.Object, bool) {
 		return &r.Spec.Template.ObjectMeta, true
 	case *securityapiv1.PodSecurityPolicyReview:
 		return &r.Spec.Template.ObjectMeta, true
-	case *deployapiv1.DeploymentConfig:
+	case *appsapiv1.DeploymentConfig:
 		if r.Spec.Template != nil {
 			return &r.Spec.Template.ObjectMeta, true
 		}
@@ -227,7 +225,7 @@ func GetTemplateMetaObject(obj runtime.Object) (metav1.Object, bool) {
 		return &r.Spec.Template.ObjectMeta, true
 	case *securityapi.PodSecurityPolicyReview:
 		return &r.Spec.Template.ObjectMeta, true
-	case *deployapi.DeploymentConfig:
+	case *appsapi.DeploymentConfig:
 		if r.Spec.Template != nil {
 			return &r.Spec.Template.ObjectMeta, true
 		}
@@ -253,12 +251,30 @@ func (m containerV1Mutator) SetImage(image string) { m.Image = image }
 
 // podSpecMutator implements the mutation interface over objects with a pod spec.
 type podSpecMutator struct {
-	spec *kapi.PodSpec
-	path *field.Path
+	spec    *kapi.PodSpec
+	oldSpec *kapi.PodSpec
+	path    *field.Path
 }
 
 func (m *podSpecMutator) Path() *field.Path {
 	return m.path
+}
+
+func hasIdenticalPodSpecImage(spec *kapi.PodSpec, containerName, image string) bool {
+	if spec == nil {
+		return false
+	}
+	for i := range spec.InitContainers {
+		if spec.InitContainers[i].Name == containerName {
+			return spec.InitContainers[i].Image == image
+		}
+	}
+	for i := range spec.Containers {
+		if spec.Containers[i].Name == containerName {
+			return spec.Containers[i].Image == image
+		}
+	}
+	return false
 }
 
 // Mutate applies fn to all containers and init containers. If fn changes the Kind to
@@ -266,7 +282,11 @@ func (m *podSpecMutator) Path() *field.Path {
 func (m *podSpecMutator) Mutate(fn ImageReferenceMutateFunc) field.ErrorList {
 	var errs field.ErrorList
 	for i := range m.spec.InitContainers {
-		ref := kapi.ObjectReference{Kind: "DockerImage", Name: m.spec.InitContainers[i].Image}
+		container := &m.spec.InitContainers[i]
+		if hasIdenticalPodSpecImage(m.oldSpec, container.Name, container.Image) {
+			continue
+		}
+		ref := kapi.ObjectReference{Kind: "DockerImage", Name: container.Image}
 		if err := fn(&ref); err != nil {
 			errs = append(errs, fieldErrorOrInternal(err, m.path.Child("initContainers").Index(i).Child("image")))
 			continue
@@ -275,10 +295,14 @@ func (m *podSpecMutator) Mutate(fn ImageReferenceMutateFunc) field.ErrorList {
 			errs = append(errs, fieldErrorOrInternal(fmt.Errorf("pod specs may only contain references to docker images, not %q", ref.Kind), m.path.Child("initContainers").Index(i).Child("image")))
 			continue
 		}
-		m.spec.InitContainers[i].Image = ref.Name
+		container.Image = ref.Name
 	}
 	for i := range m.spec.Containers {
-		ref := kapi.ObjectReference{Kind: "DockerImage", Name: m.spec.Containers[i].Image}
+		container := &m.spec.Containers[i]
+		if hasIdenticalPodSpecImage(m.oldSpec, container.Name, container.Image) {
+			continue
+		}
+		ref := kapi.ObjectReference{Kind: "DockerImage", Name: container.Image}
 		if err := fn(&ref); err != nil {
 			errs = append(errs, fieldErrorOrInternal(err, m.path.Child("containers").Index(i).Child("image")))
 			continue
@@ -287,7 +311,7 @@ func (m *podSpecMutator) Mutate(fn ImageReferenceMutateFunc) field.ErrorList {
 			errs = append(errs, fieldErrorOrInternal(fmt.Errorf("pod specs may only contain references to docker images, not %q", ref.Kind), m.path.Child("containers").Index(i).Child("image")))
 			continue
 		}
-		m.spec.Containers[i].Image = ref.Name
+		container.Image = ref.Name
 	}
 	return errs
 }
@@ -328,12 +352,30 @@ func (m *podSpecMutator) GetContainerByIndex(init bool, i int) (ContainerMutator
 
 // podSpecV1Mutator implements the mutation interface over objects with a pod spec.
 type podSpecV1Mutator struct {
-	spec *kapiv1.PodSpec
-	path *field.Path
+	spec    *kapiv1.PodSpec
+	oldSpec *kapiv1.PodSpec
+	path    *field.Path
 }
 
 func (m *podSpecV1Mutator) Path() *field.Path {
 	return m.path
+}
+
+func hasIdenticalPodSpecV1Image(spec *kapiv1.PodSpec, containerName, image string) bool {
+	if spec == nil {
+		return false
+	}
+	for i := range spec.InitContainers {
+		if spec.InitContainers[i].Name == containerName {
+			return spec.InitContainers[i].Image == image
+		}
+	}
+	for i := range spec.Containers {
+		if spec.Containers[i].Name == containerName {
+			return spec.Containers[i].Image == image
+		}
+	}
+	return false
 }
 
 // Mutate applies fn to all containers and init containers. If fn changes the Kind to
@@ -341,7 +383,11 @@ func (m *podSpecV1Mutator) Path() *field.Path {
 func (m *podSpecV1Mutator) Mutate(fn ImageReferenceMutateFunc) field.ErrorList {
 	var errs field.ErrorList
 	for i := range m.spec.InitContainers {
-		ref := kapi.ObjectReference{Kind: "DockerImage", Name: m.spec.InitContainers[i].Image}
+		container := &m.spec.InitContainers[i]
+		if hasIdenticalPodSpecV1Image(m.oldSpec, container.Name, container.Image) {
+			continue
+		}
+		ref := kapi.ObjectReference{Kind: "DockerImage", Name: container.Image}
 		if err := fn(&ref); err != nil {
 			errs = append(errs, fieldErrorOrInternal(err, m.path.Child("initContainers").Index(i).Child("image")))
 			continue
@@ -350,10 +396,14 @@ func (m *podSpecV1Mutator) Mutate(fn ImageReferenceMutateFunc) field.ErrorList {
 			errs = append(errs, fieldErrorOrInternal(fmt.Errorf("pod specs may only contain references to docker images, not %q", ref.Kind), m.path.Child("initContainers").Index(i).Child("image")))
 			continue
 		}
-		m.spec.InitContainers[i].Image = ref.Name
+		container.Image = ref.Name
 	}
 	for i := range m.spec.Containers {
-		ref := kapi.ObjectReference{Kind: "DockerImage", Name: m.spec.Containers[i].Image}
+		container := &m.spec.Containers[i]
+		if hasIdenticalPodSpecV1Image(m.oldSpec, container.Name, container.Image) {
+			continue
+		}
+		ref := kapi.ObjectReference{Kind: "DockerImage", Name: container.Image}
 		if err := fn(&ref); err != nil {
 			errs = append(errs, fieldErrorOrInternal(err, m.path.Child("containers").Index(i).Child("image")))
 			continue
@@ -362,7 +412,7 @@ func (m *podSpecV1Mutator) Mutate(fn ImageReferenceMutateFunc) field.ErrorList {
 			errs = append(errs, fieldErrorOrInternal(fmt.Errorf("pod specs may only contain references to docker images, not %q", ref.Kind), m.path.Child("containers").Index(i).Child("image")))
 			continue
 		}
-		m.spec.Containers[i].Image = ref.Name
+		container.Image = ref.Name
 	}
 	return errs
 }

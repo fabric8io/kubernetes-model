@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 )
 
 const (
@@ -80,7 +80,7 @@ func (e *EvacuateOptions) RunEvacuate(node *kapi.Node) error {
 	// we may not be able to recover in some cases to mark the node back to schedulable. To avoid these cases, we recommend
 	// user to explicitly set the node to schedulable/unschedulable.
 	if !node.Spec.Unschedulable {
-		return fmt.Errorf("Node '%s' must be unschedulable to perform evacuation.\nYou can mark the node unschedulable with 'openshift admin manage-node %s --schedulable=false'", node.ObjectMeta.Name, node.ObjectMeta.Name)
+		return fmt.Errorf("Node '%s' must be unschedulable to perform evacuation.\nYou can mark the node unschedulable with 'oc adm manage-node %s --schedulable=false'", node.ObjectMeta.Name, node.ObjectMeta.Name)
 	}
 
 	labelSelector, err := labels.Parse(e.Options.PodSelector)
@@ -118,7 +118,7 @@ func (e *EvacuateOptions) RunEvacuate(node *kapi.Node) error {
 		return err
 	}
 
-	printer, err := e.Options.GetPrintersByResource(schema.GroupVersionResource{Resource: "pod"})
+	printer, err := e.Options.GetPrintersByResource(schema.GroupVersionResource{Resource: "pod"}, false)
 	if err != nil {
 		return err
 	}

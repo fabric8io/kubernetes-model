@@ -24,9 +24,8 @@ import (
 	"k8s.io/kubernetes/pkg/master/ports"
 
 	"github.com/openshift/origin/pkg/cmd/server/admin"
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
 	"github.com/openshift/origin/pkg/cmd/server/crypto"
-	"github.com/openshift/origin/pkg/cmd/server/start/kubernetes"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	tsbcmd "github.com/openshift/origin/pkg/templateservicebroker/cmd/server"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -132,9 +131,6 @@ func NewCommandStartAllInOne(basename string, out, errout io.Writer) (*cobra.Com
 	cmds.AddCommand(startNodeNetwork)
 	cmds.AddCommand(startEtcdServer)
 	cmds.AddCommand(startTSBServer)
-
-	startKube := kubernetes.NewCommand("kubernetes", basename, out, errout)
-	cmds.AddCommand(startKube)
 
 	// autocompletion hints
 	cmds.MarkFlagFilename("write-config")

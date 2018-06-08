@@ -12,20 +12,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	"k8s.io/kubernetes/pkg/apis/autoscaling"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	kprinters "k8s.io/kubernetes/pkg/printers"
 	kinternalprinters "k8s.io/kubernetes/pkg/printers/internalversion"
 
-	"github.com/openshift/origin/pkg/api/graph"
-	kubegraph "github.com/openshift/origin/pkg/api/kubegraph/nodes"
-	"github.com/openshift/origin/pkg/client"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
-	deployedges "github.com/openshift/origin/pkg/deploy/graph"
-	deploygraph "github.com/openshift/origin/pkg/deploy/graph/nodes"
-	deployutil "github.com/openshift/origin/pkg/deploy/util"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	appsinternalversion "github.com/openshift/origin/pkg/apps/generated/internalclientset/typed/apps/internalversion"
+	appsutil "github.com/openshift/origin/pkg/apps/util"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	appsedges "github.com/openshift/origin/pkg/oc/graph/appsgraph"
+	appsgraph "github.com/openshift/origin/pkg/oc/graph/appsgraph/nodes"
+	"github.com/openshift/origin/pkg/oc/graph/genericgraph"
+	kubegraph "github.com/openshift/origin/pkg/oc/graph/kubegraph/nodes"
 )
 
 const (
@@ -42,16 +43,16 @@ const (
 
 // DeploymentConfigDescriber generates information about a DeploymentConfig
 type DeploymentConfigDescriber struct {
-	osClient   client.Interface
+	appsClient appsinternalversion.AppsInterface
 	kubeClient kclientset.Interface
 
-	config *deployapi.DeploymentConfig
+	config *appsapi.DeploymentConfig
 }
 
 // NewDeploymentConfigDescriber returns a new DeploymentConfigDescriber
-func NewDeploymentConfigDescriber(client client.Interface, kclient kclientset.Interface, config *deployapi.DeploymentConfig) *DeploymentConfigDescriber {
+func NewDeploymentConfigDescriber(client appsinternalversion.AppsInterface, kclient kclientset.Interface, config *appsapi.DeploymentConfig) *DeploymentConfigDescriber {
 	return &DeploymentConfigDescriber{
-		osClient:   client,
+		appsClient: client,
 		kubeClient: kclient,
 		config:     config,
 	}
@@ -59,14 +60,14 @@ func NewDeploymentConfigDescriber(client client.Interface, kclient kclientset.In
 
 // Describe returns the description of a DeploymentConfig
 func (d *DeploymentConfigDescriber) Describe(namespace, name string, settings kprinters.DescriberSettings) (string, error) {
-	var deploymentConfig *deployapi.DeploymentConfig
+	var deploymentConfig *appsapi.DeploymentConfig
 	if d.config != nil {
 		// If a deployment config is already provided use that.
 		// This is used by `oc rollback --dry-run`.
 		deploymentConfig = d.config
 	} else {
 		var err error
-		deploymentConfig, err = d.osClient.DeploymentConfigs(namespace).Get(name, metav1.GetOptions{})
+		deploymentConfig, err = d.appsClient.DeploymentConfigs(namespace).Get(name, metav1.GetOptions{})
 		if err != nil {
 			return "", err
 		}
@@ -80,7 +81,7 @@ func (d *DeploymentConfigDescriber) Describe(namespace, name string, settings kp
 		)
 
 		if d.config == nil {
-			if rcs, err := d.kubeClient.Core().ReplicationControllers(namespace).List(metav1.ListOptions{LabelSelector: deployutil.ConfigSelector(deploymentConfig.Name).String()}); err == nil {
+			if rcs, err := d.kubeClient.Core().ReplicationControllers(namespace).List(metav1.ListOptions{LabelSelector: appsutil.ConfigSelector(deploymentConfig.Name).String()}); err == nil {
 				deploymentsHistory = make([]*kapi.ReplicationController, 0, len(rcs.Items))
 				for i := range rcs.Items {
 					deploymentsHistory = append(deploymentsHistory, &rcs.Items[i])
@@ -97,8 +98,8 @@ func (d *DeploymentConfigDescriber) Describe(namespace, name string, settings kp
 		printDeploymentConfigSpec(d.kubeClient, *deploymentConfig, out)
 		fmt.Fprintln(out)
 
-		latestDeploymentName := deployutil.LatestDeploymentNameForConfig(deploymentConfig)
-		if activeDeployment := deployutil.ActiveDeployment(deploymentsHistory); activeDeployment != nil {
+		latestDeploymentName := appsutil.LatestDeploymentNameForConfig(deploymentConfig)
+		if activeDeployment := appsutil.ActiveDeployment(deploymentsHistory); activeDeployment != nil {
 			activeDeploymentName = activeDeployment.Name
 		}
 
@@ -116,7 +117,7 @@ func (d *DeploymentConfigDescriber) Describe(namespace, name string, settings kp
 		if isNotDeployed {
 			formatString(out, "Latest Deployment", "<none>")
 		} else {
-			header := fmt.Sprintf("Deployment #%d (latest)", deployutil.DeploymentVersionFor(deployment))
+			header := fmt.Sprintf("Deployment #%d (latest)", appsutil.DeploymentVersionFor(deployment))
 			// Show details if the current deployment is the active one or it is the
 			// initial deployment.
 			printDeploymentRc(deployment, d.kubeClient, out, header, (deployment.Name == activeDeploymentName) || len(deploymentsHistory) == 1)
@@ -132,8 +133,8 @@ func (d *DeploymentConfigDescriber) Describe(namespace, name string, settings kp
 			sort.Sort(sort.Reverse(OverlappingControllers(sorted)))
 			counter := 1
 			for _, item := range sorted {
-				if item.Name != latestDeploymentName && deploymentConfig.Name == deployutil.DeploymentConfigNameFor(item) {
-					header := fmt.Sprintf("Deployment #%d", deployutil.DeploymentVersionFor(item))
+				if item.Name != latestDeploymentName && deploymentConfig.Name == appsutil.DeploymentConfigNameFor(item) {
+					header := fmt.Sprintf("Deployment #%d", appsutil.DeploymentVersionFor(item))
 					printDeploymentRc(item, d.kubeClient, out, header, item.Name == activeDeploymentName)
 					counter++
 				}
@@ -145,7 +146,7 @@ func (d *DeploymentConfigDescriber) Describe(namespace, name string, settings kp
 
 		if settings.ShowEvents {
 			// Events
-			if events, err := d.kubeClient.Core().Events(deploymentConfig.Namespace).Search(kapi.Scheme, deploymentConfig); err == nil && events != nil {
+			if events, err := d.kubeClient.Core().Events(deploymentConfig.Namespace).Search(legacyscheme.Scheme, deploymentConfig); err == nil && events != nil {
 				latestDeploymentEvents := &kapi.EventList{Items: []kapi.Event{}}
 				for i := len(events.Items); i != 0 && i > len(events.Items)-maxDisplayDeploymentsEvents; i-- {
 					latestDeploymentEvents.Items = append(latestDeploymentEvents.Items, events.Items[i-1])
@@ -169,10 +170,10 @@ func (o OverlappingControllers) Len() int      { return len(o) }
 func (o OverlappingControllers) Swap(i, j int) { o[i], o[j] = o[j], o[i] }
 
 func (o OverlappingControllers) Less(i, j int) bool {
-	if o[i].CreationTimestamp.Equal(o[j].CreationTimestamp) {
+	if o[i].CreationTimestamp.Equal(&o[j].CreationTimestamp) {
 		return o[i].Name < o[j].Name
 	}
-	return o[i].CreationTimestamp.Before(o[j].CreationTimestamp)
+	return o[i].CreationTimestamp.Before(&o[j].CreationTimestamp)
 }
 
 func multilineStringArray(sep, indent string, args ...string) string {
@@ -189,7 +190,7 @@ func multilineStringArray(sep, indent string, args ...string) string {
 	return strings.Join(args, " ")
 }
 
-func printStrategy(strategy deployapi.DeploymentStrategy, indent string, w *tabwriter.Writer) {
+func printStrategy(strategy appsapi.DeploymentStrategy, indent string, w *tabwriter.Writer) {
 	if strategy.CustomParams != nil {
 		if len(strategy.CustomParams.Image) == 0 {
 			fmt.Fprintf(w, "%sImage:\t%s\n", indent, "<default>")
@@ -233,7 +234,7 @@ func printStrategy(strategy deployapi.DeploymentStrategy, indent string, w *tabw
 	}
 }
 
-func printHook(prefix string, hook *deployapi.LifecycleHook, indent string, w io.Writer) {
+func printHook(prefix string, hook *appsapi.LifecycleHook, indent string, w io.Writer) {
 	if hook.ExecNewPod != nil {
 		fmt.Fprintf(w, "%s%s hook (pod type, failure policy: %s):\n", indent, prefix, hook.FailurePolicy)
 		fmt.Fprintf(w, "%s  Container:\t%s\n", indent, hook.ExecNewPod.ContainerName)
@@ -250,7 +251,7 @@ func printHook(prefix string, hook *deployapi.LifecycleHook, indent string, w io
 	}
 }
 
-func printTriggers(triggers []deployapi.DeploymentTriggerPolicy, w *tabwriter.Writer) {
+func printTriggers(triggers []appsapi.DeploymentTriggerPolicy, w *tabwriter.Writer) {
 	if len(triggers) == 0 {
 		formatString(w, "Triggers", "<none>")
 		return
@@ -260,9 +261,9 @@ func printTriggers(triggers []deployapi.DeploymentTriggerPolicy, w *tabwriter.Wr
 
 	for _, t := range triggers {
 		switch t.Type {
-		case deployapi.DeploymentTriggerOnConfigChange:
+		case appsapi.DeploymentTriggerOnConfigChange:
 			labels = append(labels, "Config")
-		case deployapi.DeploymentTriggerOnImageChange:
+		case appsapi.DeploymentTriggerOnImageChange:
 			if len(t.ImageChangeParams.From.Name) > 0 {
 				name, tag, _ := imageapi.SplitImageStreamTag(t.ImageChangeParams.From.Name)
 				labels = append(labels, fmt.Sprintf("Image(%s@%s, auto=%v)", name, tag, t.ImageChangeParams.Automatic))
@@ -274,7 +275,7 @@ func printTriggers(triggers []deployapi.DeploymentTriggerPolicy, w *tabwriter.Wr
 	formatString(w, "Triggers", desc)
 }
 
-func printDeploymentConfigSpec(kc kclientset.Interface, dc deployapi.DeploymentConfig, w *tabwriter.Writer) error {
+func printDeploymentConfigSpec(kc kclientset.Interface, dc appsapi.DeploymentConfig, w *tabwriter.Writer) error {
 	spec := dc.Spec
 	// Selector
 	formatString(w, "Selector", formatLabels(spec.Selector))
@@ -292,7 +293,7 @@ func printDeploymentConfigSpec(kc kclientset.Interface, dc deployapi.DeploymentC
 
 	// Autoscaling info
 	// FIXME: The CrossVersionObjectReference should specify the Group
-	printAutoscalingInfo([]schema.GroupResource{deployapi.Resource("DeploymentConfig"), deployapi.LegacyResource("DeploymentConfig")}, dc.Namespace, dc.Name, kc, w)
+	printAutoscalingInfo([]schema.GroupResource{appsapi.Resource("DeploymentConfig"), appsapi.LegacyResource("DeploymentConfig")}, dc.Namespace, dc.Name, kc, w)
 
 	// Triggers
 	printTriggers(spec.Triggers, w)
@@ -389,7 +390,7 @@ func printDeploymentRc(deployment *kapi.ReplicationController, kubeClient kclien
 	}
 	timeAt := strings.ToLower(formatRelativeTime(deployment.CreationTimestamp.Time))
 	fmt.Fprintf(w, "\tCreated:\t%s ago\n", timeAt)
-	fmt.Fprintf(w, "\tStatus:\t%s\n", deployutil.DeploymentStatusFor(deployment))
+	fmt.Fprintf(w, "\tStatus:\t%s\n", appsutil.DeploymentStatusFor(deployment))
 	fmt.Fprintf(w, "\tReplicas:\t%d current / %d desired\n", deployment.Status.Replicas, deployment.Spec.Replicas)
 
 	if verbose {
@@ -427,15 +428,15 @@ func getPodStatusForDeployment(deployment *kapi.ReplicationController, kubeClien
 
 type LatestDeploymentsDescriber struct {
 	count      int
-	osClient   client.Interface
+	appsClient appsinternalversion.AppsInterface
 	kubeClient kclientset.Interface
 }
 
 // NewLatestDeploymentsDescriber lists the latest deployments limited to "count". In case count == -1, list back to the last successful.
-func NewLatestDeploymentsDescriber(client client.Interface, kclient kclientset.Interface, count int) *LatestDeploymentsDescriber {
+func NewLatestDeploymentsDescriber(client appsinternalversion.AppsInterface, kclient kclientset.Interface, count int) *LatestDeploymentsDescriber {
 	return &LatestDeploymentsDescriber{
 		count:      count,
-		osClient:   client,
+		appsClient: client,
 		kubeClient: kclient,
 	}
 }
@@ -444,20 +445,20 @@ func NewLatestDeploymentsDescriber(client client.Interface, kclient kclientset.I
 func (d *LatestDeploymentsDescriber) Describe(namespace, name string) (string, error) {
 	var f formatter
 
-	config, err := d.osClient.DeploymentConfigs(namespace).Get(name, metav1.GetOptions{})
+	config, err := d.appsClient.DeploymentConfigs(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
 
 	var deployments []kapi.ReplicationController
 	if d.count == -1 || d.count > 1 {
-		list, err := d.kubeClient.Core().ReplicationControllers(namespace).List(metav1.ListOptions{LabelSelector: deployutil.ConfigSelector(name).String()})
+		list, err := d.kubeClient.Core().ReplicationControllers(namespace).List(metav1.ListOptions{LabelSelector: appsutil.ConfigSelector(name).String()})
 		if err != nil && !kerrors.IsNotFound(err) {
 			return "", err
 		}
 		deployments = list.Items
 	} else {
-		deploymentName := deployutil.LatestDeploymentNameForConfig(config)
+		deploymentName := appsutil.LatestDeploymentNameForConfig(config)
 		deployment, err := d.kubeClient.Core().ReplicationControllers(config.Namespace).Get(deploymentName, metav1.GetOptions{})
 		if err != nil && !kerrors.IsNotFound(err) {
 			return "", err
@@ -467,17 +468,17 @@ func (d *LatestDeploymentsDescriber) Describe(namespace, name string) (string, e
 		}
 	}
 
-	g := graph.New()
-	dcNode := deploygraph.EnsureDeploymentConfigNode(g, config)
+	g := genericgraph.New()
+	dcNode := appsgraph.EnsureDeploymentConfigNode(g, config)
 	for i := range deployments {
 		kubegraph.EnsureReplicationControllerNode(g, &deployments[i])
 	}
-	deployedges.AddTriggerEdges(g, dcNode)
-	deployedges.AddDeploymentEdges(g, dcNode)
-	activeDeployment, inactiveDeployments := deployedges.RelevantDeployments(g, dcNode)
+	appsedges.AddTriggerDeploymentConfigsEdges(g, dcNode)
+	appsedges.AddDeploymentConfigsDeploymentEdges(g, dcNode)
+	activeDeployment, inactiveDeployments := appsedges.RelevantDeployments(g, dcNode)
 
 	return tabbedString(func(out *tabwriter.Writer) error {
-		descriptions := describeDeployments(f, dcNode, activeDeployment, inactiveDeployments, nil, d.count)
+		descriptions := describeDeploymentConfigDeployments(f, dcNode, activeDeployment, inactiveDeployments, nil, d.count)
 		for i, description := range descriptions {
 			descriptions[i] = fmt.Sprintf("%v %v", name, description)
 		}

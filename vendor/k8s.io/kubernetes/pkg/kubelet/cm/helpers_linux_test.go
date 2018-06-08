@@ -22,8 +22,8 @@ import (
 	"reflect"
 	"testing"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/kubernetes/pkg/api/v1"
 )
 
 // getResourceList returns a ResourceList with the
@@ -48,7 +48,7 @@ func getResourceRequirements(requests, limits v1.ResourceList) v1.ResourceRequir
 }
 
 func TestResourceConfigForPod(t *testing.T) {
-	minShares := int64(MinShares)
+	minShares := uint64(MinShares)
 	burstableShares := MilliCPUToShares(100)
 	memoryQuantity := resource.MustParse("200Mi")
 	burstableMemory := memoryQuantity.Value()
@@ -57,10 +57,12 @@ func TestResourceConfigForPod(t *testing.T) {
 	guaranteedShares := MilliCPUToShares(100)
 	guaranteedQuota, guaranteedPeriod := MilliCPUToQuota(100)
 	memoryQuantity = resource.MustParse("100Mi")
+	cpuNoLimit := int64(-1)
 	guaranteedMemory := memoryQuantity.Value()
 	testCases := map[string]struct {
-		pod      *v1.Pod
-		expected *ResourceConfig
+		pod              *v1.Pod
+		expected         *ResourceConfig
+		enforceCPULimits bool
 	}{
 		"besteffort": {
 			pod: &v1.Pod{
@@ -72,7 +74,8 @@ func TestResourceConfigForPod(t *testing.T) {
 					},
 				},
 			},
-			expected: &ResourceConfig{CpuShares: &minShares},
+			enforceCPULimits: true,
+			expected:         &ResourceConfig{CpuShares: &minShares},
 		},
 		"burstable-no-limits": {
 			pod: &v1.Pod{
@@ -84,7 +87,8 @@ func TestResourceConfigForPod(t *testing.T) {
 					},
 				},
 			},
-			expected: &ResourceConfig{CpuShares: &burstableShares},
+			enforceCPULimits: true,
+			expected:         &ResourceConfig{CpuShares: &burstableShares},
 		},
 		"burstable-with-limits": {
 			pod: &v1.Pod{
@@ -96,7 +100,21 @@ func TestResourceConfigForPod(t *testing.T) {
 					},
 				},
 			},
-			expected: &ResourceConfig{CpuShares: &burstableShares, CpuQuota: &burstableQuota, CpuPeriod: &burstablePeriod, Memory: &burstableMemory},
+			enforceCPULimits: true,
+			expected:         &ResourceConfig{CpuShares: &burstableShares, CpuQuota: &burstableQuota, CpuPeriod: &burstablePeriod, Memory: &burstableMemory},
+		},
+		"burstable-with-limits-no-cpu-enforcement": {
+			pod: &v1.Pod{
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Resources: getResourceRequirements(getResourceList("100m", "100Mi"), getResourceList("200m", "200Mi")),
+						},
+					},
+				},
+			},
+			enforceCPULimits: false,
+			expected:         &ResourceConfig{CpuShares: &burstableShares, CpuQuota: &cpuNoLimit, CpuPeriod: &burstablePeriod, Memory: &burstableMemory},
 		},
 		"burstable-partial-limits": {
 			pod: &v1.Pod{
@@ -111,7 +129,8 @@ func TestResourceConfigForPod(t *testing.T) {
 					},
 				},
 			},
-			expected: &ResourceConfig{CpuShares: &burstablePartialShares},
+			enforceCPULimits: true,
+			expected:         &ResourceConfig{CpuShares: &burstablePartialShares},
 		},
 		"guaranteed": {
 			pod: &v1.Pod{
@@ -123,11 +142,25 @@ func TestResourceConfigForPod(t *testing.T) {
 					},
 				},
 			},
-			expected: &ResourceConfig{CpuShares: &guaranteedShares, CpuQuota: &guaranteedQuota, CpuPeriod: &guaranteedPeriod, Memory: &guaranteedMemory},
+			enforceCPULimits: true,
+			expected:         &ResourceConfig{CpuShares: &guaranteedShares, CpuQuota: &guaranteedQuota, CpuPeriod: &guaranteedPeriod, Memory: &guaranteedMemory},
+		},
+		"guaranteed-no-cpu-enforcement": {
+			pod: &v1.Pod{
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Resources: getResourceRequirements(getResourceList("100m", "100Mi"), getResourceList("100m", "100Mi")),
+						},
+					},
+				},
+			},
+			enforceCPULimits: false,
+			expected:         &ResourceConfig{CpuShares: &guaranteedShares, CpuQuota: &cpuNoLimit, CpuPeriod: &guaranteedPeriod, Memory: &guaranteedMemory},
 		},
 	}
 	for testName, testCase := range testCases {
-		actual := ResourceConfigForPod(testCase.pod)
+		actual := ResourceConfigForPod(testCase.pod, testCase.enforceCPULimits)
 		if !reflect.DeepEqual(actual.CpuPeriod, testCase.expected.CpuPeriod) {
 			t.Errorf("unexpected result, test: %v, cpu period not as expected", testName)
 		}
@@ -147,47 +180,47 @@ func TestMilliCPUToQuota(t *testing.T) {
 	testCases := []struct {
 		input  int64
 		quota  int64
-		period int64
+		period uint64
 	}{
 		{
 			input:  int64(0),
 			quota:  int64(0),
-			period: int64(0),
+			period: uint64(0),
 		},
 		{
 			input:  int64(5),
 			quota:  int64(1000),
-			period: int64(100000),
+			period: uint64(100000),
 		},
 		{
 			input:  int64(9),
 			quota:  int64(1000),
-			period: int64(100000),
+			period: uint64(100000),
 		},
 		{
 			input:  int64(10),
 			quota:  int64(1000),
-			period: int64(100000),
+			period: uint64(100000),
 		},
 		{
 			input:  int64(200),
 			quota:  int64(20000),
-			period: int64(100000),
+			period: uint64(100000),
 		},
 		{
 			input:  int64(500),
 			quota:  int64(50000),
-			period: int64(100000),
+			period: uint64(100000),
 		},
 		{
 			input:  int64(1000),
 			quota:  int64(100000),
-			period: int64(100000),
+			period: uint64(100000),
 		},
 		{
 			input:  int64(1500),
 			quota:  int64(150000),
-			period: int64(100000),
+			period: uint64(100000),
 		},
 	}
 	for _, testCase := range testCases {

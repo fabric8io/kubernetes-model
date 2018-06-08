@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
 	clientgotesting "k8s.io/client-go/testing"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
 	routeapi "github.com/openshift/origin/pkg/route/apis/route"
 	"github.com/openshift/origin/pkg/route/generated/internalclientset/fake"
@@ -576,15 +576,10 @@ func makePass(t *testing.T, host string, admitter *StatusAdmitter, srcObj *route
 
 	admitter.client = c.Route()
 
-	inputObjRaw, err := kapi.Scheme.DeepCopy(srcObj)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	inputObj := inputObjRaw.(*routeapi.Route)
+	inputObj := srcObj.DeepCopy()
 	inputObj.Spec.Host = host
 
-	err = admitter.HandleRoute(watch.Modified, inputObj)
+	err := admitter.HandleRoute(watch.Modified, inputObj)
 
 	if expectUpdate {
 		now := nowFn()

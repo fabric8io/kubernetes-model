@@ -19,6 +19,9 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
+	"syscall"
 
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
@@ -26,7 +29,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/plugins"
-	"k8s.io/kubernetes/pkg/util/i18n"
+	"k8s.io/kubernetes/pkg/kubectl/util/i18n"
 )
 
 var (
@@ -109,6 +112,15 @@ func NewCmdForPlugin(f cmdutil.Factory, plugin *plugins.Plugin, runner plugins.P
 			}
 
 			if err := runner.Run(plugin, runningContext); err != nil {
+				if exiterr, ok := err.(*exec.ExitError); ok {
+					// check for (and exit with) the correct exit code
+					// from a failed plugin command execution
+					if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+						fmt.Fprintf(errout, "error: %v\n", err)
+						os.Exit(status.ExitStatus())
+					}
+				}
+
 				cmdutil.CheckErr(err)
 			}
 		},

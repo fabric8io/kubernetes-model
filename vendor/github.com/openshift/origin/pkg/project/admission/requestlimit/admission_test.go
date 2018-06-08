@@ -11,15 +11,15 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	clientgotesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
 
-	"github.com/openshift/origin/pkg/client/testclient"
+	userapi "github.com/openshift/api/user/v1"
+	fakeuserclient "github.com/openshift/client-go/user/clientset/versioned/fake"
 	oadmission "github.com/openshift/origin/pkg/cmd/server/admission"
-	requestlimitapi "github.com/openshift/origin/pkg/project/admission/requestlimit/api"
+	requestlimitapi "github.com/openshift/origin/pkg/project/admission/apis/requestlimit"
 	projectapi "github.com/openshift/origin/pkg/project/apis/project"
 	projectcache "github.com/openshift/origin/pkg/project/cache"
-	userapi "github.com/openshift/origin/pkg/user/apis/user"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	// install all APIs
@@ -152,8 +152,8 @@ func TestMaxProjectByRequester(t *testing.T) {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 		user := fakeUser("testuser", tc.userLabels)
-		client := testclient.NewSimpleFake(user)
-		reqLimit.(oadmission.WantsOpenshiftClient).SetOpenshiftClient(client)
+		client := fakeuserclient.NewSimpleClientset(user)
+		reqLimit.(oadmission.WantsOpenshiftInternalUserClient).SetOpenshiftInternalUserClient(client)
 
 		maxProjects, hasLimit, err := reqLimit.(*projectRequestLimit).maxProjectsByRequester("testuser")
 		if err != nil {
@@ -266,8 +266,9 @@ func TestAdmit(t *testing.T) {
 			"user3": {5, 3},
 			"user4": {1, 0},
 		})
-		client := &testclient.Fake{}
-		client.AddReactor("get", "users", userFn(map[string]labels.Set{
+
+		client := fakeuserclient.NewSimpleClientset()
+		client.PrependReactor("get", "users", userFn(map[string]labels.Set{
 			"user2": {"bronze": "yes"},
 			"user3": {"platinum": "yes"},
 			"user4": {"unknown": "yes"},
@@ -276,12 +277,12 @@ func TestAdmit(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
-		reqLimit.(oadmission.WantsOpenshiftClient).SetOpenshiftClient(client)
+		reqLimit.(oadmission.WantsOpenshiftInternalUserClient).SetOpenshiftInternalUserClient(client)
 		reqLimit.(oadmission.WantsProjectCache).SetProjectCache(pCache)
-		if err = reqLimit.(admission.Validator).Validate(); err != nil {
+		if err = reqLimit.(admission.InitializationValidator).ValidateInitialization(); err != nil {
 			t.Fatalf("validation error: %v", err)
 		}
-		err = reqLimit.Admit(admission.NewAttributesRecord(
+		err = reqLimit.(admission.MutationInterface).Admit(admission.NewAttributesRecord(
 			&projectapi.ProjectRequest{},
 			nil,
 			projectapi.Kind("ProjectRequest").WithVersion("version"),

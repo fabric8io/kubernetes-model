@@ -8,19 +8,19 @@ import (
 	"net/http"
 
 	"k8s.io/apimachinery/pkg/api/errors"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
 	"github.com/golang/glog"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	"github.com/openshift/origin/pkg/build/webhook"
 )
 
-// WebHook used for processing gitlab webhook requests.
-type WebHook struct{}
+// WebHookPlugin used for processing gitlab webhook requests.
+type WebHookPlugin struct{}
 
 // New returns gitlab webhook plugin.
-func New() *WebHook {
-	return &WebHook{}
+func New() *WebHookPlugin {
+	return &WebHookPlugin{}
 }
 
 // NOTE - unlike github, there is no separate commiter, just the author
@@ -39,17 +39,7 @@ type pushEvent struct {
 }
 
 // Extract services webhooks from GitLab server
-func (p *WebHook) Extract(buildCfg *buildapi.BuildConfig, secret, path string, req *http.Request) (revision *buildapi.SourceRevision, envvars []kapi.EnvVar, dockerStrategyOptions *buildapi.DockerStrategyOptions, proceed bool, err error) {
-	triggers, err := webhook.FindTriggerPolicy(buildapi.GitLabWebHookBuildTriggerType, buildCfg)
-	if err != nil {
-		return revision, envvars, dockerStrategyOptions, proceed, err
-	}
-	glog.V(4).Infof("Checking if the provided secret for BuildConfig %s/%s matches", buildCfg.Namespace, buildCfg.Name)
-
-	if _, err = webhook.ValidateWebHookSecret(triggers, secret); err != nil {
-		return revision, envvars, dockerStrategyOptions, proceed, err
-	}
-
+func (p *WebHookPlugin) Extract(buildCfg *buildapi.BuildConfig, trigger *buildapi.WebHookTrigger, req *http.Request) (revision *buildapi.SourceRevision, envvars []kapi.EnvVar, dockerStrategyOptions *buildapi.DockerStrategyOptions, proceed bool, err error) {
 	glog.V(4).Infof("Verifying build request for BuildConfig %s/%s", buildCfg.Namespace, buildCfg.Name)
 	if err = verifyRequest(req); err != nil {
 		return revision, envvars, dockerStrategyOptions, proceed, err
@@ -67,7 +57,7 @@ func (p *WebHook) Extract(buildCfg *buildapi.BuildConfig, secret, path string, r
 		return revision, envvars, dockerStrategyOptions, proceed, errors.NewBadRequest(err.Error())
 	}
 	if !webhook.GitRefMatches(event.Ref, webhook.DefaultConfigRef, &buildCfg.Spec.Source) {
-		glog.V(2).Infof("Skipping build for BuildConfig %s/%s.  Branch reference from '%s' does not match configuration", buildCfg.Namespace, buildCfg, event)
+		glog.V(2).Infof("Skipping build for BuildConfig %s/%s.  Branch reference from '%s' does not match configuration", buildCfg.Namespace, buildCfg.Name, event)
 		return revision, envvars, dockerStrategyOptions, proceed, err
 	}
 
@@ -82,6 +72,21 @@ func (p *WebHook) Extract(buildCfg *buildapi.BuildConfig, secret, path string, r
 		},
 	}
 	return revision, envvars, dockerStrategyOptions, true, err
+}
+
+// GetTriggers retrieves the WebHookTriggers for this webhook type (if any)
+func (p *WebHookPlugin) GetTriggers(buildConfig *buildapi.BuildConfig) ([]*buildapi.WebHookTrigger, error) {
+	triggers := buildapi.FindTriggerPolicy(buildapi.GitLabWebHookBuildTriggerType, buildConfig)
+	webhookTriggers := []*buildapi.WebHookTrigger{}
+	for _, trigger := range triggers {
+		if trigger.GitLabWebHook != nil {
+			webhookTriggers = append(webhookTriggers, trigger.GitLabWebHook)
+		}
+	}
+	if len(webhookTriggers) == 0 {
+		return nil, webhook.ErrHookNotEnabled
+	}
+	return webhookTriggers, nil
 }
 
 func verifyRequest(req *http.Request) error {

@@ -190,47 +190,35 @@ function os::util::curl_etcd() {
 	fi
 }
 
-# os::util::list_go_src_files lists files we consider part of our project
-# source code, useful for tools that iterate over source to provide vet-
-# ting or linting, etc.
+# os::util::ensure_tmpfs ensures that the target dir is mounted on tmpfs
 #
 # Globals:
-#  None
+#  OS_TMPFS_REQUIRED
 # Arguments:
-#  None
+#  - 1: target to check
 # Returns:
 #  None
-function os::util::list_go_src_files() {
-	find . -not \( \
-		\( \
-		-wholename './_output' \
-		-o -wholename './.*' \
-		-o -wholename './pkg/assets/bindata.go' \
-		-o -wholename './pkg/assets/*/bindata.go' \
-		-o -wholename './pkg/oc/bootstrap/bindata.go' \
-		-o -wholename './openshift.local.*' \
-		-o -wholename './test/extended/testdata/bindata.go' \
-		-o -wholename '*/vendor/*' \
-		-o -wholename './cmd/service-catalog/*' \
-		-o -wholename './cmd/cluster-capacity/*' \
-		-o -wholename './assets/bower_components/*' \
-		\) -prune \
-	\) -name '*.go' | sort -u
-}
-readonly -f os::util::list_go_src_files
+function os::util::ensure_tmpfs() {
+	local target="$1"
+	if [[ ! -d "${target}" ]]; then
+		os::log::fatal "Target dir ${target} does not exist, cannot perform fstype check."
+	fi
 
-# os::util::list_go_src_dirs lists dirs in origin/ and cmd/ dirs excluding
-# cmd/cluster-capacity and cmd/service-catalog and doc.go useful for tools that
-# iterate over source to provide vetting or linting, or for godep-save etc.
-#
-# Globals:
-#  None
-# Arguments:
-#  None
-# Returns:
-#  None
-function os::util::list_go_src_dirs() {
-	os::util::list_go_src_files | cut -d '/' -f 1-2 | grep -v ".go$" | grep -v "^./cmd" | LC_ALL=C sort -u
-	os::util::list_go_src_files | grep "^./cmd/"| cut -d '/' -f 1-3 | grep -v ".go$" | LC_ALL=C sort -u
+	os::log::debug "Filesystem information:
+$( df -h -T )"
+
+	os::log::debug "Mount information:
+$( findmnt --all )"
+
+	local fstype
+	fstype="$( df --output=fstype "${target}" | tail -n 1 )"
+	if [[ "${fstype}" != "tmpfs" ]]; then
+		local message="Expected \`${target}\` to be mounted on \`tmpfs\` but found \`${fstype}\` instead."
+		if [[ -n "${OS_TMPFS_REQUIRED:-}" ]]; then
+			os::log::fatal "${message}"
+		else
+			os::log::warning "${message}
+Running in permissive mode, this will be ignored."
+		fi
+	fi
 }
-readonly -f os::util::list_go_src_dirs

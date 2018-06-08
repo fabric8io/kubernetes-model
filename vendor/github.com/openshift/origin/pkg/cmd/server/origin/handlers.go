@@ -1,98 +1,55 @@
 package origin
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
-	"sort"
+	"strings"
 
 	restful "github.com/emicklei/go-restful"
 	"github.com/golang/glog"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	authenticationv1 "k8s.io/api/authentication/v1"
+	kapierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
+	kauthorizer "k8s.io/apiserver/pkg/authorization/authorizer"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	coreapi "k8s.io/kubernetes/pkg/apis/core"
 
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	serverhandlers "github.com/openshift/origin/pkg/cmd/server/handlers"
+	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
+	configapi "github.com/openshift/origin/pkg/cmd/server/apis/config"
 )
 
-// TODO We would like to use the IndexHandler from k8s but we do not yet have a
-// MuxHelper to track all registered paths
-func indexAPIPaths(osAPIVersions, kubeAPIVersions []string, handler http.Handler) http.Handler {
-	// TODO once we have a MuxHelper we will not need to hardcode this list of paths
-	rootPaths := []string{"/api",
-		"/apis",
-		"/controllers",
-		"/healthz",
-		"/healthz/ping",
-		"/healthz/ready",
-		"/metrics",
-		"/oapi",
-		"/swaggerapi/"}
-
-	// This is for legacy clients
-	// Discovery of new API groups is done with a request to /apis
-	for _, path := range kubeAPIVersions {
-		rootPaths = append(rootPaths, "/api/"+path)
-	}
-	for _, path := range osAPIVersions {
-		rootPaths = append(rootPaths, "/oapi/"+path)
-	}
-	sort.Strings(rootPaths)
-
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.URL.Path == "/" {
-			output, err := json.MarshalIndent(metav1.RootPaths{Paths: rootPaths}, "", "  ")
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			w.Header().Set("Content-Type", restful.MIME_JSON)
-			w.WriteHeader(http.StatusOK)
-			w.Write(output)
-		} else {
-			handler.ServeHTTP(w, req)
-		}
-	})
+// cacheExcludedPaths is small and simple until the handlers include the cache headers they need
+var cacheExcludedPathPrefixes = []string{
+	"/swagger-2.0.0.json",
+	"/swagger-2.0.0.pb-v1",
+	"/swagger-2.0.0.pb-v1.gz",
+	"/swagger.json",
+	"/swaggerapi",
 }
 
 // cacheControlFilter sets the Cache-Control header to the specified value.
 func cacheControlFilter(handler http.Handler, value string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Cache-Control", value)
-		handler.ServeHTTP(w, req)
-	})
-}
-
-// namespacingFilter adds a filter that adds the namespace of the request to the context.  Not all requests will have namespaces,
-// but any that do will have the appropriate value added.
-func namespacingFilter(handler http.Handler, contextMapper apirequest.RequestContextMapper) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		ctx, ok := contextMapper.Get(req)
-		if !ok {
-			http.Error(w, "Unable to find request context", http.StatusInternalServerError)
+		if _, ok := w.Header()["Cache-Control"]; ok {
+			handler.ServeHTTP(w, req)
 			return
 		}
-
-		if _, exists := apirequest.NamespaceFrom(ctx); !exists {
-			if requestInfo, ok := apirequest.RequestInfoFrom(ctx); ok && requestInfo != nil {
-				// only set the namespace if the apiRequestInfo was resolved
-				// keep in mind that GetAPIRequestInfo will fail on non-api requests, so don't fail the entire http request on that
-				// kind of failure.
-
-				// TODO reconsider special casing this.  Having the special case hereallow us to fully share the kube
-				// APIRequestInfoResolver without any modification or customization.
-				namespace := requestInfo.Namespace
-				if (requestInfo.Resource == "projects") && (len(requestInfo.Name) > 0) {
-					namespace = requestInfo.Name
-				}
-
-				ctx = apirequest.WithNamespace(ctx, namespace)
-				contextMapper.Update(req, ctx)
+		for _, prefix := range cacheExcludedPathPrefixes {
+			if strings.HasPrefix(req.URL.Path, prefix) {
+				handler.ServeHTTP(w, req)
+				return
 			}
 		}
 
+		w.Header().Set("Cache-Control", value)
 		handler.ServeHTTP(w, req)
 	})
 }
@@ -181,18 +138,70 @@ func (c *MasterConfig) versionSkewFilter(handler http.Handler, contextMapper api
 			}
 
 			if !foundMatch {
-				serverhandlers.Forbidden(defaultMessage, nil, w, req)
+				forbidden(defaultMessage, nil, w, req)
 				return
 			}
 		}
 
 		for _, filter := range deniedFilters {
 			if filter.matches(req.Method, userAgent) {
-				serverhandlers.Forbidden(filter.message, nil, w, req)
+				forbidden(filter.message, nil, w, req)
 				return
 			}
 		}
 
 		handler.ServeHTTP(w, req)
 	})
+}
+
+// legacyImpersonateUserScopeHeader is the header name older servers were using
+// just for scopes, so we need to translate it from clients that may still be
+// using it.
+const legacyImpersonateUserScopeHeader = "Impersonate-User-Scope"
+
+// translateLegacyScopeImpersonation is a filter that will translates user scope impersonation for openshift into the equivalent kube headers.
+func translateLegacyScopeImpersonation(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		for _, scope := range req.Header[legacyImpersonateUserScopeHeader] {
+			req.Header[authenticationv1.ImpersonateUserExtraHeaderPrefix+authorizationapi.ScopesKey] =
+				append(req.Header[authenticationv1.ImpersonateUserExtraHeaderPrefix+authorizationapi.ScopesKey], scope)
+		}
+
+		handler.ServeHTTP(w, req)
+	})
+}
+
+// forbidden renders a simple forbidden error to the response
+func forbidden(reason string, attributes kauthorizer.Attributes, w http.ResponseWriter, req *http.Request) {
+	resource := ""
+	group := ""
+	name := ""
+	// the attributes can be empty for two basic reasons:
+	// 1. malformed API request
+	// 2. not an API request at all
+	// In these cases, just assume default that will work better than nothing
+	if attributes != nil {
+		group = attributes.GetAPIGroup()
+		resource = attributes.GetResource()
+		name = attributes.GetName()
+	}
+
+	// Reason is an opaque string that describes why access is allowed or forbidden (forbidden by the time we reach here).
+	// We don't have direct access to kind or name (not that those apply either in the general case)
+	// We create a NewForbidden to stay close the API, but then we override the message to get a serialization
+	// that makes sense when a human reads it.
+	forbiddenError := kapierrors.NewForbidden(schema.GroupResource{Group: group, Resource: resource}, name, errors.New("") /*discarded*/)
+	forbiddenError.ErrStatus.Message = reason
+
+	formatted := &bytes.Buffer{}
+	output, err := runtime.Encode(legacyscheme.Codecs.LegacyCodec(coreapi.SchemeGroupVersion), &forbiddenError.ErrStatus)
+	if err != nil {
+		fmt.Fprintf(formatted, "%s", forbiddenError.Error())
+	} else {
+		json.Indent(formatted, output, "", "  ")
+	}
+
+	w.Header().Set("Content-Type", restful.MIME_JSON)
+	w.WriteHeader(http.StatusForbidden)
+	w.Write(formatted.Bytes())
 }

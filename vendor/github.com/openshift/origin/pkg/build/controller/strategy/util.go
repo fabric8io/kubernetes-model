@@ -6,17 +6,17 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/golang/glog"
+
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kvalidation "k8s.io/apimachinery/pkg/util/validation"
-	kapi "k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/api/v1"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 
-	"github.com/golang/glog"
+	buildapiv1 "github.com/openshift/api/build/v1"
+	"github.com/openshift/origin/pkg/api/apihelpers"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	buildapiv1 "github.com/openshift/origin/pkg/build/apis/build/v1"
-	"github.com/openshift/origin/pkg/build/builder/cmd/dockercfg"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
-	"github.com/openshift/origin/pkg/util/namer"
 	"github.com/openshift/origin/pkg/version"
 )
 
@@ -91,10 +91,33 @@ func setupDockerSocket(pod *v1.Pod) {
 	}
 }
 
+// setupCrioSocket configures the pod to support the host's Crio socket
+func setupCrioSocket(pod *v1.Pod) {
+	crioSocketVolume := v1.Volume{
+		Name: "crio-socket",
+		VolumeSource: v1.VolumeSource{
+			HostPath: &v1.HostPathVolumeSource{
+				Path: "/var/run/crio/crio.sock",
+			},
+		},
+	}
+
+	crioSocketVolumeMount := v1.VolumeMount{
+		Name:      "crio-socket",
+		MountPath: "/var/run/crio/crio.sock",
+	}
+
+	pod.Spec.Volumes = append(pod.Spec.Volumes,
+		crioSocketVolume)
+	pod.Spec.Containers[0].VolumeMounts =
+		append(pod.Spec.Containers[0].VolumeMounts,
+			crioSocketVolumeMount)
+}
+
 // mountSecretVolume is a helper method responsible for actual mounting secret
 // volumes into a pod.
 func mountSecretVolume(pod *v1.Pod, container *v1.Container, secretName, mountPath, volumeSuffix string) {
-	volumeName := namer.GetName(secretName, volumeSuffix, kvalidation.DNS1123LabelMaxLength)
+	volumeName := apihelpers.GetName(secretName, volumeSuffix, kvalidation.DNS1123LabelMaxLength)
 
 	// coerce from RFC1123 subdomain to RFC1123 label.
 	volumeName = strings.Replace(volumeName, ".", "-", -1)
@@ -133,16 +156,16 @@ func mountSecretVolume(pod *v1.Pod, container *v1.Container, secretName, mountPa
 func setupDockerSecrets(pod *v1.Pod, container *v1.Container, pushSecret, pullSecret *kapi.LocalObjectReference, imageSources []buildapi.ImageSource) {
 	if pushSecret != nil {
 		mountSecretVolume(pod, container, pushSecret.Name, DockerPushSecretMountPath, "push")
-		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, []v1.EnvVar{
-			{Name: dockercfg.PushAuthType, Value: DockerPushSecretMountPath},
+		container.Env = append(container.Env, []v1.EnvVar{
+			{Name: "PUSH_DOCKERCFG_PATH", Value: DockerPushSecretMountPath},
 		}...)
 		glog.V(3).Infof("%s will be used for docker push in %s", DockerPushSecretMountPath, pod.Name)
 	}
 
 	if pullSecret != nil {
 		mountSecretVolume(pod, container, pullSecret.Name, DockerPullSecretMountPath, "pull")
-		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, []v1.EnvVar{
-			{Name: dockercfg.PullAuthType, Value: DockerPullSecretMountPath},
+		container.Env = append(container.Env, []v1.EnvVar{
+			{Name: "PULL_DOCKERCFG_PATH", Value: DockerPullSecretMountPath},
 		}...)
 		glog.V(3).Infof("%s will be used for docker pull in %s", DockerPullSecretMountPath, pod.Name)
 	}
@@ -153,8 +176,8 @@ func setupDockerSecrets(pod *v1.Pod, container *v1.Container, pushSecret, pullSe
 		}
 		mountPath := filepath.Join(SourceImagePullSecretMountPath, strconv.Itoa(i))
 		mountSecretVolume(pod, container, imageSource.PullSecret.Name, mountPath, fmt.Sprintf("%s%d", "source-image", i))
-		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, []v1.EnvVar{
-			{Name: fmt.Sprintf("%s%d", dockercfg.PullSourceAuthType, i), Value: mountPath},
+		container.Env = append(container.Env, []v1.EnvVar{
+			{Name: fmt.Sprintf("%s%d", "PULL_SOURCE_DOCKERCFG_PATH_", i), Value: mountPath},
 		}...)
 		glog.V(3).Infof("%s will be used for docker pull in %s", mountPath, pod.Name)
 	}
@@ -239,17 +262,6 @@ func setupAdditionalSecrets(pod *v1.Pod, container *v1.Container, secrets []buil
 		mountSecretVolume(pod, container, secretSpec.SecretSource.Name, secretSpec.MountPath, "secret")
 		glog.V(3).Infof("Installed additional secret in %s, in Pod %s/%s", secretSpec.MountPath, pod.Namespace, pod.Name)
 	}
-}
-
-// getContainerVerbosity returns the defined BUILD_LOGLEVEL value
-func getContainerVerbosity(containerEnv []v1.EnvVar) (verbosity string) {
-	for _, env := range containerEnv {
-		if env.Name == "BUILD_LOGLEVEL" {
-			verbosity = env.Value
-			break
-		}
-	}
-	return
 }
 
 // getPodLabels creates labels for the Build Pod

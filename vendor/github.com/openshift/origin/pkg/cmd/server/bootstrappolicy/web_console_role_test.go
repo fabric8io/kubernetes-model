@@ -50,9 +50,19 @@ var rolesToHide = sets.NewString(
 	"system:persistent-volume-provisioner",
 	"system:registry",
 	"system:router",
+	"system:scope-impersonation",
 	"system:sdn-manager",
 	"system:sdn-reader",
 	"system:webhook",
+	"system:certificates.k8s.io:certificatesigningrequests:nodeclient",
+	"system:certificates.k8s.io:certificatesigningrequests:selfnodeclient",
+	"system:aggregate-to-admin",
+	"system:aggregate-to-edit",
+	"system:aggregate-to-view",
+	"system:aws-cloud-provider",
+	"system:openshift:aggregate-to-admin",
+	"system:openshift:aggregate-to-edit",
+	"system:openshift:aggregate-to-view",
 )
 
 func TestSystemOnlyRoles(t *testing.T) {

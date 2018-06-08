@@ -24,7 +24,6 @@ while [[ $# -gt 0 ]]; do
   case "${1}" in
     --registry)         REGISTRY="${2:-}"; shift ;;
     --version)          VERSION="${2:-}"; shift ;;
-    --with-tpr)         WITH_TPR=true ;;
     --cleanup)          CLEANUP=true ;;
     --create-artifacts) CREATE_ARTIFACTS=true ;;
     --fix-auth)         FIX_CONFIGMAP=true ;;
@@ -35,7 +34,6 @@ done
 
 REGISTRY="${REGISTRY:-}"
 VERSION="${VERSION:-"canary"}"
-WITH_TPR="${WITH_TPR:-false}"
 CLEANUP="${CLEANUP:-false}"
 CREATE_ARTIFACTS="${CREATE_ARTIFACTS:-false}"
 FIX_CONFIGMAP="${FIX_CONFIGMAP:-false}"
@@ -45,12 +43,7 @@ UPS_BROKER_IMAGE="${REGISTRY}user-broker:${VERSION}"
 function cleanup() {
   if [[ "${CREATE_ARTIFACTS}" == true ]]; then
     echo 'Creating artifacts...'
-    PREFIX='walkthrough_'
-    if [[ "${WITH_TPR}" == true ]]; then
-      PREFIX+='tpr-backed'
-    else
-      PREFIX+='etcd-backed'
-    fi
+    PREFIX='walkthrough'
 
     "${ROOT}/contrib/hack/create_artifacts.sh" \
         --prefix "${PREFIX}" --location "${ROOT}" \
@@ -122,7 +115,6 @@ echo 'Deploying service catalog...'
 FLAGS=()
 [[ -n "${REGISTRY}" ]]           && FLAGS+="--registry ${REGISTRY} "
 [[ -n "${VERSION}" ]]            && FLAGS+="--version ${VERSION} "
-[[ "${WITH_TPR}" == true ]]      && FLAGS+="--with-tpr "
 [[ "${FIX_CONFIGMAP}" == true ]] && FLAGS+="--fix-auth "
 
 ${ROOT}/contrib/jenkins/install_catalog.sh ${FLAGS} \
@@ -132,42 +124,46 @@ ${ROOT}/contrib/jenkins/install_catalog.sh ${FLAGS} \
 
 echo 'Creating broker...'
 
-kubectl --context=service-catalog create -f "${ROOT}/contrib/examples/walkthrough/ups-broker.yaml" \
+# This is the ID of the user-provided-service
+# Defined in ../pkg/broker/user_provided/controller/controller.go
+USER_PROVIDED_SERVICE_ID="4f6e6cf6-ffdd-425f-a2c7-3c9258ad2468"
+
+kubectl create -f "${ROOT}/contrib/examples/walkthrough/ups-broker.yaml" \
   || error_exit 'Error when creating ups-broker.'
 
 wait_for_expected_output -e 'FetchedCatalog' \
-    kubectl --context=service-catalog get brokers ups-broker -o yaml \
+    kubectl get clusterservicebrokers ups-broker -o yaml \
   || {
-    kubectl --context=service-catalog get brokers ups-broker -o yaml
+    kubectl get clusterservicebrokers ups-broker -o yaml
     error_exit 'Did not receive expected condition when creating ups-broker.'
   }
 
-[[ "$(kubectl --context=service-catalog get brokers ups-broker -o yaml)" == *"status: \"True\""* ]] \
+[[ "$(kubectl get clusterservicebrokers ups-broker -o yaml)" == *"status: \"True\""* ]] \
   || {
-    kubectl --context=service-catalog get brokers ups-broker -o yaml
+    kubectl get clusterservicebrokers ups-broker -o yaml
     error_exit 'Failure status reported when attempting to fetch catalog from ups-broker.'
   }
 
-[[ "$(kubectl --context=service-catalog get serviceclasses)" == *user-provided-service* ]] \
-  || error_exit 'user-provided-service not listed when fetching service classes.'
+[[ "$(kubectl get clusterserviceclasses)" == *${USER_PROVIDED_SERVICE_ID}* ]] \
+  || error_exit 'user-provided-service ID not listed when fetching service classes.'
 
 # Provision an instance
 
 echo 'Provisioning instance...'
 
-kubectl --context=service-catalog create -f "${ROOT}/contrib/examples/walkthrough/ups-instance.yaml" \
+kubectl create -f "${ROOT}/contrib/examples/walkthrough/ups-instance.yaml" \
   || error_exit 'Error when creating ups-instance.'
 
 wait_for_expected_output -e 'ProvisionedSuccessfully' \
-  kubectl --context=service-catalog get instances -n test-ns ups-instance -o yaml \
+  kubectl get serviceinstances -n test-ns ups-instance -o yaml \
   || {
-    kubectl --context=service-catalog get instances -n test-ns ups-instance -o yaml
+    kubectl get serviceinstances -n test-ns ups-instance -o yaml
     error_exit 'Did not receive expected condition when provisioning ups-instance.'
   }
 
-[[ "$(kubectl --context=service-catalog get instances -n test-ns ups-instance -o yaml)" == *"status: \"True\""* ]] \
+[[ "$(kubectl get serviceinstances -n test-ns ups-instance -o yaml)" == *"status: \"True\""* ]] \
   || {
-    kubectl --context=service-catalog get instances -n test-ns ups-instance -o yaml
+    kubectl get serviceinstances -n test-ns ups-instance -o yaml
     error_exit 'Failure status reported when attempting to provision ups-instance.'
   }
 
@@ -175,58 +171,55 @@ wait_for_expected_output -e 'ProvisionedSuccessfully' \
 
 echo 'Binding to instance...'
 
-kubectl --context=service-catalog create -f "${ROOT}/contrib/examples/walkthrough/ups-binding.yaml" \
+kubectl create -f "${ROOT}/contrib/examples/walkthrough/ups-binding.yaml" \
   || error_exit 'Error when creating ups-binding.'
 
 wait_for_expected_output -e 'InjectedBindResult' \
-  kubectl --context=service-catalog get bindings -n test-ns ups-binding -o yaml \
+  kubectl get servicebindings -n test-ns ups-binding -o yaml \
   || {
-    kubectl --context=service-catalog get bindings -n test-ns ups-binding -o yaml
+    kubectl get servicebindings -n test-ns ups-binding -o yaml
     error_exit 'Did not receive expected condition when injecting ups-binding.'
   }
 
-[[ "$(kubectl --context=service-catalog get bindings -n test-ns ups-binding -o yaml)" == *"status: \"True\""* ]] \
+[[ "$(kubectl get servicebindings -n test-ns ups-binding -o yaml)" == *"status: \"True\""* ]] \
   || {
-    kubectl --context=service-catalog get bindings -n test-ns ups-binding -o yaml
+    kubectl get servicebindings -n test-ns ups-binding -o yaml
     error_exit 'Failure status reported when attempting to inject ups-binding.'
   }
 
 [[ "$(kubectl get secrets -n test-ns)" == *ups-binding* ]] \
   || error_exit '"ups-binding" not present when listing secrets.'
 
-# TODO: TPR deletion currently is buggy; only delete if using an etcd-backed API server
-if [[ "${WITH_TPR}" != true ]]; then
-  #Unbind from the instance
+#Unbind from the instance
 
-  echo 'Unbinding from instance...'
+echo 'Unbinding from instance...'
 
-  kubectl --context=service-catalog delete -n test-ns bindings ups-binding \
-    || error_exit 'Error when deleting ups-binding.'
+kubectl delete -n test-ns servicebindings ups-binding \
+  || error_exit 'Error when deleting ups-binding.'
 
-  wait_for_expected_output -x -e "ups-binding" \
-      kubectl get secrets -n test-ns \
-    || error_exit '"ups-binding" secret not removed upon deleting ups-binding.'
+wait_for_expected_output -x -e "ups-binding" \
+    kubectl get secrets -n test-ns \
+  || error_exit '"ups-binding" secret not removed upon deleting ups-binding.'
 
-  # Deprovision the instance
+# Deprovision the instance
 
-  echo 'Deprovisioning instance...'
+echo 'Deprovisioning instance...'
 
-  kubectl --context=service-catalog delete -n test-ns instances ups-instance \
-    || error_exit 'Error when deleting ups-instance.'
+kubectl delete -n test-ns serviceinstances ups-instance \
+  || error_exit 'Error when deleting ups-instance.'
 
-  # Delete the broker
+# Delete the broker
 
-  echo 'Deleting broker...'
+echo 'Deleting broker...'
 
-  kubectl --context=service-catalog delete brokers ups-broker \
-    || error_exit 'Error when deleting ups-broker.'
+kubectl delete clusterservicebrokers ups-broker \
+  || error_exit 'Error when deleting ups-broker.'
 
-  wait_for_expected_output -x -e 'user-provided-service' \
-      kubectl --context=service-catalog get serviceclasses \
-    || {
-      kubectl --context=service-catalog get serviceclasses
-      error_exit 'Service classes not successfully removed upon deleting ups-broker.'
-    }
-fi
+wait_for_expected_output -x -e ${USER_PROVIDED_SERVICE_ID} \
+    kubectl get clusterserviceclasses \
+  || {
+    kubectl get clusterserviceclasses
+    error_exit 'Service classes not successfully removed upon deleting ups-broker.'
+  }
 
 echo 'Walkthrough completed successfully.'

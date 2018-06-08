@@ -9,13 +9,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	appsinternalversion "github.com/openshift/origin/pkg/apps/generated/internalclientset/typed/apps/internalversion"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 var DeploymentConfigRecommendedName = "deploymentconfig"
@@ -32,8 +32,8 @@ var (
 )
 
 type CreateDeploymentConfigOptions struct {
-	DC     *deployapi.DeploymentConfig
-	Client client.DeploymentConfigsNamespacer
+	DC     *appsapi.DeploymentConfig
+	Client appsinternalversion.DeploymentConfigsGetter
 
 	DryRun bool
 
@@ -80,9 +80,9 @@ func (o *CreateDeploymentConfigOptions) Complete(cmd *cobra.Command, f *clientcm
 	labels := map[string]string{"deployment-config.name": args[0]}
 
 	o.DryRun = cmdutil.GetFlagBool(cmd, "dry-run")
-	o.DC = &deployapi.DeploymentConfig{
+	o.DC = &appsapi.DeploymentConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: args[0]},
-		Spec: deployapi.DeploymentConfigSpec{
+		Spec: appsapi.DeploymentConfigSpec{
 			Selector: labels,
 			Replicas: 1,
 			Template: &kapi.PodTemplateSpec{
@@ -106,10 +106,11 @@ func (o *CreateDeploymentConfigOptions) Complete(cmd *cobra.Command, f *clientcm
 		return err
 	}
 
-	o.Client, _, err = f.Clients()
+	appsClient, err := f.OpenshiftInternalAppsClient()
 	if err != nil {
 		return err
 	}
+	o.Client = appsClient.Apps()
 
 	o.Mapper, _ = f.Object()
 	o.OutputFormat = cmdutil.GetFlagString(cmd, "output")

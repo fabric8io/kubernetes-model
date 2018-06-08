@@ -4,19 +4,20 @@ import (
 	"fmt"
 	"regexp"
 
-	osapi "github.com/openshift/origin/pkg/sdn/apis/network"
+	networkapi "github.com/openshift/origin/pkg/network/apis/network"
+	networkclient "github.com/openshift/origin/pkg/network/generated/internalclientset"
 	testexutil "github.com/openshift/origin/test/extended/util"
 	testutil "github.com/openshift/origin/test/util"
 
+	kapiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("[networking] multicast", func() {
+var _ = Describe("[Area:Networking] multicast", func() {
 	InSingleTenantContext(func() {
 		oc := testexutil.NewCLI("multicast", testexutil.KubeConfigPath())
 		f := oc.KubeFramework()
@@ -41,15 +42,16 @@ var _ = Describe("[networking] multicast", func() {
 })
 
 func makeNamespaceMulticastEnabled(ns *kapiv1.Namespace) {
-	client, err := testutil.GetClusterAdminClient(testexutil.KubeConfigPath())
+	clientConfig, err := testutil.GetClusterAdminClientConfig(testexutil.KubeConfigPath())
+	networkClient := networkclient.NewForConfigOrDie(clientConfig)
 	expectNoError(err)
-	netns, err := client.NetNamespaces().Get(ns.Name, metav1.GetOptions{})
+	netns, err := networkClient.Network().NetNamespaces().Get(ns.Name, metav1.GetOptions{})
 	expectNoError(err)
 	if netns.Annotations == nil {
 		netns.Annotations = make(map[string]string, 1)
 	}
-	netns.Annotations[osapi.MulticastEnabledAnnotation] = "true"
-	_, err = client.NetNamespaces().Update(netns)
+	netns.Annotations[networkapi.MulticastEnabledAnnotation] = "true"
+	_, err = networkClient.Network().NetNamespaces().Update(netns)
 	expectNoError(err)
 }
 
@@ -154,7 +156,7 @@ func launchTestMulticastPod(f *e2e.Framework, nodeName string, podName string) (
 	podIP := ""
 	err = waitForPodCondition(f.ClientSet, f.Namespace.Name, podName, "running", podStartTimeout, func(pod *kapiv1.Pod) (bool, error) {
 		podIP = pod.Status.PodIP
-		return podIP != "", nil
+		return (podIP != "" && pod.Status.Phase != kapiv1.PodPending), nil
 	})
 	return podIP, err
 }

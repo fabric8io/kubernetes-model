@@ -6,11 +6,12 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
@@ -25,7 +26,7 @@ type SecretOptions struct {
 
 	Namespace string
 
-	BuilderFunc    func(bool) *resource.Builder
+	BuilderFunc    func() *resource.Builder
 	KubeCoreClient kcoreclient.CoreInterface
 
 	Out io.Writer
@@ -68,12 +69,23 @@ func (o SecretOptions) Validate() error {
 		return errors.New("KubeCoreClient must be present")
 	}
 
+	// if any secret names are of the form <resource>/<name>,
+	// ensure <resource> is a secret.
+	for _, secretName := range o.SecretNames {
+		if segs := strings.Split(secretName, "/"); len(segs) > 1 {
+			if segs[0] != "secret" && segs[0] != "secrets" {
+				return errors.New(fmt.Sprintf("expected resource of type secret, got %q", secretName))
+			}
+		}
+	}
+
 	return nil
 }
 
 // GetServiceAccount Retrieve the service account object specified by the command
 func (o SecretOptions) GetServiceAccount() (*kapi.ServiceAccount, error) {
-	r := o.BuilderFunc(true).
+	r := o.BuilderFunc().
+		Internal().
 		NamespaceParam(o.Namespace).
 		ResourceNames("serviceaccounts", o.TargetName).
 		SingleResourceType().
@@ -98,9 +110,20 @@ func (o SecretOptions) GetServiceAccount() (*kapi.ServiceAccount, error) {
 func (o SecretOptions) GetSecretNames(secrets []*kapi.Secret) sets.String {
 	names := sets.String{}
 	for _, secret := range secrets {
-		names.Insert(secret.Name)
+		names.Insert(parseSecretName(secret.Name))
 	}
 	return names
+}
+
+// parseSecretName receives a resource name as either
+// <resource type> / <name> or <name> and returns only the resource <name>.
+func parseSecretName(name string) string {
+	segs := strings.Split(name, "/")
+	if len(segs) < 2 {
+		return name
+	}
+
+	return segs[1]
 }
 
 // GetMountSecretNames Get a list of the names of the mount secrets associated
@@ -139,7 +162,8 @@ func (o SecretOptions) GetSecrets(allowNonExisting bool) ([]*kapi.Secret, bool, 
 	hasNotFound := false
 
 	for _, secretName := range o.SecretNames {
-		r := o.BuilderFunc(true).
+		r := o.BuilderFunc().
+			Internal().
 			NamespaceParam(o.Namespace).
 			ResourceNames("secrets", secretName).
 			SingleResourceType().

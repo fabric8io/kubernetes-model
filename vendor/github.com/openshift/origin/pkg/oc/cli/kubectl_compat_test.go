@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	kcmd "k8s.io/kubernetes/pkg/kubectl/cmd"
 
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	"github.com/openshift/origin/pkg/oc/cli/util/clientcmd"
 )
 
 // MissingCommands is the list of commands we're already missing.
@@ -36,6 +36,7 @@ var MissingCommands = sets.NewString(
 	"rollingupdate",
 	"run-container",
 	"update",
+	"alpha",
 )
 
 // WhitelistedCommands is the list of commands we're never going to have,

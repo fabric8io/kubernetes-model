@@ -8,16 +8,16 @@ import (
 
 	unidlingapi "github.com/openshift/origin/pkg/unidling/api"
 
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
-	deployfake "github.com/openshift/origin/pkg/deploy/generated/internalclientset/fake"
+	appsapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	appsfake "github.com/openshift/origin/pkg/apps/generated/internalclientset/fake"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	kexternalfake "k8s.io/client-go/kubernetes/fake"
 	clientgotesting "k8s.io/client-go/testing"
-	kapi "k8s.io/kubernetes/pkg/api"
-	kextapi "k8s.io/kubernetes/pkg/apis/extensions"
-	kexternalfake "k8s.io/kubernetes/pkg/client/clientset_generated/clientset/fake"
+	"k8s.io/kubernetes/pkg/apis/autoscaling"
+	kapi "k8s.io/kubernetes/pkg/apis/core"
 	kinternalfake "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
 
 	// install the APIs we need for the codecs to run correctly in order to build patches
@@ -25,13 +25,13 @@ import (
 )
 
 type fakeResults struct {
-	resMap       map[unidlingapi.CrossGroupObjectReference]kextapi.Scale
+	resMap       map[unidlingapi.CrossGroupObjectReference]autoscaling.Scale
 	resEndpoints *kapi.Endpoints
 }
 
-func prepFakeClient(t *testing.T, nowTime time.Time, scales ...kextapi.Scale) (*kinternalfake.Clientset, *deployfake.Clientset, *fakeResults) {
+func prepFakeClient(t *testing.T, nowTime time.Time, scales ...autoscaling.Scale) (*kinternalfake.Clientset, *appsfake.Clientset, *fakeResults) {
 	fakeClient := &kinternalfake.Clientset{}
-	fakeDeployClient := &deployfake.Clientset{}
+	fakeDeployClient := &appsfake.Clientset{}
 
 	nowTimeStr := nowTime.Format(time.RFC3339)
 
@@ -71,11 +71,11 @@ func prepFakeClient(t *testing.T, nowTime time.Time, scales ...kextapi.Scale) (*
 		objName := action.(clientgotesting.GetAction).GetName()
 		for _, scale := range scales {
 			if scale.Kind == "DeploymentConfig" && objName == scale.Name {
-				return true, &deployapi.DeploymentConfig{
+				return true, &appsapi.DeploymentConfig{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: objName,
 					},
-					Spec: deployapi.DeploymentConfigSpec{
+					Spec: appsapi.DeploymentConfigSpec{
 						Replicas: scale.Spec.Replicas,
 					},
 				}, nil
@@ -104,17 +104,17 @@ func prepFakeClient(t *testing.T, nowTime time.Time, scales ...kextapi.Scale) (*
 	})
 
 	res := &fakeResults{
-		resMap: make(map[unidlingapi.CrossGroupObjectReference]kextapi.Scale),
+		resMap: make(map[unidlingapi.CrossGroupObjectReference]autoscaling.Scale),
 	}
 
 	fakeDeployClient.PrependReactor("update", "deploymentconfigs", func(action clientgotesting.Action) (bool, runtime.Object, error) {
-		obj := action.(clientgotesting.UpdateAction).GetObject().(*deployapi.DeploymentConfig)
+		obj := action.(clientgotesting.UpdateAction).GetObject().(*appsapi.DeploymentConfig)
 		for _, scale := range scales {
 			if scale.Kind == "DeploymentConfig" && obj.Name == scale.Name {
 				newScale := scale
 				newScale.Spec.Replicas = obj.Spec.Replicas
-				res.resMap[unidlingapi.CrossGroupObjectReference{Name: obj.Name, Kind: "DeploymentConfig", Group: deployapi.GroupName}] = newScale
-				return true, &deployapi.DeploymentConfig{}, nil
+				res.resMap[unidlingapi.CrossGroupObjectReference{Name: obj.Name, Kind: "DeploymentConfig", Group: appsapi.GroupName}] = newScale
+				return true, &appsapi.DeploymentConfig{}, nil
 			}
 		}
 
@@ -137,15 +137,15 @@ func prepFakeClient(t *testing.T, nowTime time.Time, scales ...kextapi.Scale) (*
 
 	fakeDeployClient.PrependReactor("patch", "deploymentconfigs", func(action clientgotesting.Action) (bool, runtime.Object, error) {
 		patchAction := action.(clientgotesting.PatchActionImpl)
-		var patch deployapi.DeploymentConfig
+		var patch appsapi.DeploymentConfig
 		json.Unmarshal(patchAction.GetPatch(), &patch)
 
 		for _, scale := range scales {
 			if scale.Kind == "DeploymentConfig" && patchAction.GetName() == scale.Name {
 				newScale := scale
 				newScale.Spec.Replicas = patch.Spec.Replicas
-				res.resMap[unidlingapi.CrossGroupObjectReference{Name: patchAction.GetName(), Kind: "DeploymentConfig", Group: deployapi.GroupName}] = newScale
-				return true, &deployapi.DeploymentConfig{}, nil
+				res.resMap[unidlingapi.CrossGroupObjectReference{Name: patchAction.GetName(), Kind: "DeploymentConfig", Group: appsapi.GroupName}] = newScale
+				return true, &appsapi.DeploymentConfig{}, nil
 			}
 		}
 
@@ -215,7 +215,7 @@ func TestControllerHandlesStaleEvents(t *testing.T) {
 func TestControllerIgnoresAlreadyScaledObjects(t *testing.T) {
 	// truncate to avoid conversion comparison issues
 	nowTime := time.Now().Truncate(time.Second)
-	baseScales := []kextapi.Scale{
+	baseScales := []autoscaling.Scale{
 		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "somerc",
@@ -223,7 +223,7 @@ func TestControllerIgnoresAlreadyScaledObjects(t *testing.T) {
 			TypeMeta: metav1.TypeMeta{
 				Kind: "ReplicationController",
 			},
-			Spec: kextapi.ScaleSpec{
+			Spec: autoscaling.ScaleSpec{
 				Replicas: 0,
 			},
 		},
@@ -234,7 +234,7 @@ func TestControllerIgnoresAlreadyScaledObjects(t *testing.T) {
 			TypeMeta: metav1.TypeMeta{
 				Kind: "DeploymentConfig",
 			},
-			Spec: kextapi.ScaleSpec{
+			Spec: autoscaling.ScaleSpec{
 				Replicas: 5,
 			},
 		},
@@ -269,7 +269,7 @@ func TestControllerIgnoresAlreadyScaledObjects(t *testing.T) {
 	for _, scale := range baseScales {
 		scaleRef := unidlingapi.CrossGroupObjectReference{Kind: scale.Kind, Name: scale.Name}
 		if scale.Kind == "DeploymentConfig" {
-			scaleRef.Group = deployapi.GroupName
+			scaleRef.Group = appsapi.GroupName
 		}
 		resScale, ok := res.resMap[scaleRef]
 		if scale.Spec.Replicas != 0 {
@@ -307,7 +307,7 @@ func TestControllerIgnoresAlreadyScaledObjects(t *testing.T) {
 	}
 	for _, target := range resTargets {
 		if target.Kind == "DeploymentConfig" {
-			target.CrossGroupObjectReference.Group = deployapi.GroupName
+			target.CrossGroupObjectReference.Group = appsapi.GroupName
 		}
 		if _, ok := stillPresent[target.CrossGroupObjectReference]; !ok {
 			t.Errorf("Expected new target list to contain the unscaled scalables only, but it was %v", resTargets)
@@ -328,7 +328,7 @@ func TestControllerIgnoresAlreadyScaledObjects(t *testing.T) {
 
 func TestControllerUnidlesProperly(t *testing.T) {
 	nowTime := time.Now().Truncate(time.Second)
-	baseScales := []kextapi.Scale{
+	baseScales := []autoscaling.Scale{
 		{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "somerc",
@@ -336,7 +336,7 @@ func TestControllerUnidlesProperly(t *testing.T) {
 			TypeMeta: metav1.TypeMeta{
 				Kind: "ReplicationController",
 			},
-			Spec: kextapi.ScaleSpec{
+			Spec: autoscaling.ScaleSpec{
 				Replicas: 0,
 			},
 		},
@@ -348,7 +348,7 @@ func TestControllerUnidlesProperly(t *testing.T) {
 				Kind:       "DeploymentConfig",
 				APIVersion: "apps.openshift.io/v1",
 			},
-			Spec: kextapi.ScaleSpec{
+			Spec: autoscaling.ScaleSpec{
 				Replicas: 0,
 			},
 		},
@@ -380,7 +380,7 @@ func TestControllerUnidlesProperly(t *testing.T) {
 	for _, scale := range baseScales {
 		ref := unidlingapi.CrossGroupObjectReference{Kind: scale.Kind, Name: scale.Name}
 		if scale.Kind == "DeploymentConfig" {
-			ref.Group = deployapi.GroupName
+			ref.Group = appsapi.GroupName
 		}
 		resScale, ok := res.resMap[ref]
 		if !ok {
@@ -412,7 +412,7 @@ func TestControllerUnidlesProperly(t *testing.T) {
 type failureTestInfo struct {
 	name                   string
 	endpointsGet           *kapi.Endpoints
-	scaleGets              []kextapi.Scale
+	scaleGets              []autoscaling.Scale
 	scaleUpdatesNotFound   []bool
 	preventEndpointsUpdate bool
 
@@ -421,9 +421,9 @@ type failureTestInfo struct {
 	annotationsExpected map[string]string
 }
 
-func prepareFakeClientForFailureTest(test failureTestInfo) (*kinternalfake.Clientset, *deployfake.Clientset) {
+func prepareFakeClientForFailureTest(test failureTestInfo) (*kinternalfake.Clientset, *appsfake.Clientset) {
 	fakeClient := &kinternalfake.Clientset{}
-	fakeDeployClient := &deployfake.Clientset{}
+	fakeDeployClient := &appsfake.Clientset{}
 
 	fakeClient.PrependReactor("get", "endpoints", func(action clientgotesting.Action) (bool, runtime.Object, error) {
 		objName := action.(clientgotesting.GetAction).GetName()
@@ -438,11 +438,11 @@ func prepareFakeClientForFailureTest(test failureTestInfo) (*kinternalfake.Clien
 		objName := action.(clientgotesting.GetAction).GetName()
 		for _, scale := range test.scaleGets {
 			if scale.Kind == "DeploymentConfig" && objName == scale.Name {
-				return true, &deployapi.DeploymentConfig{
+				return true, &appsapi.DeploymentConfig{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: objName,
 					},
-					Spec: deployapi.DeploymentConfigSpec{
+					Spec: appsapi.DeploymentConfigSpec{
 						Replicas: scale.Spec.Replicas,
 					},
 				}, nil
@@ -471,14 +471,14 @@ func prepareFakeClientForFailureTest(test failureTestInfo) (*kinternalfake.Clien
 	})
 
 	fakeDeployClient.PrependReactor("update", "deploymentconfigs", func(action clientgotesting.Action) (bool, runtime.Object, error) {
-		obj := action.(clientgotesting.UpdateAction).GetObject().(*deployapi.DeploymentConfig)
+		obj := action.(clientgotesting.UpdateAction).GetObject().(*appsapi.DeploymentConfig)
 		for i, scale := range test.scaleGets {
 			if scale.Kind == "DeploymentConfig" && obj.Name == scale.Name {
 				if test.scaleUpdatesNotFound != nil && test.scaleUpdatesNotFound[i] {
 					return false, nil, nil
 				}
 
-				return true, &deployapi.DeploymentConfig{}, nil
+				return true, &appsapi.DeploymentConfig{}, nil
 			}
 		}
 
@@ -529,7 +529,7 @@ func TestControllerPerformsCorrectlyOnFailures(t *testing.T) {
 		{
 			CrossGroupObjectReference: unidlingapi.CrossGroupObjectReference{
 				Kind:  "DeploymentConfig",
-				Group: deployapi.GroupName,
+				Group: appsapi.GroupName,
 				Name:  "somedc",
 			},
 			Replicas: 2,
@@ -544,7 +544,7 @@ func TestControllerPerformsCorrectlyOnFailures(t *testing.T) {
 		{
 			CrossGroupObjectReference: unidlingapi.CrossGroupObjectReference{
 				Kind:  "DeploymentConfig",
-				Group: deployapi.GroupName,
+				Group: appsapi.GroupName,
 				Name:  "somedc",
 			},
 			Replicas: 2,
@@ -600,7 +600,7 @@ func TestControllerPerformsCorrectlyOnFailures(t *testing.T) {
 					},
 				},
 			},
-			scaleGets: []kextapi.Scale{
+			scaleGets: []autoscaling.Scale{
 				{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "DeploymentConfig",
@@ -609,7 +609,7 @@ func TestControllerPerformsCorrectlyOnFailures(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "somedc",
 					},
-					Spec: kextapi.ScaleSpec{Replicas: 0},
+					Spec: autoscaling.ScaleSpec{Replicas: 0},
 				},
 			},
 			errorExpected: false,
@@ -629,7 +629,7 @@ func TestControllerPerformsCorrectlyOnFailures(t *testing.T) {
 					},
 				},
 			},
-			scaleGets: []kextapi.Scale{
+			scaleGets: []autoscaling.Scale{
 				{
 					TypeMeta: metav1.TypeMeta{
 						Kind: "ReplicationController",
@@ -637,7 +637,7 @@ func TestControllerPerformsCorrectlyOnFailures(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "somerc",
 					},
-					Spec: kextapi.ScaleSpec{Replicas: 0},
+					Spec: autoscaling.ScaleSpec{Replicas: 0},
 				},
 				{
 					TypeMeta: metav1.TypeMeta{
@@ -647,7 +647,7 @@ func TestControllerPerformsCorrectlyOnFailures(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "somedc",
 					},
-					Spec: kextapi.ScaleSpec{Replicas: 0},
+					Spec: autoscaling.ScaleSpec{Replicas: 0},
 				},
 			},
 			scaleUpdatesNotFound: []bool{false, true},
@@ -668,7 +668,7 @@ func TestControllerPerformsCorrectlyOnFailures(t *testing.T) {
 					},
 				},
 			},
-			scaleGets: []kextapi.Scale{
+			scaleGets: []autoscaling.Scale{
 				{
 					TypeMeta: metav1.TypeMeta{
 						Kind: "ReplicationController",
@@ -676,7 +676,7 @@ func TestControllerPerformsCorrectlyOnFailures(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "somerc",
 					},
-					Spec: kextapi.ScaleSpec{Replicas: 0},
+					Spec: autoscaling.ScaleSpec{Replicas: 0},
 				},
 				{
 					TypeMeta: metav1.TypeMeta{
@@ -686,7 +686,7 @@ func TestControllerPerformsCorrectlyOnFailures(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "somedc",
 					},
-					Spec: kextapi.ScaleSpec{Replicas: 0},
+					Spec: autoscaling.ScaleSpec{Replicas: 0},
 				},
 			},
 			preventEndpointsUpdate: true,

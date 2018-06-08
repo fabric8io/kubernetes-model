@@ -4,7 +4,7 @@ import (
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/openshift/origin/pkg/image/admission/imagepolicy/api"
+	"github.com/openshift/origin/pkg/image/admission/apis/imagepolicy"
 )
 
 type Accepter interface {
@@ -32,7 +32,7 @@ func (a mappedAccepter) Accepts(attr *ImagePolicyAttributes) bool {
 }
 
 type executionAccepter struct {
-	rules         []api.ImageExecutionPolicyRule
+	rules         []imagepolicy.ImageExecutionPolicyRule
 	covers        schema.GroupResource
 	defaultReject bool
 
@@ -40,7 +40,7 @@ type executionAccepter struct {
 }
 
 // NewExecutionRuleseAccepter creates an Accepter from the provided rules.
-func NewExecutionRulesAccepter(rules []api.ImageExecutionPolicyRule, integratedRegistryMatcher RegistryMatcher) (Accepter, error) {
+func NewExecutionRulesAccepter(rules []imagepolicy.ImageExecutionPolicyRule, integratedRegistryMatcher RegistryMatcher) (Accepter, error) {
 	mapped := make(mappedAccepter)
 
 	for _, rule := range rules {
@@ -92,18 +92,21 @@ func (r *executionAccepter) Accepts(attrs *ImagePolicyAttributes) bool {
 
 	anyMatched := false
 	for _, rule := range r.rules {
+		glog.V(5).Infof("image policy checking rule %q", rule.Name)
 		if attrs.ExcludedRules.Has(rule.Name) && !rule.IgnoreNamespaceOverride {
+			glog.V(5).Infof("skipping because rule is excluded by namespace annotations\n")
 			continue
 		}
 
 		// if we don't have a resolved image and we're supposed to skip the rule if that happens,
 		// continue here.  Otherwise, the reject option is impossible to reason about.
 		if attrs.Image == nil && rule.SkipOnResolutionFailure {
+			glog.V(5).Infof("skipping because image is not resolved and skip on failure is true\n")
 			continue
 		}
 
 		matches := matchImageCondition(&rule.ImageCondition, r.integratedRegistryMatcher, attrs)
-		glog.V(5).Infof("Validate image %v against rule %q: %t", attrs.Name, rule.Name, matches)
+		glog.V(5).Infof("Rule %q(reject=%t) applies to image %v: %t", rule.Name, rule.Reject, attrs.Name, matches)
 		if matches {
 			if rule.Reject {
 				return false

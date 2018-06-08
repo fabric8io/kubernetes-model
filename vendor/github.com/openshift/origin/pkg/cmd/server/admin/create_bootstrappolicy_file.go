@@ -10,7 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	"k8s.io/kubernetes/pkg/apis/rbac"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	kprinters "k8s.io/kubernetes/pkg/printers"
 
@@ -23,7 +25,7 @@ import (
 const (
 	DefaultPolicyFile                    = "openshift.local.config/master/policy.json"
 	CreateBootstrapPolicyFileCommand     = "create-bootstrap-policy-file"
-	CreateBootstrapPolicyFileFullCommand = "openshift admin " + CreateBootstrapPolicyFileCommand
+	CreateBootstrapPolicyFileFullCommand = "oc adm " + CreateBootstrapPolicyFileCommand
 )
 
 type CreateBootstrapPolicyFileOptions struct {
@@ -40,7 +42,7 @@ func NewCommandCreateBootstrapPolicyFile(commandName string, fullName string, ou
 		Short: "Create the default bootstrap policy",
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := options.Validate(args); err != nil {
-				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
+				kcmdutil.CheckErr(kcmdutil.UsageErrorf(cmd, err.Error()))
 			}
 
 			if err := options.CreateBootstrapPolicyFile(); err != nil {
@@ -53,6 +55,7 @@ func NewCommandCreateBootstrapPolicyFile(commandName string, fullName string, ou
 
 	flags.StringVar(&options.File, "filename", DefaultPolicyFile, "The policy template file that will be written with roles and bindings.")
 	flags.StringVar(&options.OpenShiftSharedResourcesNamespace, "openshift-namespace", "openshift", "Namespace for shared resources.")
+	flags.MarkDeprecated("openshift-namespace", "this field is no longer supported and using it can lead to undefined behavior")
 
 	// autocompletion hints
 	cmd.MarkFlagFilename("filename")
@@ -80,60 +83,93 @@ func (o CreateBootstrapPolicyFileOptions) CreateBootstrapPolicyFile() error {
 	}
 
 	policyTemplate := &templateapi.Template{}
+	policy := bootstrappolicy.Policy()
 
-	clusterRoles := bootstrappolicy.GetBootstrapClusterRoles()
-	for i := range clusterRoles {
+	for i := range policy.ClusterRoles {
 		originObject := &authorizationapi.ClusterRole{}
-		if err := kapi.Scheme.Convert(&clusterRoles[i], originObject, nil); err != nil {
+		if err := legacyscheme.Scheme.Convert(&policy.ClusterRoles[i], originObject, nil); err != nil {
 			return err
 		}
-		versionedObject, err := kapi.Scheme.ConvertToVersion(originObject, latest.Version)
+		versionedObject, err := legacyscheme.Scheme.ConvertToVersion(originObject, latest.Version)
 		if err != nil {
 			return err
 		}
 		policyTemplate.Objects = append(policyTemplate.Objects, versionedObject)
 	}
 
-	clusterRoleBindings := bootstrappolicy.GetBootstrapClusterRoleBindings()
-	for i := range clusterRoleBindings {
+	for i := range policy.ClusterRoleBindings {
 		originObject := &authorizationapi.ClusterRoleBinding{}
-		if err := kapi.Scheme.Convert(&clusterRoleBindings[i], originObject, nil); err != nil {
+		if err := legacyscheme.Scheme.Convert(&policy.ClusterRoleBindings[i], originObject, nil); err != nil {
 			return err
 		}
-		versionedObject, err := kapi.Scheme.ConvertToVersion(originObject, latest.Version)
+		versionedObject, err := legacyscheme.Scheme.ConvertToVersion(originObject, latest.Version)
 		if err != nil {
 			return err
 		}
 		policyTemplate.Objects = append(policyTemplate.Objects, versionedObject)
 	}
 
-	openshiftRoles := bootstrappolicy.GetBootstrapOpenshiftRoles(o.OpenShiftSharedResourcesNamespace)
-	for i := range openshiftRoles {
-		originObject := &authorizationapi.Role{}
-		if err := kapi.Scheme.Convert(&openshiftRoles[i], originObject, nil); err != nil {
-			return err
+	openshiftRoles := map[string][]rbac.Role{}
+	for namespace, roles := range policy.Roles {
+		if namespace == bootstrappolicy.DefaultOpenShiftSharedResourcesNamespace {
+			r := make([]rbac.Role, len(roles))
+			for i := range roles {
+				r[i] = roles[i]
+				r[i].Namespace = o.OpenShiftSharedResourcesNamespace
+			}
+			openshiftRoles[o.OpenShiftSharedResourcesNamespace] = r
+		} else {
+			openshiftRoles[namespace] = roles
 		}
-		versionedObject, err := kapi.Scheme.ConvertToVersion(originObject, latest.Version)
-		if err != nil {
-			return err
-		}
-		policyTemplate.Objects = append(policyTemplate.Objects, versionedObject)
 	}
 
-	openshiftRoleBindings := bootstrappolicy.GetBootstrapOpenshiftRoleBindings(o.OpenShiftSharedResourcesNamespace)
-	for i := range openshiftRoleBindings {
-		originObject := &authorizationapi.RoleBinding{}
-		if err := kapi.Scheme.Convert(&openshiftRoleBindings[i], originObject, nil); err != nil {
-			return err
+	// iterate in a defined order
+	for _, namespace := range sets.StringKeySet(openshiftRoles).List() {
+		roles := openshiftRoles[namespace]
+		for i := range roles {
+			originObject := &authorizationapi.Role{}
+			if err := legacyscheme.Scheme.Convert(&roles[i], originObject, nil); err != nil {
+				return err
+			}
+			versionedObject, err := legacyscheme.Scheme.ConvertToVersion(originObject, latest.Version)
+			if err != nil {
+				return err
+			}
+			policyTemplate.Objects = append(policyTemplate.Objects, versionedObject)
 		}
-		versionedObject, err := kapi.Scheme.ConvertToVersion(originObject, latest.Version)
-		if err != nil {
-			return err
-		}
-		policyTemplate.Objects = append(policyTemplate.Objects, versionedObject)
 	}
 
-	versionedPolicyTemplate, err := kapi.Scheme.ConvertToVersion(policyTemplate, latest.Version)
+	openshiftRoleBindings := map[string][]rbac.RoleBinding{}
+	for namespace, roleBindings := range policy.RoleBindings {
+		if namespace == bootstrappolicy.DefaultOpenShiftSharedResourcesNamespace {
+			rb := make([]rbac.RoleBinding, len(roleBindings))
+			for i := range roleBindings {
+				rb[i] = roleBindings[i]
+				rb[i].Namespace = o.OpenShiftSharedResourcesNamespace
+			}
+			openshiftRoleBindings[o.OpenShiftSharedResourcesNamespace] = rb
+		} else {
+			openshiftRoleBindings[namespace] = roleBindings
+		}
+	}
+
+	// iterate in a defined order
+	for _, namespace := range sets.StringKeySet(openshiftRoleBindings).List() {
+		roleBindings := openshiftRoleBindings[namespace]
+		for i := range roleBindings {
+			originObject := &authorizationapi.RoleBinding{}
+			if err := legacyscheme.Scheme.Convert(&roleBindings[i], originObject, nil); err != nil {
+				return err
+			}
+			versionedObject, err := legacyscheme.Scheme.ConvertToVersion(originObject, latest.Version)
+			if err != nil {
+				return err
+			}
+			policyTemplate.Objects = append(policyTemplate.Objects, versionedObject)
+		}
+	}
+
+	versionedPolicyTemplate, err := legacyscheme.Scheme.ConvertToVersion(policyTemplate, latest.Version)
 	if err != nil {
 		return err
 	}

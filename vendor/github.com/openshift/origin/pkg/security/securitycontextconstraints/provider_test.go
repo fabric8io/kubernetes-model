@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/kubernetes/pkg/api"
+	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/apis/extensions"
 
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
@@ -32,27 +32,18 @@ func TestCreatePodSecurityContextNonmutating(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "scc-sa",
 			},
-			SeccompProfiles:          []string{"foo"},
-			DefaultAddCapabilities:   []api.Capability{"foo"},
-			RequiredDropCapabilities: []api.Capability{"bar"},
+			SeccompProfiles: []string{"foo"},
 			RunAsUser: securityapi.RunAsUserStrategyOptions{
 				Type: securityapi.RunAsUserStrategyRunAsAny,
 			},
 			SELinuxContext: securityapi.SELinuxContextStrategyOptions{
 				Type: securityapi.SELinuxStrategyRunAsAny,
 			},
-			// these are pod mutating strategies that are tested above
 			FSGroup: securityapi.FSGroupStrategyOptions{
-				Type: securityapi.FSGroupStrategyMustRunAs,
-				Ranges: []securityapi.IDRange{
-					{Min: 1, Max: 1},
-				},
+				Type: securityapi.FSGroupStrategyRunAsAny,
 			},
 			SupplementalGroups: securityapi.SupplementalGroupsStrategyOptions{
-				Type: securityapi.SupplementalGroupsStrategyMustRunAs,
-				Ranges: []securityapi.IDRange{
-					{Min: 1, Max: 1},
-				},
+				Type: securityapi.SupplementalGroupsStrategyRunAsAny,
 			},
 		}
 	}
@@ -64,21 +55,13 @@ func TestCreatePodSecurityContextNonmutating(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to create provider %v", err)
 	}
-	sc, annotations, err := provider.CreatePodSecurityContext(pod)
+	_, _, err = provider.CreatePodSecurityContext(pod)
 	if err != nil {
 		t.Fatalf("unable to create psc %v", err)
 	}
 
-	// The generated security context should have filled in missing options, so they should differ
-	if reflect.DeepEqual(sc, &pod.Spec.SecurityContext) {
-		t.Error("expected created security context to be different than container's, but they were identical")
-	}
-
-	if reflect.DeepEqual(annotations, pod.Annotations) {
-		t.Error("expected created annotations to be different than container's, but they were identical")
-	}
-
 	// Creating the provider or the security context should not have mutated the scc or pod
+	// since all the strategies were permissive
 	if !reflect.DeepEqual(createPod(), pod) {
 		diff := diff.ObjectDiff(createPod(), pod)
 		t.Errorf("pod was mutated by CreatePodSecurityContext. diff:\n%s", diff)
@@ -102,30 +85,22 @@ func TestCreateContainerSecurityContextNonmutating(t *testing.T) {
 
 	// Create an SCC with strategies that will populate a blank security context
 	createSCC := func() *securityapi.SecurityContextConstraints {
-		var uid int64 = 1
 		return &securityapi.SecurityContextConstraints{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "scc-sa",
 			},
-			DefaultAddCapabilities:   []api.Capability{"foo"},
-			RequiredDropCapabilities: []api.Capability{"bar"},
 			RunAsUser: securityapi.RunAsUserStrategyOptions{
-				Type: securityapi.RunAsUserStrategyMustRunAs,
-				UID:  &uid,
+				Type: securityapi.RunAsUserStrategyRunAsAny,
 			},
 			SELinuxContext: securityapi.SELinuxContextStrategyOptions{
-				Type:           securityapi.SELinuxStrategyMustRunAs,
-				SELinuxOptions: &api.SELinuxOptions{User: "you"},
+				Type: securityapi.SELinuxStrategyRunAsAny,
 			},
-			// these are pod mutating strategies that are tested above
 			FSGroup: securityapi.FSGroupStrategyOptions{
 				Type: securityapi.FSGroupStrategyRunAsAny,
 			},
 			SupplementalGroups: securityapi.SupplementalGroupsStrategyOptions{
 				Type: securityapi.SupplementalGroupsStrategyRunAsAny,
 			},
-			// mutates the container SC by defaulting to true if container sets nil
-			ReadOnlyRootFilesystem: true,
 		}
 	}
 
@@ -136,17 +111,13 @@ func TestCreateContainerSecurityContextNonmutating(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to create provider %v", err)
 	}
-	sc, err := provider.CreateContainerSecurityContext(pod, &pod.Spec.Containers[0])
+	_, err = provider.CreateContainerSecurityContext(pod, &pod.Spec.Containers[0])
 	if err != nil {
 		t.Fatalf("unable to create container security context %v", err)
 	}
 
-	// The generated security context should have filled in missing options, so they should differ
-	if reflect.DeepEqual(sc, &pod.Spec.Containers[0].SecurityContext) {
-		t.Error("expected created security context to be different than container's, but they were identical")
-	}
-
 	// Creating the provider or the security context should not have mutated the scc or pod
+	// since all the strategies were permissive
 	if !reflect.DeepEqual(createPod(), pod) {
 		diff := diff.ObjectDiff(createPod(), pod)
 		t.Errorf("pod was mutated by CreateContainerSecurityContext. diff:\n%s", diff)
@@ -220,6 +191,28 @@ func TestValidatePodSecurityContextFailures(t *testing.T) {
 	failUnsafeSysctlFooPod := defaultPod()
 	failUnsafeSysctlFooPod.Annotations[api.UnsafeSysctlsPodAnnotationKey] = "foo=1"
 
+	failHostDirPod := defaultPod()
+	failHostDirPod.Spec.Volumes = []api.Volume{
+		{
+			Name: "bad volume",
+			VolumeSource: api.VolumeSource{
+				HostPath: &api.HostPathVolumeSource{},
+			},
+		},
+	}
+
+	podWithInvalidFlexVolumeDriver := defaultPod()
+	podWithInvalidFlexVolumeDriver.Spec.Volumes = []api.Volume{
+		{
+			Name: "flex-volume",
+			VolumeSource: api.VolumeSource{
+				FlexVolume: &api.FlexVolumeSource{
+					Driver: "example/unknown",
+				},
+			},
+		},
+	}
+
 	errorCases := map[string]struct {
 		pod           *api.Pod
 		scc           *securityapi.SecurityContextConstraints
@@ -263,12 +256,12 @@ func TestValidatePodSecurityContextFailures(t *testing.T) {
 		"failNilSELinux": {
 			pod:           failNilSELinuxPod,
 			scc:           failSELinuxSCC,
-			expectedError: "unable to validate nil seLinuxOptions",
+			expectedError: "seLinuxOptions: Required",
 		},
 		"failInvalidSELinux": {
 			pod:           failInvalidSELinuxPod,
 			scc:           failSELinuxSCC,
-			expectedError: "does not match required level.  Found bar, wanted foo",
+			expectedError: "seLinuxOptions.level: Invalid value",
 		},
 		"failNoSeccomp": {
 			pod:           failNoSeccompAllowed,
@@ -300,13 +293,28 @@ func TestValidatePodSecurityContextFailures(t *testing.T) {
 			scc:           failOtherSysctlsAllowedSCC,
 			expectedError: "sysctl \"foo\" is not allowed",
 		},
+		"failHostDirSCC": {
+			pod:           failHostDirPod,
+			scc:           defaultSCC(),
+			expectedError: "hostPath volumes are not allowed to be used",
+		},
+		"fail pod with disallowed flexVolume when flex volumes are allowed": {
+			pod:           podWithInvalidFlexVolumeDriver,
+			scc:           allowFlexVolumesSCC(false, false),
+			expectedError: "Flexvolume driver is not allowed to be used",
+		},
+		"fail pod with disallowed flexVolume when all volumes are allowed": {
+			pod:           podWithInvalidFlexVolumeDriver,
+			scc:           allowFlexVolumesSCC(false, true),
+			expectedError: "Flexvolume driver is not allowed to be used",
+		},
 	}
 	for k, v := range errorCases {
 		provider, err := NewSimpleProvider(v.scc)
 		if err != nil {
 			t.Fatalf("unable to create provider %v", err)
 		}
-		errs := provider.ValidatePodSecurityContext(v.pod, field.NewPath(""))
+		errs := provider.ValidatePodSecurityContext(v.pod, field.NewPath("spec"))
 		if len(errs) == 0 {
 			t.Errorf("%s expected validation failure but did not receive errors", k)
 			continue
@@ -351,16 +359,6 @@ func TestValidateContainerSecurityContextFailures(t *testing.T) {
 		Add: []api.Capability{"foo"},
 	}
 
-	failHostDirPod := defaultPod()
-	failHostDirPod.Spec.Volumes = []api.Volume{
-		{
-			Name: "bad volume",
-			VolumeSource: api.VolumeSource{
-				HostPath: &api.HostPathVolumeSource{},
-			},
-		},
-	}
-
 	failHostPortPod := defaultPod()
 	failHostPortPod.Spec.Containers[0].Ports = []api.ContainerPort{{HostPort: 1}}
 
@@ -389,12 +387,12 @@ func TestValidateContainerSecurityContextFailures(t *testing.T) {
 		"failUserSCC": {
 			pod:           failUserPod,
 			scc:           failUserSCC,
-			expectedError: "does not match required UID",
+			expectedError: "runAsUser: Invalid value",
 		},
 		"failSELinuxSCC": {
 			pod:           failSELinuxPod,
 			scc:           failSELinuxSCC,
-			expectedError: "does not match required level",
+			expectedError: "seLinuxOptions.level: Invalid value",
 		},
 		"failPrivSCC": {
 			pod:           failPrivPod,
@@ -405,11 +403,6 @@ func TestValidateContainerSecurityContextFailures(t *testing.T) {
 			pod:           failCapsPod,
 			scc:           defaultSCC(),
 			expectedError: "capability may not be added",
-		},
-		"failHostDirSCC": {
-			pod:           failHostDirPod,
-			scc:           defaultSCC(),
-			expectedError: "hostPath volumes are not allowed to be used",
 		},
 		"failHostPortSCC": {
 			pod:           failHostPortPod,
@@ -532,6 +525,18 @@ func TestValidatePodSecurityContextSuccess(t *testing.T) {
 	unsafeSysctlFooPod := defaultPod()
 	unsafeSysctlFooPod.Annotations[api.UnsafeSysctlsPodAnnotationKey] = "foo=1"
 
+	flexVolumePod := defaultPod()
+	flexVolumePod.Spec.Volumes = []api.Volume{
+		{
+			Name: "flex-volume",
+			VolumeSource: api.VolumeSource{
+				FlexVolume: &api.FlexVolumeSource{
+					Driver: "example/bar",
+				},
+			},
+		},
+	}
+
 	successCases := map[string]struct {
 		pod *api.Pod
 		scc *securityapi.SecurityContextConstraints
@@ -591,6 +596,22 @@ func TestValidatePodSecurityContextSuccess(t *testing.T) {
 		"pass empty profile with unsafe sysctl": {
 			pod: unsafeSysctlFooPod,
 			scc: defaultSCC(),
+		},
+		"flex volume driver in a whitelist (all volumes are allowed)": {
+			pod: flexVolumePod,
+			scc: allowFlexVolumesSCC(false, true),
+		},
+		"flex volume driver with empty whitelist (all volumes are allowed)": {
+			pod: flexVolumePod,
+			scc: allowFlexVolumesSCC(true, true),
+		},
+		"flex volume driver in a whitelist (only flex volumes are allowed)": {
+			pod: flexVolumePod,
+			scc: allowFlexVolumesSCC(false, false),
+		},
+		"flex volume driver with empty whitelist (only flex volumes volumes are allowed)": {
+			pod: flexVolumePod,
+			scc: allowFlexVolumesSCC(true, false),
 		},
 	}
 
@@ -889,6 +910,28 @@ func defaultPod() *api.Pod {
 	}
 }
 
+func allowFlexVolumesSCC(allowAllFlexVolumes, allowAllVolumes bool) *securityapi.SecurityContextConstraints {
+	scc := defaultSCC()
+
+	allowedVolumes := []securityapi.AllowedFlexVolume{
+		{Driver: "example/foo"},
+		{Driver: "example/bar"},
+	}
+	if allowAllFlexVolumes {
+		allowedVolumes = []securityapi.AllowedFlexVolume{}
+	}
+
+	allowedVolumeType := securityapi.FSTypeFlexVolume
+	if allowAllVolumes {
+		allowedVolumeType = securityapi.FSTypeAll
+	}
+
+	scc.AllowedFlexVolumes = allowedVolumes
+	scc.Volumes = []securityapi.FSType{allowedVolumeType}
+
+	return scc
+}
+
 // TestValidateAllowedVolumes will test that for every field of VolumeSource we can create
 // a pod with that type of volume and deny it, accept it explicitly, or accept it with
 // the FSTypeAll wildcard.
@@ -926,7 +969,7 @@ func TestValidateAllowedVolumes(t *testing.T) {
 		}
 
 		// expect a denial for this SCC and test the error message to ensure it's related to the volumesource
-		errs := provider.ValidateContainerSecurityContext(pod, &pod.Spec.Containers[0], field.NewPath(""))
+		errs := provider.ValidatePodSecurityContext(pod, field.NewPath(""))
 		if len(errs) != 1 {
 			t.Errorf("expected exactly 1 error for %s but got %v", fieldVal.Name, errs)
 		} else {
@@ -937,14 +980,14 @@ func TestValidateAllowedVolumes(t *testing.T) {
 
 		// now add the fstype directly to the scc and it should validate
 		scc.Volumes = []securityapi.FSType{fsType}
-		errs = provider.ValidateContainerSecurityContext(pod, &pod.Spec.Containers[0], field.NewPath(""))
+		errs = provider.ValidatePodSecurityContext(pod, field.NewPath(""))
 		if len(errs) != 0 {
 			t.Errorf("directly allowing volume expected no errors for %s but got %v", fieldVal.Name, errs)
 		}
 
 		// now change the scc to allow any volumes and the pod should still validate
 		scc.Volumes = []securityapi.FSType{securityapi.FSTypeAll}
-		errs = provider.ValidateContainerSecurityContext(pod, &pod.Spec.Containers[0], field.NewPath(""))
+		errs = provider.ValidatePodSecurityContext(pod, field.NewPath(""))
 		if len(errs) != 0 {
 			t.Errorf("wildcard volume expected no errors for %s but got %v", fieldVal.Name, errs)
 		}

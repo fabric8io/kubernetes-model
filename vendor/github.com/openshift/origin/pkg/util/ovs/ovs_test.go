@@ -5,11 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"k8s.io/kubernetes/pkg/util/exec"
+	"k8s.io/utils/exec"
+	fakeexec "k8s.io/utils/exec/testing"
 )
 
-func normalSetup() *exec.FakeExec {
-	return &exec.FakeExec{
+func normalSetup() *fakeexec.FakeExec {
+	return &fakeexec.FakeExec{
 		LookPathFunc: func(prog string) (string, error) {
 			if prog == "ovs-ofctl" || prog == "ovs-vsctl" {
 				return "/sbin/" + prog, nil
@@ -20,17 +21,17 @@ func normalSetup() *exec.FakeExec {
 	}
 }
 
-func missingSetup() *exec.FakeExec {
-	return &exec.FakeExec{
+func missingSetup() *fakeexec.FakeExec {
+	return &fakeexec.FakeExec{
 		LookPathFunc: func(prog string) (string, error) {
 			return "", fmt.Errorf("%s not found", prog)
 		},
 	}
 }
 
-func addTestResult(t *testing.T, fexec *exec.FakeExec, command string, output string, err error) {
-	fcmd := exec.FakeCmd{
-		CombinedOutputScript: []exec.FakeCombinedOutputAction{
+func addTestResult(t *testing.T, fexec *fakeexec.FakeExec, command string, output string, err error) {
+	fcmd := fakeexec.FakeCmd{
+		CombinedOutputScript: []fakeexec.FakeCombinedOutputAction{
 			func() ([]byte, error) { return []byte(output), err },
 		},
 	}
@@ -40,11 +41,11 @@ func addTestResult(t *testing.T, fexec *exec.FakeExec, command string, output st
 			if execCommand != command {
 				t.Fatalf("Unexpected command: wanted %q got %q", command, execCommand)
 			}
-			return exec.InitFakeCmd(&fcmd, cmd, args...)
+			return fakeexec.InitFakeCmd(&fcmd, cmd, args...)
 		})
 }
 
-func ensureTestResults(t *testing.T, fexec *exec.FakeExec) {
+func ensureTestResults(t *testing.T, fexec *fakeexec.FakeExec) {
 	if fexec.CommandCalls != len(fexec.CommandScript) {
 		t.Fatalf("Only used %d of %d expected commands", fexec.CommandCalls, len(fexec.CommandScript))
 	}
@@ -93,7 +94,7 @@ func TestTransactionFailure(t *testing.T) {
 
 func TestDumpFlows(t *testing.T) {
 	fexec := normalSetup()
-	addTestResult(t, fexec, "ovs-ofctl -O OpenFlow13 dump-flows br0", `OFPST_FLOW reply (OF1.3) (xid=0x2):
+	addTestResult(t, fexec, "ovs-ofctl -O OpenFlow13 dump-flows br0 ", `OFPST_FLOW reply (OF1.3) (xid=0x2):
  cookie=0x0, duration=13271.779s, table=0, n_packets=0, n_bytes=0, priority=100,ip,nw_dst=192.168.1.0/24 actions=set_field:0a:7b:e6:19:11:cf->eth_dst,output:2
  cookie=0x0, duration=13271.776s, table=0, n_packets=1, n_bytes=42, priority=100,arp,arp_tpa=192.168.1.0/24 actions=set_field:10.19.17.34->tun_dst,output:1
  cookie=0x3, duration=13267.277s, table=0, n_packets=788539827, n_bytes=506520926762, priority=100,ip,nw_dst=192.168.2.2 actions=output:3
@@ -107,7 +108,7 @@ func TestDumpFlows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error from ovs.New(): %v", err)
 	}
-	flows, err := ovsif.DumpFlows()
+	flows, err := ovsif.DumpFlows("")
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

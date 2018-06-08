@@ -21,8 +21,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/kubernetes/pkg/api/v1"
 	stats "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 	"k8s.io/kubernetes/pkg/kubelet/util/format"
 	"k8s.io/kubernetes/pkg/volume"
@@ -41,9 +41,11 @@ type volumeStatCalculator struct {
 	latest        atomic.Value
 }
 
-// PodVolumeStats encapsulates all VolumeStats for a pod
+// PodVolumeStats encapsulates the VolumeStats for a pod.
+// It consists of two lists, for local ephemeral volumes, and for persistent volumes respectively.
 type PodVolumeStats struct {
-	Volumes []stats.VolumeStats
+	EphemeralVolumes  []stats.VolumeStats
+	PersistentVolumes []stats.VolumeStats
 }
 
 // newVolumeStatCalculator creates a new VolumeStatCalculator
@@ -85,6 +87,7 @@ func (s *volumeStatCalculator) GetLatest() (PodVolumeStats, bool) {
 }
 
 // calcAndStoreStats calculates PodVolumeStats for a given pod and writes the result to the s.latest cache.
+// If the pod references PVCs, the prometheus metrics for those are updated with the result.
 func (s *volumeStatCalculator) calcAndStoreStats() {
 	// Find all Volumes for the Pod
 	volumes, found := s.statsProvider.ListVolumesForPod(s.pod.UID)
@@ -92,8 +95,15 @@ func (s *volumeStatCalculator) calcAndStoreStats() {
 		return
 	}
 
+	// Get volume specs for the pod - key'd by volume name
+	volumesSpec := make(map[string]v1.Volume)
+	for _, v := range s.pod.Spec.Volumes {
+		volumesSpec[v.Name] = v
+	}
+
 	// Call GetMetrics on each Volume and copy the result to a new VolumeStats.FsStats
-	stats := make([]stats.VolumeStats, 0, len(volumes))
+	ephemeralStats := []stats.VolumeStats{}
+	persistentStats := []stats.VolumeStats{}
 	for name, v := range volumes {
 		metric, err := v.GetMetrics()
 		if err != nil {
@@ -103,24 +113,50 @@ func (s *volumeStatCalculator) calcAndStoreStats() {
 			}
 			continue
 		}
-		stats = append(stats, s.parsePodVolumeStats(name, metric))
+		// Lookup the volume spec and add a 'PVCReference' for volumes that reference a PVC
+		volSpec := volumesSpec[name]
+		var pvcRef *stats.PVCReference
+		if pvcSource := volSpec.PersistentVolumeClaim; pvcSource != nil {
+			pvcRef = &stats.PVCReference{
+				Name:      pvcSource.ClaimName,
+				Namespace: s.pod.GetNamespace(),
+			}
+		}
+		volumeStats := s.parsePodVolumeStats(name, pvcRef, metric, volSpec)
+		if isVolumeEphemeral(volSpec) {
+			ephemeralStats = append(ephemeralStats, volumeStats)
+		} else {
+			persistentStats = append(persistentStats, volumeStats)
+		}
+
 	}
 
 	// Store the new stats
-	s.latest.Store(PodVolumeStats{Volumes: stats})
+	s.latest.Store(PodVolumeStats{EphemeralVolumes: ephemeralStats,
+		PersistentVolumes: persistentStats})
 }
 
 // parsePodVolumeStats converts (internal) volume.Metrics to (external) stats.VolumeStats structures
-func (s *volumeStatCalculator) parsePodVolumeStats(podName string, metric *volume.Metrics) stats.VolumeStats {
+func (s *volumeStatCalculator) parsePodVolumeStats(podName string, pvcRef *stats.PVCReference, metric *volume.Metrics, volSpec v1.Volume) stats.VolumeStats {
 	available := uint64(metric.Available.Value())
 	capacity := uint64(metric.Capacity.Value())
 	used := uint64(metric.Used.Value())
 	inodes := uint64(metric.Inodes.Value())
 	inodesFree := uint64(metric.InodesFree.Value())
 	inodesUsed := uint64(metric.InodesUsed.Value())
+
 	return stats.VolumeStats{
-		Name: podName,
+		Name:   podName,
+		PVCRef: pvcRef,
 		FsStats: stats.FsStats{Time: metric.Time, AvailableBytes: &available, CapacityBytes: &capacity,
 			UsedBytes: &used, Inodes: &inodes, InodesFree: &inodesFree, InodesUsed: &inodesUsed},
 	}
+}
+
+func isVolumeEphemeral(volume v1.Volume) bool {
+	if (volume.EmptyDir != nil && volume.EmptyDir.Medium == v1.StorageMediumDefault) ||
+		volume.ConfigMap != nil || volume.GitRepo != nil {
+		return true
+	}
+	return false
 }

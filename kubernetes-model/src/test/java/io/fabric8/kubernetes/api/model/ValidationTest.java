@@ -24,12 +24,12 @@ public class ValidationTest {
 
   @Test
   public void testNodeName() throws JsonProcessingException {
-    new NodeBuilder().withNewMetadata().withName("1.0.0.1").and().build();
+    new io.fabric8.kubernetes.api.model.NodeBuilder().withNewMetadata().withName("1.0.0.1").and().build();
   }
 
   @Test(expected = ConstraintViolationException.class)
   public void testIllegalNodeName() throws JsonProcessingException {
-    new NodeBuilder().withNewMetadata().withName("..").and().build();
+    new io.fabric8.kubernetes.api.model.NodeBuilder().withNewMetadata().withName("..").and().build();
   }
 
 }
