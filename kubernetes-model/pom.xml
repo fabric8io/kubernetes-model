@@ -91,7 +91,9 @@
         <artifactId>jsonschema2pojo-maven-plugin</artifactId>
         <version>${jsonschema2pojo.version}</version>
         <configuration>
-          <sourceDirectory>${kube.dir}/schema</sourceDirectory>
+          <sourcePaths>
+            <sourcePath>${kube.dir}/schema/kube-schema.json</sourcePath>
+          </sourcePaths>
           <targetPackage>io.fabric8.kubernetes.api.model</targetPackage>
           <includeConstructors>true</includeConstructors>
           <includeJsr303Annotations>true</includeJsr303Annotations>
