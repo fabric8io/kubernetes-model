@@ -41,7 +41,7 @@ public class UnmarshallTest {
         ObjectMapper mapper = new ObjectMapper(); // can reuse, share globally
         KubernetesList list = (KubernetesList) mapper.readValue(getClass().getResourceAsStream("/simple-list.json"), KubernetesResource.class);
         final AtomicInteger integer = new AtomicInteger();
-        new KubernetesListBuilder(list).accept(new Visitor() {
+        new io.fabric8.kubernetes.api.model.KubernetesListBuilder(list).accept(new Visitor() {
             public void visit(Object o) {
                 integer.incrementAndGet();
             }
@@ -67,7 +67,7 @@ public class UnmarshallTest {
 
         ServiceList serviceList = (ServiceList) mapper.readValue(getClass().getResourceAsStream("/service-list.json"), KubernetesResource.class);
         integer.set(0);
-        new ServiceListBuilder(serviceList).accept(new Visitor() {
+        new io.fabric8.kubernetes.api.model.ServiceListBuilder(serviceList).accept(new Visitor() {
             public void visit(Object o) {
                 integer.incrementAndGet();
             }
