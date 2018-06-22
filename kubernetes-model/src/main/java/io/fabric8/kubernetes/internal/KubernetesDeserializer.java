@@ -110,8 +110,7 @@ public class KubernetesDeserializer extends JsonDeserializer<KubernetesResource>
             String name = key != null && key.contains(KEY_SEPARATOR) ?
                 key.substring(key.indexOf(KEY_SEPARATOR) + 1) :
                 key;
-
-            System.out.println("Trying internal type for name:"+name);
+            
             result = getInternalTypeForName(name);
         }
 
