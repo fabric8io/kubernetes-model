@@ -69,7 +69,6 @@ public class DeploymentTest {
     public void kubernetesDeploymentBuilderTest() throws Exception {
         // Making a deployment using Builder classes.
         Deployment deployment = new DeploymentBuilder()
-                .withApiVersion("extensions/v1beta1")
                 .withNewMetadata()
                 .addToAnnotations("fabric8.io/iconUrl", "img/icons/spring-boot.svg")
                 .addToAnnotations("fabric8.io/metrics-path", "dashboard/file/kubernetes-pods.json/?var-project=fabric8-maven-sample-zero-config&var-version=3.5-SNAPSHOT")
@@ -228,20 +227,22 @@ public class DeploymentTest {
                 .build();
 
         // Assert that we serve as Expected
-        Assert.assertEquals(deployment.getMetadata().getName(), "fabric8-maven-sample-zero-config");
-        Assert.assertEquals(deployment.getApiVersion(), "extensions/v1beta1");
+        Assert.assertEquals("fabric8-maven-sample-zero-config", deployment.getMetadata().getName());
+        Assert.assertEquals("apps/v1", deployment.getApiVersion());
 
         // Assert Metadata
-        Assert.assertArrayEquals(deployment.getMetadata().getAnnotations().keySet().toArray(),
-                new Object[] {"fabric8.io/iconUrl", "fabric8.io/metrics-path", "fabric8.io/scm-url"});
-        Assert.assertArrayEquals(deployment.getMetadata().getAnnotations().values().toArray(),
+        Assert.assertArrayEquals(new Object[] {"fabric8.io/iconUrl", "fabric8.io/metrics-path", "fabric8.io/scm-url"}
+        , deployment.getMetadata().getAnnotations().keySet().toArray());
+        Assert.assertArrayEquals(
                 new Object[] {"img/icons/spring-boot.svg",
                         "dashboard/file/kubernetes-pods.json/?var-project=fabric8-maven-sample-zero-config&var-version=3.5-SNAPSHOT",
-                        "https://github.com/spring-projects/spring-boot/spring-boot-starter-parent/fabric8-maven-sample-zero-config"});
-        Assert.assertArrayEquals(deployment.getMetadata().getLabels().keySet().toArray(),
-                new Object[] {"app", "provider", "version", "group"});
-        Assert.assertArrayEquals(deployment.getMetadata().getLabels().values().toArray(),
-                new Object[] {"fabric8-maven-sample-zero-config", "fabric8", "3.5-SNAPSHOT", "io.fabric8", });
+                        "https://github.com/spring-projects/spring-boot/spring-boot-starter-parent/fabric8-maven-sample-zero-config"},
+                deployment.getMetadata().getAnnotations().values().toArray());
+        Assert.assertArrayEquals(
+                new Object[] {"app", "provider", "version", "group"}, deployment.getMetadata().getLabels().keySet().toArray());
+        Assert.assertArrayEquals(
+                new Object[] {"fabric8-maven-sample-zero-config", "fabric8", "3.5-SNAPSHOT", "io.fabric8", },
+                deployment.getMetadata().getLabels().values().toArray());
         Assert.assertEquals("fabric8-maven-sample-zero-config", deployment.getMetadata().getName());
         Assert.assertEquals("kubernetes", deployment.getMetadata().getClusterName());
         Assert.assertEquals("myproject", deployment.getMetadata().getNamespace());
@@ -254,27 +255,30 @@ public class DeploymentTest {
         Assert.assertFalse(deployment.getSpec().getPaused());
         Assert.assertEquals(5, deployment.getSpec().getReplicas().intValue());
         Assert.assertEquals(3, deployment.getSpec().getRevisionHistoryLimit().intValue());
-        Assert.assertArrayEquals(deployment.getSpec().getSelector().getMatchLabels().keySet().toArray(),
-                new Object[] {"app", "provider", "group"});
-        Assert.assertArrayEquals(deployment.getSpec().getSelector().getMatchLabels().values().toArray(),
-                new Object[] {"fabric8-maven-sample-zero-config", "fabric8", "io.fabric8"});
+        Assert.assertArrayEquals(
+                new Object[] {"app", "provider", "group"}, deployment.getSpec().getSelector().getMatchLabels().keySet().toArray());
+        Assert.assertArrayEquals(
+                new Object[] {"fabric8-maven-sample-zero-config", "fabric8", "io.fabric8"},
+                deployment.getSpec().getSelector().getMatchLabels().values().toArray());
         Assert.assertEquals("Rolling", deployment.getSpec().getStrategy().getType());
         Assert.assertEquals(20, deployment.getSpec().getStrategy().getRollingUpdate().getMaxSurge().getIntVal().intValue());
         Assert.assertEquals(20, deployment.getSpec().getStrategy().getRollingUpdate().getMaxUnavailable().getIntVal().intValue());
 
         // Assert Spec's template
-        Assert.assertArrayEquals(deployment.getSpec().getTemplate().getMetadata().getAnnotations().keySet().toArray(),
-                new Object[] {"fabric8.io/metrics-path", "fabric8.io/scm-url", "fabric8.io/iconUrl"});
-        Assert.assertArrayEquals(deployment.getSpec().getTemplate().getMetadata().getAnnotations().values().toArray(),
+        Assert.assertArrayEquals(
+                new Object[] {"fabric8.io/metrics-path", "fabric8.io/scm-url", "fabric8.io/iconUrl"},
+                deployment.getSpec().getTemplate().getMetadata().getAnnotations().keySet().toArray());
+        Assert.assertArrayEquals(
                 new Object[]{
                         "dashboard/file/kubernetes-pods.json/?var-project=fabric8-maven-sample-zero-config&var-version=3.5-SNAPSHOT",
                         "https://github.com/spring-projects/spring-boot/spring-boot-starter-parent/fabric8-maven-sample-zero-config",
                         "img/icons/spring-boot.svg"
-                });
-        Assert.assertArrayEquals(deployment.getSpec().getTemplate().getMetadata().getLabels().keySet().toArray(),
-                new Object[] {"app", "provider", "version", "group"});
-        Assert.assertArrayEquals(deployment.getSpec().getTemplate().getMetadata().getLabels().values().toArray(),
-                new Object[] {"fabric8-maven-sample-zero-config", "fabric8", "3.5-SNAPSHOT", "io.fabric8"});
+                }, deployment.getSpec().getTemplate().getMetadata().getAnnotations().values().toArray());
+        Assert.assertArrayEquals(
+                new Object[] {"app", "provider", "version", "group"}, deployment.getSpec().getTemplate().getMetadata().getLabels().keySet().toArray());
+        Assert.assertArrayEquals(
+                new Object[] {"fabric8-maven-sample-zero-config", "fabric8", "3.5-SNAPSHOT", "io.fabric8"},
+                deployment.getSpec().getTemplate().getMetadata().getLabels().values().toArray());
         Assert.assertEquals(10, deployment.getSpec().getTemplate().getSpec().getActiveDeadlineSeconds().intValue());
 
         // Assert Spec's template's container
@@ -354,7 +358,6 @@ public class DeploymentTest {
     public void openshiftDeploymentConfigBuilderTest() {
         // Making DeploymentConfig using Builder classses
         DeploymentConfig deploymentConfig = new DeploymentConfigBuilder()
-                .withApiVersion("apps.openshift.io/v1")
                 .withNewMetadata()
                 .addToAnnotations("fabric8.io/iconUrl", "img/icons/spring-boot.svg")
                 .addToAnnotations("fabric8.io/metrics-path", "dashboard/file/kubernetes-pods.json/?var-project=fabric8-maven-sample-zero-config&var-version=3.5-SNAPSHOT")
@@ -563,20 +566,24 @@ public class DeploymentTest {
 
 
         // Assert that we serve as Expected
-        Assert.assertEquals(deploymentConfig.getMetadata().getName(), "fabric8-maven-sample-zero-config");
-        Assert.assertEquals(deploymentConfig.getApiVersion(), "apps.openshift.io/v1");
+        Assert.assertEquals("fabric8-maven-sample-zero-config", deploymentConfig.getMetadata().getName());
+        Assert.assertEquals("apps.openshift.io/v1", deploymentConfig.getApiVersion());
 
         // Assert Metadata
-        Assert.assertArrayEquals(deploymentConfig.getMetadata().getAnnotations().keySet().toArray(),
-                new Object[] {"fabric8.io/iconUrl", "fabric8.io/metrics-path", "fabric8.io/scm-url"});
-        Assert.assertArrayEquals(deploymentConfig.getMetadata().getAnnotations().values().toArray(),
+        Assert.assertArrayEquals(
+                new Object[] {"fabric8.io/iconUrl", "fabric8.io/metrics-path", "fabric8.io/scm-url"},
+                deploymentConfig.getMetadata().getAnnotations().keySet().toArray());
+        Assert.assertArrayEquals(
                 new Object[] {"img/icons/spring-boot.svg",
                         "dashboard/file/kubernetes-pods.json/?var-project=fabric8-maven-sample-zero-config&var-version=3.5-SNAPSHOT",
-                        "https://github.com/spring-projects/spring-boot/spring-boot-starter-parent/fabric8-maven-sample-zero-config"});
-        Assert.assertArrayEquals(deploymentConfig.getMetadata().getLabels().keySet().toArray(),
-                new Object[] {"app", "provider", "version", "group"});
-        Assert.assertArrayEquals(deploymentConfig.getMetadata().getLabels().values().toArray(),
-                new Object[] {"fabric8-maven-plugin-zero-config", "fabric8", "3.5-SNAPSHOT", "io.fabric8", });
+                        "https://github.com/spring-projects/spring-boot/spring-boot-starter-parent/fabric8-maven-sample-zero-config"},
+                deploymentConfig.getMetadata().getAnnotations().values().toArray());
+        Assert.assertArrayEquals(
+                new Object[] {"app", "provider", "version", "group"},
+                deploymentConfig.getMetadata().getLabels().keySet().toArray());
+        Assert.assertArrayEquals(
+                new Object[] {"fabric8-maven-plugin-zero-config", "fabric8", "3.5-SNAPSHOT", "io.fabric8", },
+                deploymentConfig.getMetadata().getLabels().values().toArray());
         Assert.assertEquals("fabric8-maven-sample-zero-config", deploymentConfig.getMetadata().getName());
         Assert.assertEquals("openshift", deploymentConfig.getMetadata().getClusterName());
         Assert.assertEquals("myproject", deploymentConfig.getMetadata().getNamespace());
@@ -592,18 +599,17 @@ public class DeploymentTest {
         Assert.assertEquals("Rolling", deploymentConfig.getSpec().getStrategy().getType());
 
         // Assert Spec's template
-        Assert.assertArrayEquals(deploymentConfig.getSpec().getTemplate().getMetadata().getAnnotations().keySet().toArray(),
-                new Object[] {"fabric8.io/metrics-path", "fabric8.io/scm-url", "fabric8.io/iconUrl"});
-        Assert.assertArrayEquals(deploymentConfig.getSpec().getTemplate().getMetadata().getAnnotations().values().toArray(),
+        Assert.assertArrayEquals(
+                new Object[] {"fabric8.io/metrics-path", "fabric8.io/scm-url", "fabric8.io/iconUrl"},
+                deploymentConfig.getSpec().getTemplate().getMetadata().getAnnotations().keySet().toArray());
+        Assert.assertArrayEquals(
                 new Object[]{
                         "dashboard/file/kubernetes-pods.json/?var-project=fabric8-maven-sample-zero-config&var-version=3.5-SNAPSHOT",
                         "https://github.com/spring-projects/spring-boot/spring-boot-starter-parent/fabric8-maven-sample-zero-config",
                         "img/icons/spring-boot.svg"
-                });
-        Assert.assertArrayEquals(deploymentConfig.getSpec().getTemplate().getMetadata().getLabels().keySet().toArray(),
-                new Object[] {"app", "provider", "version", "group"});
-        Assert.assertArrayEquals(deploymentConfig.getSpec().getTemplate().getMetadata().getLabels().values().toArray(),
-                new Object[] {"fabric8-maven-sample-zero-config", "fabric8", "3.5-SNAPSHOT", "io.fabric8"});
+                }, deploymentConfig.getSpec().getTemplate().getMetadata().getAnnotations().values().toArray());
+        Assert.assertArrayEquals(new Object[] {"app", "provider", "version", "group"}, deploymentConfig.getSpec().getTemplate().getMetadata().getLabels().keySet().toArray());
+        Assert.assertArrayEquals(new Object[] {"fabric8-maven-sample-zero-config", "fabric8", "3.5-SNAPSHOT", "io.fabric8"}, deploymentConfig.getSpec().getTemplate().getMetadata().getLabels().values().toArray());
         Assert.assertEquals(10, deploymentConfig.getSpec().getTemplate().getSpec().getActiveDeadlineSeconds().intValue());
 
         // Assert Spec's template's container
