@@ -16,9 +16,7 @@
 package io.fabric8.kubernetes.internal;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.ServiceLoader;
+import java.util.*;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -37,18 +35,29 @@ public class KubernetesDeserializer extends JsonDeserializer<KubernetesResource>
     private static final String API_VERSION = "apiVersion";
     private static final String KEY_SEPARATOR = "#";
 
-    private static final String KUBERNETES_PACKAGE_PREFIX = "io.fabric8.kubernetes.api.model.";
-    private static final String KUBERNETES_EXTENSIONS_PACKAGE_PREFIX = "io.fabric8.kubernetes.api.model.extensions.";
-    private static final String KUBERNETES_APIEXTENSIONS_PACKAGE_PREFIX = "io.fabric8.kubernetes.api.model.apiextensions.";
-    private static final String OPENSHIFT_PACKAGE_PREFIX = "io.fabric8.openshift.api.model.";
-
     private static final Map<String, Class<? extends KubernetesResource>> MAP = new HashMap<>();
+    private static final List<String> PACKAGES;
 
     static {
         //Use service loader to load extension types.
         for (KubernetesResourceMappingProvider provider : ServiceLoader.load(KubernetesResourceMappingProvider.class)) {
             MAP.putAll(provider.getMappings());
         }
+
+        PACKAGES = new ArrayList<String>(){{
+            add("io.fabric8.kubernetes.api.model.");
+            add("io.fabric8.kubernetes.api.model.apiextensions.");
+            add("io.fabric8.kubernetes.api.model.apps.");
+            add("io.fabric8.kubernetes.api.model.authentication.");
+            add("io.fabric8.kubernetes.api.model.authorization.");
+            add("io.fabric8.kubernetes.api.model.batch.");
+            add("io.fabric8.kubernetes.api.model.extensions.");
+            add("io.fabric8.kubernetes.api.model.networking.");
+            add("io.fabric8.kubernetes.api.model.policy.");
+            add("io.fabric8.kubernetes.api.model.rbac.");
+            add("io.fabric8.kubernetes.api.model.storage.");
+            add("io.fabric8.openshift.api.model.");
+        }};
     }
 
     @Override
@@ -121,17 +130,15 @@ public class KubernetesDeserializer extends JsonDeserializer<KubernetesResource>
     }
 
     private static Class getInternalTypeForName(String name) {
-            Class result = loadClassIfExists(KUBERNETES_PACKAGE_PREFIX + name);
-            if (result == null) {
-                result = loadClassIfExists(KUBERNETES_EXTENSIONS_PACKAGE_PREFIX + name);
-                if (result == null) {
-                    result = loadClassIfExists(OPENSHIFT_PACKAGE_PREFIX + name);
-                    if (result == null) {
-                        result = loadClassIfExists(KUBERNETES_APIEXTENSIONS_PACKAGE_PREFIX + name);
-                    }
-                }
+
+        for (int i = 0; i < PACKAGES.size(); i++ ) {
+            Class result = loadClassIfExists(PACKAGES.get(i) + name);
+            if (result != null) {
+                return result;
             }
-            return result;
+        }
+
+        return null;
     } 
 
     private static Class loadClassIfExists(String className) {
