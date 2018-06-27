@@ -41,7 +41,15 @@ public class KubernetesDeserializer extends JsonDeserializer<KubernetesResource>
     static {
         //Use service loader to load extension types.
         for (KubernetesResourceMappingProvider provider : ServiceLoader.load(KubernetesResourceMappingProvider.class)) {
-            MAP.putAll(provider.getMappings());
+            for (Map.Entry<String, Class<? extends KubernetesResource>> entry : provider.getMappings().entrySet()) {
+                String key = entry.getKey();
+                Class<? extends KubernetesResource> value = entry.getValue();
+                //If the model is shaded (which is as part of kubernetes-client uberjar) this is going to cause conflicts.
+                //This is why we NEED TO filter out incompatible resources.
+                if (KubernetesResource.class.isAssignableFrom(value)) {
+                        MAP.put(key, value);
+                }
+            }
         }
 
         PACKAGES = new ArrayList<String>(){{
