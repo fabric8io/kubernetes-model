@@ -196,7 +196,6 @@ type Schema struct {
 
 func main() {
 	packages := []schemagen.PackageDescriptor{
-		{"k8s.io/api/core", "", "io.fabric8.kubernetes.api.model", "kubernetes_core_"},
 		{"k8s.io/api/core/v1", "", "io.fabric8.kubernetes.api.model", "kubernetes_core_"},
 		{"k8s.io/apimachinery/pkg/api/resource", "", "io.fabric8.kubernetes.api.model", "kubernetes_resource_"},
 		{"k8s.io/apimachinery/pkg/util/intstr", "", "io.fabric8.kubernetes.api.model", "kubernetes_apimachinery_pkg_util_intstr_"},
@@ -227,8 +226,8 @@ func main() {
 		{"k8s.io/api/autoscaling/v1", "", "io.fabric8.kubernetes.api.model", "kubernetes_autoscaling_"},
 		{"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1", "", "io.fabric8.kubernetes.api.model.apiextensions", "kubernetes_apiextensions_"},
 		{"k8s.io/apimachinery/pkg/apis/meta/v1", "", "io.fabric8.kubernetes.api.model", "kubernetes_apimachinery_"},
-		{"k8s.io/api/networking/v1", "", "io.fabric8.kubernetes.api.model.networking", "kubernetes_networking_"},
-		{"k8s.io/api/storage/v1", "", "io.fabric8.kubernetes.api.model.storage", "kubernetes_storageclass_"},
+		{"k8s.io/api/networking/v1", "networking.k8s.io", "io.fabric8.kubernetes.api.model.networking", "kubernetes_networking_"},
+		{"k8s.io/api/storage/v1", "storage.k8s.io", "io.fabric8.kubernetes.api.model.storage", "kubernetes_storageclass_"},
 		{"k8s.io/api/rbac/v1", "", "io.fabric8.kubernetes.api.model.rbac", "kubernetes_rbac_"},
 	}
 

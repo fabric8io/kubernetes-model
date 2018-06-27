@@ -3336,7 +3336,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "kind": {
@@ -3562,7 +3562,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "conditions": {
@@ -3598,7 +3598,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -3634,7 +3634,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "data": {
@@ -3712,7 +3712,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -4333,7 +4333,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "kind": {
@@ -4368,7 +4368,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -4482,7 +4482,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "count": {
@@ -4561,7 +4561,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -5111,7 +5111,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "kind": {
@@ -5202,7 +5202,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -5349,7 +5349,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "kind": {
@@ -5384,7 +5384,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -5455,7 +5455,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "kind": {
@@ -5568,7 +5568,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "configMapRef": {
@@ -5610,7 +5610,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -5947,7 +5947,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "kind": {
@@ -5982,7 +5982,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "kind": {
@@ -6052,7 +6052,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -6189,7 +6189,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -6508,7 +6508,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "kind": {
@@ -6721,7 +6721,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -7013,7 +7013,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "kind": {
@@ -7044,7 +7044,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -7332,7 +7332,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "kind": {
@@ -7398,7 +7398,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -7530,7 +7530,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "kind": {
@@ -7565,7 +7565,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -7817,7 +7817,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "data": {
@@ -7908,7 +7908,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -8063,7 +8063,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "kind": {
@@ -8098,7 +8098,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "automountServiceAccountToken": {
@@ -8147,7 +8147,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -8183,7 +8183,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "core/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -9606,7 +9606,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "networking/v1",
+          "default": "networking.k8s.io/v1",
           "required": true
         },
         "kind": {
@@ -9695,7 +9695,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "networking/v1",
+          "default": "networking.k8s.io/v1",
           "required": true
         },
         "items": {
@@ -9989,7 +9989,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "storage/v1",
+          "default": "storage.k8s.io/v1",
           "required": true
         },
         "kind": {
@@ -10046,7 +10046,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "storage/v1",
+          "default": "storage.k8s.io/v1",
           "required": true
         },
         "items": {
@@ -14942,7 +14942,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1",
+          "default": "security.openshift.io/v1",
           "required": true
         },
         "defaultAddCapabilities": {
@@ -15042,7 +15042,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "v1",
+          "default": "security.openshift.io/v1",
           "required": true
         },
         "items": {
