@@ -19,15 +19,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
-	"reflect"
-	"strings"
-	"time"
-
 	appsapi "github.com/openshift/api/apps/v1"
 	authapi "github.com/openshift/api/authorization/v1"
 	buildapi "github.com/openshift/api/build/v1"
 	imageapi "github.com/openshift/api/image/v1"
+	networkapi "github.com/openshift/api/network/v1"
 	oauthapi "github.com/openshift/api/oauth/v1"
 	projectapi "github.com/openshift/api/project/v1"
 	routeapi "github.com/openshift/api/route/v1"
@@ -53,6 +49,10 @@ import (
 	configapi "k8s.io/client-go/tools/clientcmd/api/v1"
 	rapi "k8s.io/kubernetes/pkg/api/unversioned"
 	watch "k8s.io/kubernetes/pkg/watch/json"
+	"log"
+	"reflect"
+	"strings"
+	"time"
 
 	"os"
 
@@ -192,6 +192,12 @@ type Schema struct {
 	StorageClass                 storageclassapi.StorageClass
 	StorageClassList             storageclassapi.StorageClassList
 	AggregationRule              rbac.AggregationRule
+	K8sRole                      rbac.Role
+	K8sRoleList                  rbac.RoleList
+	K8sRoleBinding               rbac.RoleBinding
+	K8sRoleBindingList           rbac.RoleBindingList
+	NetNameSpace                 networkapi.NetNamespace
+	NetNameSpaceList             networkapi.NetNamespaceList
 }
 
 func main() {
@@ -215,6 +221,7 @@ func main() {
 		{"github.com/openshift/api/authorization/v1", "", "io.fabric8.openshift.api.model", "os_authorization_"},
 		{"github.com/openshift/api/project/v1", "", "io.fabric8.openshift.api.model", "os_project_"},
 		{"github.com/openshift/api/security/v1", "", "io.fabric8.openshift.api.model", "os_security_"},
+		{"github.com/openshift/api/network/v1", "", "io.fabric8.openshift.api.model", "os_network_"},
 		{"k8s.io/kubernetes/pkg/api/unversioned", "", "io.fabric8.kubernetes.api.model", "api_"},
 		{"k8s.io/api/extensions/v1beta1", "", "io.fabric8.kubernetes.api.model.extensions", "kubernetes_extensions_"},
 		{"k8s.io/api/policy/v1beta1", "", "io.fabric8.kubernetes.api.model.policy", "kubernetes_policy_"},
@@ -228,7 +235,7 @@ func main() {
 		{"k8s.io/apimachinery/pkg/apis/meta/v1", "", "io.fabric8.kubernetes.api.model", "kubernetes_apimachinery_"},
 		{"k8s.io/api/networking/v1", "networking.k8s.io", "io.fabric8.kubernetes.api.model.networking", "kubernetes_networking_"},
 		{"k8s.io/api/storage/v1", "storage.k8s.io", "io.fabric8.kubernetes.api.model.storage", "kubernetes_storageclass_"},
-		{"k8s.io/api/rbac/v1", "", "io.fabric8.kubernetes.api.model.rbac", "kubernetes_rbac_"},
+		{"k8s.io/api/rbac/v1", "rbac.authorization.k8s.io", "io.fabric8.kubernetes.api.model.rbac", "kubernetes_rbac_"},
 	}
 
 	typeMap := map[reflect.Type]reflect.Type{

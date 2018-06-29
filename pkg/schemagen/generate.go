@@ -147,8 +147,12 @@ func (g *schemaGenerator) javaType(t reflect.Type) string {
 	//openShift RunAsUserStrategyOptions and project give compilation error
 	//because both classes are different
 
+	//Added a special case for Kubernetes RBAC resources
+	//because they are conflicting with OpenShift RBAC resources
+	//as the name of Resources are same in both places.
+
 	if t.Kind() == reflect.Struct && ok {
-		if g.qualifiedName(t) == "kubernetes_extensions_RunAsUserStrategyOptions" {
+		if g.qualifiedName(t) == "kubernetes_extensions_RunAsUserStrategyOptions" || strings.HasPrefix(g.qualifiedName(t), "kubernetes_rbac_") {
 			return pkgDesc.JavaPackage + "." + "Kubernetes" + t.Name()
 		}
 		switch t.Name() {
