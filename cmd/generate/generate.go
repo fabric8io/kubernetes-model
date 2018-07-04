@@ -102,6 +102,7 @@ type Schema struct {
 	ImageList                         imageapi.ImageList
 	ImageStreamList                   imageapi.ImageStreamList
 	ImageStreamTagList                imageapi.ImageStreamTagList
+	ImageStreamImport                 imageapi.ImageStreamImport
 	DeploymentConfig                  appsapi.DeploymentConfig
 	DeploymentConfigList              appsapi.DeploymentConfigList
 	Route                             routeapi.Route

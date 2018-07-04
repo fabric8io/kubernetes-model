@@ -13532,6 +13532,60 @@
         "io.fabric8.kubernetes.api.model.HasMetadata"
       ]
     },
+    "os_image_ImageImportSpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "from": {
+          "$ref": "#/definitions/kubernetes_core_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+        },
+        "importPolicy": {
+          "$ref": "#/definitions/os_image_TagImportPolicy",
+          "javaType": "io.fabric8.openshift.api.model.TagImportPolicy"
+        },
+        "includeManifest": {
+          "type": "boolean",
+          "description": ""
+        },
+        "referencePolicy": {
+          "$ref": "#/definitions/os_image_TagReferencePolicy",
+          "javaType": "io.fabric8.openshift.api.model.TagReferencePolicy"
+        },
+        "to": {
+          "$ref": "#/definitions/kubernetes_core_LocalObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ImageImportSpec",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "os_image_ImageImportStatus": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/os_image_Image",
+          "javaType": "io.fabric8.openshift.api.model.Image"
+        },
+        "status": {
+          "$ref": "#/definitions/kubernetes_apimachinery_Status",
+          "javaType": "io.fabric8.kubernetes.api.model.Status"
+        },
+        "tag": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ImageImportStatus",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
     "os_image_ImageLayer": {
       "type": "object",
       "description": "",
@@ -13709,6 +13763,97 @@
       "javaType": "io.fabric8.openshift.api.model.ImageStream",
       "javaInterfaces": [
         "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "os_image_ImageStreamImport": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "image.openshift.io/v1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ImageStreamImport",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_apimachinery_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/os_image_ImageStreamImportSpec",
+          "javaType": "io.fabric8.openshift.api.model.ImageStreamImportSpec"
+        },
+        "status": {
+          "$ref": "#/definitions/os_image_ImageStreamImportStatus",
+          "javaType": "io.fabric8.openshift.api.model.ImageStreamImportStatus"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ImageStreamImport",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "os_image_ImageStreamImportSpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "images": {
+          "type": "array",
+          "description": "",
+          "javaOmitEmpty": true,
+          "items": {
+            "$ref": "#/definitions/os_image_ImageImportSpec",
+            "javaType": "io.fabric8.openshift.api.model.ImageImportSpec"
+          }
+        },
+        "import": {
+          "type": "boolean",
+          "description": ""
+        },
+        "repository": {
+          "$ref": "#/definitions/os_image_RepositoryImportSpec",
+          "javaType": "io.fabric8.openshift.api.model.RepositoryImportSpec"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ImageStreamImportSpec",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "os_image_ImageStreamImportStatus": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "images": {
+          "type": "array",
+          "description": "",
+          "javaOmitEmpty": true,
+          "items": {
+            "$ref": "#/definitions/os_image_ImageImportStatus",
+            "javaType": "io.fabric8.openshift.api.model.ImageImportStatus"
+          }
+        },
+        "import": {
+          "$ref": "#/definitions/os_image_ImageStream",
+          "javaType": "io.fabric8.openshift.api.model.ImageStream"
+        },
+        "repository": {
+          "$ref": "#/definitions/os_image_RepositoryImportStatus",
+          "javaType": "io.fabric8.openshift.api.model.RepositoryImportStatus"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.ImageStreamImportStatus",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
     "os_image_ImageStreamList": {
@@ -13920,6 +14065,66 @@
       },
       "additionalProperties": true,
       "javaType": "io.fabric8.openshift.api.model.NamedTagEventList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "os_image_RepositoryImportSpec": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "from": {
+          "$ref": "#/definitions/kubernetes_core_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+        },
+        "importPolicy": {
+          "$ref": "#/definitions/os_image_TagImportPolicy",
+          "javaType": "io.fabric8.openshift.api.model.TagImportPolicy"
+        },
+        "includeManifest": {
+          "type": "boolean",
+          "description": ""
+        },
+        "referencePolicy": {
+          "$ref": "#/definitions/os_image_TagReferencePolicy",
+          "javaType": "io.fabric8.openshift.api.model.TagReferencePolicy"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.RepositoryImportSpec",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource"
+      ]
+    },
+    "os_image_RepositoryImportStatus": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "additionalTags": {
+          "type": "array",
+          "description": "",
+          "javaOmitEmpty": true,
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "images": {
+          "type": "array",
+          "description": "",
+          "javaOmitEmpty": true,
+          "items": {
+            "$ref": "#/definitions/os_image_ImageImportStatus",
+            "javaType": "io.fabric8.openshift.api.model.ImageImportStatus"
+          }
+        },
+        "status": {
+          "$ref": "#/definitions/kubernetes_apimachinery_Status",
+          "javaType": "io.fabric8.kubernetes.api.model.Status"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.openshift.api.model.RepositoryImportStatus",
       "javaInterfaces": [
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
@@ -15974,6 +16179,10 @@
     "ImageList": {
       "$ref": "#/definitions/os_image_ImageList",
       "javaType": "io.fabric8.openshift.api.model.ImageList"
+    },
+    "ImageStreamImport": {
+      "$ref": "#/definitions/os_image_ImageStreamImport",
+      "javaType": "io.fabric8.openshift.api.model.ImageStreamImport"
     },
     "ImageStreamList": {
       "$ref": "#/definitions/os_image_ImageStreamList",
@@ -20586,6 +20795,48 @@
       },
       "additionalProperties": true
     },
+    "imageimportspec": {
+      "properties": {
+        "from": {
+          "$ref": "#/definitions/kubernetes_core_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+        },
+        "importPolicy": {
+          "$ref": "#/definitions/os_image_TagImportPolicy",
+          "javaType": "io.fabric8.openshift.api.model.TagImportPolicy"
+        },
+        "includeManifest": {
+          "type": "boolean",
+          "description": ""
+        },
+        "referencePolicy": {
+          "$ref": "#/definitions/os_image_TagReferencePolicy",
+          "javaType": "io.fabric8.openshift.api.model.TagReferencePolicy"
+        },
+        "to": {
+          "$ref": "#/definitions/kubernetes_core_LocalObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.LocalObjectReference"
+        }
+      },
+      "additionalProperties": true
+    },
+    "imageimportstatus": {
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/os_image_Image",
+          "javaType": "io.fabric8.openshift.api.model.Image"
+        },
+        "status": {
+          "$ref": "#/definitions/kubernetes_apimachinery_Status",
+          "javaType": "io.fabric8.kubernetes.api.model.Status"
+        },
+        "tag": {
+          "type": "string",
+          "description": ""
+        }
+      },
+      "additionalProperties": true
+    },
     "imagelabel": {
       "properties": {
         "name": {
@@ -20786,6 +21037,79 @@
         "status": {
           "$ref": "#/definitions/os_image_ImageStreamStatus",
           "javaType": "io.fabric8.openshift.api.model.ImageStreamStatus"
+        }
+      },
+      "additionalProperties": true
+    },
+    "imagestreamimport": {
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "image.openshift.io/v1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ImageStreamImport",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_apimachinery_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "spec": {
+          "$ref": "#/definitions/os_image_ImageStreamImportSpec",
+          "javaType": "io.fabric8.openshift.api.model.ImageStreamImportSpec"
+        },
+        "status": {
+          "$ref": "#/definitions/os_image_ImageStreamImportStatus",
+          "javaType": "io.fabric8.openshift.api.model.ImageStreamImportStatus"
+        }
+      },
+      "additionalProperties": true
+    },
+    "imagestreamimportspec": {
+      "properties": {
+        "images": {
+          "type": "array",
+          "description": "",
+          "javaOmitEmpty": true,
+          "items": {
+            "$ref": "#/definitions/os_image_ImageImportSpec",
+            "javaType": "io.fabric8.openshift.api.model.ImageImportSpec"
+          }
+        },
+        "import": {
+          "type": "boolean",
+          "description": ""
+        },
+        "repository": {
+          "$ref": "#/definitions/os_image_RepositoryImportSpec",
+          "javaType": "io.fabric8.openshift.api.model.RepositoryImportSpec"
+        }
+      },
+      "additionalProperties": true
+    },
+    "imagestreamimportstatus": {
+      "properties": {
+        "images": {
+          "type": "array",
+          "description": "",
+          "javaOmitEmpty": true,
+          "items": {
+            "$ref": "#/definitions/os_image_ImageImportStatus",
+            "javaType": "io.fabric8.openshift.api.model.ImageImportStatus"
+          }
+        },
+        "import": {
+          "$ref": "#/definitions/os_image_ImageStream",
+          "javaType": "io.fabric8.openshift.api.model.ImageStream"
+        },
+        "repository": {
+          "$ref": "#/definitions/os_image_RepositoryImportStatus",
+          "javaType": "io.fabric8.openshift.api.model.RepositoryImportStatus"
         }
       },
       "additionalProperties": true
@@ -22047,8 +22371,24 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization.k8s.io/v1",
+          "default": "authorization.openshift.io/v1",
           "required": true
+        },
+        "content": {
+          "$ref": "#/definitions/kubernetes_apimachinery_pkg_runtime_RawExtension",
+          "javaType": "io.fabric8.kubernetes.api.model.HasMetadata"
+        },
+        "groups": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "isNonResourceURL": {
+          "type": "boolean",
+          "description": ""
         },
         "kind": {
           "type": "string",
@@ -22056,17 +22396,45 @@
           "default": "LocalSubjectAccessReview",
           "required": true
         },
-        "metadata": {
-          "$ref": "#/definitions/kubernetes_apimachinery_ObjectMeta",
-          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        "namespace": {
+          "type": "string",
+          "description": ""
         },
-        "spec": {
-          "$ref": "#/definitions/kubernetes_authorization_SubjectAccessReviewSpec",
-          "javaType": "io.fabric8.kubernetes.api.model.authorization.SubjectAccessReviewSpec"
+        "path": {
+          "type": "string",
+          "description": ""
         },
-        "status": {
-          "$ref": "#/definitions/kubernetes_authorization_SubjectAccessReviewStatus",
-          "javaType": "io.fabric8.kubernetes.api.model.authorization.SubjectAccessReviewStatus"
+        "resource": {
+          "type": "string",
+          "description": ""
+        },
+        "resourceAPIGroup": {
+          "type": "string",
+          "description": ""
+        },
+        "resourceAPIVersion": {
+          "type": "string",
+          "description": ""
+        },
+        "resourceName": {
+          "type": "string",
+          "description": ""
+        },
+        "scopes": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "user": {
+          "type": "string",
+          "description": ""
+        },
+        "verb": {
+          "type": "string",
+          "description": ""
         }
       },
       "additionalProperties": true
@@ -24875,11 +25243,14 @@
         "apiGroups": {
           "type": "array",
           "description": "",
-          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
           }
+        },
+        "attributeRestrictions": {
+          "$ref": "#/definitions/kubernetes_apimachinery_pkg_runtime_RawExtension",
+          "javaType": "io.fabric8.kubernetes.api.model.HasMetadata"
         },
         "nonResourceURLs": {
           "type": "array",
@@ -24902,7 +25273,6 @@
         "resources": {
           "type": "array",
           "description": "",
-          "javaOmitEmpty": true,
           "items": {
             "type": "string",
             "description": ""
@@ -25587,6 +25957,54 @@
       },
       "additionalProperties": true
     },
+    "repositoryimportspec": {
+      "properties": {
+        "from": {
+          "$ref": "#/definitions/kubernetes_core_ObjectReference",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+        },
+        "importPolicy": {
+          "$ref": "#/definitions/os_image_TagImportPolicy",
+          "javaType": "io.fabric8.openshift.api.model.TagImportPolicy"
+        },
+        "includeManifest": {
+          "type": "boolean",
+          "description": ""
+        },
+        "referencePolicy": {
+          "$ref": "#/definitions/os_image_TagReferencePolicy",
+          "javaType": "io.fabric8.openshift.api.model.TagReferencePolicy"
+        }
+      },
+      "additionalProperties": true
+    },
+    "repositoryimportstatus": {
+      "properties": {
+        "additionalTags": {
+          "type": "array",
+          "description": "",
+          "javaOmitEmpty": true,
+          "items": {
+            "type": "string",
+            "description": ""
+          }
+        },
+        "images": {
+          "type": "array",
+          "description": "",
+          "javaOmitEmpty": true,
+          "items": {
+            "$ref": "#/definitions/os_image_ImageImportStatus",
+            "javaType": "io.fabric8.openshift.api.model.ImageImportStatus"
+          }
+        },
+        "status": {
+          "$ref": "#/definitions/kubernetes_apimachinery_Status",
+          "javaType": "io.fabric8.kubernetes.api.model.Status"
+        }
+      },
+      "additionalProperties": true
+    },
     "resourceattributes": {
       "properties": {
         "group": {
@@ -25769,7 +26187,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization.openshift.io/v1",
+          "default": "rbac.authorization.k8s.io/v1",
           "required": true
         },
         "kind": {
@@ -25786,8 +26204,8 @@
           "type": "array",
           "description": "",
           "items": {
-            "$ref": "#/definitions/os_authorization_PolicyRule",
-            "javaType": "io.fabric8.openshift.api.model.PolicyRule"
+            "$ref": "#/definitions/kubernetes_rbac_PolicyRule",
+            "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesPolicyRule"
           }
         }
       },
@@ -25798,16 +26216,8 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization.openshift.io/v1",
+          "default": "rbac.authorization.k8s.io/v1",
           "required": true
-        },
-        "groupNames": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "type": "string",
-            "description": ""
-          }
         },
         "kind": {
           "type": "string",
@@ -25820,23 +26230,15 @@
           "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "roleRef": {
-          "$ref": "#/definitions/kubernetes_core_ObjectReference",
-          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+          "$ref": "#/definitions/kubernetes_rbac_RoleRef",
+          "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesRoleRef"
         },
         "subjects": {
           "type": "array",
           "description": "",
           "items": {
-            "$ref": "#/definitions/kubernetes_core_ObjectReference",
-            "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
-          }
-        },
-        "userNames": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "type": "string",
-            "description": ""
+            "$ref": "#/definitions/kubernetes_rbac_Subject",
+            "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesSubject"
           }
         }
       },
@@ -26241,18 +26643,24 @@
     },
     "runasuserstrategyoptions": {
       "properties": {
-        "ranges": {
-          "type": "array",
-          "description": "",
-          "javaOmitEmpty": true,
-          "items": {
-            "$ref": "#/definitions/kubernetes_extensions_IDRange",
-            "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
-          }
-        },
-        "rule": {
+        "type": {
           "type": "string",
           "description": ""
+        },
+        "uid": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        },
+        "uidRangeMax": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        },
+        "uidRangeMin": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
         }
       },
       "additionalProperties": true
@@ -27904,11 +28312,11 @@
           "description": "",
           "javaOmitEmpty": true,
           "items": {
-            "$ref": "#/definitions/kubernetes_extensions_IDRange",
-            "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
+            "$ref": "#/definitions/os_security_IDRange",
+            "javaType": "io.fabric8.openshift.api.model.IDRange"
           }
         },
-        "rule": {
+        "type": {
           "type": "string",
           "description": ""
         }
