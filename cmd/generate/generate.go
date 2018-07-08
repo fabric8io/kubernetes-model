@@ -198,6 +198,10 @@ type Schema struct {
 	K8sRoleBindingList           rbac.RoleBindingList
 	NetNameSpace                 networkapi.NetNamespace
 	NetNameSpaceList             networkapi.NetNamespaceList
+	K8sClusterRole               rbac.ClusterRole
+	K8sClusterRoleList           rbac.ClusterRoleList
+	K8sClusterRoleBinding        rbac.ClusterRoleBinding
+	K8sClusterRoleBindingList    rbac.ClusterRoleBindingList
 }
 
 func main() {

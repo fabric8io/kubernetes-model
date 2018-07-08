@@ -9963,6 +9963,156 @@
         "io.fabric8.kubernetes.api.model.KubernetesResource"
       ]
     },
+    "kubernetes_rbac_ClusterRole": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "aggregationRule": {
+          "$ref": "#/definitions/kubernetes_rbac_AggregationRule",
+          "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesAggregationRule"
+        },
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "rbac.authorization.k8s.io/v1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ClusterRole",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_apimachinery_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "rules": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_rbac_PolicyRule",
+            "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesPolicyRule"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesClusterRole",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_rbac_ClusterRoleBinding": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "rbac.authorization.k8s.io/v1",
+          "required": true
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ClusterRoleBinding",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_apimachinery_ObjectMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
+        },
+        "roleRef": {
+          "$ref": "#/definitions/kubernetes_rbac_RoleRef",
+          "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesRoleRef"
+        },
+        "subjects": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_rbac_Subject",
+            "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesSubject"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesClusterRoleBinding",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.HasMetadata"
+      ]
+    },
+    "kubernetes_rbac_ClusterRoleBindingList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "rbac.authorization.k8s.io/v1",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_rbac_ClusterRoleBinding",
+            "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesClusterRoleBinding"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ClusterRoleBindingList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_apimachinery_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesClusterRoleBindingList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
+    "kubernetes_rbac_ClusterRoleList": {
+      "type": "object",
+      "description": "",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "rbac.authorization.k8s.io/v1",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_rbac_ClusterRole",
+            "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesClusterRole"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ClusterRoleList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_apimachinery_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true,
+      "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesClusterRoleList",
+      "javaInterfaces": [
+        "io.fabric8.kubernetes.api.model.KubernetesResource",
+        "io.fabric8.kubernetes.api.model.KubernetesResourceList"
+      ]
+    },
     "kubernetes_rbac_PolicyRule": {
       "type": "object",
       "description": "",
@@ -16015,6 +16165,22 @@
       "$ref": "#/definitions/kubernetes_batch_JobList",
       "javaType": "io.fabric8.kubernetes.api.model.batch.JobList"
     },
+    "K8sClusterRole": {
+      "$ref": "#/definitions/kubernetes_rbac_ClusterRole",
+      "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesClusterRole"
+    },
+    "K8sClusterRoleBinding": {
+      "$ref": "#/definitions/kubernetes_rbac_ClusterRoleBinding",
+      "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesClusterRoleBinding"
+    },
+    "K8sClusterRoleBindingList": {
+      "$ref": "#/definitions/kubernetes_rbac_ClusterRoleBindingList",
+      "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesClusterRoleBindingList"
+    },
+    "K8sClusterRoleList": {
+      "$ref": "#/definitions/kubernetes_rbac_ClusterRoleList",
+      "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesClusterRoleList"
+    },
     "K8sLocalSubjectAccessReview": {
       "$ref": "#/definitions/kubernetes_authorization_LocalSubjectAccessReview",
       "javaType": "io.fabric8.kubernetes.api.model.authorization.LocalSubjectAccessReview"
@@ -17560,16 +17726,8 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization.openshift.io/v1",
+          "default": "rbac.authorization.k8s.io/v1",
           "required": true
-        },
-        "groupNames": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "type": "string",
-            "description": ""
-          }
         },
         "kind": {
           "type": "string",
@@ -17582,23 +17740,15 @@
           "javaType": "io.fabric8.kubernetes.api.model.ObjectMeta"
         },
         "roleRef": {
-          "$ref": "#/definitions/kubernetes_core_ObjectReference",
-          "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
+          "$ref": "#/definitions/kubernetes_rbac_RoleRef",
+          "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesRoleRef"
         },
         "subjects": {
           "type": "array",
           "description": "",
           "items": {
-            "$ref": "#/definitions/kubernetes_core_ObjectReference",
-            "javaType": "io.fabric8.kubernetes.api.model.ObjectReference"
-          }
-        },
-        "userNames": {
-          "type": "array",
-          "description": "",
-          "items": {
-            "type": "string",
-            "description": ""
+            "$ref": "#/definitions/kubernetes_rbac_Subject",
+            "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesSubject"
           }
         }
       },
@@ -17609,21 +17759,50 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization.openshift.io/v1",
+          "default": "rbac.authorization.k8s.io/v1",
           "required": true
         },
         "items": {
           "type": "array",
           "description": "",
           "items": {
-            "$ref": "#/definitions/os_authorization_ClusterRoleBinding",
-            "javaType": "io.fabric8.openshift.api.model.ClusterRoleBinding"
+            "$ref": "#/definitions/kubernetes_rbac_ClusterRoleBinding",
+            "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesClusterRoleBinding"
           }
         },
         "kind": {
           "type": "string",
           "description": "",
           "default": "ClusterRoleBindingList",
+          "required": true
+        },
+        "metadata": {
+          "$ref": "#/definitions/kubernetes_apimachinery_ListMeta",
+          "javaType": "io.fabric8.kubernetes.api.model.ListMeta"
+        }
+      },
+      "additionalProperties": true
+    },
+    "clusterrolelist": {
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "",
+          "default": "rbac.authorization.k8s.io/v1",
+          "required": true
+        },
+        "items": {
+          "type": "array",
+          "description": "",
+          "items": {
+            "$ref": "#/definitions/kubernetes_rbac_ClusterRole",
+            "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesClusterRole"
+          }
+        },
+        "kind": {
+          "type": "string",
+          "description": "",
+          "default": "ClusterRoleList",
           "required": true
         },
         "metadata": {
@@ -19288,9 +19467,44 @@
     },
     "deploymentstrategy": {
       "properties": {
-        "rollingUpdate": {
-          "$ref": "#/definitions/kubernetes_apps_RollingUpdateDeployment",
-          "javaType": "io.fabric8.kubernetes.api.model.apps.RollingUpdateDeployment"
+        "activeDeadlineSeconds": {
+          "type": "integer",
+          "description": "",
+          "javaType": "Long"
+        },
+        "annotations": {
+          "type": "object",
+          "description": "",
+          "additionalProperties": {
+            "type": "string",
+            "description": ""
+          },
+          "javaType": "java.util.Map\u003cString,String\u003e"
+        },
+        "customParams": {
+          "$ref": "#/definitions/os_deploy_CustomDeploymentStrategyParams",
+          "javaType": "io.fabric8.openshift.api.model.CustomDeploymentStrategyParams"
+        },
+        "labels": {
+          "type": "object",
+          "description": "",
+          "additionalProperties": {
+            "type": "string",
+            "description": ""
+          },
+          "javaType": "java.util.Map\u003cString,String\u003e"
+        },
+        "recreateParams": {
+          "$ref": "#/definitions/os_deploy_RecreateDeploymentStrategyParams",
+          "javaType": "io.fabric8.openshift.api.model.RecreateDeploymentStrategyParams"
+        },
+        "resources": {
+          "$ref": "#/definitions/kubernetes_core_ResourceRequirements",
+          "javaType": "io.fabric8.kubernetes.api.model.ResourceRequirements"
+        },
+        "rollingParams": {
+          "$ref": "#/definitions/os_deploy_RollingDeploymentStrategyParams",
+          "javaType": "io.fabric8.openshift.api.model.RollingDeploymentStrategyParams"
         },
         "type": {
           "type": "string",
@@ -19938,11 +20152,11 @@
           "description": "",
           "javaOmitEmpty": true,
           "items": {
-            "$ref": "#/definitions/kubernetes_extensions_IDRange",
-            "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
+            "$ref": "#/definitions/os_security_IDRange",
+            "javaType": "io.fabric8.openshift.api.model.IDRange"
           }
         },
-        "rule": {
+        "type": {
           "type": "string",
           "description": ""
         }
@@ -25769,7 +25983,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "authorization.openshift.io/v1",
+          "default": "rbac.authorization.k8s.io/v1",
           "required": true
         },
         "kind": {
@@ -25786,8 +26000,8 @@
           "type": "array",
           "description": "",
           "items": {
-            "$ref": "#/definitions/os_authorization_PolicyRule",
-            "javaType": "io.fabric8.openshift.api.model.PolicyRule"
+            "$ref": "#/definitions/kubernetes_rbac_PolicyRule",
+            "javaType": "io.fabric8.kubernetes.api.model.rbac.KubernetesPolicyRule"
           }
         }
       },
@@ -27904,11 +28118,11 @@
           "description": "",
           "javaOmitEmpty": true,
           "items": {
-            "$ref": "#/definitions/kubernetes_extensions_IDRange",
-            "javaType": "io.fabric8.kubernetes.api.model.extensions.IDRange"
+            "$ref": "#/definitions/os_security_IDRange",
+            "javaType": "io.fabric8.openshift.api.model.IDRange"
           }
         },
-        "rule": {
+        "type": {
           "type": "string",
           "description": ""
         }
