@@ -18,8 +18,6 @@ package io.fabric8.kubernetes.api.model;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fabric8.kubernetes.api.model.rbac.KubernetesClusterRoleBinding;
 import io.fabric8.kubernetes.api.model.rbac.KubernetesClusterRoleBindingBuilder;
-import io.fabric8.kubernetes.api.model.rbac.KubernetesRoleBinding;
-import io.fabric8.kubernetes.api.model.rbac.KubernetesRoleBindingBuilder;
 import io.fabric8.kubernetes.api.model.rbac.KubernetesRoleRefBuilder;
 import io.fabric8.kubernetes.api.model.rbac.KubernetesSubjectBuilder;
 
