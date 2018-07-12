@@ -540,7 +540,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "meta/v1",
+          "default": "v1",
           "required": true
         },
         "gracePeriodSeconds": {
@@ -675,7 +675,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "meta/v1",
+          "default": "v1",
           "required": true
         },
         "items": {
@@ -926,7 +926,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "meta/v1",
+          "default": "v1",
           "required": true
         },
         "code": {
