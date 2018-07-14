@@ -57,6 +57,7 @@ public class KubernetesListTest {
                 .build();
 
         assertNotNull(kubernetesList.getApiVersion());
+        assertEquals(kubernetesList.getApiVersion(), "v1");
         assertEquals(kubernetesList.getKind(), "List");
         assertThat(kubernetesList.getItems(), CoreMatchers.hasItem(service));
         assertThat(kubernetesList.getItems(), CoreMatchers.hasItem(replicationController));
