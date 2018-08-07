@@ -2508,7 +2508,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "batch/v2alpha1",
+          "default": "batch/v1beta1",
           "required": true
         },
         "kind": {
@@ -2543,7 +2543,7 @@
         "apiVersion": {
           "type": "string",
           "description": "",
-          "default": "batch/v2alpha1",
+          "default": "batch/v1beta1",
           "required": true
         },
         "items": {
