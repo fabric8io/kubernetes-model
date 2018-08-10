@@ -18,7 +18,20 @@ FROM centos:7
 
 RUN yum update -y && \
   yum install -y centos-release-scl && \
-  yum install -y docker sclo-git212-git unzip java-1.8.0-openjdk-devel java-1.8.0-openjdk-devel.i686 which zip wget make hg svn bzr gcc https://centos7.iuscommunity.org/ius-release.rpm && \
+  yum install -y bzr \
+                 docker \
+                 gcc \
+                 hg \
+                 java-1.8.0-openjdk-devel \
+                 java-1.8.0-openjdk-devel.i686 \
+                 make \
+                 sclo-git212-git \
+                 svn \
+                 unzip \
+                 wget \
+                 which \
+                 zip \
+                 https://centos7.iuscommunity.org/ius-release.rpm && \
   yum clean all
 
 ENV PATH=/opt/rh/sclo-git212/root/bin:$PATH
