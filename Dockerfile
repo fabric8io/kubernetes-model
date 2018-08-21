@@ -26,7 +26,6 @@ RUN yum update -y && \
                  java-1.8.0-openjdk-devel.i686 \
                  make \
                  sclo-git212-git \
-                 svn \
                  unzip \
                  wget \
                  which \
@@ -42,9 +41,9 @@ RUN curl --retry 999 --retry-max-time 0  -sSL https://bintray.com/artifact/downl
   mv helm /usr/bin/
 
 # Maven
-RUN curl -L http://mirrors.ukfast.co.uk/sites/ftp.apache.org/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.tar.gz | tar -C /opt -xzv
+RUN curl -L http://www-us.apache.org/dist/maven/maven-3/3.5.4/binaries/apache-maven-3.5.4-bin.tar.gz | tar -C /opt -xzv
 
-ENV M2_HOME /opt/apache-maven-3.3.9
+ENV M2_HOME /opt/apache-maven-3.5.4
 ENV maven.home $M2_HOME
 ENV M2 $M2_HOME/bin
 ENV PATH $M2:$PATH

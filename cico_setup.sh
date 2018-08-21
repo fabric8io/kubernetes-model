@@ -46,7 +46,10 @@ function setup() {
   install_deps
 }
 
-function build_run_tests() {
+function run_make_build() {
   docker exec $CID make gobuild
+}
+
+function run_mvn_build(){
   docker exec $CID mvn clean install
 }
