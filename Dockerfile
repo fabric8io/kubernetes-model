@@ -49,7 +49,7 @@ ENV M2 $M2_HOME/bin
 ENV PATH $M2:$PATH
 RUN mkdir --parents --mode 777 /root/.mvnrepository
 
-ENV GOLANG_VERSION 1.8.1
+ENV GOLANG_VERSION 1.10.3
 RUN wget https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz && \
   tar -C /usr/local -xzf go$GOLANG_VERSION.linux-amd64.tar.gz && \
   rm go${GOLANG_VERSION}.linux-amd64.tar.gz
