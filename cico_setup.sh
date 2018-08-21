@@ -53,3 +53,8 @@ function run_make_build() {
 function run_mvn_build(){
   docker exec $CID mvn clean install
 }
+
+function build_run_tests() {
+  run_make_build
+  run_mvn_build
+}
