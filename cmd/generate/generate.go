@@ -35,7 +35,7 @@ import (
 	k8sauthapi "k8s.io/api/authorization/v1"
 	autoscalingapi "k8s.io/api/autoscaling/v1"
 	batchapiv1 "k8s.io/api/batch/v1"
-	batchapiv2alpha1 "k8s.io/api/batch/v2alpha1"
+	batchapiv1beta1 "k8s.io/api/batch/v1beta1"
 	kapi "k8s.io/api/core/v1"
 	extensions "k8s.io/api/extensions/v1beta1"
 	networking "k8s.io/api/networking/v1"
@@ -156,8 +156,8 @@ type Schema struct {
 	ListMeta                          rapi.ListMeta
 	Job                               batchapiv1.Job
 	JobList                           batchapiv1.JobList
-	CronJob                           batchapiv2alpha1.CronJob
-	CronJobList                       batchapiv2alpha1.CronJobList
+	CronJob                           batchapiv1beta1.CronJob
+	CronJobList                       batchapiv1beta1.CronJobList
 	Scale                             extensions.Scale
 	HorizontalPodAutoscaler           autoscalingapi.HorizontalPodAutoscaler
 	HorizontalPodAutoscalerList       autoscalingapi.HorizontalPodAutoscalerList
@@ -233,7 +233,7 @@ func main() {
 		{"k8s.io/api/authentication/v1", "authentication.k8s.io", "io.fabric8.kubernetes.api.model.authentication", "kubernetes_authentication_"},
 		{"k8s.io/api/authorization/v1", "authorization.k8s.io", "io.fabric8.kubernetes.api.model.authorization", "kubernetes_authorization_"},
 		{"k8s.io/api/apps/v1", "", "io.fabric8.kubernetes.api.model.apps", "kubernetes_apps_"},
-		{"k8s.io/api/batch/v2alpha1", "", "io.fabric8.kubernetes.api.model.batch", "kubernetes_batch_"},
+		{"k8s.io/api/batch/v1beta1", "", "io.fabric8.kubernetes.api.model.batch", "kubernetes_batch_"},
 		{"k8s.io/api/batch/v1", "", "io.fabric8.kubernetes.api.model.batch", "kubernetes_batch_"},
 		{"k8s.io/api/autoscaling/v1", "", "io.fabric8.kubernetes.api.model", "kubernetes_autoscaling_"},
 		{"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1", "", "io.fabric8.kubernetes.api.model.apiextensions", "kubernetes_apiextensions_"},
