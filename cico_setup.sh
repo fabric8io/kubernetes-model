@@ -58,3 +58,7 @@ function build_run_tests() {
   run_make_build
   run_mvn_build
 }
+
+function release() {
+  docker exec $CID bash release.sh
+}
