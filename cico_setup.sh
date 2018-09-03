@@ -60,5 +60,5 @@ function build_run_tests() {
 }
 
 function release() {
-  docker exec $CID bash release.sh
+  docker exec -i $CID /bin/bash -c 'bash release.sh'
 }
