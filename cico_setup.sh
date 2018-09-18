@@ -25,7 +25,25 @@ set -e
 # that might interest this worker.
 function load_jenkins_vars() {
   if [ -e "jenkins-env.json" ]; then
-    eval "$(./env-toolkit load -f jenkins-env.json JENKINS_URL GIT_BRANCH GIT_COMMIT BUILD_NUMBER ghprbSourceBranch ghprbActualCommit BUILD_URL ghprbPullId)"
+            eval "$(./env-toolkit load -f jenkins-env.json \
+              JENKINS_URL \
+              GIT_BRANCH \
+              GIT_COMMIT \
+              BUILD_NUMBER \
+              BUILD_ID \
+              ghprbSourceBranch \
+              ghprbActualCommit \
+              ghprbPullAuthorLogin \
+              ghprbGhRepository \
+              ghprbPullId \
+              GH_TOKEN \
+              SONATYPE_USERNAME \
+              SONATYPE_PASSWORD \
+              FABRIC8_MAVEN_SETTINGS \
+              PUBRING \
+              SEC_JENKINS \
+              SECRING \
+              TRUSTDB )"
   fi
 }
 
@@ -57,4 +75,8 @@ function run_mvn_build(){
 function build_run_tests() {
   run_make_build
   run_mvn_build
+}
+
+function release() {
+  docker exec -i $CID /bin/bash -c 'bash release.sh'
 }
