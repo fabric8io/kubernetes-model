@@ -1,5 +1,7 @@
 # JSON Schema Generator for OpenShift v3 Origin API Objects
 
+> *Note: This repository has been merged into [Kubernetes-client](https://github.com/fabric8io/kubernetes-client/tree/master/kubernetes-model). In case you want to contribute please send PRs to fabric8io/kubernetes-client repo*.
+
 Uses [Go reflection](https://blog.golang.org/laws-of-reflection) to generate a JSON schema that describes one or more
 API resources in OpenShift Origin.
 
